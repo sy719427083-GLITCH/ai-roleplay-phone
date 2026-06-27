@@ -599,23 +599,23 @@ select {
 
 .api-page input,
 .api-page select {
-  min-height: 52px;
-  border-radius: 16px;
+  min-height: 44px;
+  border-radius: 13px;
   background: rgba(246, 246, 247, 0.94);
   color: #1c1c1e;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 430;
-  padding: 0 18px;
+  padding: 0 14px;
 }
 
 .api-status-card select,
 .api-fallback-card select {
-  min-height: 104px;
-  border-radius: 11px;
+  min-height: 44px;
+  border-radius: 13px;
 }
 
 .api-fallback-card select {
-  min-height: 92px;
+  min-height: 44px;
 }
 
 .api-engine-card input,
