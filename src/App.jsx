@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.18</p>
+      <p className="version-label">Ccat OS v0.1.19</p>
     </section>
   );
 }
@@ -793,7 +793,7 @@ function OpenedApp({ app, onClose }) {
   };
 
   const clearWalletHistory = () => {
-    setWalletData({ balance: 0, transactions: [] });
+    setWalletData((current) => ({ ...current, transactions: [] }));
   };
 
   return (
