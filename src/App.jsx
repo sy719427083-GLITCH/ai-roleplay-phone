@@ -283,7 +283,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.14</p>
+      <p className="version-label">Ccat OS v0.1.15</p>
     </section>
   );
 }
@@ -729,27 +729,42 @@ function OpenedApp({ app, onClose }) {
   const isWallet = app.title === "钱包";
   const [walletBalance, setWalletBalance] = useState(2688);
   const [walletAmount, setWalletAmount] = useState("");
+  const [walletMode, setWalletMode] = useState(null);
   const [walletBills, setWalletBills] = useState([
     { id: 1, type: "in", amount: 1200, title: "初始余额", time: "今日" },
     { id: 2, type: "out", amount: 36, title: "外卖支出", time: "昨日" },
   ]);
 
-  const changeWallet = (type) => {
+  const walletIncome = walletBills
+    .filter((bill) => bill.type === "in")
+    .reduce((sum, bill) => sum + bill.amount, 0);
+  const walletExpense = walletBills
+    .filter((bill) => bill.type === "out")
+    .reduce((sum, bill) => sum + bill.amount, 0);
+
+  const openWalletModal = (type) => {
+    setWalletMode(type);
+    setWalletAmount("");
+  };
+
+  const changeWallet = () => {
+    if (!walletMode) return;
     const amount = Number(walletAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
-    const signedAmount = type === "in" ? amount : -amount;
+    const signedAmount = walletMode === "in" ? amount : -amount;
     setWalletBalance((current) => Math.max(0, current + signedAmount));
     setWalletBills((current) => [
       {
         id: Date.now(),
-        type,
+        type: walletMode,
         amount,
-        title: type === "in" ? "余额转入" : "余额支出",
+        title: walletMode === "in" ? "余额转入" : "余额支出",
         time: "刚刚",
       },
       ...current,
     ]);
     setWalletAmount("");
+    setWalletMode(null);
   };
 
   return (
@@ -766,24 +781,14 @@ function OpenedApp({ app, onClose }) {
       {isWallet ? (
         <div className="wallet-content">
           <section className="wallet-balance-card">
-            <span>余额</span>
-            <strong>¥{walletBalance.toFixed(2)}</strong>
-            <p>可用余额</p>
-          </section>
-
-          <section className="wallet-control-card">
-            <label>
-              <span>金额</span>
-              <input
-                inputMode="decimal"
-                value={walletAmount}
-                onChange={(event) => setWalletAmount(event.target.value)}
-                placeholder="0.00"
-              />
-            </label>
-            <div className="wallet-actions">
-              <button onClick={() => changeWallet("in")}>+</button>
-              <button onClick={() => changeWallet("out")}>-</button>
+            <div>
+              <span>CCAT BANK</span>
+              <strong>¥{walletBalance.toFixed(2)}</strong>
+              <p>可用余额</p>
+            </div>
+            <div className="wallet-card-actions">
+              <button onClick={() => openWalletModal("in")}>+</button>
+              <button onClick={() => openWalletModal("out")}>-</button>
             </div>
           </section>
 
@@ -791,6 +796,16 @@ function OpenedApp({ app, onClose }) {
             <div className="wallet-section-title">
               <span>账单</span>
               <CreditCard size={16} strokeWidth={1.6} />
+            </div>
+            <div className="wallet-summary">
+              <div>
+                <span>总收入</span>
+                <strong>+¥{walletIncome.toFixed(2)}</strong>
+              </div>
+              <div>
+                <span>总支出</span>
+                <strong>-¥{walletExpense.toFixed(2)}</strong>
+              </div>
             </div>
             <div className="wallet-bill-list">
               {walletBills.map((bill) => (
@@ -804,6 +819,24 @@ function OpenedApp({ app, onClose }) {
               ))}
             </div>
           </section>
+          {walletMode && (
+            <div className="wallet-modal-backdrop">
+              <div className="wallet-modal">
+                <strong>{walletMode === "in" ? "添加余额" : "扣减余额"}</strong>
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={walletAmount}
+                  onChange={(event) => setWalletAmount(event.target.value)}
+                  placeholder="输入金额"
+                />
+                <div className="wallet-modal-actions">
+                  <button onClick={() => setWalletMode(null)}>取消</button>
+                  <button onClick={changeWallet}>确认</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="quiet-center">
