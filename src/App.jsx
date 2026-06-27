@@ -268,7 +268,6 @@ function SettingsScreen({ onOpen }) {
     <section className="screen-view settings-view">
       <div className="section-title">
         <span>设置</span>
-        <Settings size={18} />
       </div>
       <div className="settings-list">
         {settingsItems.map((item) => {
@@ -288,7 +287,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.0</p>
+      <p className="version-label">Ccat OS v0.1.1</p>
     </section>
   );
 }
