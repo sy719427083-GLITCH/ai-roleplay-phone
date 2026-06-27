@@ -158,6 +158,12 @@ body {
   cursor: pointer;
 }
 
+.unlock-handle:active {
+  transform: translateX(-50%);
+  opacity: 1;
+  filter: none;
+}
+
 .unlock-handle span {
   width: 74px;
   height: 5px;
@@ -604,12 +610,12 @@ select {
 
 .api-status-card select,
 .api-fallback-card select {
-  min-height: 86px;
-  border-radius: 16px;
+  min-height: 94px;
+  border-radius: 14px;
 }
 
 .api-fallback-card select {
-  min-height: 84px;
+  min-height: 92px;
 }
 
 .model-choice-select {
