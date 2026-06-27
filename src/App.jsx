@@ -1,0 +1,564 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  BookMarked,
+  Briefcase,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CircleUserRound,
+  Clock3,
+  Database,
+  Eye,
+  Gamepad2,
+  Globe2,
+  Heart,
+  Image,
+  Infinity,
+  KeyRound,
+  ListPlus,
+  MapPin,
+  MessageSquare,
+  MessageSquareText,
+  Palette,
+  Settings,
+  ShoppingBag,
+  Smartphone,
+  Soup,
+  TestTube2,
+  UserRound,
+  Volume2,
+  WalletCards,
+  Wifi,
+} from "lucide-react";
+import {
+  createEmptyConfig,
+  fetchModels,
+  parseConfigs,
+  saveConfig,
+  serializeConfigs,
+  STORAGE_KEY,
+} from "./apiConfig.js";
+
+const appGroups = [
+  [
+    { title: "消息", icon: MessageSquare, variant: "solid" },
+    { title: "论坛", icon: MessageSquareText, variant: "cutout" },
+    { title: "小红书", icon: BookMarked, variant: "cutout" },
+    { title: "钱包", icon: WalletCards, variant: "line" },
+    { title: "游戏", icon: Gamepad2, variant: "line" },
+    { title: "美化", icon: Palette, variant: "cutout" },
+    { title: "世界观", icon: Globe2, variant: "line" },
+    { title: "预设", icon: ListPlus, variant: "line" },
+    { title: "外卖", icon: Soup, variant: "line" },
+    { title: "外出", icon: MapPin, variant: "line" },
+    { title: "日记", icon: BookMarked, variant: "cutout" },
+    { title: "经营", icon: Briefcase, variant: "line" },
+  ],
+  [
+    { title: "微博", icon: Eye, variant: "line" },
+    { title: "平行世界", icon: Infinity, variant: "line" },
+    { title: "购物", icon: ShoppingBag, variant: "line" },
+    { title: "工作", icon: Briefcase, variant: "line" },
+    { title: "情侣空间", icon: Heart, variant: "solid" },
+    { title: "查手机", icon: Smartphone, variant: "line" },
+    { title: "日程", icon: CalendarDays, variant: "line" },
+  ],
+];
+
+const tabs = [
+  { id: "home", label: "主页" },
+  { id: "characters", label: "角色" },
+  { id: "me", label: "我" },
+  { id: "settings", label: "设置" },
+];
+
+const settingsItems = [
+  { id: "api", label: "API设置", icon: KeyRound, featured: true },
+  { id: "sound", label: "声音设置", icon: Volume2 },
+  { id: "image", label: "画面生图", icon: Image },
+  { id: "appearance", label: "外观设置", icon: Palette },
+  { id: "time", label: "时间设置", icon: Clock3 },
+  { id: "notice", label: "通知开关", icon: Bell },
+  { id: "data", label: "数据管理", icon: Database },
+  { id: "system", label: "系统设置", icon: Settings },
+];
+
+const formatDate = (date) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(date);
+
+const formatTime = (date) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+
+function LockScreen({ onUnlock }) {
+  const [now, setNow] = useState(new Date());
+  const [startY, setStartY] = useState(null);
+  const [pull, setPull] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000 * 20);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const begin = (event) => setStartY(event.clientY ?? event.touches?.[0]?.clientY ?? 0);
+  const move = (event) => {
+    if (startY === null) return;
+    const current = event.clientY ?? event.touches?.[0]?.clientY ?? startY;
+    setPull(Math.min(120, Math.max(0, startY - current)));
+  };
+  const end = () => {
+    if (pull > 68) onUnlock();
+    setStartY(null);
+    setPull(0);
+  };
+
+  return (
+    <section
+      className="lock-screen"
+      onPointerDown={begin}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+      style={{ "--lift": `${pull * -0.35}px` }}
+    >
+      <div className="lock-status">
+        <Wifi size={16} />
+      </div>
+      <div className="lock-time" style={{ transform: `translateY(var(--lift))` }}>
+        <p>{formatDate(now)}</p>
+        <h1>{formatTime(now)}</h1>
+      </div>
+      <button className="unlock-handle" onClick={onUnlock} aria-label="上划解锁">
+        <span></span>
+        <em>tap or swipe to unlock</em>
+      </button>
+    </section>
+  );
+}
+
+function AppIcon({ item, onOpen }) {
+  const Icon = item.icon;
+  const isSolid = item.variant === "solid";
+  const isCutout = item.variant === "cutout";
+  return (
+    <button className="app-icon-button" onClick={() => onOpen(item.title)}>
+      <span className="app-icon">
+        <Icon
+          size={28}
+          strokeWidth={isCutout ? 0.9 : isSolid ? 1.05 : 1.45}
+          stroke={isCutout ? "#ffffff" : "currentColor"}
+          fill={isSolid || isCutout ? "currentColor" : "none"}
+          fillOpacity={isSolid || isCutout ? 0.9 : 0}
+        />
+      </span>
+      <span>{item.title}</span>
+    </button>
+  );
+}
+
+function HomeScreen({ onOpen }) {
+  const [page, setPage] = useState(0);
+  const [startX, setStartX] = useState(null);
+  const [dragX, setDragX] = useState(0);
+
+  const begin = (event) => setStartX(event.clientX ?? event.touches?.[0]?.clientX ?? 0);
+  const move = (event) => {
+    if (startX === null) return;
+    const current = event.clientX ?? event.touches?.[0]?.clientX ?? startX;
+    setDragX(Math.max(-90, Math.min(90, current - startX)));
+  };
+  const end = () => {
+    if (dragX < -42 && page < appGroups.length - 1) setPage(page + 1);
+    if (dragX > 42 && page > 0) setPage(page - 1);
+    setStartX(null);
+    setDragX(0);
+  };
+
+  return (
+    <section
+      className="screen-view home-view"
+      onPointerDown={begin}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+    >
+      <div className="top-line">
+        <span>CCAT OS</span>
+        <Wifi size={16} />
+      </div>
+      <div className="app-grid" style={{ transform: `translateX(${dragX * 0.28}px)` }}>
+        {appGroups[page].map((item) => (
+          <AppIcon item={item} key={item.title} onOpen={onOpen} />
+        ))}
+      </div>
+      <div className="pager">
+        {appGroups.map((_, index) => (
+          <button
+            className={index === page ? "active" : ""}
+            key={index}
+            onClick={() => setPage(index)}
+            aria-label={`第 ${index + 1} 页`}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function QuietPanel({ title, icon: Icon }) {
+  return (
+    <section className="screen-view centered-view">
+      <div className="large-glass-icon">
+        <Icon size={32} strokeWidth={1.5} />
+      </div>
+      <h2>{title}</h2>
+    </section>
+  );
+}
+
+function SettingsScreen({ onOpen }) {
+  return (
+    <section className="screen-view settings-view">
+      <div className="section-title">
+        <span>设置</span>
+        <Settings size={18} />
+      </div>
+      <div className="settings-list">
+        {settingsItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              className={`setting-row ${item.featured ? "featured" : ""}`}
+              key={item.id}
+              onClick={() => onOpen(item)}
+            >
+              <span className="setting-icon">
+                <Icon size={20} strokeWidth={1.7} />
+              </span>
+              <span>{item.label}</span>
+              <ChevronRight size={17} />
+            </button>
+          );
+        })}
+      </div>
+      <p className="version-label">Ccat OS v0.1.0</p>
+    </section>
+  );
+}
+
+function TabSvgIcon({ id }) {
+  return (
+    <svg className="tab-svg" viewBox="0 0 24 24" aria-hidden="true">
+      {id === "home" && (
+        <>
+          <path d="M3.6 11.1 12 4.1l8.4 7h-2v8.4h-4.2v-5.4H9.8v5.4H5.6v-8.4h-2Z" />
+          <path className="tab-knockout" d="M10.4 19.5v-4.8h3.2v4.8" />
+        </>
+      )}
+      {id === "characters" && (
+        <>
+          <circle cx="12" cy="7" r="3.4" />
+          <path d="M6.1 18.8c.5-4.2 2.7-6.1 5.9-6.1s5.4 1.9 5.9 6.1H6.1Z" />
+          <path className="tab-soft-base" d="M5.5 20h13" />
+        </>
+      )}
+      {id === "me" && (
+        <>
+          <circle cx="12" cy="12" r="8.1" />
+          <circle className="tab-avatar-cutout" cx="12" cy="8.8" r="2.4" />
+          <path className="tab-avatar-cutout" d="M7.6 17.2c.8-2.5 2.3-3.6 4.4-3.6s3.6 1.1 4.4 3.6H7.6Z" />
+        </>
+      )}
+      {id === "settings" && (
+        <g>
+          <path d="M10.2 3.3h3.6l.5 2.1c.5.2.9.4 1.3.7l2-.7 1.8 3.1-1.6 1.4c0 .3.1.7.1 1s0 .7-.1 1l1.6 1.4-1.8 3.1-2-.7c-.4.3-.9.5-1.3.7l-.5 2.1h-3.6l-.5-2.1c-.5-.2-.9-.4-1.3-.7l-2 .7-1.8-3.1 1.6-1.4c0-.3-.1-.7-.1-1s0-.7.1-1L4.6 8.5l1.8-3.1 2 .7c.4-.3.9-.5 1.3-.7l.5-2.1Z" />
+          <circle className="tab-gear-cutout" cx="12" cy="11" r="2.7" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function BottomTabs({ active, onChange }) {
+  return (
+    <nav className="bottom-tabs">
+      {tabs.map((tab) => {
+        const selected = active === tab.id;
+        return (
+          <button className={selected ? "active" : ""} key={tab.id} onClick={() => onChange(tab.id)}>
+            <span className="tab-icon-wrap">
+              <TabSvgIcon id={tab.id} />
+            </span>
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function ApiEndpoint({ title, value, onChange, onFetchModels, onTest }) {
+  const options = value.availableModels.length ? value.availableModels : ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"];
+  return (
+    <div className="api-block">
+      <div className="api-block-title">
+        <span>{title}</span>
+        <button onClick={onTest}>
+          <TestTube2 size={15} />
+          测试
+        </button>
+      </div>
+      <label>
+        <span>API Key</span>
+        <input
+          type="password"
+          value={value.apiKey}
+          onChange={(event) => onChange({ apiKey: event.target.value })}
+          placeholder="sk-..."
+        />
+      </label>
+      <label>
+        <span>接口地址</span>
+        <input value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} />
+      </label>
+      <div className="split-row">
+        <label>
+          <span>模型选择</span>
+          <select value={value.model} onChange={(event) => onChange({ model: event.target.value, modelMode: "manual" })}>
+            <option value="">手动选择模型</option>
+            {options.map((model) => (
+              <option value={model} key={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="pull-button" onClick={onFetchModels}>自动拉取</button>
+      </div>
+      <label>
+        <span>自填模型</span>
+        <input
+          value={value.customModel}
+          onChange={(event) => onChange({ customModel: event.target.value, modelMode: "custom" })}
+          placeholder="输入模型名称"
+        />
+      </label>
+      <label className="range-label">
+        <span>温度 {Number(value.temperature).toFixed(1)}</span>
+        <input
+          type="range"
+          min="0"
+          max="2"
+          step="0.1"
+          value={value.temperature}
+          onChange={(event) => onChange({ temperature: event.target.value })}
+        />
+      </label>
+      <p className={`status-text ${value.testStatus}`}>{statusCopy(value.testStatus)}</p>
+    </div>
+  );
+}
+
+function statusCopy(status) {
+  if (status === "testing") return "测试中";
+  if (status === "ok") return "连接可用";
+  if (status === "error") return "需要检查配置";
+  if (status === "models") return "模型已更新";
+  return "等待配置";
+}
+
+function ApiSettingsPage({ onBack }) {
+  const [saved, setSaved] = useState(() => parseConfigs(window.localStorage.getItem(STORAGE_KEY)));
+  const selected = saved.configs.find((item) => item.id === saved.selectedId);
+  const [draft, setDraft] = useState(() => selected || createEmptyConfig());
+
+  useEffect(() => {
+    window.localStorage.setItem(STORAGE_KEY, serializeConfigs(saved));
+  }, [saved]);
+
+  useEffect(() => {
+    const next = saved.configs.find((item) => item.id === saved.selectedId);
+    if (next) setDraft(next);
+  }, [saved.selectedId]);
+
+  const patchEndpoint = (key, patch) => {
+    setDraft((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        ...patch,
+      },
+    }));
+  };
+
+  const persist = () => {
+    const next = saveConfig(saved, draft);
+    setSaved(next);
+    setDraft(next.configs.find((item) => item.id === next.selectedId));
+  };
+
+  const selectSaved = (id) => {
+    const config = saved.configs.find((item) => item.id === id);
+    if (!config) return;
+    setSaved((current) => ({ ...current, selectedId: id }));
+    setDraft(config);
+  };
+
+  const loadModels = async (key) => {
+    patchEndpoint(key, { testStatus: "testing" });
+    try {
+      const models = await fetchModels(draft[key]);
+      patchEndpoint(key, { availableModels: models, model: models[0] || "", testStatus: "models" });
+    } catch {
+      patchEndpoint(key, { testStatus: "error" });
+    }
+  };
+
+  const testEndpoint = (key) => {
+    patchEndpoint(key, { testStatus: "testing" });
+    window.setTimeout(() => {
+      const endpoint = draft[key];
+      const hasModel = endpoint.model || endpoint.customModel;
+      patchEndpoint(key, { testStatus: endpoint.apiKey && hasModel ? "ok" : "error" });
+    }, 420);
+  };
+
+  return (
+    <section className="full-page api-page">
+      <header className="page-header">
+        <button onClick={onBack} aria-label="返回">
+          <ChevronLeft size={20} />
+        </button>
+        <span>API设置</span>
+        <button onClick={persist}>保存</button>
+      </header>
+      <div className="api-scroll">
+        <div className="glass-form">
+          <label>
+            <span>配置名称</span>
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="自填名称" />
+          </label>
+          <label>
+            <span>配置选择</span>
+            <select value={saved.selectedId} onChange={(event) => selectSaved(event.target.value)}>
+              <option value="">新配置</option>
+              {saved.configs.map((config) => (
+                <option value={config.id} key={config.id}>
+                  {config.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="local-save" onClick={persist}>保存到本地程序</button>
+        </div>
+
+        <ApiEndpoint
+          title="主API"
+          value={draft.main}
+          onChange={(patch) => patchEndpoint("main", patch)}
+          onFetchModels={() => loadModels("main")}
+          onTest={() => testEndpoint("main")}
+        />
+        <ApiEndpoint
+          title="副API"
+          value={draft.secondary}
+          onChange={(patch) => patchEndpoint("secondary", patch)}
+          onFetchModels={() => loadModels("secondary")}
+          onTest={() => testEndpoint("secondary")}
+        />
+
+        <div className="glass-form">
+          <label>
+            <span>失败自动重试</span>
+            <select value={draft.retryCount} onChange={(event) => setDraft({ ...draft, retryCount: Number(event.target.value) })}>
+              {[0, 1, 2, 3, 4, 5].map((count) => (
+                <option value={count} key={count}>
+                  {count} 次
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className={`switch-row ${draft.failoverEnabled ? "on" : ""}`}
+            onClick={() => setDraft({ ...draft, failoverEnabled: !draft.failoverEnabled })}
+          >
+            <span>主AI失败自动切换副AI</span>
+            <i></i>
+          </button>
+          <p className="helper-text">副AI一般用于总结记忆等任务。</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GenericSettingPage({ item, onBack }) {
+  const Icon = item.icon;
+  return (
+    <section className="full-page quiet-page">
+      <header className="page-header">
+        <button onClick={onBack} aria-label="返回">
+          <ChevronLeft size={20} />
+        </button>
+        <span>{item.label}</span>
+        <span></span>
+      </header>
+      <div className="quiet-center">
+        <div className="large-glass-icon">
+          <Icon size={34} strokeWidth={1.5} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OpenedApp({ title, onClose }) {
+  return (
+    <section className="full-page app-page spring-in">
+      <header className="page-header">
+        <button onClick={onClose} aria-label="返回">
+          <ChevronLeft size={20} />
+        </button>
+        <span>{title}</span>
+        <span></span>
+      </header>
+      <div className="quiet-center">
+        <div className="soft-line"></div>
+      </div>
+    </section>
+  );
+}
+
+export function App() {
+  const [locked, setLocked] = useState(true);
+  const [tab, setTab] = useState("home");
+  const [openedApp, setOpenedApp] = useState(null);
+  const [settingPage, setSettingPage] = useState(null);
+
+  const content = useMemo(() => {
+    if (tab === "home") return <HomeScreen onOpen={setOpenedApp} />;
+    if (tab === "characters") return <QuietPanel title="角色" icon={CircleUserRound} />;
+    if (tab === "me") return <QuietPanel title="我" icon={UserRound} />;
+    return <SettingsScreen onOpen={setSettingPage} />;
+  }, [tab]);
+
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
+
+  return (
+    <main className="phone-surface">
+      {content}
+      <BottomTabs active={tab} onChange={setTab} />
+      {openedApp && <OpenedApp title={openedApp} onClose={() => setOpenedApp(null)} />}
+      {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
+      {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
+    </main>
+  );
+}
