@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   BookMarked,
@@ -148,8 +148,17 @@ function AppIcon({ item, onOpen }) {
   const Icon = item.icon;
   const isSolid = item.variant === "solid";
   const isCutout = item.variant === "cutout";
+  const open = (event) => {
+    const rect = event.currentTarget.querySelector(".app-icon").getBoundingClientRect();
+    onOpen({
+      title: item.title,
+      originX: rect.left + rect.width / 2,
+      originY: rect.top + rect.height / 2,
+    });
+  };
+
   return (
-    <button className="app-icon-button" onClick={() => onOpen(item.title)}>
+    <button className="app-icon-button" onClick={open}>
       <span className="app-icon">
         <Icon
           size={28}
@@ -168,18 +177,36 @@ function HomeScreen({ onOpen }) {
   const [page, setPage] = useState(0);
   const [startX, setStartX] = useState(null);
   const [dragX, setDragX] = useState(0);
+  const didDragRef = useRef(false);
 
-  const begin = (event) => setStartX(event.clientX ?? event.touches?.[0]?.clientX ?? 0);
+  const begin = (event) => {
+    didDragRef.current = false;
+    setStartX(event.clientX ?? event.touches?.[0]?.clientX ?? 0);
+  };
   const move = (event) => {
     if (startX === null) return;
     const current = event.clientX ?? event.touches?.[0]?.clientX ?? startX;
-    setDragX(Math.max(-90, Math.min(90, current - startX)));
+    const rawDelta = current - startX;
+    if (Math.abs(rawDelta) > 8) didDragRef.current = true;
+    const atFirstPage = page === 0 && rawDelta > 0;
+    const atLastPage = page === appGroups.length - 1 && rawDelta < 0;
+    const resistedDelta = atFirstPage || atLastPage ? rawDelta * 0.28 : rawDelta;
+    setDragX(Math.max(-window.innerWidth, Math.min(window.innerWidth, resistedDelta)));
   };
   const end = () => {
-    if (dragX < -42 && page < appGroups.length - 1) setPage(page + 1);
-    if (dragX > 42 && page > 0) setPage(page - 1);
+    const threshold = Math.min(92, window.innerWidth * 0.22);
+    if (dragX < -threshold && page < appGroups.length - 1) setPage(page + 1);
+    if (dragX > threshold && page > 0) setPage(page - 1);
     setStartX(null);
     setDragX(0);
+    window.setTimeout(() => {
+      didDragRef.current = false;
+    }, 160);
+  };
+  const isDragging = startX !== null;
+  const openApp = (app) => {
+    if (didDragRef.current) return;
+    onOpen(app);
   };
 
   return (
@@ -194,10 +221,22 @@ function HomeScreen({ onOpen }) {
         <span>CCAT OS</span>
         <Wifi size={16} />
       </div>
-      <div className="app-grid" style={{ transform: `translateX(${dragX * 0.28}px)` }}>
-        {appGroups[page].map((item) => (
-          <AppIcon item={item} key={item.title} onOpen={onOpen} />
-        ))}
+      <div className="app-carousel">
+        <div
+          className="app-pages"
+          style={{
+            transform: `translate3d(calc(${-page * 100}% + ${dragX}px), 0, 0)`,
+            transition: isDragging ? "none" : undefined,
+          }}
+        >
+          {appGroups.map((group, index) => (
+            <div className="app-grid" key={index}>
+              {group.map((item) => (
+                <AppIcon item={item} key={item.title} onOpen={openApp} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
       <div className="pager">
         {appGroups.map((_, index) => (
@@ -520,14 +559,25 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function OpenedApp({ title, onClose }) {
+function OpenedApp({ app, onClose }) {
+  const originX = app.originX ?? window.innerWidth / 2;
+  const originY = app.originY ?? window.innerHeight / 2;
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
   return (
-    <section className="full-page app-page spring-in">
+    <section
+      className="full-page app-page ios-open"
+      style={{
+        "--open-x": `${originX - centerX}px`,
+        "--open-y": `${originY - centerY}px`,
+      }}
+    >
       <header className="page-header">
         <button onClick={onClose} aria-label="返回">
           <ChevronLeft size={20} />
         </button>
-        <span>{title}</span>
+        <span>{app.title}</span>
         <span></span>
       </header>
       <div className="quiet-center">
@@ -556,7 +606,7 @@ export function App() {
     <main className="phone-surface">
       {content}
       <BottomTabs active={tab} onChange={setTab} />
-      {openedApp && <OpenedApp title={openedApp} onClose={() => setOpenedApp(null)} />}
+      {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
     </main>
