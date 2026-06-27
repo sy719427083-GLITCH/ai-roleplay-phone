@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.11</p>
+      <p className="version-label">Ccat OS v0.1.12</p>
     </section>
   );
 }
@@ -606,13 +606,14 @@ function ApiSettingsPage({ onBack }) {
               </select>
             </label>
           )}
-          {saved.secondaryEnabled && saved.secondaryConfigs.length > 0 && (
+          {saved.secondaryEnabled && (
             <label className="api-select-bar">
               <span>副API设置</span>
               <select
                 value={saved.selectedSecondaryId}
                 onChange={(event) => selectEndpoint("secondary", event.target.value)}
               >
+                <option value=""></option>
                 {saved.secondaryConfigs.map((config) => (
                   <option value={config.id} key={config.id}>
                     {config.name}
