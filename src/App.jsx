@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.8</p>
+      <p className="version-label">Ccat OS v0.1.9</p>
     </section>
   );
 }
@@ -591,30 +591,28 @@ function ApiSettingsPage({ onBack }) {
             <span>当前应用状态</span>
             <em>ACTIVE</em>
           </div>
-          <label className="api-select-bar">
-            <span>主API设置</span>
-            <select
-              className={saved.selectedMainId ? "" : "is-empty"}
-              value={saved.selectedMainId}
-              onChange={(event) => selectEndpoint("main", event.target.value)}
-            >
-              <option value=""></option>
-              {saved.mainConfigs.map((config) => (
-                <option value={config.id} key={config.id}>
-                  {config.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {saved.secondaryEnabled && (
+          {saved.mainConfigs.length > 0 && (
+            <label className="api-select-bar">
+              <span>主API设置</span>
+              <select
+                value={saved.selectedMainId}
+                onChange={(event) => selectEndpoint("main", event.target.value)}
+              >
+                {saved.mainConfigs.map((config) => (
+                  <option value={config.id} key={config.id}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {saved.secondaryEnabled && saved.secondaryConfigs.length > 0 && (
             <label className="api-select-bar">
               <span>副API设置</span>
               <select
-                className={saved.selectedSecondaryId ? "" : "is-empty"}
                 value={saved.selectedSecondaryId}
                 onChange={(event) => selectEndpoint("secondary", event.target.value)}
               >
-                <option value=""></option>
                 {saved.secondaryConfigs.map((config) => (
                   <option value={config.id} key={config.id}>
                     {config.name}

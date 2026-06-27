@@ -604,20 +604,12 @@ select {
 
 .api-status-card select,
 .api-fallback-card select {
-  min-height: 78px;
-  border-radius: 20px;
-}
-
-.api-status-card select.is-empty {
-  color: transparent;
-}
-
-.api-status-card select option {
-  color: #1c1c1e;
+  min-height: 86px;
+  border-radius: 16px;
 }
 
 .api-fallback-card select {
-  min-height: 76px;
+  min-height: 84px;
 }
 
 .model-choice-select {
