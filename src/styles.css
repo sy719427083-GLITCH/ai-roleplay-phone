@@ -467,18 +467,63 @@ body {
   cursor: pointer;
 }
 
+.api-page {
+  background: #f7f7f9;
+}
+
+.api-page .page-header {
+  grid-template-columns: 100px minmax(0, 1fr) 100px;
+  height: 70px;
+  padding: 8px 18px 0;
+  background: rgba(247, 247, 249, 0.92);
+}
+
+.api-page .page-header > span {
+  color: #1c1c1e;
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.api-page .page-header .api-back-button {
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 88px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: #1c1c1e;
+  font-size: 16px;
+  font-weight: 680;
+  padding: 0;
+}
+
+.api-page .page-header .api-back-button span {
+  font-size: 16px;
+}
+
 .api-scroll {
-  height: calc(100vh - 64px);
+  height: calc(100dvh - 70px);
   overflow-y: auto;
-  padding: 8px 2px 28px;
+  padding: 18px 14px 38px;
+  scrollbar-color: rgba(0, 0, 0, 0.28) transparent;
 }
 
 .glass-form,
 .api-block {
   display: grid;
-  gap: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
+  gap: 18px;
+  padding: 26px;
+  margin-bottom: 22px;
+}
+
+.api-page .glass-form,
+.api-page .api-block {
+  border: 0;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 42px rgba(28, 28, 30, 0.055);
+  backdrop-filter: blur(22px) saturate(160%);
 }
 
 label {
@@ -489,9 +534,9 @@ label {
 
 label span,
 .api-block-title {
-  color: #555555;
-  font-size: 12px;
-  font-weight: 650;
+  color: #a0a0a8;
+  font-size: 13px;
+  font-weight: 760;
 }
 
 input,
@@ -507,15 +552,31 @@ select {
   padding: 0 12px;
 }
 
-input:focus,
-select:focus {
-  outline: 1px solid rgba(0, 0, 0, 0.18);
+.api-page input,
+.api-page select {
+  min-height: 58px;
+  border-radius: 20px;
+  background: rgba(246, 246, 247, 0.94);
+  color: #1c1c1e;
+  font-size: 16px;
+  padding: 0 18px;
+}
+
+.api-page input::placeholder {
+  color: #c9c9cf;
+}
+
+.api-page input:focus,
+.api-page select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(28, 28, 30, 0.08);
 }
 
 .local-save,
 .pull-button,
 .api-block-title button,
-.api-actions button {
+.api-actions button,
+.soft-api-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -534,44 +595,132 @@ select:focus {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: #111111;
-  font-size: 16px;
+  color: #1c1c1e;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.api-block-title > span,
+.api-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.api-block-title > span {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.api-block-title em,
+.api-card-heading em {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 11px;
+  background: rgba(247, 247, 249, 0.94);
+  color: #a0a0a8;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  padding: 0 12px;
+}
+
+.api-card-heading span {
+  color: #1c1c1e;
+  font-size: 20px;
+  font-weight: 800;
 }
 
 .api-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 0.76fr 1.95fr;
+  gap: 14px;
+  align-items: center;
+  margin-top: 2px;
 }
 
 .api-block-title button,
 .api-actions button {
-  min-height: 40px;
-  padding: 0 11px;
+  min-height: 56px;
+  padding: 0 12px;
   white-space: nowrap;
 }
 
-.api-picker,
-.secondary-shell {
-  gap: 12px;
-}
-
-.model-row,
-.split-row {
+.api-model-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 116px;
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.model-row .pull-button {
-  min-height: 42px;
-  padding: 0 10px;
+.soft-api-button,
+.api-page .pull-button {
+  min-height: 56px;
+  border-radius: 18px;
+  background: rgba(246, 246, 247, 0.96);
+  color: #1c1c1e;
+  font-size: 16px;
+  font-weight: 780;
+}
+
+.danger-api-button {
+  background: #fff0f0;
+  color: #ff3b30;
+  font-size: 16px;
+  font-weight: 780;
+}
+
+.save-api-button {
+  background: #1c1c1e;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 780;
+}
+
+.api-status-card,
+.api-fallback-card {
+  gap: 20px;
+}
+
+.api-select-bar {
+  gap: 8px;
 }
 
 .range-label input {
   padding: 0;
   accent-color: #111111;
+}
+
+.api-temperature {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.api-temperature span {
+  grid-column: 1;
+}
+
+.api-temperature strong {
+  grid-column: 2;
+  color: #1c1c1e;
+  font-size: 18px;
+  font-weight: 780;
+}
+
+.api-temperature input {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  background: transparent;
+  padding: 0;
+}
+
+.status-text {
+  margin: -4px 0 0;
+  color: #a0a0a8;
+  font-size: 12px;
 }
 
 .status-text.ok,
@@ -591,6 +740,15 @@ select:focus {
   border: 0;
   background: transparent;
   text-align: left;
+}
+
+.api-page .mini-switch {
+  justify-content: flex-end;
+  min-width: 58px;
+  min-height: 34px;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
 }
 
 .switch-row i {
@@ -620,6 +778,46 @@ select:focus {
 
 .switch-row.on i::after {
   transform: translateX(20px);
+}
+
+.api-page select:disabled {
+  color: #c6c6cc;
+  opacity: 1;
+}
+
+@media (max-width: 390px) {
+  .api-scroll {
+    padding-inline: 10px;
+  }
+
+  .api-page .glass-form,
+  .api-page .api-block {
+    border-radius: 26px;
+    padding: 22px;
+  }
+
+  .api-block-title,
+  .api-card-heading span {
+    font-size: 18px;
+  }
+
+  .api-block-title {
+    gap: 8px;
+  }
+
+  .api-block-title > span {
+    gap: 9px;
+  }
+
+  .api-block-title em,
+  .api-card-heading em {
+    min-height: 26px;
+    padding: 0 10px;
+  }
+
+  .api-actions {
+    grid-template-columns: 0.8fr 1.55fr;
+  }
 }
 
 .soft-line {

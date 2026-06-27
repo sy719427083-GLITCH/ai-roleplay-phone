@@ -24,7 +24,6 @@ import {
   ShoppingBag,
   Smartphone,
   Soup,
-  TestTube2,
   UserRound,
   UsersRound,
   Volume2,
@@ -287,7 +286,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.1</p>
+      <p className="version-label">Ccat OS v0.1.2</p>
     </section>
   );
 }
@@ -343,19 +342,39 @@ function BottomTabs({ active, onChange }) {
   );
 }
 
-function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) {
+function ApiEndpoint({
+  title,
+  badge,
+  value,
+  onChange,
+  onFetchModels,
+  onSave,
+  onTest,
+  onDelete,
+  saveLabel,
+  namePlaceholder,
+  headerAction,
+}) {
   const options = value.availableModels.length ? value.availableModels : ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"];
   return (
-    <div className="api-block">
+    <div className="api-block api-engine-card">
       <div className="api-block-title">
-        <span>{title}</span>
+        <span>
+          {title}
+          <em>{badge}</em>
+        </span>
+        {headerAction}
       </div>
       <label>
-        <span>配置名称</span>
-        <input value={value.name} onChange={(event) => onChange({ name: event.target.value })} placeholder="填写配置名称" />
+        <span>配置名称（必填）</span>
+        <input value={value.name} onChange={(event) => onChange({ name: event.target.value })} placeholder={namePlaceholder} />
       </label>
       <label>
-        <span>API Key</span>
+        <span>接口地址 (BASE URL)</span>
+        <input value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} placeholder="https://api.openai.com" />
+      </label>
+      <label>
+        <span>访问凭证 (API KEY)</span>
         <input
           type="password"
           value={value.apiKey}
@@ -364,28 +383,26 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) 
         />
       </label>
       <label>
-        <span>接口地址</span>
-        <input value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} />
+        <span>模型标识 (MODEL)</span>
+        <input
+          list={`${title}-models`}
+          value={value.modelMode === "custom" ? value.customModel : value.model}
+          onChange={(event) => onChange({ customModel: event.target.value, model: event.target.value, modelMode: "custom" })}
+          placeholder="下拉选择或手动输入"
+        />
+        <datalist id={`${title}-models`}>
+          {options.map((model) => (
+            <option value={model} key={model} />
+          ))}
+        </datalist>
       </label>
-      <div className="model-row">
-        <label>
-          <span>模型选择</span>
-          <input
-            list={`${title}-models`}
-            value={value.modelMode === "custom" ? value.customModel : value.model}
-            onChange={(event) => onChange({ customModel: event.target.value, model: event.target.value, modelMode: "custom" })}
-            placeholder="手动填入或自动拉取后选择"
-          />
-          <datalist id={`${title}-models`}>
-            {options.map((model) => (
-              <option value={model} key={model} />
-            ))}
-          </datalist>
-        </label>
-        <button className="pull-button" onClick={onFetchModels}>自动拉取模型</button>
+      <div className="api-model-actions">
+        <button className="soft-api-button" onClick={onFetchModels}>获取模型</button>
+        <button className="soft-api-button" onClick={onTest}>测试连接</button>
       </div>
-      <label className="range-label">
-        <span>温度 {Number(value.temperature).toFixed(1)}</span>
+      <label className="range-label api-temperature">
+        <span>创造力 (TEMPERATURE)</span>
+        <strong>{Number(value.temperature).toFixed(1)}</strong>
         <input
           type="range"
           min="0"
@@ -397,11 +414,8 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) 
       </label>
       <p className={`status-text ${value.testStatus}`}>{statusCopy(value.testStatus)}</p>
       <div className="api-actions">
-        <button onClick={onSave}>保存到本地</button>
-        <button onClick={onTest}>
-          <TestTube2 size={15} />
-          测试
-        </button>
+        <button className="danger-api-button" onClick={onDelete}>删除</button>
+        <button className="save-api-button" onClick={onSave}>{saveLabel}</button>
       </div>
     </div>
   );
@@ -454,6 +468,29 @@ function ApiSettingsPage({ onBack }) {
     });
   };
 
+  const deleteEndpoint = (key) => {
+    const configsKey = key === "secondary" ? "secondaryConfigs" : "mainConfigs";
+    const selectedKey = key === "secondary" ? "selectedSecondaryId" : "selectedMainId";
+    const draftKey = key === "secondary" ? "secondaryDraft" : "mainDraft";
+    setSaved((current) => {
+      const selectedId = current[selectedKey] || current[draftKey]?.id;
+      const configs = Array.isArray(current[configsKey]) ? current[configsKey] : [];
+      const nextConfigs = configs.filter((item) => item.id !== selectedId);
+      const nextSelected = nextConfigs[0]?.id || "";
+      return {
+        ...current,
+        [configsKey]: nextConfigs,
+        [selectedKey]: nextSelected,
+        [draftKey]: nextSelected
+          ? nextConfigs[0]
+          : normalizeEndpointConfig({
+              ...createEmptyConfig()[key === "secondary" ? "secondary" : "main"],
+              name: key === "secondary" ? "副API配置" : "主API配置",
+            }),
+      };
+    });
+  };
+
   const selectEndpoint = (key, id) => {
     const configsKey = key === "secondary" ? "secondaryConfigs" : "mainConfigs";
     const selectedKey = key === "secondary" ? "selectedSecondaryId" : "selectedMainId";
@@ -500,16 +537,21 @@ function ApiSettingsPage({ onBack }) {
   return (
     <section className="full-page api-page">
       <header className="page-header">
-        <button onClick={onBack} aria-label="返回">
+        <button className="api-back-button" onClick={onBack} aria-label="返回">
           <ChevronLeft size={20} />
+          <span>返回</span>
         </button>
-        <span>API设置</span>
+        <span>高级 API 配置</span>
         <span></span>
       </header>
       <div className="api-scroll">
-        <div className="glass-form api-picker">
-          <label>
-            <span>主API设置</span>
+        <div className="glass-form api-status-card">
+          <div className="api-card-heading">
+            <span>当前应用状态</span>
+            <em>ACTIVE</em>
+          </div>
+          <label className="api-select-bar">
+            <span>主API设置（选取已保存过的）</span>
             <select value={saved.selectedMainId} onChange={(event) => selectEndpoint("main", event.target.value)}>
               <option value="">新建主API配置</option>
               {saved.mainConfigs.map((config) => (
@@ -519,60 +561,47 @@ function ApiSettingsPage({ onBack }) {
               ))}
             </select>
           </label>
+          <label className="api-select-bar">
+            <span>副API设置（选取已保存过的）</span>
+            <select
+              value={saved.selectedSecondaryId}
+              onChange={(event) => selectEndpoint("secondary", event.target.value)}
+              disabled={!saved.secondaryEnabled}
+            >
+              <option value="">新建副API配置</option>
+              {saved.secondaryConfigs.map((config) => (
+                <option value={config.id} key={config.id}>
+                  {config.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <ApiEndpoint
-          title="主API配置"
+          title="主引擎 (Main API)"
+          badge="CORE"
           value={saved.mainDraft}
           onChange={(patch) => patchEndpoint("main", patch)}
           onFetchModels={() => loadModels("main")}
           onSave={() => saveEndpoint("main")}
           onTest={() => testEndpoint("main")}
+          onDelete={() => deleteEndpoint("main")}
+          saveLabel="保存主配置"
+          namePlaceholder="例如： OpenAI GPT-4"
         />
 
-        <div className="glass-form secondary-shell">
-          <button
-            className={`switch-row ${saved.secondaryEnabled ? "on" : ""}`}
-            onClick={() => setSaved((current) => ({ ...current, secondaryEnabled: !current.secondaryEnabled }))}
-          >
-            <span>副API设置</span>
-            <i></i>
-          </button>
-          {saved.secondaryEnabled && (
-            <>
-              <label>
-                <span>副API设置</span>
-                <select value={saved.selectedSecondaryId} onChange={(event) => selectEndpoint("secondary", event.target.value)}>
-                  <option value="">新建副API配置</option>
-                  {saved.secondaryConfigs.map((config) => (
-                    <option value={config.id} key={config.id}>
-                      {config.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-        </div>
-
         {saved.secondaryEnabled && (
-          <>
-            <ApiEndpoint
-              title="副API配置"
-              value={saved.secondaryDraft}
-              onChange={(patch) => patchEndpoint("secondary", patch)}
-              onFetchModels={() => loadModels("secondary")}
-              onSave={() => saveEndpoint("secondary")}
-              onTest={() => testEndpoint("secondary")}
-            />
-
-            <div className="glass-form">
+          <div className="glass-form api-fallback-card">
+            <div className="api-card-heading">
+              <span>容错策略 (Fallback)</span>
+            </div>
               <label>
-                <span>失败自动重试</span>
+                <span>失败重试次数</span>
                 <select value={saved.retryCount} onChange={(event) => setSaved((current) => ({ ...current, retryCount: Number(event.target.value) }))}>
                   {[0, 1, 2, 3, 4, 5].map((count) => (
                     <option value={count} key={count}>
-                      {count} 次
+                      {count === 0 ? "不重试（0）" : `${count} 次`}
                     </option>
                   ))}
                 </select>
@@ -581,13 +610,34 @@ function ApiSettingsPage({ onBack }) {
                 className={`switch-row ${saved.failoverEnabled ? "on" : ""}`}
                 onClick={() => setSaved((current) => ({ ...current, failoverEnabled: !current.failoverEnabled }))}
               >
-                <span>主AI失败自动切换副AI</span>
+                <span>主引擎失败时切换副引擎</span>
                 <i></i>
               </button>
               <p className="helper-text">副AI一般用于总结记忆等任务。</p>
             </div>
-          </>
         )}
+
+        <ApiEndpoint
+          title="副引擎 (Sub API)"
+          badge="BACKUP"
+          value={saved.secondaryDraft}
+          onChange={(patch) => patchEndpoint("secondary", patch)}
+          onFetchModels={() => loadModels("secondary")}
+          onSave={() => saveEndpoint("secondary")}
+          onTest={() => testEndpoint("secondary")}
+          onDelete={() => deleteEndpoint("secondary")}
+          saveLabel="保存副配置"
+          namePlaceholder="例如： Claude 3 Haiku"
+          headerAction={(
+            <button
+              className={`switch-row mini-switch ${saved.secondaryEnabled ? "on" : ""}`}
+              onClick={() => setSaved((current) => ({ ...current, secondaryEnabled: !current.secondaryEnabled }))}
+              aria-label="开启副API"
+            >
+              <i></i>
+            </button>
+          )}
+        />
       </div>
     </section>
   );
