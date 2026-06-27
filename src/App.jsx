@@ -28,7 +28,6 @@ import {
   UsersRound,
   Volume2,
   WalletCards,
-  Wifi,
 } from "lucide-react";
 import {
   createEmptyConfig,
@@ -128,9 +127,6 @@ function LockScreen({ onUnlock }) {
       onPointerCancel={end}
       style={{ "--lift": `${pull * -0.35}px` }}
     >
-      <div className="lock-status">
-        <Wifi size={16} />
-      </div>
       <div className="lock-time" style={{ transform: `translateY(var(--lift))` }}>
         <p>{formatDate(now)}</p>
         <h1>{formatTime(now)}</h1>
@@ -218,7 +214,6 @@ function HomeScreen({ onOpen }) {
     >
       <div className="top-line">
         <span>CCAT OS</span>
-        <Wifi size={16} />
       </div>
       <div className="app-carousel">
         <div
@@ -267,6 +262,7 @@ function SettingsScreen({ onOpen }) {
     <section className="screen-view settings-view">
       <div className="section-title">
         <span>设置</span>
+        <em>Settings</em>
       </div>
       <div className="settings-list">
         {settingsItems.map((item) => {
@@ -286,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.5</p>
+      <p className="version-label">Ccat OS v0.1.6</p>
     </section>
   );
 }
