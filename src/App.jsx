@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleUserRound,
   Clock3,
-  CreditCard,
   Database,
   Eye,
   Gamepad2,
@@ -283,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.16</p>
+      <p className="version-label">Ccat OS v0.1.17</p>
     </section>
   );
 }
@@ -727,44 +726,74 @@ function GenericSettingPage({ item, onBack }) {
 
 function OpenedApp({ app, onClose }) {
   const isWallet = app.title === "钱包";
-  const [walletBalance, setWalletBalance] = useState(2688);
+  const [walletData, setWalletData] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem("roleplayWallet");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          balance: Number(parsed.balance) || 0,
+          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
+        };
+      }
+    } catch {
+      return { balance: 0, transactions: [] };
+    }
+    return { balance: 0, transactions: [] };
+  });
   const [walletAmount, setWalletAmount] = useState("");
+  const [walletDesc, setWalletDesc] = useState("");
   const [walletMode, setWalletMode] = useState(null);
-  const [walletBills, setWalletBills] = useState([
-    { id: 1, type: "in", amount: 1200, title: "初始余额", time: "今日" },
-    { id: 2, type: "out", amount: 36, title: "外卖支出", time: "昨日" },
-  ]);
+  const formatMoney = (amount) =>
+    Number(amount || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
-  const walletIncome = walletBills
-    .filter((bill) => bill.type === "in")
-    .reduce((sum, bill) => sum + bill.amount, 0);
-  const walletExpense = walletBills
-    .filter((bill) => bill.type === "out")
-    .reduce((sum, bill) => sum + bill.amount, 0);
+  useEffect(() => {
+    if (!isWallet) return;
+    window.localStorage.setItem("roleplayWallet", JSON.stringify(walletData));
+  }, [isWallet, walletData]);
+
+  const currentMonth = new Date().getMonth() + 1;
+  const monthTransactions = walletData.transactions.filter((bill) => Number(String(bill.date || "").split("-")[0]) === currentMonth);
+  const walletIncome = monthTransactions.filter((bill) => bill.type === "add").reduce((sum, bill) => sum + bill.amount, 0);
+  const walletExpense = monthTransactions.filter((bill) => bill.type === "sub").reduce((sum, bill) => sum + bill.amount, 0);
 
   const openWalletModal = (type) => {
     setWalletMode(type);
     setWalletAmount("");
+    setWalletDesc("");
   };
 
   const changeWallet = () => {
     if (!walletMode) return;
     const amount = Number(walletAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
-    const signedAmount = walletMode === "in" ? amount : -amount;
-    setWalletBalance((current) => Math.max(0, current + signedAmount));
-    setWalletBills((current) => [
-      {
-        id: Date.now(),
-        type: walletMode,
-        amount,
-        title: walletMode === "in" ? "余额转入" : "余额支出",
-        time: "刚刚",
-      },
-      ...current,
-    ]);
+    const now = new Date();
+    const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes(),
+    ).padStart(2, "0")}`;
+    setWalletData((current) => ({
+      balance: current.balance + (walletMode === "add" ? amount : -amount),
+      transactions: [
+        {
+          id: Date.now(),
+          type: walletMode,
+          amount,
+          desc: walletDesc.trim(),
+          date,
+        },
+        ...current.transactions,
+      ],
+    }));
     setWalletAmount("");
+    setWalletDesc("");
     setWalletMode(null);
+  };
+
+  const clearWalletHistory = () => {
+    setWalletData({ balance: 0, transactions: [] });
   };
 
   return (
@@ -780,59 +809,131 @@ function OpenedApp({ app, onClose }) {
       </header>
       {isWallet ? (
         <div className="wallet-content">
-          <section className="wallet-balance-card">
-            <div>
-              <span>CCAT BANK</span>
-              <strong>¥{walletBalance.toFixed(2)}</strong>
-              <p>可用余额</p>
+          <section className="bank-card">
+            <div className="card-type">BLACK PLATINUM</div>
+            <div className="card-chip"></div>
+            <div className="card-balance-label">Total Balance</div>
+            <div className="card-balance">
+              <span className="currency">¥</span>
+              <span>{formatMoney(walletData.balance)}</span>
             </div>
-            <div className="wallet-card-actions">
-              <button onClick={() => openWalletModal("in")}>+</button>
-              <button onClick={() => openWalletModal("out")}>-</button>
+            <div className="card-footer">
+              <span>**** **** **** 8888</span>
+              <span>VALID 12/28</span>
+            </div>
+            <div className="card-actions">
+              <button className="mini-action-btn" onClick={() => openWalletModal("add")} aria-label="入账">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+              </button>
+              <button className="mini-action-btn" onClick={() => openWalletModal("sub")} aria-label="消费">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 13H5v-2h14v2z" />
+                </svg>
+              </button>
             </div>
           </section>
 
-          <section className="wallet-bill-card">
-            <div className="wallet-section-title">
-              <span>账单</span>
-              <CreditCard size={16} strokeWidth={1.6} />
+          <section className="wallet-analytics">
+            <div className="ana-box">
+              <div className="ana-label">本月收入</div>
+              <div className="ana-val">¥{formatMoney(walletIncome)}</div>
             </div>
-            <div className="wallet-summary">
-              <div>
-                <span>总收入</span>
-                <strong>+¥{walletIncome.toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>总支出</span>
-                <strong>-¥{walletExpense.toFixed(2)}</strong>
-              </div>
+            <div className="ana-divider"></div>
+            <div className="ana-box">
+              <div className="ana-label">本月支出</div>
+              <div className="ana-val">¥{formatMoney(walletExpense)}</div>
             </div>
-            <div className="wallet-bill-list">
-              {walletBills.map((bill) => (
-                <div className="wallet-bill-row" key={bill.id}>
-                  <span>{bill.title}</span>
-                  <em>{bill.time}</em>
-                  <strong className={bill.type === "in" ? "in" : "out"}>
-                    {bill.type === "in" ? "+" : "-"}¥{bill.amount.toFixed(2)}
-                  </strong>
+          </section>
+
+          <section className="wallet-apps" aria-label="钱包服务">
+            {[
+              {
+                label: "扫一扫",
+                path: "M4 4h6v6H4zm16 0h-6v6h6zM4 14h6v6H4zm14 0h2v2h-2zm-2 2h2v2h-2zm2 2h2v2h-2zM14 14h2v2h-2zm0 4h2v2h-2zM6 6h2v2H6zm10 0h2v2h-2zM6 16h2v2H6z",
+              },
+              { label: "付款码", path: "M3 4h4v16H3zm6 0h2v16H9zm4 0h4v16h-4zm6 0h2v16h-2z" },
+              { label: "理财", path: "M16 6l2.3 2.3-4.9 4.9-4-4L2 16.6 3.4 18l6-6 4 4 6.3-6.3L22 12V6z" },
+              {
+                label: "卡包",
+                path: "M21 18v1c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5z",
+              },
+            ].map((item) => (
+              <button className="w-app" key={item.label}>
+                <span className="w-app-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={item.path} />
+                  </svg>
+                </span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </section>
+
+          <section className="tx-section">
+            <div className="tx-section-title">
+              <span>近期账单</span>
+              <button onClick={clearWalletHistory}>清空</button>
+            </div>
+            <div className="tx-list">
+              {walletData.transactions.length === 0 ? (
+                <div className="empty-tx">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+                  </svg>
+                  <p>本月暂无账单流水</p>
                 </div>
-              ))}
+              ) : (
+                walletData.transactions.map((bill, index) => {
+                  const isAdd = bill.type === "add";
+                  return (
+                    <div className="tx-item" key={bill.id} style={{ animationDelay: `${index * 0.06}s` }}>
+                      <div className="tx-left">
+                        <div className="tx-icon">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                              d={
+                                isAdd
+                                  ? "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+                                  : "M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.6-1.4 2.4c-.1.3-.2.6-.2 1 0 1.1.9 2 2 2h12v-2H7.4c-.1 0-.2-.1-.2-.2v-.1l.9-1.6h7.5c.8 0 1.4-.4 1.8-1l3.6-6.5c.1-.1.1-.3.1-.5 0-.6-.5-1-1-1H5.2L4.3 2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+                              }
+                            />
+                          </svg>
+                        </div>
+                        <div className="tx-info">
+                          <span className="tx-title">{bill.desc || (isAdd ? "入账" : "消费")}</span>
+                          <span className="tx-date">{bill.date}</span>
+                        </div>
+                      </div>
+                      <div className={`tx-amount ${isAdd ? "add" : "sub"}`}>
+                        {isAdd ? "+" : "-"}{formatMoney(bill.amount)}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </section>
           {walletMode && (
             <div className="wallet-modal-backdrop">
               <div className="wallet-modal">
-                <strong>{walletMode === "in" ? "添加余额" : "扣减余额"}</strong>
+                <strong>{walletMode === "add" ? "入账金额" : "消费金额"}</strong>
                 <input
                   autoFocus
                   inputMode="decimal"
                   value={walletAmount}
                   onChange={(event) => setWalletAmount(event.target.value)}
-                  placeholder="输入金额"
+                  placeholder="输入金额 (¥)"
+                />
+                <input
+                  value={walletDesc}
+                  onChange={(event) => setWalletDesc(event.target.value)}
+                  placeholder="输入备注 (如：工资、购物)"
                 />
                 <div className="wallet-modal-actions">
                   <button onClick={() => setWalletMode(null)}>取消</button>
-                  <button onClick={changeWallet}>确认</button>
+                  <button onClick={changeWallet}>确定</button>
                 </div>
               </div>
             </div>
