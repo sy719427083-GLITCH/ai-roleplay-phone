@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.6</p>
+      <p className="version-label">Ccat OS v0.1.7</p>
     </section>
   );
 }
@@ -531,7 +531,7 @@ function ApiSettingsPage({ onBack }) {
   };
 
   return (
-    <section className="full-page api-page ios-open">
+    <section className="full-page api-page">
       <header className="page-header">
         <button className="api-back-button" onClick={onBack} aria-label="返回">
           <ChevronLeft size={20} />
@@ -657,7 +657,7 @@ function ApiSettingsPage({ onBack }) {
 function GenericSettingPage({ item, onBack }) {
   const Icon = item.icon;
   return (
-    <section className="full-page quiet-page ios-open">
+    <section className="full-page quiet-page">
       <header className="page-header">
         <button onClick={onBack} aria-label="返回">
           <ChevronLeft size={20} />
@@ -677,7 +677,7 @@ function GenericSettingPage({ item, onBack }) {
 function OpenedApp({ app, onClose }) {
   return (
     <section
-      className="full-page app-page ios-open"
+      className="full-page app-page"
     >
       <header className="page-header">
         <button onClick={onClose} aria-label="返回">
@@ -693,22 +693,54 @@ function OpenedApp({ app, onClose }) {
   );
 }
 
+function LaunchLoader() {
+  return (
+    <section className="launch-loader" aria-label="正在进入">
+      <div className="launch-loader-track">
+        <span></span>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const [locked, setLocked] = useState(true);
   const [tab, setTab] = useState("home");
   const [openedApp, setOpenedApp] = useState(null);
   const [settingPage, setSettingPage] = useState(null);
+  const [launching, setLaunching] = useState(null);
+  const [hasShownLaunch, setHasShownLaunch] = useState(false);
+
+  useEffect(() => {
+    if (!launching) return undefined;
+    const timer = window.setTimeout(() => {
+      if (launching.type === "app") setOpenedApp(launching.payload);
+      if (launching.type === "setting") setSettingPage(launching.payload);
+      setLaunching(null);
+    }, 920);
+    return () => window.clearTimeout(timer);
+  }, [launching]);
+
+  const openWithLoader = (type, payload) => {
+    if (hasShownLaunch) {
+      if (type === "app") setOpenedApp(payload);
+      if (type === "setting") setSettingPage(payload);
+      return;
+    }
+    setHasShownLaunch(true);
+    setLaunching({ type, payload });
+  };
 
   const content = useMemo(() => {
-    if (tab === "home") return <HomeScreen onOpen={setOpenedApp} />;
+    if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
     if (tab === "characters") return <QuietPanel title="角色" icon={CircleUserRound} />;
     if (tab === "me") return <QuietPanel title="我" icon={UserRound} />;
-    return <SettingsScreen onOpen={setSettingPage} />;
-  }, [tab]);
+    return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
+  }, [tab, hasShownLaunch]);
 
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
-  const hasOverlay = Boolean(openedApp || settingPage);
+  const hasOverlay = Boolean(openedApp || settingPage || launching);
 
   return (
     <main className={`phone-surface ${hasOverlay ? "overlay-active" : ""}`}>
@@ -719,6 +751,7 @@ export function App() {
       {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
+      {launching && <LaunchLoader />}
     </main>
   );
 }
