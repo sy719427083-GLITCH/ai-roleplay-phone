@@ -17,9 +17,8 @@ import {
   Infinity,
   KeyRound,
   ListPlus,
+  Mail,
   MapPin,
-  MessageSquare,
-  MessageSquareText,
   Palette,
   Settings,
   ShoppingBag,
@@ -27,6 +26,7 @@ import {
   Soup,
   TestTube2,
   UserRound,
+  UsersRound,
   Volume2,
   WalletCards,
   Wifi,
@@ -42,8 +42,8 @@ import {
 
 const appGroups = [
   [
-    { title: "消息", icon: MessageSquare, variant: "solid" },
-    { title: "论坛", icon: MessageSquareText, variant: "cutout" },
+    { title: "消息", icon: Mail, variant: "line" },
+    { title: "论坛", icon: UsersRound, variant: "line" },
     { title: "小红书", icon: BookMarked, variant: "cutout" },
     { title: "钱包", icon: WalletCards, variant: "line" },
     { title: "游戏", icon: Gamepad2, variant: "line" },
