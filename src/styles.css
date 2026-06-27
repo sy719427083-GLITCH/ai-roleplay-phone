@@ -1,6 +1,6 @@
 :root {
   color: #111111;
-  background: #ffffff;
+  background: #f7f7f9;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -24,15 +24,17 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  background: #ffffff;
+  background: #f7f7f9;
   overflow: hidden;
 }
 
 #root {
   width: 100vw;
   min-height: 100vh;
-  background: #ffffff;
+  min-height: 100dvh;
+  background: #f7f7f9;
 }
 
 .lock-screen,
@@ -40,6 +42,7 @@ body {
   position: relative;
   width: 100vw;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background: #fbfbfb;
 }
@@ -131,7 +134,7 @@ body {
 }
 
 .screen-view {
-  min-height: calc(100vh - 94px);
+  min-height: calc(100dvh - 94px);
   padding: 4px 0 96px;
 }
 
@@ -170,7 +173,7 @@ body {
 }
 
 .app-icon-button:active {
-  transform: scale(0.88);
+  opacity: 0.72;
 }
 
 .app-icon {
@@ -408,11 +411,11 @@ body {
   inset: 0;
   overflow: hidden;
   padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
-  background: #ffffff;
+  background: #f7f7f9;
 }
 
 .spring-in {
-  animation: springIn 520ms cubic-bezier(0.17, 1.2, 0.22, 1) both;
+  animation: appOpen 420ms cubic-bezier(0.18, 0.86, 0.22, 1) both;
 }
 
 .page-header {
@@ -577,19 +580,21 @@ select:focus {
   background: #d6d6d6;
 }
 
-@keyframes springIn {
+@keyframes appOpen {
   0% {
-    transform: translateY(34px) scale(0.92);
-    opacity: 0;
-    border-radius: 34px;
-  }
-  72% {
-    transform: translateY(-3px) scale(1.01);
+    transform: translateY(22px);
     opacity: 1;
+    filter: blur(3px);
+  }
+  68% {
+    transform: translateY(-2px);
+    opacity: 1;
+    filter: blur(0);
   }
   100% {
-    transform: translateY(0) scale(1);
-    border-radius: 0;
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
   }
 }
 
@@ -601,17 +606,5 @@ select:focus {
   to {
     transform: translateY(0);
     opacity: 1;
-  }
-}
-
-@media (min-width: 540px) {
-  .lock-screen,
-  .phone-surface {
-    max-width: 430px;
-    margin: 0 auto;
-  }
-
-  body {
-    background: #ffffff;
   }
 }
