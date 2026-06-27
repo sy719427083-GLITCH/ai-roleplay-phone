@@ -23,11 +23,18 @@ button {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   appearance: none;
+  transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1), opacity 160ms ease, filter 160ms ease;
 }
 
 button:focus,
 button:focus-visible {
   outline: none;
+}
+
+button:active {
+  transform: scale(0.965);
+  opacity: 0.86;
+  filter: brightness(0.98);
 }
 
 body {
@@ -601,7 +608,7 @@ select {
   border-radius: 20px;
 }
 
-.api-status-card select {
+.api-status-card select.is-empty {
   color: transparent;
 }
 
@@ -611,6 +618,10 @@ select {
 
 .api-fallback-card select {
   min-height: 76px;
+}
+
+.model-choice-select {
+  font-size: 14px;
 }
 
 .api-page input::placeholder {
@@ -911,6 +922,56 @@ select {
   background: #1c1c1e;
   transform-origin: left center;
   animation: launchProgress 900ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.api-notice-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(247, 247, 249, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.api-notice {
+  display: grid;
+  width: min(82vw, 310px);
+  gap: 10px;
+  padding: 22px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 60px rgba(28, 28, 30, 0.13);
+  text-align: center;
+}
+
+.api-notice strong {
+  color: #1c1c1e;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.api-notice p {
+  margin: 0;
+  color: #8b8b92;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.api-notice.error strong {
+  color: #ff3b30;
+}
+
+.api-notice button {
+  min-height: 42px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 14px;
+  background: #1c1c1e;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 580;
 }
 
 @keyframes launchProgress {

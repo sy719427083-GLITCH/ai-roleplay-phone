@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.7</p>
+      <p className="version-label">Ccat OS v0.1.8</p>
     </section>
   );
 }
@@ -392,6 +392,22 @@ function ApiEndpoint({
           ))}
         </datalist>
       </label>
+      {value.availableModels.length > 0 && (
+        <label>
+          <span>已获取模型</span>
+          <select
+            className="model-choice-select"
+            value={value.model}
+            onChange={(event) => onChange({ model: event.target.value, customModel: "", modelMode: "manual" })}
+          >
+            {value.availableModels.map((model) => (
+              <option value={model} key={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="api-model-actions">
         <button className="soft-api-button" onClick={onFetchModels}>获取模型</button>
         <button className="soft-api-button" onClick={onTest}>测试连接</button>
@@ -425,8 +441,22 @@ function statusCopy(status) {
   return "等待配置";
 }
 
+function ApiNotice({ notice, onClose }) {
+  if (!notice) return null;
+  return (
+    <div className="api-notice-backdrop" role="dialog" aria-modal="true">
+      <div className={`api-notice ${notice.tone}`}>
+        <strong>{notice.title}</strong>
+        <p>{notice.message}</p>
+        <button onClick={onClose}>确定</button>
+      </div>
+    </div>
+  );
+}
+
 function ApiSettingsPage({ onBack }) {
   const [saved, setSaved] = useState(() => parseConfigs(window.localStorage.getItem(STORAGE_KEY)));
+  const [notice, setNotice] = useState(null);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, serializeConfigs(saved));
@@ -461,6 +491,11 @@ function ApiSettingsPage({ onBack }) {
         [selectedKey]: normalized.id,
         [draftKey]: normalized,
       };
+    });
+    setNotice({
+      tone: "ok",
+      title: "保存成功",
+      message: key === "secondary" ? "副API配置已保存并设为当前使用。" : "主API配置已保存并设为当前使用。",
     });
   };
 
@@ -525,8 +560,18 @@ function ApiSettingsPage({ onBack }) {
       const endpoint = key === "secondary" ? saved.secondaryDraft : saved.mainDraft;
       const models = await fetchModels(endpoint);
       patchEndpoint(key, { availableModels: models, testStatus: "ok" });
+      setNotice({
+        tone: "ok",
+        title: "连接成功",
+        message: `已连接，检测到 ${models.length || 0} 个模型。`,
+      });
     } catch {
       patchEndpoint(key, { testStatus: "error" });
+      setNotice({
+        tone: "error",
+        title: "连接失败",
+        message: "请检查 API Key、接口地址和网络状态。",
+      });
     }
   };
 
@@ -548,8 +593,12 @@ function ApiSettingsPage({ onBack }) {
           </div>
           <label className="api-select-bar">
             <span>主API设置</span>
-            <select value={saved.selectedMainId} onChange={(event) => selectEndpoint("main", event.target.value)}>
-              <option value="">新建主API配置</option>
+            <select
+              className={saved.selectedMainId ? "" : "is-empty"}
+              value={saved.selectedMainId}
+              onChange={(event) => selectEndpoint("main", event.target.value)}
+            >
+              <option value=""></option>
               {saved.mainConfigs.map((config) => (
                 <option value={config.id} key={config.id}>
                   {config.name}
@@ -561,10 +610,11 @@ function ApiSettingsPage({ onBack }) {
             <label className="api-select-bar">
               <span>副API设置</span>
               <select
+                className={saved.selectedSecondaryId ? "" : "is-empty"}
                 value={saved.selectedSecondaryId}
                 onChange={(event) => selectEndpoint("secondary", event.target.value)}
               >
-                <option value="">新建副API配置</option>
+                <option value=""></option>
                 {saved.secondaryConfigs.map((config) => (
                   <option value={config.id} key={config.id}>
                     {config.name}
@@ -650,6 +700,7 @@ function ApiSettingsPage({ onBack }) {
           </div>
         )}
       </div>
+      <ApiNotice notice={notice} onClose={() => setNotice(null)} />
     </section>
   );
 }
