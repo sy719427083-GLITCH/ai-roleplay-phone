@@ -610,8 +610,8 @@ select {
 
 .api-status-card select,
 .api-fallback-card select {
-  min-height: 94px;
-  border-radius: 14px;
+  min-height: 104px;
+  border-radius: 11px;
 }
 
 .api-fallback-card select {
