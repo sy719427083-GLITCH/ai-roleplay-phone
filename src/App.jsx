@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CircleUserRound,
   Clock3,
+  CreditCard,
   Database,
   Eye,
   Gamepad2,
@@ -282,7 +283,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.12</p>
+      <p className="version-label">Ccat OS v0.1.13</p>
     </section>
   );
 }
@@ -725,9 +726,35 @@ function GenericSettingPage({ item, onBack }) {
 }
 
 function OpenedApp({ app, onClose }) {
+  const isWallet = app.title === "钱包";
+  const [walletBalance, setWalletBalance] = useState(2688);
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletBills, setWalletBills] = useState([
+    { id: 1, type: "in", amount: 1200, title: "初始余额", time: "今日" },
+    { id: 2, type: "out", amount: 36, title: "外卖支出", time: "昨日" },
+  ]);
+
+  const changeWallet = (type) => {
+    const amount = Number(walletAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const signedAmount = type === "in" ? amount : -amount;
+    setWalletBalance((current) => Math.max(0, current + signedAmount));
+    setWalletBills((current) => [
+      {
+        id: Date.now(),
+        type,
+        amount,
+        title: type === "in" ? "余额转入" : "余额支出",
+        time: "刚刚",
+      },
+      ...current,
+    ]);
+    setWalletAmount("");
+  };
+
   return (
     <section
-      className="full-page app-page"
+      className={`full-page app-page ${isWallet ? "wallet-page" : ""}`}
     >
       <header className="page-header">
         <button onClick={onClose} aria-label="返回">
@@ -736,9 +763,53 @@ function OpenedApp({ app, onClose }) {
         <span>{app.title}</span>
         <span></span>
       </header>
-      <div className="quiet-center">
-        <div className="soft-line"></div>
-      </div>
+      {isWallet ? (
+        <div className="wallet-content">
+          <section className="wallet-balance-card">
+            <span>余额</span>
+            <strong>¥{walletBalance.toFixed(2)}</strong>
+            <p>可用余额</p>
+          </section>
+
+          <section className="wallet-control-card">
+            <label>
+              <span>金额</span>
+              <input
+                inputMode="decimal"
+                value={walletAmount}
+                onChange={(event) => setWalletAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+            <div className="wallet-actions">
+              <button onClick={() => changeWallet("in")}>+</button>
+              <button onClick={() => changeWallet("out")}>-</button>
+            </div>
+          </section>
+
+          <section className="wallet-bill-card">
+            <div className="wallet-section-title">
+              <span>账单</span>
+              <CreditCard size={16} strokeWidth={1.6} />
+            </div>
+            <div className="wallet-bill-list">
+              {walletBills.map((bill) => (
+                <div className="wallet-bill-row" key={bill.id}>
+                  <span>{bill.title}</span>
+                  <em>{bill.time}</em>
+                  <strong className={bill.type === "in" ? "in" : "out"}>
+                    {bill.type === "in" ? "+" : "-"}¥{bill.amount.toFixed(2)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : (
+        <div className="quiet-center">
+          <div className="soft-line"></div>
+        </div>
+      )}
     </section>
   );
 }
