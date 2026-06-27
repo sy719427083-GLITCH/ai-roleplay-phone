@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createEmptyConfig,
+  normalizeEndpointConfig,
+  parseConfigs,
   saveConfig,
   selectConfig,
   serializeConfigs,
@@ -72,4 +74,34 @@ test("serializes only safe configuration data", () => {
   const parsed = JSON.parse(serializeConfigs(state));
   assert.equal(parsed.configs[0].main.apiKey, "secret");
   assert.equal(typeof parsed.configs[0].createdAt, "string");
+});
+
+test("new API settings start with secondary API disabled", () => {
+  const parsed = parseConfigs("");
+
+  assert.equal(parsed.secondaryEnabled, false);
+  assert.equal(parsed.mainConfigs.length, 0);
+  assert.equal(parsed.secondaryConfigs.length, 0);
+  assert.equal(parsed.mainDraft.name, "未命名配置");
+});
+
+test("serializes independent main and secondary API settings", () => {
+  const main = normalizeEndpointConfig({ name: "Main OpenAI", apiKey: "main-key", model: "gpt-main" });
+  const secondary = normalizeEndpointConfig({ name: "Memory API", apiKey: "secondary-key", model: "gpt-memory" });
+  const parsed = JSON.parse(serializeConfigs({
+    mainConfigs: [main],
+    selectedMainId: main.id,
+    secondaryConfigs: [secondary],
+    selectedSecondaryId: secondary.id,
+    mainDraft: main,
+    secondaryDraft: secondary,
+    secondaryEnabled: true,
+    retryCount: 3,
+    failoverEnabled: true,
+  }));
+
+  assert.equal(parsed.mainConfigs[0].name, "Main OpenAI");
+  assert.equal(parsed.secondaryConfigs[0].name, "Memory API");
+  assert.equal(parsed.secondaryEnabled, true);
+  assert.equal(parsed.retryCount, 3);
 });

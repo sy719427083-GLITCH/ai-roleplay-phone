@@ -503,7 +503,8 @@ select:focus {
 
 .local-save,
 .pull-button,
-.api-block-title button {
+.api-block-title button,
+.api-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -521,13 +522,27 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   color: #111111;
   font-size: 16px;
 }
 
-.api-block-title button {
+.api-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.api-block-title button,
+.api-actions button {
   min-height: 32px;
   padding: 0 11px;
+  white-space: nowrap;
+}
+
+.api-picker,
+.secondary-shell {
+  gap: 12px;
 }
 
 .split-row {

@@ -34,8 +34,8 @@ import {
 import {
   createEmptyConfig,
   fetchModels,
+  normalizeEndpointConfig,
   parseConfigs,
-  saveConfig,
   serializeConfigs,
   STORAGE_KEY,
 } from "./apiConfig.js";
@@ -344,17 +344,24 @@ function BottomTabs({ active, onChange }) {
   );
 }
 
-function ApiEndpoint({ title, value, onChange, onFetchModels, onTest }) {
+function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) {
   const options = value.availableModels.length ? value.availableModels : ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"];
   return (
     <div className="api-block">
       <div className="api-block-title">
         <span>{title}</span>
-        <button onClick={onTest}>
-          <TestTube2 size={15} />
-          测试
-        </button>
+        <div className="api-actions">
+          <button onClick={onSave}>保存到本地</button>
+          <button onClick={onTest}>
+            <TestTube2 size={15} />
+            测试
+          </button>
+        </div>
       </div>
+      <label>
+        <span>配置名称</span>
+        <input value={value.name} onChange={(event) => onChange({ name: event.target.value })} placeholder="填写配置名称" />
+      </label>
       <label>
         <span>API Key</span>
         <input
@@ -368,28 +375,21 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onTest }) {
         <span>接口地址</span>
         <input value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} />
       </label>
-      <div className="split-row">
-        <label>
-          <span>模型选择</span>
-          <select value={value.model} onChange={(event) => onChange({ model: event.target.value, modelMode: "manual" })}>
-            <option value="">手动选择模型</option>
-            {options.map((model) => (
-              <option value={model} key={model}>
-                {model}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="pull-button" onClick={onFetchModels}>自动拉取</button>
-      </div>
       <label>
-        <span>自填模型</span>
+        <span>模型选择</span>
         <input
-          value={value.customModel}
-          onChange={(event) => onChange({ customModel: event.target.value, modelMode: "custom" })}
-          placeholder="输入模型名称"
+          list={`${title}-models`}
+          value={value.modelMode === "custom" ? value.customModel : value.model}
+          onChange={(event) => onChange({ customModel: event.target.value, model: event.target.value, modelMode: "custom" })}
+          placeholder="手动填入或自动拉取后选择"
         />
+        <datalist id={`${title}-models`}>
+          {options.map((model) => (
+            <option value={model} key={model} />
+          ))}
+        </datalist>
       </label>
+      <button className="pull-button" onClick={onFetchModels}>自动拉取模型</button>
       <label className="range-label">
         <span>温度 {Number(value.temperature).toFixed(1)}</span>
         <input
@@ -416,58 +416,84 @@ function statusCopy(status) {
 
 function ApiSettingsPage({ onBack }) {
   const [saved, setSaved] = useState(() => parseConfigs(window.localStorage.getItem(STORAGE_KEY)));
-  const selected = saved.configs.find((item) => item.id === saved.selectedId);
-  const [draft, setDraft] = useState(() => selected || createEmptyConfig());
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, serializeConfigs(saved));
   }, [saved]);
 
-  useEffect(() => {
-    const next = saved.configs.find((item) => item.id === saved.selectedId);
-    if (next) setDraft(next);
-  }, [saved.selectedId]);
-
   const patchEndpoint = (key, patch) => {
-    setDraft((current) => ({
+    const draftKey = key === "secondary" ? "secondaryDraft" : "mainDraft";
+    setSaved((current) => ({
       ...current,
-      [key]: {
-        ...current[key],
+      [draftKey]: {
+        ...current[draftKey],
         ...patch,
       },
     }));
   };
 
-  const persist = () => {
-    const next = saveConfig(saved, draft);
-    setSaved(next);
-    setDraft(next.configs.find((item) => item.id === next.selectedId));
+  const saveEndpoint = (key) => {
+    const draftKey = key === "secondary" ? "secondaryDraft" : "mainDraft";
+    const configsKey = key === "secondary" ? "secondaryConfigs" : "mainConfigs";
+    const selectedKey = key === "secondary" ? "selectedSecondaryId" : "selectedMainId";
+
+    setSaved((current) => {
+      const normalized = normalizeEndpointConfig(current[draftKey]);
+      const configs = Array.isArray(current[configsKey]) ? current[configsKey] : [];
+      const exists = configs.some((item) => item.id === normalized.id);
+      const nextConfigs = exists
+        ? configs.map((item) => (item.id === normalized.id ? normalized : item))
+        : [...configs, normalized];
+      return {
+        ...current,
+        [configsKey]: nextConfigs,
+        [selectedKey]: normalized.id,
+        [draftKey]: normalized,
+      };
+    });
   };
 
-  const selectSaved = (id) => {
-    const config = saved.configs.find((item) => item.id === id);
-    if (!config) return;
-    setSaved((current) => ({ ...current, selectedId: id }));
-    setDraft(config);
+  const selectEndpoint = (key, id) => {
+    const configsKey = key === "secondary" ? "secondaryConfigs" : "mainConfigs";
+    const selectedKey = key === "secondary" ? "selectedSecondaryId" : "selectedMainId";
+    const draftKey = key === "secondary" ? "secondaryDraft" : "mainDraft";
+    setSaved((current) => {
+      if (!id) {
+        return {
+          ...current,
+          [selectedKey]: "",
+          [draftKey]: normalizeEndpointConfig({
+            ...createEmptyConfig()[key === "secondary" ? "secondary" : "main"],
+            name: key === "secondary" ? "副API配置" : "主API配置",
+          }),
+        };
+      }
+      const config = current[configsKey].find((item) => item.id === id);
+      if (!config) return current;
+      return { ...current, [selectedKey]: id, [draftKey]: config };
+    });
   };
 
   const loadModels = async (key) => {
     patchEndpoint(key, { testStatus: "testing" });
     try {
-      const models = await fetchModels(draft[key]);
-      patchEndpoint(key, { availableModels: models, model: models[0] || "", testStatus: "models" });
+      const endpoint = key === "secondary" ? saved.secondaryDraft : saved.mainDraft;
+      const models = await fetchModels(endpoint);
+      patchEndpoint(key, { availableModels: models, model: models[0] || endpoint.model || "", customModel: "", modelMode: "manual", testStatus: "models" });
     } catch {
       patchEndpoint(key, { testStatus: "error" });
     }
   };
 
-  const testEndpoint = (key) => {
+  const testEndpoint = async (key) => {
     patchEndpoint(key, { testStatus: "testing" });
-    window.setTimeout(() => {
-      const endpoint = draft[key];
-      const hasModel = endpoint.model || endpoint.customModel;
-      patchEndpoint(key, { testStatus: endpoint.apiKey && hasModel ? "ok" : "error" });
-    }, 420);
+    try {
+      const endpoint = key === "secondary" ? saved.secondaryDraft : saved.mainDraft;
+      const models = await fetchModels(endpoint);
+      patchEndpoint(key, { availableModels: models, testStatus: "ok" });
+    } catch {
+      patchEndpoint(key, { testStatus: "error" });
+    }
   };
 
   return (
@@ -477,63 +503,90 @@ function ApiSettingsPage({ onBack }) {
           <ChevronLeft size={20} />
         </button>
         <span>API设置</span>
-        <button onClick={persist}>保存</button>
+        <span></span>
       </header>
       <div className="api-scroll">
-        <div className="glass-form">
+        <div className="glass-form api-picker">
           <label>
-            <span>配置名称</span>
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="自填名称" />
-          </label>
-          <label>
-            <span>配置选择</span>
-            <select value={saved.selectedId} onChange={(event) => selectSaved(event.target.value)}>
-              <option value="">新配置</option>
-              {saved.configs.map((config) => (
+            <span>主API设置</span>
+            <select value={saved.selectedMainId} onChange={(event) => selectEndpoint("main", event.target.value)}>
+              <option value="">新建主API配置</option>
+              {saved.mainConfigs.map((config) => (
                 <option value={config.id} key={config.id}>
                   {config.name}
                 </option>
               ))}
             </select>
           </label>
-          <button className="local-save" onClick={persist}>保存到本地程序</button>
         </div>
 
         <ApiEndpoint
-          title="主API"
-          value={draft.main}
+          title="主API配置"
+          value={saved.mainDraft}
           onChange={(patch) => patchEndpoint("main", patch)}
           onFetchModels={() => loadModels("main")}
+          onSave={() => saveEndpoint("main")}
           onTest={() => testEndpoint("main")}
         />
-        <ApiEndpoint
-          title="副API"
-          value={draft.secondary}
-          onChange={(patch) => patchEndpoint("secondary", patch)}
-          onFetchModels={() => loadModels("secondary")}
-          onTest={() => testEndpoint("secondary")}
-        />
 
-        <div className="glass-form">
-          <label>
-            <span>失败自动重试</span>
-            <select value={draft.retryCount} onChange={(event) => setDraft({ ...draft, retryCount: Number(event.target.value) })}>
-              {[0, 1, 2, 3, 4, 5].map((count) => (
-                <option value={count} key={count}>
-                  {count} 次
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="glass-form secondary-shell">
           <button
-            className={`switch-row ${draft.failoverEnabled ? "on" : ""}`}
-            onClick={() => setDraft({ ...draft, failoverEnabled: !draft.failoverEnabled })}
+            className={`switch-row ${saved.secondaryEnabled ? "on" : ""}`}
+            onClick={() => setSaved((current) => ({ ...current, secondaryEnabled: !current.secondaryEnabled }))}
           >
-            <span>主AI失败自动切换副AI</span>
+            <span>副API设置</span>
             <i></i>
           </button>
-          <p className="helper-text">副AI一般用于总结记忆等任务。</p>
+          {saved.secondaryEnabled && (
+            <>
+              <label>
+                <span>副API设置</span>
+                <select value={saved.selectedSecondaryId} onChange={(event) => selectEndpoint("secondary", event.target.value)}>
+                  <option value="">新建副API配置</option>
+                  {saved.secondaryConfigs.map((config) => (
+                    <option value={config.id} key={config.id}>
+                      {config.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
+
+        {saved.secondaryEnabled && (
+          <>
+            <ApiEndpoint
+              title="副API配置"
+              value={saved.secondaryDraft}
+              onChange={(patch) => patchEndpoint("secondary", patch)}
+              onFetchModels={() => loadModels("secondary")}
+              onSave={() => saveEndpoint("secondary")}
+              onTest={() => testEndpoint("secondary")}
+            />
+
+            <div className="glass-form">
+              <label>
+                <span>失败自动重试</span>
+                <select value={saved.retryCount} onChange={(event) => setSaved((current) => ({ ...current, retryCount: Number(event.target.value) }))}>
+                  {[0, 1, 2, 3, 4, 5].map((count) => (
+                    <option value={count} key={count}>
+                      {count} 次
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className={`switch-row ${saved.failoverEnabled ? "on" : ""}`}
+                onClick={() => setSaved((current) => ({ ...current, failoverEnabled: !current.failoverEnabled }))}
+              >
+                <span>主AI失败自动切换副AI</span>
+                <i></i>
+              </button>
+              <p className="helper-text">副AI一般用于总结记忆等任务。</p>
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
