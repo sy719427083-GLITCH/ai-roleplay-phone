@@ -282,7 +282,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.19</p>
+      <p className="version-label">Ccat OS v0.1.20</p>
     </section>
   );
 }
@@ -827,7 +827,7 @@ function OpenedApp({ app, onClose }) {
                   <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                 </svg>
               </button>
-              <button className="mini-action-btn" onClick={() => openWalletModal("sub")} aria-label="消费">
+              <button className="mini-action-btn" onClick={() => openWalletModal("sub")} aria-label="支出">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M19 13H5v-2h14v2z" />
                 </svg>
@@ -890,19 +890,25 @@ function OpenedApp({ app, onClose }) {
                   return (
                     <div className="tx-item" key={bill.id} style={{ animationDelay: `${index * 0.06}s` }}>
                       <div className="tx-left">
-                        <div className="tx-icon">
+                        <div className={`tx-icon ${isAdd ? "add" : "sub"}`}>
                           <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path
-                              d={
-                                isAdd
-                                  ? "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
-                                  : "M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.6-1.4 2.4c-.1.3-.2.6-.2 1 0 1.1.9 2 2 2h12v-2H7.4c-.1 0-.2-.1-.2-.2v-.1l.9-1.6h7.5c.8 0 1.4-.4 1.8-1l3.6-6.5c.1-.1.1-.3.1-.5 0-.6-.5-1-1-1H5.2L4.3 2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
-                              }
-                            />
+                            {isAdd ? (
+                              <>
+                                <path d="M12 4v10" />
+                                <path d="m7.8 10.2 4.2 4.2 4.2-4.2" />
+                                <path d="M5.5 18.8h13" />
+                              </>
+                            ) : (
+                              <>
+                                <path d="M12 20V10" />
+                                <path d="m7.8 13.8 4.2-4.2 4.2 4.2" />
+                                <path d="M5.5 5.2h13" />
+                              </>
+                            )}
                           </svg>
                         </div>
                         <div className="tx-info">
-                          <span className="tx-title">{bill.desc || (isAdd ? "入账" : "消费")}</span>
+                          <span className="tx-title">{bill.desc || (isAdd ? "入账" : "支出")}</span>
                           <span className="tx-date">{bill.date}</span>
                         </div>
                       </div>
@@ -918,7 +924,7 @@ function OpenedApp({ app, onClose }) {
           {walletMode && (
             <div className="wallet-modal-backdrop">
               <div className="wallet-modal">
-                <strong>{walletMode === "add" ? "入账金额" : "消费金额"}</strong>
+                <strong>{walletMode === "add" ? "入账金额" : "支出金额"}</strong>
                 <input
                   autoFocus
                   inputMode="decimal"
