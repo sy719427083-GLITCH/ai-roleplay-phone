@@ -286,7 +286,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.3</p>
+      <p className="version-label">Ccat OS v0.1.4</p>
     </section>
   );
 }
@@ -551,7 +551,7 @@ function ApiSettingsPage({ onBack }) {
             <em>ACTIVE</em>
           </div>
           <label className="api-select-bar">
-            <span>主API设置（选取已保存过的）</span>
+            <span>主API设置</span>
             <select value={saved.selectedMainId} onChange={(event) => selectEndpoint("main", event.target.value)}>
               <option value="">新建主API配置</option>
               {saved.mainConfigs.map((config) => (
@@ -561,21 +561,22 @@ function ApiSettingsPage({ onBack }) {
               ))}
             </select>
           </label>
-          <label className="api-select-bar">
-            <span>副API设置（选取已保存过的）</span>
-            <select
-              value={saved.selectedSecondaryId}
-              onChange={(event) => selectEndpoint("secondary", event.target.value)}
-              disabled={!saved.secondaryEnabled}
-            >
-              <option value="">新建副API配置</option>
-              {saved.secondaryConfigs.map((config) => (
-                <option value={config.id} key={config.id}>
-                  {config.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {saved.secondaryEnabled && (
+            <label className="api-select-bar">
+              <span>副API设置</span>
+              <select
+                value={saved.selectedSecondaryId}
+                onChange={(event) => selectEndpoint("secondary", event.target.value)}
+              >
+                <option value="">新建副API配置</option>
+                {saved.secondaryConfigs.map((config) => (
+                  <option value={config.id} key={config.id}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
 
         <ApiEndpoint
@@ -591,27 +592,41 @@ function ApiSettingsPage({ onBack }) {
           namePlaceholder="例如： OpenAI GPT-4"
         />
 
-        <ApiEndpoint
-          title="副引擎 (Sub API)"
-          badge="BACKUP"
-          value={saved.secondaryDraft}
-          onChange={(patch) => patchEndpoint("secondary", patch)}
-          onFetchModels={() => loadModels("secondary")}
-          onSave={() => saveEndpoint("secondary")}
-          onTest={() => testEndpoint("secondary")}
-          onDelete={() => deleteEndpoint("secondary")}
-          saveLabel="保存副配置"
-          namePlaceholder="例如： Claude 3 Haiku"
-          headerAction={(
+        {!saved.secondaryEnabled && (
+          <div className="glass-form api-enable-secondary">
             <button
-              className={`switch-row mini-switch ${saved.secondaryEnabled ? "on" : ""}`}
+              className="switch-row"
               onClick={() => setSaved((current) => ({ ...current, secondaryEnabled: !current.secondaryEnabled }))}
-              aria-label="开启副API"
             >
+              <span>启用副API</span>
               <i></i>
             </button>
-          )}
-        />
+          </div>
+        )}
+
+        {saved.secondaryEnabled && (
+          <ApiEndpoint
+            title="副引擎 (Sub API)"
+            badge="BACKUP"
+            value={saved.secondaryDraft}
+            onChange={(patch) => patchEndpoint("secondary", patch)}
+            onFetchModels={() => loadModels("secondary")}
+            onSave={() => saveEndpoint("secondary")}
+            onTest={() => testEndpoint("secondary")}
+            onDelete={() => deleteEndpoint("secondary")}
+            saveLabel="保存副配置"
+            namePlaceholder="例如： Claude 3 Haiku"
+            headerAction={(
+              <button
+                className="switch-row mini-switch on"
+                onClick={() => setSaved((current) => ({ ...current, secondaryEnabled: !current.secondaryEnabled }))}
+                aria-label="关闭副API"
+              >
+                <i></i>
+              </button>
+            )}
+          />
+        )}
 
         {saved.secondaryEnabled && (
           <div className="glass-form api-fallback-card">
