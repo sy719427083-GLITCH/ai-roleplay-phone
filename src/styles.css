@@ -528,14 +528,14 @@ select:focus {
 }
 
 .api-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  flex: 0 0 auto;
 }
 
 .api-block-title button,
 .api-actions button {
-  min-height: 32px;
+  min-height: 40px;
   padding: 0 11px;
   white-space: nowrap;
 }
@@ -545,11 +545,17 @@ select:focus {
   gap: 12px;
 }
 
+.model-row,
 .split-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
+  grid-template-columns: minmax(0, 1fr) 116px;
   gap: 8px;
   align-items: end;
+}
+
+.model-row .pull-button {
+  min-height: 42px;
+  padding: 0 10px;
 }
 
 .range-label input {

@@ -350,13 +350,6 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) 
     <div className="api-block">
       <div className="api-block-title">
         <span>{title}</span>
-        <div className="api-actions">
-          <button onClick={onSave}>保存到本地</button>
-          <button onClick={onTest}>
-            <TestTube2 size={15} />
-            测试
-          </button>
-        </div>
       </div>
       <label>
         <span>配置名称</span>
@@ -375,21 +368,23 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) 
         <span>接口地址</span>
         <input value={value.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} />
       </label>
-      <label>
-        <span>模型选择</span>
-        <input
-          list={`${title}-models`}
-          value={value.modelMode === "custom" ? value.customModel : value.model}
-          onChange={(event) => onChange({ customModel: event.target.value, model: event.target.value, modelMode: "custom" })}
-          placeholder="手动填入或自动拉取后选择"
-        />
-        <datalist id={`${title}-models`}>
-          {options.map((model) => (
-            <option value={model} key={model} />
-          ))}
-        </datalist>
-      </label>
-      <button className="pull-button" onClick={onFetchModels}>自动拉取模型</button>
+      <div className="model-row">
+        <label>
+          <span>模型选择</span>
+          <input
+            list={`${title}-models`}
+            value={value.modelMode === "custom" ? value.customModel : value.model}
+            onChange={(event) => onChange({ customModel: event.target.value, model: event.target.value, modelMode: "custom" })}
+            placeholder="手动填入或自动拉取后选择"
+          />
+          <datalist id={`${title}-models`}>
+            {options.map((model) => (
+              <option value={model} key={model} />
+            ))}
+          </datalist>
+        </label>
+        <button className="pull-button" onClick={onFetchModels}>自动拉取模型</button>
+      </div>
       <label className="range-label">
         <span>温度 {Number(value.temperature).toFixed(1)}</span>
         <input
@@ -402,6 +397,13 @@ function ApiEndpoint({ title, value, onChange, onFetchModels, onSave, onTest }) 
         />
       </label>
       <p className={`status-text ${value.testStatus}`}>{statusCopy(value.testStatus)}</p>
+      <div className="api-actions">
+        <button onClick={onSave}>保存到本地</button>
+        <button onClick={onTest}>
+          <TestTube2 size={15} />
+          测试
+        </button>
+      </div>
     </div>
   );
 }
