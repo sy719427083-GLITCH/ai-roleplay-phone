@@ -618,6 +618,14 @@ select {
   min-height: 92px;
 }
 
+.api-engine-card input,
+.api-engine-card select {
+  min-height: 44px;
+  border-radius: 13px;
+  font-size: 14px;
+  padding: 0 14px;
+}
+
 .model-choice-select {
   font-size: 14px;
 }
@@ -738,6 +746,13 @@ select {
   color: #ffffff;
   font-size: 14px;
   font-weight: 580;
+}
+
+.api-engine-card .soft-api-button,
+.api-engine-card .api-actions button {
+  min-height: 40px;
+  border-radius: 12px;
+  font-size: 13px;
 }
 
 .api-status-card,
