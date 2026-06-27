@@ -584,8 +584,8 @@ select {
 
 .api-status-card select,
 .api-fallback-card select {
-  min-height: 62px;
-  border-radius: 18px;
+  min-height: 70px;
+  border-radius: 19px;
 }
 
 .api-page input::placeholder {
@@ -663,46 +663,47 @@ select {
 .api-actions {
   display: grid;
   grid-template-columns: 0.76fr 1.95fr;
-  gap: 14px;
+  gap: 10px;
   align-items: center;
   margin-top: 2px;
 }
 
 .api-block-title button,
 .api-actions button {
-  min-height: 56px;
-  padding: 0 12px;
+  min-height: 46px;
+  border-radius: 14px;
+  padding: 0 10px;
   white-space: nowrap;
 }
 
 .api-model-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .soft-api-button,
 .api-page .pull-button {
-  min-height: 52px;
-  border-radius: 16px;
+  min-height: 46px;
+  border-radius: 14px;
   background: rgba(246, 246, 247, 0.96);
   color: #1c1c1e;
-  font-size: 15px;
-  font-weight: 620;
+  font-size: 14px;
+  font-weight: 580;
 }
 
 .api-actions .danger-api-button {
   background: #fff0f1;
   color: #ff3b30;
-  font-size: 15px;
-  font-weight: 620;
+  font-size: 14px;
+  font-weight: 580;
 }
 
 .api-actions .save-api-button {
   background: #1c1c1e;
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 620;
+  font-size: 14px;
+  font-weight: 580;
 }
 
 .api-status-card,
@@ -862,18 +863,18 @@ select {
 
 @keyframes iosAppOpen {
   0% {
-    transform: perspective(900px) translate3d(0, 18px, -120px) scale(0.82);
+    transform: perspective(900px) translate3d(0, 14px, -80px) scale(0.88);
     opacity: 0;
-    border-radius: 42px;
-    clip-path: inset(7% 6% round 42px);
-    filter: blur(1.4px) brightness(1.04);
+    border-radius: 38px;
+    clip-path: inset(6% 5% round 38px);
+    filter: blur(1.2px) brightness(1.03);
   }
-  68% {
-    transform: perspective(900px) translate3d(0, -2px, 0) scale(1.012);
-    opacity: 1;
-    border-radius: 10px;
-    clip-path: inset(0 round 10px);
-    filter: blur(0);
+  72% {
+    transform: perspective(900px) translate3d(0, 2px, -8px) scale(0.985);
+    opacity: 0.96;
+    border-radius: 14px;
+    clip-path: inset(1% 1% round 14px);
+    filter: blur(0.12px);
   }
   100% {
     transform: perspective(900px) translate3d(0, 0, 0) scale(1);
