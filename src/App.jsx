@@ -286,7 +286,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.2</p>
+      <p className="version-label">Ccat OS v0.1.3</p>
     </section>
   );
 }
@@ -535,7 +535,7 @@ function ApiSettingsPage({ onBack }) {
   };
 
   return (
-    <section className="full-page api-page">
+    <section className="full-page api-page ios-open">
       <header className="page-header">
         <button className="api-back-button" onClick={onBack} aria-label="返回">
           <ChevronLeft size={20} />
@@ -591,32 +591,6 @@ function ApiSettingsPage({ onBack }) {
           namePlaceholder="例如： OpenAI GPT-4"
         />
 
-        {saved.secondaryEnabled && (
-          <div className="glass-form api-fallback-card">
-            <div className="api-card-heading">
-              <span>容错策略 (Fallback)</span>
-            </div>
-              <label>
-                <span>失败重试次数</span>
-                <select value={saved.retryCount} onChange={(event) => setSaved((current) => ({ ...current, retryCount: Number(event.target.value) }))}>
-                  {[0, 1, 2, 3, 4, 5].map((count) => (
-                    <option value={count} key={count}>
-                      {count === 0 ? "不重试（0）" : `${count} 次`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className={`switch-row ${saved.failoverEnabled ? "on" : ""}`}
-                onClick={() => setSaved((current) => ({ ...current, failoverEnabled: !current.failoverEnabled }))}
-              >
-                <span>主引擎失败时切换副引擎</span>
-                <i></i>
-              </button>
-              <p className="helper-text">副AI一般用于总结记忆等任务。</p>
-            </div>
-        )}
-
         <ApiEndpoint
           title="副引擎 (Sub API)"
           badge="BACKUP"
@@ -638,6 +612,32 @@ function ApiSettingsPage({ onBack }) {
             </button>
           )}
         />
+
+        {saved.secondaryEnabled && (
+          <div className="glass-form api-fallback-card">
+            <div className="api-card-heading">
+              <span>容错策略 (Fallback)</span>
+            </div>
+            <label>
+              <span>失败重试次数</span>
+              <select value={saved.retryCount} onChange={(event) => setSaved((current) => ({ ...current, retryCount: Number(event.target.value) }))}>
+                {[0, 1, 2, 3, 4, 5].map((count) => (
+                  <option value={count} key={count}>
+                    {count === 0 ? "不重试（0）" : `${count} 次`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className={`switch-row ${saved.failoverEnabled ? "on" : ""}`}
+              onClick={() => setSaved((current) => ({ ...current, failoverEnabled: !current.failoverEnabled }))}
+            >
+              <span>主引擎失败时切换副引擎</span>
+              <i></i>
+            </button>
+            <p className="helper-text">副AI一般用于总结记忆等任务。</p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -646,7 +646,7 @@ function ApiSettingsPage({ onBack }) {
 function GenericSettingPage({ item, onBack }) {
   const Icon = item.icon;
   return (
-    <section className="full-page quiet-page">
+    <section className="full-page quiet-page ios-open">
       <header className="page-header">
         <button onClick={onBack} aria-label="返回">
           <ChevronLeft size={20} />
@@ -664,18 +664,9 @@ function GenericSettingPage({ item, onBack }) {
 }
 
 function OpenedApp({ app, onClose }) {
-  const originX = app.originX ?? window.innerWidth / 2;
-  const originY = app.originY ?? window.innerHeight / 2;
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
-
   return (
     <section
       className="full-page app-page ios-open"
-      style={{
-        "--open-x": `${originX - centerX}px`,
-        "--open-y": `${originY - centerY}px`,
-      }}
     >
       <header className="page-header">
         <button onClick={onClose} aria-label="返回">
@@ -706,10 +697,14 @@ export function App() {
 
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
+  const hasOverlay = Boolean(openedApp || settingPage);
+
   return (
-    <main className="phone-surface">
-      {content}
-      <BottomTabs active={tab} onChange={setTab} />
+    <main className={`phone-surface ${hasOverlay ? "overlay-active" : ""}`}>
+      <div className="phone-stage">
+        {content}
+        <BottomTabs active={tab} onChange={setTab} />
+      </div>
       {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
