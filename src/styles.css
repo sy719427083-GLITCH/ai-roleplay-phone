@@ -180,11 +180,11 @@ body {
 }
 
 .phone-surface {
-  padding: max(4px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+  padding: max(0px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
 }
 
 .screen-view {
-  min-height: calc(100dvh - 78px);
+  min-height: calc(100dvh - 70px);
   padding: 0 0 96px;
 }
 
@@ -194,7 +194,7 @@ body {
 }
 
 .top-line {
-  height: 20px;
+  height: 16px;
   padding: 0 6px;
   font-weight: 600;
 }
@@ -219,7 +219,7 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: 94px;
   gap: 8px 7px;
-  padding-top: 8px;
+  padding-top: 0;
 }
 
 .app-icon-button {
@@ -486,7 +486,7 @@ body {
   z-index: 50;
   inset: 0;
   overflow: hidden;
-  padding: max(4px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+  padding: max(0px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
   background: #f7f7f9;
 }
 
@@ -494,7 +494,7 @@ body {
   display: grid;
   grid-template-columns: 48px 1fr 64px;
   align-items: center;
-  height: 38px;
+  height: 34px;
   font-weight: 650;
   text-align: center;
 }
@@ -504,7 +504,7 @@ body {
   align-items: center;
   justify-content: center;
   min-width: 40px;
-  height: 36px;
+  height: 32px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: #ffffff;
@@ -518,7 +518,7 @@ body {
 
 .api-page .page-header {
   grid-template-columns: 100px minmax(0, 1fr) 100px;
-  height: 48px;
+  height: 42px;
   padding: 0 18px;
   background: rgba(247, 247, 249, 0.92);
 }
@@ -534,7 +534,7 @@ body {
   justify-content: flex-start;
   gap: 2px;
   min-width: 88px;
-  height: 44px;
+  height: 38px;
   border: 0;
   background: transparent;
   color: #1c1c1e;
@@ -548,9 +548,9 @@ body {
 }
 
 .api-scroll {
-  height: calc(100dvh - 54px);
+  height: calc(100dvh - 46px);
   overflow-y: auto;
-  padding: 10px 22px 38px;
+  padding: 4px 22px 38px;
   scrollbar-color: rgba(0, 0, 0, 0.28) transparent;
 }
 
@@ -925,7 +925,7 @@ select {
 
 .wallet-content {
   display: block;
-  padding: 2px 2px 38px;
+  padding: 0 2px 38px;
   perspective: 1000px;
 }
 
