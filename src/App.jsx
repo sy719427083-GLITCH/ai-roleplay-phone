@@ -480,7 +480,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.24</p>
+      <p className="version-label">Ccat OS v0.1.25</p>
     </section>
   );
 }
