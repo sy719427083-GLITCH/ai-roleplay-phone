@@ -6,7 +6,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  CircleUserRound,
   Clock3,
   Database,
   Eye,
@@ -257,6 +256,205 @@ function QuietPanel({ title, icon: Icon }) {
   );
 }
 
+const CHARACTER_STORAGE_KEY = "ccat-character-profile";
+const emptyCharacterProfile = {
+  avatar: "",
+  name: "",
+  type: "主角",
+  identity: "",
+  worldview: "",
+  appearance: "",
+  personality: "",
+  persona: "",
+};
+
+function CharacterProfileScreen() {
+  const [profile, setProfile] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
+      return stored ? { ...emptyCharacterProfile, ...JSON.parse(stored) } : emptyCharacterProfile;
+    } catch {
+      return emptyCharacterProfile;
+    }
+  });
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(profile));
+  }, [profile]);
+
+  const patchProfile = (patch) => setProfile((current) => ({ ...current, ...patch }));
+
+  const uploadAvatar = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => patchProfile({ avatar: String(reader.result || "") });
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const generateCharacter = async () => {
+    const keyword = window.prompt("AI 角色档案生成\n\n请输入角色设定关键词，例如：腹黑傲娇的千金、神秘的占星师");
+    if (!keyword) return;
+
+    const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+    const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
+    const model = endpoint?.model || endpoint?.customModel;
+    if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) {
+      window.alert("未发现可用主 API。请先到设置里的 API 设置填写并保存主 API。");
+      return;
+    }
+
+    const systemPrompt = `你是一个专业的角色设定生成器。请根据用户提供的关键词，自动生成一个详尽的角色档案。
+必须严格返回 JSON，不要包含 Markdown 或额外解释。
+JSON 键名必须严格为：
+{
+  "name": "角色的名字",
+  "type": "必须填'主角'或'NPC'",
+  "identity": "身份或职业",
+  "personality": "性格特点描写",
+  "appearance": "外貌与穿着描写",
+  "persona": "详细的生平背景故事，至少200字"
+}`;
+
+    setGenerating(true);
+    try {
+      let url = endpoint.baseUrl.replace(/\/+$/, "");
+      if (!url.endsWith("/v1")) url += "/v1";
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `关键词：${keyword}。请生成。` },
+          ],
+          temperature: 0.8,
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      let content = data?.choices?.[0]?.message?.content || "";
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) content = match[0];
+      const generated = JSON.parse(content);
+      patchProfile({
+        name: generated.name || "",
+        type: generated.type === "NPC" ? "NPC" : "主角",
+        identity: generated.identity || "",
+        appearance: generated.appearance || "",
+        personality: generated.personality || "",
+        persona: generated.persona || "",
+      });
+    } catch {
+      window.alert("生成失败，请检查 API 配置、网络或模型输出格式。");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <section className="screen-view character-view">
+      <header className="character-header">
+        <span></span>
+        <strong>角色档案</strong>
+        <button className={generating ? "spinning" : ""} onClick={generateCharacter} aria-label="随机生成角色">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2ZM7.5 18c-.8 0-1.5-.7-1.5-1.5S6.7 15 7.5 15 9 15.7 9 16.5 8.3 18 7.5 18Zm0-9C6.7 9 6 8.3 6 7.5S6.7 6 7.5 6 9 6.7 9 7.5 8.3 9 7.5 9Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm0-9c-.8 0-1.5-.7-1.5-1.5S15.7 6 16.5 6 18 6.7 18 7.5 17.3 9 16.5 9Z" />
+          </svg>
+        </button>
+      </header>
+      <div className="character-container">
+        <section className="character-card profile-card">
+          <div className="profile-row">
+            <label className="avatar-uploader">
+              <input type="file" accept="image/*" onChange={uploadAvatar} />
+              {profile.avatar ? (
+                <img src={profile.avatar} alt="角色头像" />
+              ) : (
+                <svg className="avatar-placeholder" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
+                </svg>
+              )}
+            </label>
+            <div className="profile-info">
+              <input
+                className="character-input character-name-input"
+                value={profile.name}
+                onChange={(event) => patchProfile({ name: event.target.value })}
+                placeholder="输入角色姓名"
+              />
+              <div className="type-selector">
+                {["主角", "NPC"].map((type) => (
+                  <button className={profile.type === type ? "active" : ""} key={type} onClick={() => patchProfile({ type })}>
+                    {type === "主角" ? "主人公" : "NPC"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="character-card">
+          <label className="character-field">
+            <span><i></i>身份 / Identity</span>
+            <input
+              className="character-input"
+              value={profile.identity}
+              onChange={(event) => patchProfile({ identity: event.target.value })}
+              placeholder="如: 帝国第一骑士 / 魔法学院导师"
+            />
+          </label>
+          <label className="character-field">
+            <span><i></i>关联世界观 / Worldview</span>
+            <select className="character-input" value={profile.worldview} onChange={(event) => patchProfile({ worldview: event.target.value })}>
+              <option value="">尚未关联世界观</option>
+            </select>
+          </label>
+        </section>
+
+        <section className="character-card">
+          <label className="character-field">
+            <span><i></i>容貌特征 / Appearance</span>
+            <textarea
+              className="character-input"
+              rows="2"
+              value={profile.appearance}
+              onChange={(event) => patchProfile({ appearance: event.target.value })}
+              placeholder="发色瞳色、穿着风格等特征描写"
+            />
+          </label>
+          <label className="character-field">
+            <span><i></i>性格癖好 / Personality</span>
+            <textarea
+              className="character-input"
+              rows="2"
+              value={profile.personality}
+              onChange={(event) => patchProfile({ personality: event.target.value })}
+              placeholder="角色的性格、习惯、口头禅等"
+            />
+          </label>
+          <label className="character-field">
+            <span><i></i>生平履历 / Persona</span>
+            <textarea
+              className="character-input"
+              rows="6"
+              value={profile.persona}
+              onChange={(event) => patchProfile({ persona: event.target.value })}
+              placeholder="详细的背景故事与人设长文本"
+            />
+          </label>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function SettingsScreen({ onOpen }) {
   return (
     <section className="screen-view settings-view">
@@ -282,7 +480,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.23</p>
+      <p className="version-label">Ccat OS v0.1.24</p>
     </section>
   );
 }
@@ -994,7 +1192,7 @@ export function App() {
 
   const content = useMemo(() => {
     if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
-    if (tab === "characters") return <QuietPanel title="角色" icon={CircleUserRound} />;
+    if (tab === "characters") return <CharacterProfileScreen />;
     if (tab === "me") return <QuietPanel title="我" icon={UserRound} />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
   }, [tab, hasShownLaunch]);

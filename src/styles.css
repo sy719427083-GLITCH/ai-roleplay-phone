@@ -465,6 +465,228 @@ body {
   font-size: 28px;
 }
 
+.character-view {
+  overflow-y: auto;
+  padding-bottom: 112px;
+}
+
+.character-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  min-height: 38px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(248, 248, 250, 0.86);
+  backdrop-filter: blur(20px);
+}
+
+.character-header strong {
+  color: #1c1c1e;
+  font-size: 16px;
+  font-weight: 620;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.character-header button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #1c1c1e;
+  cursor: pointer;
+}
+
+.character-header button:active {
+  transform: scale(0.92);
+}
+
+.character-header svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.character-header button.spinning svg {
+  animation: spin 1s linear infinite;
+  opacity: 0.55;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.character-container {
+  display: grid;
+  gap: 14px;
+  padding: 12px 4px 0;
+}
+
+.character-card {
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.02);
+  border-radius: 24px;
+  background: #ffffff;
+  padding: 22px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
+}
+
+.character-card.profile-card {
+  padding-bottom: 12px;
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.avatar-uploader {
+  position: relative;
+  display: flex;
+  width: 86px;
+  height: 86px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: rgba(28, 28, 30, 0.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+}
+
+.avatar-uploader input {
+  display: none;
+}
+
+.avatar-uploader img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 36px;
+  height: 36px;
+  fill: #9e9ea5;
+  opacity: 0.5;
+}
+
+.profile-info {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.character-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: rgba(28, 28, 30, 0.03);
+  color: #1c1c1e;
+  font-size: 15px;
+  outline: none;
+  padding: 0 16px;
+  transition: all 0.3s ease;
+  appearance: none;
+}
+
+.character-input::placeholder {
+  color: #c4c4c6;
+}
+
+.character-input:focus {
+  border-color: rgba(0, 0, 0, 0.05);
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.character-name-input {
+  min-height: 48px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.type-selector {
+  display: flex;
+  gap: 8px;
+  border-radius: 16px;
+  background: rgba(28, 28, 30, 0.03);
+  padding: 4px;
+}
+
+.type-selector button {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #9e9ea5;
+  font-size: 13px;
+  font-weight: 600;
+  transition: 0.3s;
+}
+
+.type-selector button.active {
+  background: #ffffff;
+  color: #1c1c1e;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.character-field {
+  display: grid;
+  gap: 8px;
+}
+
+.character-field span {
+  display: flex;
+  align-items: center;
+  color: #9e9ea5;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.character-field i {
+  width: 3px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: #e83929;
+}
+
+.character-field select.character-input {
+  color: #7f7f86;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cpath%20d%3D%22M7%2010L12%2015L17%2010%22%20stroke%3D%22%239E9EA5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+textarea.character-input {
+  min-height: 78px;
+  resize: none;
+  line-height: 1.5;
+  padding: 14px 16px;
+}
+
+.character-field textarea[rows="6"] {
+  min-height: 158px;
+}
+
 .centered-view p,
 .quiet-center p,
 .helper-text,
