@@ -1610,7 +1610,7 @@ select {
 
 .wallet-content {
   display: block;
-  padding: 2px 2px 38px;
+  padding: 18px 2px 38px;
   perspective: 1000px;
 }
 
