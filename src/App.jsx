@@ -256,69 +256,170 @@ function QuietPanel({ title, icon: Icon }) {
   );
 }
 
-const CHARACTER_STORAGE_KEY = "ccat-character-profile";
-const emptyCharacterProfile = {
+const CHARACTER_STORAGE_KEY = "apiCharacters";
+const LEGACY_CHARACTER_STORAGE_KEY = "ccat-character-profile";
+
+const createEmptyCharacter = (type = "main") => ({
+  id: "",
+  type,
   avatar: "",
   name: "",
-  type: "主角",
   identity: "",
   worldview: "",
   appearance: "",
   personality: "",
   persona: "",
-};
+});
 
-function CharacterProfileScreen() {
-  const [profile, setProfile] = useState(() => {
+function CharacterAppScreen() {
+  const [characters, setCharacters] = useState(() => {
     try {
       const stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
-      return stored ? { ...emptyCharacterProfile, ...JSON.parse(stored) } : emptyCharacterProfile;
+      if (stored) return JSON.parse(stored) || {};
+      const legacy = window.localStorage.getItem(LEGACY_CHARACTER_STORAGE_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (parsed?.name || parsed?.identity || parsed?.persona || parsed?.avatar) {
+          return {
+            char_legacy: {
+              ...createEmptyCharacter(parsed.type === "NPC" ? "npc" : "main"),
+              ...parsed,
+              id: "char_legacy",
+              type: parsed.type === "NPC" ? "npc" : "main",
+            },
+          };
+        }
+      }
     } catch {
-      return emptyCharacterProfile;
+      return {};
     }
+    return {};
   });
+  const [subTab, setSubTab] = useState("main");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editingType, setEditingType] = useState("main");
+  const [draft, setDraft] = useState(createEmptyCharacter("main"));
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(profile));
-  }, [profile]);
+    window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
+  }, [characters]);
 
-  const patchProfile = (patch) => setProfile((current) => ({ ...current, ...patch }));
+  const patchDraft = (patch) => setDraft((current) => ({ ...current, ...patch }));
+
+  const openEditor = (id, type = "main") => {
+    setEditorOpen(true);
+    setEditingId(id);
+    setEditingType(type);
+    setDraft(id && characters[id] ? { ...createEmptyCharacter(type), ...characters[id], id } : createEmptyCharacter(type));
+  };
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setEditingId(null);
+    setDraft(createEmptyCharacter("main"));
+    setPromptOpen(false);
+    setPromptValue("");
+  };
+
+  const visibleCharacters = Object.entries(characters).filter(([, character]) => {
+    const type = character.type === "main" || character.type === "主角" ? "main" : "npc";
+    return type === subTab;
+  });
 
   const uploadAvatar = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => patchProfile({ avatar: String(reader.result || "") });
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 200;
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        const min = Math.min(image.width, image.height);
+        const sx = (image.width - min) / 2;
+        const sy = (image.height - min) / 2;
+        canvas.width = size;
+        canvas.height = size;
+        context?.drawImage(image, sx, sy, min, min, 0, 0, size, size);
+        patchDraft({ avatar: canvas.toDataURL("image/jpeg", 0.82) });
+      };
+      image.src = String(reader.result || "");
+    };
     reader.readAsDataURL(file);
     event.target.value = "";
   };
 
-  const generateCharacter = async () => {
-    const keyword = window.prompt("AI 角色档案生成\n\n请输入角色设定关键词，例如：腹黑傲娇的千金、神秘的占星师");
+  const saveCharacter = () => {
+    const name = draft.name.trim();
+    if (!name || name === "构思中...") {
+      window.alert("请提供有效的角色姓名");
+      return;
+    }
+    const id = editingId || `char_${Date.now()}`;
+    setCharacters((current) => ({
+      ...current,
+      [id]: {
+        ...draft,
+        id,
+        name,
+        type: editingType,
+      },
+    }));
+    closeEditor();
+  };
+
+  const deleteCharacter = () => {
+    if (!editingId) return;
+    if (!window.confirm(`删除操作不可逆，是否确认销毁档案 [ ${draft.name || "未命名"} ]？`)) return;
+    setCharacters((current) => {
+      const next = { ...current };
+      delete next[editingId];
+      return next;
+    });
+    closeEditor();
+  };
+
+  const beginGenerate = () => {
+    setPromptValue("");
+    setPromptOpen(true);
+  };
+
+  const generateCharacter = async (keyword) => {
     if (!keyword) return;
 
     const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
     const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
     const model = endpoint?.model || endpoint?.customModel;
     if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) {
-      window.alert("未发现可用主 API。请先到设置里的 API 设置填写并保存主 API。");
+      window.alert("提示：请先到设置里的 API 设置填写并保存主 API。");
       return;
     }
 
-    const systemPrompt = `你是一个专业的角色设定生成器。请根据用户提供的关键词，自动生成一个详尽的角色档案。
-必须严格返回 JSON，不要包含 Markdown 或额外解释。
-JSON 键名必须严格为：
+    const roleName = editingType === "main" ? "核心主角" : "剧情NPC";
+    const systemPrompt = `你是一个设定集生成器。根据用户关键词，生成一个详细的${roleName}档案。
+必须严格返回 JSON，不能包含任何 Markdown 或多余文本。
+键名如下：
 {
-  "name": "角色的名字",
-  "type": "必须填'主角'或'NPC'",
+  "name": "角色名称",
   "identity": "身份或职业",
-  "personality": "性格特点描写",
-  "appearance": "外貌与穿着描写",
-  "persona": "详细的生平背景故事，至少200字"
+  "personality": "性格特点",
+  "appearance": "外貌衣着特征",
+  "persona": "详细的生平背景故事，不少于150字"
 }`;
 
     setGenerating(true);
+    patchDraft({
+      name: "构思中...",
+      identity: "构思中...",
+      appearance: "构思中...",
+      personality: "构思中...",
+      persona: "构思中...",
+    });
     try {
       let url = endpoint.baseUrl.replace(/\/+$/, "");
       if (!url.endsWith("/v1")) url += "/v1";
@@ -332,9 +433,9 @@ JSON 键名必须严格为：
           model,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `关键词：${keyword}。请生成。` },
+            { role: "user", content: `关键词：${keyword}。` },
           ],
-          temperature: 0.8,
+          temperature: 0.85,
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -343,16 +444,23 @@ JSON 键名必须严格为：
       const match = content.match(/\{[\s\S]*\}/);
       if (match) content = match[0];
       const generated = JSON.parse(content);
-      patchProfile({
+      patchDraft({
         name: generated.name || "",
-        type: generated.type === "NPC" ? "NPC" : "主角",
         identity: generated.identity || "",
         appearance: generated.appearance || "",
         personality: generated.personality || "",
         persona: generated.persona || "",
       });
     } catch {
-      window.alert("生成失败，请检查 API 配置、网络或模型输出格式。");
+      window.alert("生成请求失败，请检查网络和 API 引擎配置。");
+      setDraft((current) => ({
+        ...current,
+        name: current.name === "构思中..." ? "" : current.name,
+        identity: current.identity === "构思中..." ? "" : current.identity,
+        appearance: current.appearance === "构思中..." ? "" : current.appearance,
+        personality: current.personality === "构思中..." ? "" : current.personality,
+        persona: current.persona === "构思中..." ? "" : current.persona,
+      }));
     } finally {
       setGenerating(false);
     }
@@ -360,97 +468,152 @@ JSON 键名必须严格为：
 
   return (
     <section className="screen-view character-view">
-      <header className="character-header">
-        <span></span>
-        <strong>角色档案</strong>
-        <button className={generating ? "spinning" : ""} onClick={generateCharacter} aria-label="随机生成角色">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2ZM7.5 18c-.8 0-1.5-.7-1.5-1.5S6.7 15 7.5 15 9 15.7 9 16.5 8.3 18 7.5 18Zm0-9C6.7 9 6 8.3 6 7.5S6.7 6 7.5 6 9 6.7 9 7.5 8.3 9 7.5 9Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm0-9c-.8 0-1.5-.7-1.5-1.5S15.7 6 16.5 6 18 6.7 18 7.5 17.3 9 16.5 9Z" />
-          </svg>
-        </button>
+      <div className="mag-bg-decor">
+        <div className="mag-circle-1"></div>
+        <div className="mag-circle-2"></div>
+        <div className="mag-crosshair mag-crosshair-a"></div>
+        <div className="mag-crosshair mag-crosshair-b"></div>
+      </div>
+
+      <header className="mag-header">
+        <div className="mag-vol">VOL. 01 - CAST</div>
+        <h2>ARCHIVES.</h2>
+        <div className="mag-tabs">
+          {[
+            ["main", "主要人物"],
+            ["npc", "NPC 列表"],
+            ["relation", "关系列表"],
+          ].map(([id, label]) => (
+            <button className={subTab === id ? "active" : ""} key={id} onClick={() => setSubTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
       </header>
-      <div className="character-container">
-        <section className="character-card profile-card">
-          <div className="profile-row">
-            <label className="avatar-uploader">
-              <input type="file" accept="image/*" onChange={uploadAvatar} />
-              {profile.avatar ? (
-                <img src={profile.avatar} alt="角色头像" />
-              ) : (
-                <svg className="avatar-placeholder" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
-                </svg>
-              )}
-            </label>
-            <div className="profile-info">
-              <input
-                className="character-input character-name-input"
-                value={profile.name}
-                onChange={(event) => patchProfile({ name: event.target.value })}
-                placeholder="输入角色姓名"
-              />
-              <div className="type-selector">
-                {["主角", "NPC"].map((type) => (
-                  <button className={profile.type === type ? "active" : ""} key={type} onClick={() => patchProfile({ type })}>
-                    {type === "主角" ? "主人公" : "NPC"}
-                  </button>
-                ))}
+
+      {subTab === "relation" ? (
+        <div className="mag-empty">
+          <span>RELATION GRAPH</span>
+          <div></div>
+          <em>COMING SOON</em>
+        </div>
+      ) : (
+        <div className="mag-grid">
+          {visibleCharacters.map(([id, character]) => (
+            <button className="mag-card" key={id} onClick={() => openEditor(id, subTab)}>
+              <span className="mag-card-id">NO.{id.slice(-4)}</span>
+              <div className="mag-avatar-box">
+                {character.avatar ? (
+                  <img src={character.avatar} alt={character.name || "角色头像"} />
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
+                  </svg>
+                )}
               </div>
+              <strong>{character.name || "UNNAMED"}</strong>
+              <small>{character.identity || "Unknown Identity"}</small>
+            </button>
+          ))}
+          <button className="mag-card mag-add-btn" onClick={() => openEditor(null, subTab)}>
+            <span>+</span>
+            <small>{subTab === "main" ? "NEW MAIN" : "NEW NPC"}</small>
+          </button>
+        </div>
+      )}
+
+      {editorOpen && (
+        <section className="character-edit-page">
+          <header className="character-edit-header">
+            <button onClick={closeEditor}>
+              <ChevronLeft size={20} />
+              <span>返回</span>
+            </button>
+            <strong>{editingId ? "编辑档案" : "新建角色"}</strong>
+            <button className={generating ? "breathing" : ""} onClick={beginGenerate} aria-label="AI 构思">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2ZM7.5 18c-.8 0-1.5-.7-1.5-1.5S6.7 15 7.5 15 9 15.7 9 16.5 8.3 18 7.5 18Zm0-9C6.7 9 6 8.3 6 7.5S6.7 6 7.5 6 9 6.7 9 7.5 8.3 9 7.5 9Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm0-9c-.8 0-1.5-.7-1.5-1.5S15.7 6 16.5 6 18 6.7 18 7.5 17.3 9 16.5 9Z" />
+              </svg>
+            </button>
+          </header>
+          <div className="character-edit-container">
+            <section className="character-card profile-card">
+              <div className="profile-row">
+                <label className="avatar-uploader">
+                  <input type="file" accept="image/*" onChange={uploadAvatar} />
+                  {draft.avatar ? (
+                    <img src={draft.avatar} alt="角色头像" />
+                  ) : (
+                    <svg className="avatar-placeholder" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
+                    </svg>
+                  )}
+                </label>
+                <div className="profile-info">
+                  <input
+                    className="character-input character-name-input"
+                    value={draft.name}
+                    onChange={(event) => patchDraft({ name: event.target.value })}
+                    placeholder="输入角色姓名"
+                  />
+                </div>
+              </div>
+            </section>
+            <section className="character-card">
+              <label className="character-field">
+                <span><i></i>身份 / Identity</span>
+                <input className="character-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="如: 帝国第一骑士 / 魔法学院导师" />
+              </label>
+              <label className="character-field">
+                <span><i></i>关联世界观 / Worldview</span>
+                <select className="character-input" value={draft.worldview} onChange={(event) => patchDraft({ worldview: event.target.value })}>
+                  <option value="">尚未关联世界观</option>
+                </select>
+              </label>
+            </section>
+            <section className="character-card">
+              <label className="character-field">
+                <span><i></i>容貌特征 / Appearance</span>
+                <textarea className="character-input" rows="2" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="发色瞳色、穿着风格等特征描写" />
+              </label>
+              <label className="character-field">
+                <span><i></i>性格癖好 / Personality</span>
+                <textarea className="character-input" rows="2" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="角色的性格、习惯、口头禅等" />
+              </label>
+              <label className="character-field">
+                <span><i></i>生平履历 / Persona</span>
+                <textarea className="character-input" rows="6" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="详细的背景故事与人设长文本" />
+              </label>
+            </section>
+            <div className="character-actions">
+              {editingId && <button className="character-danger" onClick={deleteCharacter}>删除</button>}
+              <button className="character-save" onClick={saveCharacter}>保存档案</button>
             </div>
           </div>
         </section>
+      )}
 
-        <section className="character-card">
-          <label className="character-field">
-            <span><i></i>身份 / Identity</span>
-            <input
-              className="character-input"
-              value={profile.identity}
-              onChange={(event) => patchProfile({ identity: event.target.value })}
-              placeholder="如: 帝国第一骑士 / 魔法学院导师"
-            />
-          </label>
-          <label className="character-field">
-            <span><i></i>关联世界观 / Worldview</span>
-            <select className="character-input" value={profile.worldview} onChange={(event) => patchProfile({ worldview: event.target.value })}>
-              <option value="">尚未关联世界观</option>
-            </select>
-          </label>
-        </section>
-
-        <section className="character-card">
-          <label className="character-field">
-            <span><i></i>容貌特征 / Appearance</span>
-            <textarea
-              className="character-input"
-              rows="2"
-              value={profile.appearance}
-              onChange={(event) => patchProfile({ appearance: event.target.value })}
-              placeholder="发色瞳色、穿着风格等特征描写"
-            />
-          </label>
-          <label className="character-field">
-            <span><i></i>性格癖好 / Personality</span>
-            <textarea
-              className="character-input"
-              rows="2"
-              value={profile.personality}
-              onChange={(event) => patchProfile({ personality: event.target.value })}
-              placeholder="角色的性格、习惯、口头禅等"
-            />
-          </label>
-          <label className="character-field">
-            <span><i></i>生平履历 / Persona</span>
-            <textarea
-              className="character-input"
-              rows="6"
-              value={profile.persona}
-              onChange={(event) => patchProfile({ persona: event.target.value })}
-              placeholder="详细的背景故事与人设长文本"
-            />
-          </label>
-        </section>
-      </div>
+      {promptOpen && (
+        <div className="character-prompt">
+          <div className="prompt-box">
+            <strong>设定推演系统</strong>
+            <p>请输入你想赋予此角色的特质关键词<br />如：高冷反派 / 温柔学姐</p>
+            <input value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder="输入关键词..." autoFocus />
+            <div>
+              <button onClick={() => setPromptOpen(false)}>取消</button>
+              <button
+                onClick={() => {
+                  const value = promptValue.trim();
+                  setPromptOpen(false);
+                  generateCharacter(value);
+                }}
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -480,7 +643,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.25</p>
+      <p className="version-label">Ccat OS v0.1.26</p>
     </section>
   );
 }
@@ -1192,7 +1355,7 @@ export function App() {
 
   const content = useMemo(() => {
     if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
-    if (tab === "characters") return <CharacterProfileScreen />;
+    if (tab === "characters") return <CharacterAppScreen />;
     if (tab === "me") return <QuietPanel title="我" icon={UserRound} />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
   }, [tab, hasShownLaunch]);
