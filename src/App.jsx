@@ -258,6 +258,10 @@ function QuietPanel({ title, icon: Icon }) {
 
 const CHARACTER_STORAGE_KEY = "apiCharacters";
 const LEGACY_CHARACTER_STORAGE_KEY = "ccat-character-profile";
+const RELATION_STORAGE_KEY = "apiRelations";
+const USER_CHARACTER_ID = "__USER__";
+
+const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
 
 const createEmptyCharacter = (type = "main") => ({
   id: "",
@@ -270,6 +274,24 @@ const createEmptyCharacter = (type = "main") => ({
   personality: "",
   persona: "",
 });
+
+const createEmptyRelation = () => ({
+  charA: "",
+  charB: "",
+  type: "挚友",
+  customType: "",
+  viewA: "",
+  viewB: "",
+});
+
+function AvatarContent({ character }) {
+  if (character?.avatar) return <img src={character.avatar} alt={character.name || "角色头像"} />;
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
+    </svg>
+  );
+}
 
 function CharacterAppScreen() {
   const [characters, setCharacters] = useState(() => {
@@ -295,11 +317,24 @@ function CharacterAppScreen() {
     }
     return {};
   });
+  const [relations, setRelations] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(RELATION_STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  });
   const [subTab, setSubTab] = useState("main");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editingType, setEditingType] = useState("main");
   const [draft, setDraft] = useState(createEmptyCharacter("main"));
+  const [relationEditorOpen, setRelationEditorOpen] = useState(false);
+  const [editingRelationId, setEditingRelationId] = useState(null);
+  const [relationDraft, setRelationDraft] = useState(createEmptyRelation());
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [selectorTarget, setSelectorTarget] = useState("charA");
+  const [selectorSearch, setSelectorSearch] = useState("");
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -308,7 +343,42 @@ function CharacterAppScreen() {
     window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
   }, [characters]);
 
+  useEffect(() => {
+    window.localStorage.setItem(RELATION_STORAGE_KEY, JSON.stringify(relations));
+  }, [relations]);
+
   const patchDraft = (patch) => setDraft((current) => ({ ...current, ...patch }));
+  const patchRelationDraft = (patch) => setRelationDraft((current) => ({ ...current, ...patch }));
+
+  const getCharacterData = (id) => {
+    if (id === USER_CHARACTER_ID) {
+      return {
+        id,
+        type: "user",
+        avatar: "",
+        name: "我 (USER)",
+        identity: "主角本人",
+      };
+    }
+    if (characters[id]) {
+      const character = characters[id];
+      return {
+        ...character,
+        id,
+        name: character.name || "未命名",
+        identity: character.identity || "Unknown Identity",
+      };
+    }
+    return {
+      id,
+      type: "deleted",
+      avatar: "",
+      name: "已删除",
+      identity: "档案不存在",
+    };
+  };
+
+  const getRelationLabel = (relation) => (relation.type === "custom" ? relation.customType.trim() || "自定义" : relation.type);
 
   const openEditor = (id, type = "main") => {
     setEditorOpen(true);
@@ -329,6 +399,27 @@ function CharacterAppScreen() {
     const type = character.type === "main" || character.type === "主角" ? "main" : "npc";
     return type === subTab;
   });
+  const relationEntries = Object.entries(relations);
+  const mainSelectorCharacters = Object.entries(characters).filter(([, character]) => {
+    const type = character.type === "main" || character.type === "主角" ? "main" : "npc";
+    return type === "main";
+  });
+  const npcSelectorCharacters = Object.entries(characters).filter(([, character]) => {
+    const type = character.type === "main" || character.type === "主角" ? "main" : "npc";
+    return type === "npc";
+  });
+  const selectorKeyword = selectorSearch.trim().toLowerCase();
+  const selectorGroups = [
+    { title: "USER", items: [[USER_CHARACTER_ID, getCharacterData(USER_CHARACTER_ID)]] },
+    { title: "MAIN CAST", items: mainSelectorCharacters.map(([id]) => [id, getCharacterData(id)]) },
+    { title: "NPC", items: npcSelectorCharacters.map(([id]) => [id, getCharacterData(id)]) },
+  ].map((group) => ({
+    ...group,
+    items: group.items.filter(([, character]) => {
+      if (!selectorKeyword) return true;
+      return `${character.name} ${character.identity}`.toLowerCase().includes(selectorKeyword);
+    }),
+  }));
 
   const uploadAvatar = (event) => {
     const file = event.target.files?.[0];
@@ -376,12 +467,79 @@ function CharacterAppScreen() {
   const deleteCharacter = () => {
     if (!editingId) return;
     if (!window.confirm(`删除操作不可逆，是否确认销毁档案 [ ${draft.name || "未命名"} ]？`)) return;
+    const deletedId = editingId;
     setCharacters((current) => {
       const next = { ...current };
-      delete next[editingId];
+      delete next[deletedId];
       return next;
     });
+    setRelations((current) => Object.fromEntries(
+      Object.entries(current).filter(([, relation]) => relation.charA !== deletedId && relation.charB !== deletedId),
+    ));
     closeEditor();
+  };
+
+  const openRelationEditor = (id) => {
+    setEditingRelationId(id);
+    setRelationDraft(id && relations[id] ? { ...createEmptyRelation(), ...relations[id] } : createEmptyRelation());
+    setRelationEditorOpen(true);
+  };
+
+  const closeRelationEditor = () => {
+    setRelationEditorOpen(false);
+    setEditingRelationId(null);
+    setRelationDraft(createEmptyRelation());
+    setSelectorOpen(false);
+    setSelectorSearch("");
+  };
+
+  const saveRelation = () => {
+    if (!relationDraft.charA || !relationDraft.charB) {
+      window.alert("请选择关系双方人物");
+      return;
+    }
+    if (relationDraft.charA === relationDraft.charB) {
+      window.alert("关系双方不能是同一个人物");
+      return;
+    }
+    if (relationDraft.type === "custom" && !relationDraft.customType.trim()) {
+      window.alert("请填写自定义关系名称");
+      return;
+    }
+    const id = editingRelationId || `rel_${Date.now()}`;
+    setRelations((current) => ({
+      ...current,
+      [id]: {
+        ...relationDraft,
+        id,
+        customType: relationDraft.customType.trim(),
+        viewA: relationDraft.viewA.trim(),
+        viewB: relationDraft.viewB.trim(),
+      },
+    }));
+    closeRelationEditor();
+  };
+
+  const deleteRelation = () => {
+    if (!editingRelationId) return;
+    if (!window.confirm("是否删除这条关系？")) return;
+    setRelations((current) => {
+      const next = { ...current };
+      delete next[editingRelationId];
+      return next;
+    });
+    closeRelationEditor();
+  };
+
+  const openCharacterSelector = (target) => {
+    setSelectorTarget(target);
+    setSelectorSearch("");
+    setSelectorOpen(true);
+  };
+
+  const selectRelationCharacter = (id) => {
+    patchRelationDraft({ [selectorTarget]: id });
+    setSelectorOpen(false);
   };
 
   const beginGenerate = () => {
@@ -492,10 +650,52 @@ function CharacterAppScreen() {
       </header>
 
       {subTab === "relation" ? (
-        <div className="mag-empty">
-          <span>RELATION GRAPH</span>
-          <div></div>
-          <em>COMING SOON</em>
+        <div className="mag-list-container">
+          <button className="mag-add-relation-btn" onClick={() => openRelationEditor(null)}>
+            + ADD NEW BOND / 添加关系
+          </button>
+          {relationEntries.length ? (
+            <div className="relation-cards-container">
+              {relationEntries.map(([id, relation]) => {
+                const charA = getCharacterData(relation.charA);
+                const charB = getCharacterData(relation.charB);
+                return (
+                  <button className="bond-card" key={id} onClick={() => openRelationEditor(id)}>
+                    <div className="bond-header">
+                      <div className="bond-char">
+                        <div className="bond-avatar"><AvatarContent character={charA} /></div>
+                        <span className="bond-name">{charA.name}</span>
+                      </div>
+                      <div className="bond-line-container">
+                        <div className="bond-line"></div>
+                        <span className="bond-badge">{getRelationLabel(relation)}</span>
+                      </div>
+                      <div className="bond-char">
+                        <div className="bond-avatar"><AvatarContent character={charB} /></div>
+                        <span className="bond-name">{charB.name}</span>
+                      </div>
+                    </div>
+                    <div className="bond-details">
+                      <div className="bond-view">
+                        <span className="bond-view-title">{charA.name} VIEW</span>
+                        <p className="bond-view-text">{relation.viewA || "暂无视角描述"}</p>
+                      </div>
+                      <div className="bond-view">
+                        <span className="bond-view-title">{charB.name} VIEW</span>
+                        <p className="bond-view-text">{relation.viewB || "暂无视角描述"}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mag-empty relation-empty">
+              <span>RELATION GRAPH</span>
+              <div></div>
+              <em>NO BOND YET</em>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mag-grid">
@@ -520,6 +720,123 @@ function CharacterAppScreen() {
             <small>{subTab === "main" ? "NEW MAIN" : "NEW NPC"}</small>
           </button>
         </div>
+      )}
+
+      {relationEditorOpen && (
+        <section className="character-edit-page relation-edit-page">
+          <header className="character-edit-header">
+            <button onClick={closeRelationEditor}>
+              <ChevronLeft size={20} />
+              <span>返回</span>
+            </button>
+            <strong>{editingRelationId ? "编辑羁绊" : "缔结新羁绊"}</strong>
+            <span></span>
+          </header>
+          <div className="character-edit-container relation-edit-container">
+            <section className="character-card relation-builder-card">
+              <div className="relation-pair-row">
+                {["charA", "charB"].map((target, index) => {
+                  const selected = relationDraft[target] ? getCharacterData(relationDraft[target]) : null;
+                  return (
+                    <button className="rel-char-box" key={target} onClick={() => openCharacterSelector(target)}>
+                      <span className="rel-avatar"><AvatarContent character={selected} /></span>
+                      <span className="rel-name">{selected?.name || "点击选择人物"}</span>
+                      <span className="rel-hint">人物 {index === 0 ? "A" : "B"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <label className="character-field">
+                <span><i></i>关系类型 / Bond Type</span>
+                <select
+                  className="character-input"
+                  value={relationDraft.type}
+                  onChange={(event) => patchRelationDraft({ type: event.target.value })}
+                >
+                  {relationTypes.map((type) => (
+                    <option value={type} key={type}>{type === "custom" ? "自定义关系" : type}</option>
+                  ))}
+                </select>
+              </label>
+              {relationDraft.type === "custom" && (
+                <label className="character-field">
+                  <span><i></i>自定义名称 / Custom</span>
+                  <input
+                    className="character-input"
+                    value={relationDraft.customType}
+                    onChange={(event) => patchRelationDraft({ customType: event.target.value })}
+                    placeholder="例如：契约共犯"
+                  />
+                </label>
+              )}
+            </section>
+            <section className="character-card">
+              <label className="character-field">
+                <span><i></i>A 对 B 的看法</span>
+                <textarea
+                  className="character-input"
+                  rows="4"
+                  value={relationDraft.viewA}
+                  onChange={(event) => patchRelationDraft({ viewA: event.target.value })}
+                  placeholder="记录人物 A 对人物 B 的态度、误解或秘密"
+                />
+              </label>
+              <label className="character-field">
+                <span><i></i>B 对 A 的看法</span>
+                <textarea
+                  className="character-input"
+                  rows="4"
+                  value={relationDraft.viewB}
+                  onChange={(event) => patchRelationDraft({ viewB: event.target.value })}
+                  placeholder="记录人物 B 对人物 A 的态度、牵绊或目标"
+                />
+              </label>
+            </section>
+            <div className="character-actions relation-actions">
+              {editingRelationId && <button className="character-danger" onClick={deleteRelation}>删除</button>}
+              <button className="character-save" onClick={saveRelation}>{editingRelationId ? "保存羁绊" : "建立羁绊"}</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {selectorOpen && (
+        <section className="char-selector-modal active">
+          <header className="selector-header">
+            <button className="selector-close" onClick={() => setSelectorOpen(false)}>
+              <ChevronLeft size={19} />
+              <span>返回</span>
+            </button>
+            <strong className="selector-title">选择人物</strong>
+            <span></span>
+          </header>
+          <div className="search-bar-container">
+            <div className="search-bar">
+              <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m20 20-4.6-4.6m2.1-5.2a7.3 7.3 0 1 1-14.6 0 7.3 7.3 0 0 1 14.6 0Z" />
+              </svg>
+              <input value={selectorSearch} onChange={(event) => setSelectorSearch(event.target.value)} placeholder="搜索姓名或身份" autoFocus />
+            </div>
+          </div>
+          <div className="selector-list">
+            {selectorGroups.map((group) => (
+              group.items.length ? (
+                <div className="selector-group" key={group.title}>
+                  <div className="selector-group-title">{group.title}</div>
+                  {group.items.map(([id, character]) => (
+                    <button className="selector-item" key={id} onClick={() => selectRelationCharacter(id)}>
+                      <span className="selector-avatar"><AvatarContent character={character} /></span>
+                      <span className="selector-copy">
+                        <strong className="selector-name">{character.name}</strong>
+                        <em className="selector-identity">{character.identity}</em>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null
+            ))}
+          </div>
+        </section>
       )}
 
       {editorOpen && (
@@ -643,7 +960,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.28</p>
+      <p className="version-label">Ccat OS v0.1.29</p>
     </section>
   );
 }
