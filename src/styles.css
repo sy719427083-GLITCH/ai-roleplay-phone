@@ -4,6 +4,8 @@
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
@@ -45,6 +47,8 @@ body {
   -webkit-font-smoothing: antialiased;
   background: #f7f7f9;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 #root {
@@ -52,6 +56,8 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   background: #f7f7f9;
+  overflow: hidden;
+  touch-action: manipulation;
 }
 
 .lock-screen,
@@ -1614,7 +1620,8 @@ textarea.character-input {
   letter-spacing: 0;
 }
 
-.api-page .page-header .api-back-button {
+.api-page .page-header .api-back-button,
+.wallet-page .page-header .api-back-button {
   justify-content: flex-start;
   gap: 2px;
   min-width: 88px;
@@ -1627,7 +1634,8 @@ textarea.character-input {
   padding: 0;
 }
 
-.api-page .page-header .api-back-button span {
+.api-page .page-header .api-back-button span,
+.wallet-page .page-header .api-back-button span {
   font-size: 15px;
 }
 
@@ -2005,6 +2013,26 @@ select {
 .wallet-page {
   overflow-y: auto;
   background: #f8f8fa;
+  scrollbar-width: none;
+}
+
+.wallet-page::-webkit-scrollbar {
+  display: none;
+}
+
+.wallet-page .page-header {
+  grid-template-columns: 100px minmax(0, 1fr) 100px;
+  height: auto;
+  min-height: 48px;
+  padding: 4px 6px 8px;
+  background: transparent;
+}
+
+.wallet-page .page-header > span {
+  color: #1c1c1e;
+  font-size: 17px;
+  font-weight: 680;
+  letter-spacing: 0;
 }
 
 .wallet-content {

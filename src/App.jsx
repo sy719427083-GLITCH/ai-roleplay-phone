@@ -960,7 +960,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.30</p>
+      <p className="version-label">Ccat OS v0.1.31</p>
     </section>
   );
 }
@@ -1479,8 +1479,9 @@ function OpenedApp({ app, onClose }) {
       className={`full-page app-page ${isWallet ? "wallet-page" : ""}`}
     >
       <header className="page-header">
-        <button onClick={onClose} aria-label="返回">
+        <button className={isWallet ? "api-back-button" : ""} onClick={onClose} aria-label="返回">
           <ChevronLeft size={20} />
+          {isWallet && <span>返回</span>}
         </button>
         <span>{app.title}</span>
         <span></span>
@@ -1649,6 +1650,18 @@ export function App() {
   const [settingPage, setSettingPage] = useState(null);
   const [launching, setLaunching] = useState(null);
   const [hasShownLaunch, setHasShownLaunch] = useState(false);
+
+  useEffect(() => {
+    const preventZoom = (event) => event.preventDefault();
+    document.addEventListener("gesturestart", preventZoom, { passive: false });
+    document.addEventListener("gesturechange", preventZoom, { passive: false });
+    document.addEventListener("gestureend", preventZoom, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", preventZoom);
+      document.removeEventListener("gesturechange", preventZoom);
+      document.removeEventListener("gestureend", preventZoom);
+    };
+  }, []);
 
   useEffect(() => {
     if (!launching) return undefined;
