@@ -44,6 +44,41 @@
 
 final result: passed
 
+## Work Map Progress + Dynamic Jobs Pass - 2026-06-30
+
+**Scope**
+- Updated the Work app map and dashboard for v0.1.40.
+- Converted the dashboard ring from decorative sweep to real elapsed-time progress.
+- Rebuilt work generation so the five categories are not fixed.
+
+**Implementation Evidence**
+- Version label: `Ccat OS v0.1.40`.
+- Dashboard ring starts empty and increases as work time elapses.
+- Removed the small tick marks from the dashboard ring.
+- Map river is drawn as a clean background-colored channel above roads and route lines, so roads no longer show inside the river.
+- Added edge roads to keep the map detailed at the boundaries.
+- Local fallback jobs now sample five tasks from a larger catalog.
+- API prompt asks for diverse jobs and reward distribution: three-digit most common, four-digit around 20%, five-digit around 5%.
+
+**Verification Evidence**
+- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/16-work-map-progress-river-final.png`
+- Automated checks:
+  - Choice labels were dynamic, for example `审核 / 美化 / 备餐 / 代购 / 活动`.
+  - Exactly one work choice active.
+  - Initial ring offset: `452px`.
+  - After starting work, ring offset decreased to reveal a growing progress arc.
+  - Dashboard tick line count: `0`.
+  - River stroke matches the page background: `rgb(247, 247, 249)`.
+  - River layer renders after route layer, covering route/roads inside the river.
+  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
+
+**Verification Commands**
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+- Local Playwright visual and DOM smoke check at `390 x 844`.
+
+final result: passed
+
 ## Work App API + Stop Settlement Pass - 2026-06-30
 
 **Scope**

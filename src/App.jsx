@@ -164,6 +164,111 @@ const workCatalog = [
     distance: "2.7 km",
     pin: { x: 88, y: 39 },
   },
+  {
+    key: "kitchen",
+    icon: "kitchen",
+    cn: "备餐",
+    en: "Prep",
+    title: "餐食备料",
+    titleEn: "Meal Prep",
+    content: "清点食材、切配备料、完成封存",
+    contentEn: "Check ingredients, prep, seal packs",
+    durationMinutes: 80,
+    reward: 260,
+    level: 1,
+    distance: "0.8 km",
+    pin: { x: 34, y: 32 },
+  },
+  {
+    key: "shop",
+    icon: "shop",
+    cn: "代购",
+    en: "Shop",
+    title: "清单代购",
+    titleEn: "List Shopping",
+    content: "核对清单、采购物品、整理票据",
+    contentEn: "Check list, buy items, file receipt",
+    durationMinutes: 120,
+    reward: 420,
+    level: 2,
+    distance: "1.2 km",
+    pin: { x: 66, y: 34 },
+  },
+  {
+    key: "device",
+    icon: "device",
+    cn: "检修",
+    en: "Device",
+    title: "设备检修",
+    titleEn: "Device Check",
+    content: "检查设备、记录故障、提交照片",
+    contentEn: "Inspect device, log issues, submit photos",
+    durationMinutes: 210,
+    reward: 780,
+    level: 3,
+    distance: "2.4 km",
+    pin: { x: 18, y: 53 },
+  },
+  {
+    key: "event",
+    icon: "event",
+    cn: "活动",
+    en: "Event",
+    title: "活动协助",
+    titleEn: "Event Assist",
+    content: "布置物料、维持秩序、清点回收",
+    contentEn: "Set materials, guide flow, count returns",
+    durationMinutes: 300,
+    reward: 1380,
+    level: 4,
+    distance: "2.8 km",
+    pin: { x: 76, y: 53 },
+  },
+  {
+    key: "beauty",
+    icon: "beauty",
+    cn: "美化",
+    en: "Style",
+    title: "空间美化",
+    titleEn: "Space Styling",
+    content: "调整陈列、拍摄样图、同步清单",
+    contentEn: "Style display, shoot samples, sync list",
+    durationMinutes: 180,
+    reward: 620,
+    level: 2,
+    distance: "1.7 km",
+    pin: { x: 62, y: 73 },
+  },
+  {
+    key: "game",
+    icon: "game",
+    cn: "陪玩",
+    en: "Game",
+    title: "游戏陪练",
+    titleEn: "Game Coach",
+    content: "组队练习、复盘操作、提交总结",
+    contentEn: "Team practice, review moves, summarize",
+    durationMinutes: 240,
+    reward: 920,
+    level: 3,
+    distance: "0.6 km",
+    pin: { x: 42, y: 58 },
+  },
+  {
+    key: "survey",
+    icon: "survey",
+    cn: "调研",
+    en: "Survey",
+    title: "街区调研",
+    titleEn: "Area Survey",
+    content: "采集点位、记录人流、上传表格",
+    contentEn: "Collect spots, log flow, upload sheet",
+    durationMinutes: 360,
+    reward: 2150,
+    level: 5,
+    distance: "3.1 km",
+    pin: { x: 86, y: 62 },
+  },
 ];
 
 const levelMarks = ["I", "II", "III", "IV", "V"];
@@ -177,6 +282,33 @@ const workIconMap = {
   writing: FileText,
   assistant: Briefcase,
   errand: MapPin,
+  kitchen: Soup,
+  shop: ShoppingBag,
+  device: Smartphone,
+  event: CalendarDays,
+  beauty: Palette,
+  game: Gamepad2,
+  survey: Globe2,
+};
+
+const workPins = [
+  { x: 50, y: 76 },
+  { x: 12, y: 36 },
+  { x: 22, y: 66 },
+  { x: 79, y: 67 },
+  { x: 88, y: 39 },
+  { x: 34, y: 32 },
+  { x: 66, y: 34 },
+  { x: 18, y: 53 },
+  { x: 76, y: 53 },
+  { x: 62, y: 73 },
+];
+
+const chooseWorkReward = (level = 1) => {
+  const roll = Math.random();
+  if (roll < 0.05) return Math.round((10000 + Math.random() * 28000) / 100) * 100;
+  if (roll < 0.25) return Math.round((1000 + Math.random() * (2400 + level * 520)) / 10) * 10;
+  return Math.round((180 + Math.random() * (560 + level * 54)) / 10) * 10;
 };
 
 const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
@@ -188,6 +320,13 @@ const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
     [/夜|night|巡检|值守/, "night"],
     [/写|文案|writing|稿|记录/, "writing"],
     [/助理|assistant|事务|排程/, "assistant"],
+    [/备餐|餐|kitchen|meal|prep|食材/, "kitchen"],
+    [/代购|shop|采购|清单|票据/, "shop"],
+    [/检修|device|设备|手机|故障/, "device"],
+    [/活动|event|布置|秩序/, "event"],
+    [/美化|style|陈列|拍摄|设计/, "beauty"],
+    [/游戏|game|陪练|复盘/, "game"],
+    [/调研|survey|采集|人流|街区/, "survey"],
     [/审核|资料|review|document|核对|标注/, "review"],
   ];
   const matched = candidates.find(([pattern]) => pattern.test(source))?.[1];
@@ -210,18 +349,20 @@ const formatWorkTime = (milliseconds) => {
 };
 
 const buildWorkJobs = () =>
-  workCatalog
-    .map((job) => {
+  [...workCatalog]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 5)
+    .map((job, index) => {
       const levelOffset = Math.max(0, job.level - 1);
       const durationJitter = Math.round((Math.random() * 34 - 12) / 5) * 5;
-      const rewardJitter = Math.round((Math.random() * 180 - 60) / 10) * 10;
       return {
         ...job,
+        key: `${job.key}_${Date.now()}_${index}`,
         durationMinutes: Math.min(600, Math.max(45, job.durationMinutes + durationJitter + levelOffset * 8)),
-        reward: Math.min(9999, Math.max(80, job.reward + rewardJitter + levelOffset * 120)),
+        reward: chooseWorkReward(job.level),
+        pin: workPins[index] || job.pin,
       };
-    })
-    .slice(0, 5);
+    });
 
 const normalizeWorkJobs = (items = []) => {
   if (!Array.isArray(items)) return [];
@@ -229,7 +370,7 @@ const normalizeWorkJobs = (items = []) => {
   return items.slice(0, 5).map((item, index) => {
     const fallback = workCatalog[index] || workCatalog[0];
     const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
-    const reward = Math.min(9999, Math.max(1, Number(item.reward || fallback.reward)));
+    const reward = Math.min(99999, Math.max(1, Number(item.reward || fallback.reward)));
     const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
     return {
       ...fallback,
@@ -245,7 +386,7 @@ const normalizeWorkJobs = (items = []) => {
       reward,
       level,
       distance: String(item.distance || fallback.distance),
-      pin: fallback.pin,
+      pin: workPins[index] || fallback.pin,
     };
   });
 };
@@ -1596,7 +1737,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.39</p>
+      <p className="version-label">Ccat OS v0.1.40</p>
     </section>
   );
 }
@@ -2040,10 +2181,15 @@ function GenericSettingPage({ item, onBack }) {
 
 function WorkMap({ jobs, selectedId, onSelect }) {
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
+  const ringLength = 452;
+  const ringOffset = ringLength * (1 - Math.max(0, Math.min(1, selectedJob.remainingRatio ?? 0)));
   return (
     <section className="work-map-panel" aria-label="工作地图">
       <svg className="work-map-lines" viewBox="0 0 390 470" aria-hidden="true">
-        <path className="river" d="M402 18 C338 52 312 104 328 160 C344 216 388 244 356 292 C330 330 270 330 242 370 C220 402 220 432 232 474" />
+        <path className="edge-road" d="M-18 40 C52 18 116 22 184 38 C252 54 316 28 408 18" />
+        <path className="edge-road" d="M-20 452 C50 418 116 404 190 420 C260 436 320 414 410 380" />
+        <path className="edge-road" d="M8 -16 C22 58 30 124 24 198 C18 276 38 354 62 488" />
+        <path className="edge-road" d="M382 -18 C350 72 350 148 362 222 C376 306 356 380 326 492" />
         <path className="district" d="M-16 78 C60 72 104 78 154 88 C206 98 260 70 406 52" />
         <path className="district" d="M-18 132 C62 126 132 136 190 148 C252 160 312 128 410 126" />
         <path className="district" d="M-18 190 C64 184 118 190 170 214 C222 238 300 194 408 164" />
@@ -2074,6 +2220,9 @@ function WorkMap({ jobs, selectedId, onSelect }) {
         <path className="block" d="M172 344 h54 v34 h-54z" />
         <path className="block" d="M70 358 h42 v42 h-42z" />
         <path className="route" d={`M195 168 C196 224 192 256 195 282 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
+        <path className="river" d="M402 14 C338 52 314 102 330 160 C346 220 386 246 356 292 C326 338 270 330 244 372 C224 406 220 438 232 478" />
+        <path className="river-bank" d="M386 28 C324 68 306 106 320 160 C334 218 374 246 342 286 C312 324 260 324 232 362 C208 396 204 438 216 478" />
+        <path className="river-bank" d="M418 4 C350 42 322 100 340 164 C358 224 398 250 368 300 C336 350 282 340 258 384 C238 420 236 448 250 478" />
         <circle className="radar-ring" cx="195" cy="168" r="86" />
         <circle className="radar-ring" cx="195" cy="168" r="114" />
         <circle className="radar-ring" cx="195" cy="168" r="142" />
@@ -2082,11 +2231,7 @@ function WorkMap({ jobs, selectedId, onSelect }) {
       <div className="work-radar" aria-label="工作仪表盘">
         <svg viewBox="0 0 180 180" aria-hidden="true">
           <circle className="ring-base" cx="90" cy="90" r="72" />
-          <circle className="ring-active" cx="90" cy="90" r="72" />
-          {Array.from({ length: 16 }).map((_, index) => {
-            const angle = (index / 16) * 360;
-            return <line key={angle} x1="90" y1="12" x2="90" y2="20" style={{ transform: `rotate(${angle}deg)`, transformOrigin: "90px 90px" }} />;
-          })}
+          <circle className="ring-active" cx="90" cy="90" r="72" style={{ "--ring-offset": ringOffset }} />
         </svg>
         <div className="work-radar-copy">
           <span>剩余时间</span>
@@ -2125,7 +2270,7 @@ function WorkMap({ jobs, selectedId, onSelect }) {
 
 function WorkAppScreen({ onClose }) {
   const [jobs, setJobs] = useState(() => buildWorkJobs());
-  const [selectedId, setSelectedId] = useState("review");
+  const [selectedId, setSelectedId] = useState("");
   const [refreshLeft, setRefreshLeft] = useState(5);
   const [activeWork, setActiveWork] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -2165,7 +2310,7 @@ function WorkAppScreen({ onClose }) {
             content: `你是 Ccat OS 的工作派单生成器。根据现实世界生成 5 个可执行工作。
 必须只返回 JSON，不要 Markdown。格式：
 {"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":300,"reward":1600,"level":4,"distance":"0.3 km","icon":"review"}]}
-规则：durationMinutes 30 到 600；reward 1 到 9999；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand 中选择；中文内容要具体，英文要简短对应。`,
+规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 1 到 99999，三位数最常见，四位数约 20%，五位数约 5%；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
           },
           { role: "user", content: "生成一组现实世界工作。世界观：暂无。" },
         ],
@@ -2205,6 +2350,7 @@ function WorkAppScreen({ onClose }) {
   }, []);
 
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
+  const selectedKey = selectedJob?.key || "";
   const isRunning = activeWork?.jobKey === selectedJob.key && activeWork.endAt > now;
   const remainingMs = isRunning ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
   const progress = isRunning
@@ -2213,6 +2359,7 @@ function WorkAppScreen({ onClose }) {
   const mappedJobs = jobs.map((job) => ({
     ...job,
     remainingLabel: job.key === selectedJob.key ? formatWorkTime(remainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
+    remainingRatio: job.key === selectedJob.key ? progress / 100 : 0,
   }));
 
   const selectJob = (id) => {
@@ -2290,7 +2437,7 @@ function WorkAppScreen({ onClose }) {
         </button>
       </div>
 
-      <WorkMap jobs={mappedJobs} selectedId={selectedId} onSelect={selectJob} />
+      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} />
 
       <section className="work-status-card">
         <span className="work-status-icon">
@@ -2322,7 +2469,7 @@ function WorkAppScreen({ onClose }) {
 
       <section className="work-choice-panel" aria-label="工作预选">
         {jobs.map((job) => (
-          <button className={job.key === selectedId ? "active" : ""} key={job.key} onClick={() => selectJob(job.key)}>
+          <button className={job.key === selectedKey ? "active" : ""} key={job.key} onClick={() => selectJob(job.key)}>
             <span className="work-choice-icon">
               {(() => {
                 const Icon = workIconMap[job.icon] || workIconMap[job.key] || FileText;
