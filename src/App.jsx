@@ -304,11 +304,60 @@ const workPins = [
   { x: 62, y: 73 },
 ];
 
-const chooseWorkReward = (level = 1) => {
-  const roll = Math.random();
-  if (roll < 0.05) return Math.round((1000 + Math.random() * (900 + level * 180)) / 10) * 10;
-  if (roll < 0.15) return Math.round((100 + Math.random() * (280 + level * 34)) / 10) * 10;
-  return Math.round((24 + Math.random() * (46 + level * 6)) / 5) * 5;
+const WORK_JOBS_STORAGE_KEY = "ccatWorkJobs";
+const WORK_ACTIVE_STORAGE_KEY = "ccatActiveWork";
+const WORK_SELECTED_STORAGE_KEY = "ccatSelectedWork";
+const highValueWorkKeys = new Set(["review", "night", "device", "event", "survey"]);
+
+const roundToStep = (value, step = 5) => Math.max(step, Math.round(value / step) * step);
+
+const chooseWorkCompensation = (durationMinutes, level = 1, highValue = false) => {
+  const safeLevel = Math.min(5, Math.max(1, Number(level) || 1));
+  let minutes = Math.min(600, Math.max(30, Number(durationMinutes) || 60));
+  let hourlyRate;
+
+  if (highValue) {
+    minutes = Math.min(600, Math.max(minutes, 420 + Math.round((Math.random() * 180) / 5) * 5));
+    hourlyRate = Math.random() < 0.5
+      ? roundToStep(108 + Math.random() * (38 + safeLevel * 10), 5)
+      : roundToStep(82 + Math.random() * (10 + safeLevel * 3), 5);
+    if (hourlyRate * (minutes / 60) < 1000) {
+      hourlyRate = roundToStep(1000 / (minutes / 60), 5);
+    }
+  } else {
+    hourlyRate = roundToStep(24 + Math.random() * (24 + safeLevel * 7), 5);
+  }
+
+  return {
+    durationMinutes: minutes,
+    hourlyRate,
+    reward: Math.min(9999, roundToStep(hourlyRate * (minutes / 60), highValue ? 10 : 5)),
+  };
+};
+
+const reconcileWorkCompensation = (item = {}, fallback = workCatalog[0]) => {
+  const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
+  const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
+  const hourlyRate = Number(item.hourlyRate || item.hourly || item.rate);
+
+  if (hourlyRate > 0) {
+    return {
+      durationMinutes,
+      hourlyRate: Math.min(999, hourlyRate),
+      reward: Math.min(9999, roundToStep(hourlyRate * (durationMinutes / 60), Number(item.reward) >= 1000 ? 10 : 5)),
+    };
+  }
+
+  const suppliedReward = Number(item.reward || fallback.reward);
+  if (suppliedReward > 0) {
+    return {
+      durationMinutes,
+      hourlyRate: Math.max(1, Math.round(suppliedReward / Math.max(0.5, durationMinutes / 60))),
+      reward: Math.min(9999, Math.max(1, Math.round(suppliedReward))),
+    };
+  }
+
+  return chooseWorkCompensation(durationMinutes, level, false);
 };
 
 const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
@@ -348,30 +397,39 @@ const formatWorkTime = (milliseconds) => {
   return [hours, minutes].map((part) => String(part).padStart(2, "0")).join(":");
 };
 
-const buildWorkJobs = () =>
-  [...workCatalog]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 5)
-    .map((job, index) => {
-      const levelOffset = Math.max(0, job.level - 1);
-      const durationJitter = Math.round((Math.random() * 34 - 12) / 5) * 5;
-      return {
-        ...job,
-        key: `${job.key}_${Date.now()}_${index}`,
-        durationMinutes: Math.min(600, Math.max(45, job.durationMinutes + durationJitter + levelOffset * 8)),
-        reward: chooseWorkReward(job.level),
-        pin: workPins[index] || job.pin,
-      };
-    });
+const buildWorkJobs = () => {
+  const regularPool = [...workCatalog].sort(() => Math.random() - 0.5);
+  const premiumPool = workCatalog.filter((job) => highValueWorkKeys.has(job.key)).sort(() => Math.random() - 0.5);
+  const usedKeys = new Set();
+
+  return Array.from({ length: 5 }).map((_, index) => {
+    const highValue = Math.random() < 0.1;
+    const pool = highValue ? premiumPool : regularPool;
+    const job = pool.find((item) => !usedKeys.has(item.key)) || regularPool.find((item) => !usedKeys.has(item.key)) || workCatalog[index];
+    usedKeys.add(job.key);
+    const levelOffset = Math.max(0, job.level - 1);
+    const durationJitter = Math.round((Math.random() * 34 - 12) / 5) * 5;
+    const baseDuration = Math.min(600, Math.max(45, job.durationMinutes + durationJitter + levelOffset * 8));
+    const compensation = chooseWorkCompensation(baseDuration, job.level, highValue);
+
+    return {
+      ...job,
+      key: `${job.key}_${Date.now()}_${index}`,
+      durationMinutes: compensation.durationMinutes,
+      hourlyRate: compensation.hourlyRate,
+      reward: compensation.reward,
+      pin: workPins[index] || job.pin,
+    };
+  });
+};
 
 const normalizeWorkJobs = (items = []) => {
   if (!Array.isArray(items)) return [];
   const usedIcons = new Set();
   return items.slice(0, 5).map((item, index) => {
     const fallback = workCatalog[index] || workCatalog[0];
-    const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
-    const reward = Math.min(9999, Math.max(1, Number(item.reward || fallback.reward)));
     const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
+    const compensation = reconcileWorkCompensation(item, fallback);
     return {
       ...fallback,
       key: `${fallback.key}_${Date.now()}_${index}`,
@@ -382,13 +440,48 @@ const normalizeWorkJobs = (items = []) => {
       titleEn: String(item.titleEn || item.englishTitle || fallback.titleEn).slice(0, 28),
       content: String(item.content || fallback.content).slice(0, 36),
       contentEn: String(item.contentEn || item.englishContent || fallback.contentEn).slice(0, 72),
-      durationMinutes,
-      reward,
+      durationMinutes: compensation.durationMinutes,
+      hourlyRate: compensation.hourlyRate,
+      reward: compensation.reward,
       level,
       distance: String(item.distance || fallback.distance),
       pin: workPins[index] || fallback.pin,
     };
   });
+};
+
+const loadStoredWorkJobs = () => {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(WORK_JOBS_STORAGE_KEY));
+    if (Array.isArray(stored) && stored.length) {
+      return stored.slice(0, 5).map((job, index) => {
+        const fallback = workCatalog[index] || workCatalog[0];
+        const compensation = reconcileWorkCompensation(job, fallback);
+        return {
+          ...fallback,
+          ...job,
+          key: job.key || `${fallback.key}_${Date.now()}_${index}`,
+          durationMinutes: compensation.durationMinutes,
+          hourlyRate: compensation.hourlyRate,
+          reward: compensation.reward,
+          pin: job.pin || workPins[index] || fallback.pin,
+        };
+      });
+    }
+  } catch {
+    // Fall back to local generation when stored work data is unavailable.
+  }
+  return buildWorkJobs();
+};
+
+const loadStoredActiveWork = () => {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(WORK_ACTIVE_STORAGE_KEY));
+    if (stored?.jobKey && stored?.startAt && stored?.endAt) return stored;
+  } catch {
+    // Ignore broken persisted work state.
+  }
+  return null;
 };
 
 const creditWalletFromWork = (job, amount) => {
@@ -1737,7 +1830,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.42</p>
+      <p className="version-label">Ccat OS v0.1.43</p>
     </section>
   );
 }
@@ -2269,10 +2362,16 @@ function WorkMap({ jobs, selectedId, onSelect }) {
 }
 
 function WorkAppScreen({ onClose }) {
-  const [jobs, setJobs] = useState(() => buildWorkJobs());
-  const [selectedId, setSelectedId] = useState("");
+  const [jobs, setJobs] = useState(() => loadStoredWorkJobs());
+  const [selectedId, setSelectedId] = useState(() => {
+    try {
+      return window.localStorage.getItem(WORK_SELECTED_STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const [refreshLeft, setRefreshLeft] = useState(5);
-  const [activeWork, setActiveWork] = useState(null);
+  const [activeWork, setActiveWork] = useState(() => loadStoredActiveWork());
   const [now, setNow] = useState(Date.now());
   const [loadingJobs, setLoadingJobs] = useState(false);
 
@@ -2282,10 +2381,32 @@ function WorkAppScreen({ onClose }) {
   }, []);
 
   useEffect(() => {
+    window.localStorage.setItem(WORK_JOBS_STORAGE_KEY, JSON.stringify(jobs));
+  }, [jobs]);
+
+  useEffect(() => {
+    if (selectedId) window.localStorage.setItem(WORK_SELECTED_STORAGE_KEY, selectedId);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (activeWork) {
+      window.localStorage.setItem(WORK_ACTIVE_STORAGE_KEY, JSON.stringify(activeWork));
+    } else {
+      window.localStorage.removeItem(WORK_ACTIVE_STORAGE_KEY);
+    }
+  }, [activeWork]);
+
+  useEffect(() => {
     if (!activeWork || activeWork.endAt > now) return;
     const completedJob = jobs.find((job) => job.key === activeWork.jobKey);
     if (completedJob) creditWalletFromWork(completedJob, completedJob.reward);
     setActiveWork(null);
+  }, [activeWork, jobs, now]);
+
+  useEffect(() => {
+    if (activeWork?.endAt > now && jobs.some((job) => job.key === activeWork.jobKey)) {
+      setSelectedId(activeWork.jobKey);
+    }
   }, [activeWork, jobs, now]);
 
   const fetchApiJobs = async () => {
@@ -2309,8 +2430,8 @@ function WorkAppScreen({ onClose }) {
             role: "system",
             content: `你是 Ccat OS 的工作派单生成器。根据现实世界生成 5 个可执行工作。
 必须只返回 JSON，不要 Markdown。格式：
-{"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":180,"reward":85,"level":2,"distance":"0.3 km","icon":"review"}]}
-规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 按现实兼职/零工金额生成，85% 概率为两位数，10% 概率为三位数，5% 概率为四位数，不要生成五位数；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
+{"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":180,"hourlyRate":30,"reward":90,"level":2,"distance":"0.3 km","icon":"review"}]}
+规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 必须约等于 hourlyRate * durationMinutes / 60，可以四舍五入到 5 或 10；时薪一般为两位数，仅约 5% 出现三位数时薪；约 10% 出现四位数总额，此类必须是更高端的专业工作；不要生成五位数；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
           },
           { role: "user", content: "生成一组现实世界工作。世界观：暂无。" },
         ],
@@ -2327,30 +2448,9 @@ function WorkAppScreen({ onClose }) {
     return nextJobs.length === 5 ? nextJobs : null;
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadInitialJobs = async () => {
-      setLoadingJobs(true);
-      try {
-        const nextJobs = await fetchApiJobs();
-        if (!cancelled && nextJobs) {
-          setJobs(nextJobs);
-          setSelectedId(nextJobs[0]?.key || "review");
-        }
-      } catch {
-        // Keep local fallback jobs when API is unavailable.
-      } finally {
-        if (!cancelled) setLoadingJobs(false);
-      }
-    };
-    loadInitialJobs();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
   const selectedKey = selectedJob?.key || "";
+  const hasRunningWork = activeWork?.endAt > now;
   const isRunning = activeWork?.jobKey === selectedJob.key && activeWork.endAt > now;
   const remainingMs = isRunning ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
   const progress = isRunning
@@ -2364,7 +2464,6 @@ function WorkAppScreen({ onClose }) {
 
   const selectJob = (id) => {
     setSelectedId(id);
-    if (activeWork && activeWork.jobKey !== id) setActiveWork(null);
   };
 
   const startWork = () => {
@@ -2377,7 +2476,7 @@ function WorkAppScreen({ onClose }) {
   };
 
   const refreshJobs = async () => {
-    if (refreshLeft <= 0) return;
+    if (refreshLeft <= 0 || activeWork?.endAt > Date.now()) return;
     setLoadingJobs(true);
     let nextJobs = null;
     try {
@@ -2388,7 +2487,6 @@ function WorkAppScreen({ onClose }) {
     if (!nextJobs) nextJobs = buildWorkJobs();
     setJobs(nextJobs);
     setSelectedId(nextJobs[0]?.key || "review");
-    setActiveWork(null);
     setRefreshLeft((value) => Math.max(0, value - 1));
     setLoadingJobs(false);
   };
@@ -2414,7 +2512,7 @@ function WorkAppScreen({ onClose }) {
           <strong>工作</strong>
           <span>Work</span>
         </div>
-        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0 || loadingJobs}>
+        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0 || loadingJobs || hasRunningWork}>
           <strong>{loadingJobs ? "生成中" : `刷新 ${refreshLeft}/5`}</strong>
           <span>{loadingJobs ? "Loading" : "Refresh"}</span>
         </button>
@@ -2488,7 +2586,7 @@ function WorkAppScreen({ onClose }) {
       </div>
 
       <div className="work-actions">
-        <button className="work-start" onClick={startWork} disabled={isRunning}>
+        <button className="work-start" onClick={startWork} disabled={hasRunningWork}>
           <Play size={22} fill="currentColor" />
           <span>
             <strong>{isRunning ? "进行中" : "开始"}</strong>
