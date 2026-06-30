@@ -1,48 +1,41 @@
 **Findings**
-- No actionable P0/P1/P2 findings remain.
+- No actionable P0/P1/P2 findings remain for the Work app pass.
 
 **Source Visual Truth**
-- Combined selected direction from ImageGen:
-  - `/Users/mypc/.codex/generated_images/019f0792-5dfa-72e3-8583-8812ecf05b8f/ig_010caeceb5913c31016a3f63991c5c8191868ff80bafe196d1.png`
-  - `/Users/mypc/.codex/generated_images/019f0792-5dfa-72e3-8583-8812ecf05b8f/ig_010caeceb5913c31016a3f63c5d134819187505b274fd5b480.png`
-  - `/Users/mypc/.codex/generated_images/019f0792-5dfa-72e3-8583-8812ecf05b8f/ig_010caeceb5913c31016a3f63f474a0819194b1132db36abe22.png`
-- Product decision: use the first option as the overall OS style, the second option for lock-to-launch interaction, and the third option for settings/API structure.
+- Selected Product Design direction: option 2, Map Radar Dashboard.
+- Reference image:
+  - `/Users/mypc/.codex/generated_images/019f0792-5dfa-72e3-8583-8812ecf05b8f/ig_0f7d222f78b66b51016a4363fa2f448195a0881b6f97c2b4ac.png`
 
 **Implementation Evidence**
-- URL: `http://127.0.0.1:5173/`
+- Local URL: `http://127.0.0.1:5173/ai-roleplay-phone/`
 - Viewport: `390 x 844`, mobile, device scale factor 2.
-- State screenshots:
-  - Lock screen: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/01-lock.png`
-  - Home page 1: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/02-home.png`
-  - Home page 2: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/03-home-page-2.png`
-  - Settings: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/04-settings.png`
-  - API top: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/05-api.png`
-  - Opened app: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/06-opened-app.png`
-  - API bottom: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/07-api-bottom.png`
+- Captured state:
+  - Work app: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/08-work-app.png`
+- Automated checks:
+  - Work app is full viewport: `390 x 844`.
+  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
+  - Radar dashboard exists.
+  - Map pins count: 5.
+  - Work choices count: 5.
+  - Bottom actions are fully visible.
+  - Selecting a job leaves exactly one active choice.
+  - Start changes the state to `进行中 / Working` and begins progress.
+  - Refresh decrements the free counter from `5/5` to `4/5`.
 
 **Fidelity Surfaces**
-- Fonts and typography: uses system UI typography with strong black/gray hierarchy, no negative letter spacing, and readable mobile sizes. Headers, labels, and controls fit the 390px viewport.
-- Spacing and layout rhythm: lock screen, 4-column launcher, bottom tabs, settings list, and API form are aligned to a mobile-first grid. No visible overlap or cropped primary controls in captured states.
-- Colors and visual tokens: restricted to white, black, and gray. Lock screen avoids glassmorphism; unlocked surfaces use restrained frosted white glass.
-- Image quality and assets: no raster imagery is required. Icons use lucide-react line icons rather than emoji or placeholder glyphs.
-- Copy and content: app labels and required settings/API labels are present; generic app pages stay visually empty.
+- Layout: matches the chosen map-radar direction with compact header, world selector, large grayscale map, centered radar/time module, current work strip, five work choices, and bottom actions.
+- Typography: Chinese remains primary; English is smaller and gray.
+- Color: constrained to white, black, and gray.
+- Map: implemented as SVG/CSS-style monochrome roads, route, rings, and pins.
+- Interaction: work selection, start/progress, and free refresh counter are functional.
 
-**Patches Made Since Previous QA Pass**
-- Removed "保持空白" empty-state copy from blank app/settings pages to better honor the no-content requirement.
-- Verified API local save writes named configuration, custom model, and failover state to localStorage.
+**Known Tradeoffs**
+- The current work strip is intentionally compressed to keep all primary controls visible on a 390 x 844 viewport.
+- The world selector currently exposes `暂无 / None`; future world data can replace the generated real-world job content.
 
-**Open Questions**
-- None blocking. External model auto-fetch depends on a valid API key and compatible `/models` endpoint.
-
-**Implementation Checklist**
-- Lock screen with time/date and unlock affordance: complete.
-- Home launcher with 4 icons per row, 3 visible rows, and second page overflow: complete.
-- Bottom tabs for Home, Characters, Me, Settings: complete.
-- Full-screen app opening with spring motion and return: complete.
-- Settings list and nested full-screen pages: complete.
-- API settings with local save, named configs, model pull, manual/custom model, test, temperatures, retries, and failover switch: complete.
-
-**Follow-up Polish**
-- Optional P3: add gesture swiping between launcher pages in addition to page dots/button.
+**Verification Commands**
+- `npm test -- --run`
+- `npm run build`
+- Playwright local visual and interaction smoke checks.
 
 final result: passed

@@ -9,6 +9,7 @@ import {
   Clock3,
   Database,
   Eye,
+  FileText,
   Gamepad2,
   Globe2,
   Heart,
@@ -19,6 +20,8 @@ import {
   Mail,
   MapPin,
   Palette,
+  Play,
+  RefreshCcw,
   Settings,
   ShoppingBag,
   Smartphone,
@@ -79,6 +82,103 @@ const settingsItems = [
   { id: "data", label: "数据管理", icon: Database },
   { id: "system", label: "系统设置", icon: Settings },
 ];
+
+const workCatalog = [
+  {
+    key: "review",
+    cn: "审核",
+    en: "Review",
+    title: "资料审核",
+    titleEn: "Document Review",
+    content: "核对记录、标注异常、提交摘要",
+    contentEn: "Check records, flag issues, submit summary",
+    durationMinutes: 265,
+    reward: 1280,
+    level: 4,
+    distance: "0.3 km",
+    pin: { x: 50, y: 76 },
+  },
+  {
+    key: "delivery",
+    cn: "配送",
+    en: "Delivery",
+    title: "社区配送",
+    titleEn: "Local Delivery",
+    content: "取件、配送、确认签收",
+    contentEn: "Pickup, deliver, confirm receipt",
+    durationMinutes: 150,
+    reward: 360,
+    level: 2,
+    distance: "2.1 km",
+    pin: { x: 12, y: 36 },
+  },
+  {
+    key: "cleaning",
+    cn: "清洁",
+    en: "Cleaning",
+    title: "空间清洁",
+    titleEn: "Space Cleaning",
+    content: "整理房间、清洁地面、归位物品",
+    contentEn: "Tidy rooms, clean floors, reset items",
+    durationMinutes: 95,
+    reward: 220,
+    level: 1,
+    distance: "1.6 km",
+    pin: { x: 22, y: 66 },
+  },
+  {
+    key: "care",
+    cn: "陪护",
+    en: "Care",
+    title: "临时陪护",
+    titleEn: "Care Support",
+    content: "陪同外出、记录状态、完成交接",
+    contentEn: "Escort, record status, hand off",
+    durationMinutes: 380,
+    reward: 1620,
+    level: 4,
+    distance: "1.9 km",
+    pin: { x: 79, y: 67 },
+  },
+  {
+    key: "night",
+    cn: "夜班",
+    en: "Night",
+    title: "夜间巡检",
+    titleEn: "Night Check",
+    content: "巡查路线、处理异常、填写报告",
+    contentEn: "Patrol route, handle issues, file report",
+    durationMinutes: 540,
+    reward: 2480,
+    level: 5,
+    distance: "2.7 km",
+    pin: { x: 88, y: 39 },
+  },
+];
+
+const levelMarks = ["I", "II", "III", "IV", "V"];
+
+const formatWorkTime = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+};
+
+const buildWorkJobs = () =>
+  workCatalog
+    .map((job) => {
+      const levelOffset = Math.max(0, job.level - 1);
+      const durationJitter = Math.round((Math.random() * 34 - 12) / 5) * 5;
+      const rewardJitter = Math.round((Math.random() * 180 - 60) / 10) * 10;
+      return {
+        ...job,
+        durationMinutes: Math.min(600, Math.max(45, job.durationMinutes + durationJitter + levelOffset * 8)),
+        reward: Math.min(9999, Math.max(80, job.reward + rewardJitter + levelOffset * 120)),
+      };
+    })
+    .slice(0, 5);
 
 const formatDate = (date) =>
   new Intl.DateTimeFormat("zh-CN", {
@@ -1391,7 +1491,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.33</p>
+      <p className="version-label">Ccat OS v0.1.34</p>
     </section>
   );
 }
@@ -1833,8 +1933,222 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
+function WorkMap({ jobs, selectedId, onSelect }) {
+  const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
+  return (
+    <section className="work-map-panel" aria-label="工作地图">
+      <svg className="work-map-lines" viewBox="0 0 390 470" aria-hidden="true">
+        <path d="M-20 70 C82 58 135 92 218 68 C290 46 334 50 420 30" />
+        <path d="M-10 126 C70 114 128 158 200 146 C285 132 320 96 420 112" />
+        <path d="M-20 218 C72 180 146 236 214 214 C282 194 328 212 416 176" />
+        <path d="M20 338 C80 286 142 322 214 292 C286 262 326 286 398 244" />
+        <path d="M34 0 C60 102 54 208 96 296 C122 352 126 404 118 478" />
+        <path d="M170 -10 C152 74 178 156 166 238 C152 330 186 398 204 484" />
+        <path d="M286 -20 C252 86 292 142 270 222 C238 336 304 390 324 484" />
+        <path d="M365 -10 C316 70 346 160 330 244 C310 346 362 390 388 486" />
+        <path className="river" d="M410 42 C310 100 344 178 376 238 C412 306 334 356 256 386 C208 404 198 440 226 484" />
+        <path className="route" d={`M195 235 L195 302 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
+        <circle cx="195" cy="235" r="93" />
+        <circle cx="195" cy="235" r="120" />
+        <circle cx="195" cy="235" r="145" />
+      </svg>
+
+      <div className="work-radar" aria-label="工作仪表盘">
+        <svg viewBox="0 0 180 180" aria-hidden="true">
+          <circle className="ring-base" cx="90" cy="90" r="72" />
+          <circle className="ring-active" cx="90" cy="90" r="72" />
+          {Array.from({ length: 16 }).map((_, index) => {
+            const angle = (index / 16) * 360;
+            return <line key={angle} x1="90" y1="12" x2="90" y2="20" style={{ transform: `rotate(${angle}deg)`, transformOrigin: "90px 90px" }} />;
+          })}
+        </svg>
+        <div className="work-radar-copy">
+          <span>剩余</span>
+          <strong>{selectedJob.remainingLabel}</strong>
+          <em>Time Left</em>
+          <b>¥{selectedJob.reward.toLocaleString("en-US")}</b>
+          <small>Reward</small>
+          <i>等级 {levelMarks[selectedJob.level - 1]}</i>
+        </div>
+      </div>
+
+      {jobs.map((job, index) => {
+        const active = job.key === selectedId;
+        return (
+          <button
+            className={`work-pin ${active ? "active" : ""}`}
+            key={job.key}
+            style={{ left: `${job.pin.x}%`, top: `${job.pin.y}%` }}
+            onClick={() => onSelect(job.key)}
+            aria-label={job.title}
+          >
+            <span className="work-pin-number">{index + 1}</span>
+            <span className="work-pin-dot">
+              <i></i>
+            </span>
+            <span className="work-pin-label">
+              <strong>{job.cn}</strong>
+              <em>{job.distance}</em>
+            </span>
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
+function WorkAppScreen({ onClose }) {
+  const [jobs, setJobs] = useState(() => buildWorkJobs());
+  const [selectedId, setSelectedId] = useState("review");
+  const [refreshLeft, setRefreshLeft] = useState(5);
+  const [activeWork, setActiveWork] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!activeWork || activeWork.endAt > now) return;
+    setActiveWork(null);
+  }, [activeWork, now]);
+
+  const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
+  const isRunning = activeWork?.jobKey === selectedJob.key && activeWork.endAt > now;
+  const remainingMs = isRunning ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
+  const progress = isRunning
+    ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
+    : 0;
+  const mappedJobs = jobs.map((job) => ({
+    ...job,
+    remainingLabel: job.key === selectedJob.key ? formatWorkTime(remainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
+  }));
+
+  const selectJob = (id) => {
+    setSelectedId(id);
+    if (activeWork && activeWork.jobKey !== id) setActiveWork(null);
+  };
+
+  const startWork = () => {
+    const startAt = Date.now();
+    setActiveWork({
+      jobKey: selectedJob.key,
+      startAt,
+      endAt: startAt + selectedJob.durationMinutes * 60 * 1000,
+    });
+  };
+
+  const refreshJobs = () => {
+    if (refreshLeft <= 0) return;
+    const nextJobs = buildWorkJobs();
+    setJobs(nextJobs);
+    setSelectedId(nextJobs[0]?.key || "review");
+    setActiveWork(null);
+    setRefreshLeft((value) => Math.max(0, value - 1));
+  };
+
+  return (
+    <section className="full-page app-page work-page">
+      <header className="work-header">
+        <button className="work-back" onClick={onClose} aria-label="返回">
+          <ChevronLeft size={22} />
+        </button>
+        <div className="work-title">
+          <strong>工作</strong>
+          <span>Work</span>
+        </div>
+        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0}>
+          <strong>刷新 {refreshLeft}/5</strong>
+          <span>Refresh</span>
+        </button>
+      </header>
+
+      <div className="work-world">
+        <button className="active">
+          <Globe2 size={24} strokeWidth={1.8} />
+          <span>
+            <strong>现实</strong>
+            <em>Reality</em>
+          </span>
+        </button>
+        <button>
+          <Globe2 size={24} strokeWidth={1.5} />
+          <span>
+            <strong>世界观：暂无</strong>
+            <em>World View: None</em>
+          </span>
+        </button>
+      </div>
+
+      <WorkMap jobs={mappedJobs} selectedId={selectedId} onSelect={selectJob} />
+
+      <section className="work-status-card">
+        <span className="work-status-icon">
+          <FileText size={23} strokeWidth={1.7} />
+        </span>
+        <div className="work-status-main">
+          <strong>{selectedJob.title} <em>/ {selectedJob.titleEn}</em></strong>
+          <p>{selectedJob.content}</p>
+          <small>{selectedJob.contentEn}</small>
+        </div>
+        <div className="work-status-metric">
+          <span>剩余时间</span>
+          <strong>{formatWorkTime(remainingMs)}</strong>
+          <em>Time Left</em>
+        </div>
+        <div className="work-status-metric">
+          <span>报酬</span>
+          <strong>¥{selectedJob.reward.toLocaleString("en-US")}</strong>
+          <em>Reward</em>
+        </div>
+        <div className="work-level-pill">
+          <strong>{levelMarks[selectedJob.level - 1]}</strong>
+          <span>等级</span>
+          <em>Level</em>
+        </div>
+      </section>
+
+      <section className="work-choice-panel" aria-label="工作预选">
+        {jobs.map((job) => (
+          <button className={job.key === selectedId ? "active" : ""} key={job.key} onClick={() => selectJob(job.key)}>
+            <span className="work-choice-icon">
+              <FileText size={24} strokeWidth={1.8} />
+            </span>
+            <strong>{job.cn}</strong>
+            <em>{job.en}</em>
+            <i></i>
+          </button>
+        ))}
+      </section>
+
+      <div className="work-progress">
+        <span style={{ width: `${progress}%` }}></span>
+      </div>
+
+      <div className="work-actions">
+        <button className="work-start" onClick={startWork} disabled={isRunning}>
+          <Play size={22} fill="currentColor" />
+          <span>
+            <strong>{isRunning ? "进行中" : "开始"}</strong>
+            <em>{isRunning ? "Working" : "Start"}</em>
+          </span>
+        </button>
+        <button className="work-refresh-button" onClick={refreshJobs} disabled={refreshLeft <= 0}>
+          <RefreshCcw size={22} />
+          <span>
+            <strong>刷新</strong>
+            <em>Free refreshes {refreshLeft}/5</em>
+          </span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function OpenedApp({ app, onClose }) {
   const isWallet = app.title === "钱包";
+  const isWork = app.title === "工作";
   const [walletData, setWalletData] = useState(() => {
     try {
       const stored = window.localStorage.getItem("roleplayWallet");
@@ -1904,6 +2218,8 @@ function OpenedApp({ app, onClose }) {
   const clearWalletHistory = () => {
     setWalletData((current) => ({ ...current, transactions: [] }));
   };
+
+  if (isWork) return <WorkAppScreen onClose={onClose} />;
 
   return (
     <section
