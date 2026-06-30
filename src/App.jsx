@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  Bike,
   BookMarked,
   Briefcase,
+  BrushCleaning,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  ClipboardCheck,
   Database,
   Eye,
   FileText,
@@ -19,13 +22,15 @@ import {
   ListPlus,
   Mail,
   MapPin,
+  Moon,
   Palette,
   Play,
-  RefreshCcw,
   Settings,
   ShoppingBag,
   Smartphone,
   Soup,
+  Square,
+  UserRound,
   UsersRound,
   Volume2,
   WalletCards,
@@ -86,6 +91,7 @@ const settingsItems = [
 const workCatalog = [
   {
     key: "review",
+    icon: "review",
     cn: "审核",
     en: "Review",
     title: "资料审核",
@@ -100,6 +106,7 @@ const workCatalog = [
   },
   {
     key: "delivery",
+    icon: "delivery",
     cn: "配送",
     en: "Delivery",
     title: "社区配送",
@@ -114,6 +121,7 @@ const workCatalog = [
   },
   {
     key: "cleaning",
+    icon: "cleaning",
     cn: "清洁",
     en: "Cleaning",
     title: "空间清洁",
@@ -128,6 +136,7 @@ const workCatalog = [
   },
   {
     key: "care",
+    icon: "care",
     cn: "陪护",
     en: "Care",
     title: "临时陪护",
@@ -142,6 +151,7 @@ const workCatalog = [
   },
   {
     key: "night",
+    icon: "night",
     cn: "夜班",
     en: "Night",
     title: "夜间巡检",
@@ -157,6 +167,40 @@ const workCatalog = [
 ];
 
 const levelMarks = ["I", "II", "III", "IV", "V"];
+
+const workIconMap = {
+  review: ClipboardCheck,
+  delivery: Bike,
+  cleaning: BrushCleaning,
+  care: UserRound,
+  night: Moon,
+  writing: FileText,
+  assistant: Briefcase,
+  errand: MapPin,
+};
+
+const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
+  const source = `${item.icon || ""} ${item.type || ""} ${item.cn || ""} ${item.en || ""} ${item.title || ""} ${item.content || ""}`.toLowerCase();
+  const candidates = [
+    [/配送|送|delivery|courier|errand|跑腿|外勤/, "delivery"],
+    [/清洁|clean|整理|保洁/, "cleaning"],
+    [/陪护|照看|care|护理|陪伴/, "care"],
+    [/夜|night|巡检|值守/, "night"],
+    [/写|文案|writing|稿|记录/, "writing"],
+    [/助理|assistant|事务|排程/, "assistant"],
+    [/审核|资料|review|document|核对|标注/, "review"],
+  ];
+  const matched = candidates.find(([pattern]) => pattern.test(source))?.[1];
+  const fallback = workCatalog[index]?.icon || workCatalog[index]?.key || "review";
+  const preferred = matched || (workIconMap[item.icon] ? item.icon : fallback);
+  if (!usedIcons.has(preferred)) {
+    usedIcons.add(preferred);
+    return preferred;
+  }
+  const openIcon = Object.keys(workIconMap).find((icon) => !usedIcons.has(icon)) || preferred;
+  usedIcons.add(openIcon);
+  return openIcon;
+};
 
 const formatWorkTime = (milliseconds) => {
   const totalMinutes = Math.max(0, Math.ceil(milliseconds / 60000));
@@ -178,6 +222,68 @@ const buildWorkJobs = () =>
       };
     })
     .slice(0, 5);
+
+const normalizeWorkJobs = (items = []) => {
+  if (!Array.isArray(items)) return [];
+  const usedIcons = new Set();
+  return items.slice(0, 5).map((item, index) => {
+    const fallback = workCatalog[index] || workCatalog[0];
+    const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
+    const reward = Math.min(9999, Math.max(1, Number(item.reward || fallback.reward)));
+    const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
+    return {
+      ...fallback,
+      key: `${fallback.key}_${Date.now()}_${index}`,
+      icon: inferWorkIcon(item, index, usedIcons),
+      cn: String(item.cn || item.label || fallback.cn).slice(0, 4),
+      en: String(item.en || item.labelEn || fallback.en).slice(0, 14),
+      title: String(item.title || fallback.title).slice(0, 12),
+      titleEn: String(item.titleEn || item.englishTitle || fallback.titleEn).slice(0, 28),
+      content: String(item.content || fallback.content).slice(0, 36),
+      contentEn: String(item.contentEn || item.englishContent || fallback.contentEn).slice(0, 72),
+      durationMinutes,
+      reward,
+      level,
+      distance: String(item.distance || fallback.distance),
+      pin: fallback.pin,
+    };
+  });
+};
+
+const creditWalletFromWork = (job, amount) => {
+  if (amount <= 0) return;
+  let current = { balance: 0, transactions: [] };
+  try {
+    const stored = window.localStorage.getItem("roleplayWallet");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      current = {
+        balance: Number(parsed.balance) || 0,
+        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
+      };
+    }
+  } catch {
+    current = { balance: 0, transactions: [] };
+  }
+  const now = new Date();
+  const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  window.localStorage.setItem(
+    "roleplayWallet",
+    JSON.stringify({
+      balance: current.balance + amount,
+      transactions: [
+        {
+          id: Date.now(),
+          type: "add",
+          amount,
+          desc: `工作结算 - ${job.title}`,
+          date,
+        },
+        ...current.transactions,
+      ],
+    }),
+  );
+};
 
 const formatDate = (date) =>
   new Intl.DateTimeFormat("zh-CN", {
@@ -1490,7 +1596,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.37</p>
+      <p className="version-label">Ccat OS v0.1.38</p>
     </section>
   );
 }
@@ -1937,38 +2043,40 @@ function WorkMap({ jobs, selectedId, onSelect }) {
   return (
     <section className="work-map-panel" aria-label="工作地图">
       <svg className="work-map-lines" viewBox="0 0 390 470" aria-hidden="true">
-        <path className="river" d="M400 22 C328 60 306 116 326 172 C350 238 392 274 344 330 C302 380 216 384 206 470" />
-        <path className="district" d="M-12 82 L70 76 L126 92 L196 78 L274 62 L402 48" />
-        <path className="district" d="M-14 146 L74 140 L132 154 L204 144 L286 128 L404 134" />
-        <path className="district" d="M-18 220 L82 202 L154 224 L224 206 L308 190 L414 170" />
-        <path className="district" d="M-20 304 L72 282 L144 298 L214 284 L302 256 L412 232" />
-        <path className="district" d="M10 392 L88 334 L162 348 L244 316 L336 300 L406 272" />
-        <path className="district" d="M42 -8 L58 72 L54 150 L72 236 L94 322 L88 484" />
-        <path className="district" d="M128 -10 L124 84 L144 162 L136 242 L154 330 L148 486" />
-        <path className="district" d="M214 -12 L206 82 L220 154 L212 238 L230 328 L246 486" />
-        <path className="district" d="M300 -12 L286 74 L296 148 L282 230 L306 326 L322 486" />
-        <path className="district" d="M360 -8 L338 82 L350 166 L334 250 L356 348 L386 486" />
-        <path className="minor" d="M24 38 L112 118 L190 112 L256 166 L332 152" />
-        <path className="minor" d="M18 178 L98 178 L152 250 L238 244 L314 306" />
-        <path className="minor" d="M54 424 L116 352 L196 358 L268 292 L372 332" />
-        <path className="minor" d="M92 18 L112 100 L104 216 L132 356 L124 470" />
-        <path className="minor" d="M176 6 L168 102 L184 196 L174 306 L204 468" />
-        <path className="minor" d="M252 0 L242 110 L262 204 L248 296 L286 466" />
-        <path className="minor" d="M330 12 L310 108 L322 196 L296 298 L342 456" />
-        <path className="minor" d="M-10 258 L62 246 L112 264 L172 258 L224 270 L290 252 L410 214" />
-        <path className="minor" d="M-8 350 L62 320 L120 330 L190 320 L258 286 L336 272" />
-        <path className="block" d="M72 96 h42 v34 h-42z" />
-        <path className="block" d="M156 128 h48 v36 h-48z" />
-        <path className="block" d="M244 88 h38 v32 h-38z" />
-        <path className="block" d="M84 260 h52 v36 h-52z" />
-        <path className="block" d="M166 274 h48 v42 h-48z" />
-        <path className="block" d="M274 236 h48 v40 h-48z" />
-        <path className="block" d="M176 366 h54 v34 h-54z" />
-        <path className="block" d="M74 366 h44 v44 h-44z" />
-        <path className="route" d={`M195 214 L195 288 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
-        <circle className="radar-ring" cx="195" cy="214" r="88" />
-        <circle className="radar-ring" cx="195" cy="214" r="116" />
-        <circle className="radar-ring" cx="195" cy="214" r="142" />
+        <path className="river" d="M402 18 C338 52 312 104 328 160 C344 216 388 244 356 292 C330 330 270 330 242 370 C220 402 220 432 232 474" />
+        <path className="district" d="M-16 78 C60 72 104 78 154 88 C206 98 260 70 406 52" />
+        <path className="district" d="M-18 132 C62 126 132 136 190 148 C252 160 312 128 410 126" />
+        <path className="district" d="M-18 190 C64 184 118 190 170 214 C222 238 300 194 408 164" />
+        <path className="district" d="M-20 262 C62 250 112 256 164 272 C220 290 292 254 410 216" />
+        <path className="district" d="M-14 332 C56 312 104 310 158 324 C218 340 294 294 406 272" />
+        <path className="district" d="M10 414 C78 366 126 350 180 360 C236 370 288 316 374 326" />
+        <path className="district" d="M48 -12 C56 44 62 92 58 140 C54 202 76 254 90 318 C104 382 92 430 88 486" />
+        <path className="district" d="M132 -12 C124 58 124 108 140 158 C156 206 134 266 148 328 C162 390 154 430 148 486" />
+        <path className="district" d="M216 -12 C206 52 206 98 220 148 C236 204 206 262 224 322 C242 384 252 428 252 486" />
+        <path className="district" d="M306 -12 C284 58 290 112 300 156 C314 214 280 264 304 326 C326 384 326 430 326 486" />
+        <path className="minor" d="M18 36 C66 54 102 102 144 110 C188 118 238 152 328 142" />
+        <path className="minor" d="M-6 104 C56 106 102 100 142 116 C184 132 232 116 292 98" />
+        <path className="minor" d="M24 166 C86 158 128 166 164 188 C204 212 252 196 326 178" />
+        <path className="minor" d="M20 232 C84 222 126 228 172 248 C218 268 278 236 350 216" />
+        <path className="minor" d="M36 292 C96 274 132 286 180 304 C230 324 286 286 354 260" />
+        <path className="minor" d="M42 382 C92 346 126 340 174 344 C222 350 262 316 330 304" />
+        <path className="minor" d="M88 6 C104 76 104 134 100 192 C96 260 126 326 124 470" />
+        <path className="minor" d="M176 0 C164 64 170 118 184 176 C198 232 170 292 196 468" />
+        <path className="minor" d="M252 2 C236 78 246 136 260 190 C274 246 248 298 286 466" />
+        <path className="minor" d="M342 8 C316 74 314 126 326 190 C338 252 300 320 346 456" />
+        <path className="minor" d="M-10 356 C50 330 100 330 146 340 C214 354 270 318 338 300" />
+        <path className="block" d="M74 96 h40 v30 h-40z" />
+        <path className="block" d="M150 116 h52 v34 h-52z" />
+        <path className="block" d="M236 78 h42 v32 h-42z" />
+        <path className="block" d="M76 214 h48 v34 h-48z" />
+        <path className="block" d="M150 240 h52 v38 h-52z" />
+        <path className="block" d="M260 214 h50 v36 h-50z" />
+        <path className="block" d="M172 344 h54 v34 h-54z" />
+        <path className="block" d="M70 358 h42 v42 h-42z" />
+        <path className="route" d={`M195 168 C196 224 192 256 195 282 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
+        <circle className="radar-ring" cx="195" cy="168" r="86" />
+        <circle className="radar-ring" cx="195" cy="168" r="114" />
+        <circle className="radar-ring" cx="195" cy="168" r="142" />
       </svg>
 
       <div className="work-radar" aria-label="工作仪表盘">
@@ -2021,6 +2129,7 @@ function WorkAppScreen({ onClose }) {
   const [refreshLeft, setRefreshLeft] = useState(5);
   const [activeWork, setActiveWork] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [loadingJobs, setLoadingJobs] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -2029,8 +2138,71 @@ function WorkAppScreen({ onClose }) {
 
   useEffect(() => {
     if (!activeWork || activeWork.endAt > now) return;
+    const completedJob = jobs.find((job) => job.key === activeWork.jobKey);
+    if (completedJob) creditWalletFromWork(completedJob, completedJob.reward);
     setActiveWork(null);
-  }, [activeWork, now]);
+  }, [activeWork, jobs, now]);
+
+  const fetchApiJobs = async () => {
+    const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+    const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
+    const model = endpoint?.model || endpoint?.customModel;
+    if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) return null;
+
+    let url = endpoint.baseUrl.replace(/\/+$/, "");
+    if (!url.endsWith("/v1")) url += "/v1";
+    const response = await fetch(`${url}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content: `你是 Ccat OS 的工作派单生成器。根据现实世界生成 5 个可执行工作。
+必须只返回 JSON，不要 Markdown。格式：
+{"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":300,"reward":1600,"level":4,"distance":"0.3 km","icon":"review"}]}
+规则：durationMinutes 30 到 600；reward 1 到 9999；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand 中选择；中文内容要具体，英文要简短对应。`,
+          },
+          { role: "user", content: "生成一组现实世界工作。世界观：暂无。" },
+        ],
+        temperature: 0.8,
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    let content = data?.choices?.[0]?.message?.content || "";
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) content = match[0];
+    const parsed = JSON.parse(content);
+    const nextJobs = normalizeWorkJobs(parsed.jobs);
+    return nextJobs.length === 5 ? nextJobs : null;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInitialJobs = async () => {
+      setLoadingJobs(true);
+      try {
+        const nextJobs = await fetchApiJobs();
+        if (!cancelled && nextJobs) {
+          setJobs(nextJobs);
+          setSelectedId(nextJobs[0]?.key || "review");
+        }
+      } catch {
+        // Keep local fallback jobs when API is unavailable.
+      } finally {
+        if (!cancelled) setLoadingJobs(false);
+      }
+    };
+    loadInitialJobs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
   const isRunning = activeWork?.jobKey === selectedJob.key && activeWork.endAt > now;
@@ -2057,13 +2229,32 @@ function WorkAppScreen({ onClose }) {
     });
   };
 
-  const refreshJobs = () => {
+  const refreshJobs = async () => {
     if (refreshLeft <= 0) return;
-    const nextJobs = buildWorkJobs();
+    setLoadingJobs(true);
+    let nextJobs = null;
+    try {
+      nextJobs = await fetchApiJobs();
+    } catch {
+      nextJobs = null;
+    }
+    if (!nextJobs) nextJobs = buildWorkJobs();
     setJobs(nextJobs);
     setSelectedId(nextJobs[0]?.key || "review");
     setActiveWork(null);
     setRefreshLeft((value) => Math.max(0, value - 1));
+    setLoadingJobs(false);
+  };
+
+  const stopWork = () => {
+    if (!isRunning || !activeWork) return;
+    const elapsed = Math.max(0, Date.now() - activeWork.startAt);
+    const total = Math.max(1, activeWork.endAt - activeWork.startAt);
+    const rawAmount = Math.floor(selectedJob.reward * Math.min(1, elapsed / total));
+    const amount = Math.min(selectedJob.reward, elapsed > 0 ? Math.max(1, rawAmount) : 0);
+    creditWalletFromWork(selectedJob, amount);
+    setActiveWork(null);
+    window.alert(`已停止工作，结算 ¥${amount.toLocaleString("en-US")}，已入账钱包。`);
   };
 
   return (
@@ -2076,9 +2267,9 @@ function WorkAppScreen({ onClose }) {
           <strong>工作</strong>
           <span>Work</span>
         </div>
-        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0}>
-          <strong>刷新 {refreshLeft}/5</strong>
-          <span>Refresh</span>
+        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0 || loadingJobs}>
+          <strong>{loadingJobs ? "生成中" : `刷新 ${refreshLeft}/5`}</strong>
+          <span>{loadingJobs ? "Loading" : "Refresh"}</span>
         </button>
       </header>
 
@@ -2133,7 +2324,10 @@ function WorkAppScreen({ onClose }) {
         {jobs.map((job) => (
           <button className={job.key === selectedId ? "active" : ""} key={job.key} onClick={() => selectJob(job.key)}>
             <span className="work-choice-icon">
-              <FileText size={24} strokeWidth={1.8} />
+              {(() => {
+                const Icon = workIconMap[job.icon] || workIconMap[job.key] || FileText;
+                return <Icon size={24} strokeWidth={1.8} />;
+              })()}
             </span>
             <strong>{job.cn}</strong>
             <em>{job.en}</em>
@@ -2154,11 +2348,11 @@ function WorkAppScreen({ onClose }) {
             <em>{isRunning ? "Working" : "Start"}</em>
           </span>
         </button>
-        <button className="work-refresh-button" onClick={refreshJobs} disabled={refreshLeft <= 0}>
-          <RefreshCcw size={22} />
+        <button className="work-stop-button" onClick={stopWork} disabled={!isRunning}>
+          <Square size={20} fill="currentColor" />
           <span>
-            <strong>刷新</strong>
-            <em>Free refreshes {refreshLeft}/5</em>
+            <strong>停止</strong>
+            <em>Stop & Settle</em>
           </span>
         </button>
       </div>

@@ -43,3 +43,31 @@
 - Playwright local visual and interaction smoke checks.
 
 final result: passed
+
+## Work App API + Stop Settlement Pass - 2026-06-30
+
+**Scope**
+- Refined the Work app map-radar screen for v0.1.38.
+- Replaced the lower refresh control with a stop/settle control.
+- Connected generated work content to the saved main API configuration when available.
+- Added proportional wallet settlement for stopped work and full settlement for naturally completed work.
+
+**Implementation Evidence**
+- Version label: `Ccat OS v0.1.38`.
+- Work map uses a denser SVG route layer: curved main roads, minor streets, blocks, dashed radar rings, and a broad pale river.
+- Radar dashboard is shifted upward and uses smaller internal type.
+- Remaining time renders to the minute (`HH:MM`) rather than seconds.
+- Only one refresh control remains, in the top-right header.
+- Bottom action pair is now Start + Stop; Stop writes an income transaction into `roleplayWallet`.
+- Work choices render five distinct SVG icons when API data is available, inferred from job content and deduplicated.
+
+**Verification Commands**
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+
+**Verification Notes**
+- Tests passed: 7/7.
+- Production build succeeded.
+- Fresh in-app browser visual verification was not rerun because Browser Use rejected the local URL under its URL policy. Code and build verification were completed instead.
+
+final result: passed with browser-visual caveat

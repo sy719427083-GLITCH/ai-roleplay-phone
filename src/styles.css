@@ -2738,7 +2738,7 @@ select {
 }
 
 .work-refresh-link:disabled,
-.work-refresh-button:disabled,
+.work-stop-button:disabled,
 .work-start:disabled {
   opacity: 0.52;
 }
@@ -2848,10 +2848,10 @@ select {
 
 .work-radar {
   position: absolute;
-  top: 64px;
+  top: 34px;
   left: 50%;
-  width: 168px;
-  height: 168px;
+  width: 158px;
+  height: 158px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(18px) saturate(155%);
@@ -2889,7 +2889,7 @@ select {
 
 .work-radar-copy {
   position: absolute;
-  inset: 28px 14px;
+  inset: 27px 12px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -2907,25 +2907,25 @@ select {
 .work-radar-copy strong {
   margin-top: 3px;
   color: #111111;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 760;
   letter-spacing: 0;
   line-height: 1;
 }
 
 .work-radar-copy b {
-  margin-top: 8px;
+  margin-top: 7px;
   color: #1c1c1e;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 690;
   letter-spacing: 0;
   line-height: 1.08;
 }
 
 .work-radar-copy i {
-  margin-top: 6px;
+  margin-top: 5px;
   color: #56565c;
-  font-size: 11px;
+  font-size: 9px;
   font-style: normal;
   font-weight: 620;
   line-height: 1.1;
@@ -3018,7 +3018,7 @@ select {
 
 .work-status-card,
 .work-choice-panel,
-.work-refresh-button {
+.work-stop-button {
   border: 1px solid rgba(28, 28, 30, 0.055);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(24px) saturate(160%);
