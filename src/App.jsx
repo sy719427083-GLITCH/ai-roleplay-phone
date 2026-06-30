@@ -1220,8 +1220,14 @@ function MeAppScreen() {
         <div className="me-shape-2"></div>
       </div>
       <header className="me-header">
-        <div className="me-vol">DIRECTOR</div>
-        <h2>MY PERSONAS.</h2>
+        <div className="me-vol">
+          <span>主角档案</span>
+          <em>Director</em>
+        </div>
+        <h2>
+          <span>我的身份</span>
+          <em>My Personas.</em>
+        </h2>
       </header>
       <div className="me-list-container">
         {profileEntries.map(([id, profile]) => (
@@ -1230,14 +1236,15 @@ function MeAppScreen() {
               <AvatarContent character={profile} />
             </span>
             <span className="me-card-info">
-              <span className="me-card-id">ID: {id.slice(-5)}</span>
-              <strong className="me-card-name">{profile.name || "UNNAMED"}</strong>
-              <span className="me-card-identity">{profile.identity || "Director"}</span>
+              <span className="me-card-id">档案编号 <em>ID: {id.slice(-5)}</em></span>
+              <strong className="me-card-name">{profile.name || "未命名"}</strong>
+              <span className="me-card-identity">{profile.identity || "主角身份"}</span>
             </span>
           </button>
         ))}
         <button className="me-add-btn" onClick={() => openMeEditor(null)}>
-          + CREATE NEW PERSONA / 建立新身份
+          <span>+ 建立新身份</span>
+          <em>Create New Persona</em>
         </button>
       </div>
 
@@ -1253,23 +1260,24 @@ function MeAppScreen() {
               <AvatarContent character={previewProfile} />
             </div>
             <div className="me-pv-typography">
-              <div className="me-pv-id">ID.{previewId.slice(-4).toUpperCase()}</div>
-              <div className="me-pv-name">{previewProfile.name || "UNNAMED"}</div>
-              <div className="me-pv-identity">{previewProfile.identity || "UNKNOWN IDENTITY"}</div>
+              <div className="me-pv-id">档案编号 <em>ID.{previewId.slice(-4).toUpperCase()}</em></div>
+              <div className="me-pv-name">{previewProfile.name || "未命名"}</div>
+              <div className="me-pv-identity">{previewProfile.identity || "未知身份"}</div>
               <section className="me-pv-text-block">
-                <div className="me-pv-text-title">APPEARANCE</div>
-                <div className="me-pv-text-content">{previewProfile.appearance || "No record."}</div>
+                <div className="me-pv-text-title"><span>容貌特征</span><em>Appearance</em></div>
+                <div className="me-pv-text-content">{previewProfile.appearance || "暂无记录"}</div>
               </section>
               <section className="me-pv-text-block">
-                <div className="me-pv-text-title">PERSONALITY</div>
-                <div className="me-pv-text-content">{previewProfile.personality || "No record."}</div>
+                <div className="me-pv-text-title"><span>性格特点</span><em>Personality</em></div>
+                <div className="me-pv-text-content">{previewProfile.personality || "暂无记录"}</div>
               </section>
               <section className="me-pv-text-block">
-                <div className="me-pv-text-title">ARCHIVE</div>
-                <div className="me-pv-text-content">{previewProfile.persona || "No background record."}</div>
+                <div className="me-pv-text-title"><span>背景档案</span><em>Archive</em></div>
+                <div className="me-pv-text-content">{previewProfile.persona || "暂无背景记录"}</div>
               </section>
               <button className="me-pv-edit-btn" onClick={() => openMeEditor(previewId)}>
-                EDIT PERSONA
+                <span>编辑档案</span>
+                <em>Edit Persona</em>
               </button>
             </div>
           </div>
@@ -1284,7 +1292,8 @@ function MeAppScreen() {
           <nav className="me-edit-nav">
             <button className="me-edit-back" onClick={closeMeEditor}>
               <ChevronLeft size={16} />
-              <span>BACK</span>
+              <span>返回</span>
+              <em>Back</em>
             </button>
             <button className={generating ? "me-edit-dice breathing" : "me-edit-dice"} onClick={() => setPromptOpen(true)} aria-label="AI 构思">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1303,30 +1312,30 @@ function MeAppScreen() {
               className="me-signature-input"
               value={draft.name}
               onChange={(event) => patchDraft({ name: event.target.value })}
-              placeholder="Your Name"
+              placeholder="输入姓名 / Your Name"
             />
-            <div className="me-edit-subtitle">AUTHOR & PROTAGONIST</div>
+            <div className="me-edit-subtitle"><span>作者与主角</span><em>Author & Protagonist</em></div>
           </div>
           <div className="me-edit-body">
             <label className="me-edit-group">
-              <span className="me-edit-label">Identity</span>
-              <input className="me-edit-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="Role or Title..." />
+              <span className="me-edit-label"><span>身份</span><em>Identity</em></span>
+              <input className="me-edit-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="身份或称号 / Role or Title" />
             </label>
             <label className="me-edit-group">
-              <span className="me-edit-label">Appearance</span>
-              <textarea className="me-edit-input" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="Physical traits..." />
+              <span className="me-edit-label"><span>容貌</span><em>Appearance</em></span>
+              <textarea className="me-edit-input" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="外貌特征 / Physical traits" />
             </label>
             <label className="me-edit-group">
-              <span className="me-edit-label">Personality</span>
-              <textarea className="me-edit-input" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="Character traits..." />
+              <span className="me-edit-label"><span>性格</span><em>Personality</em></span>
+              <textarea className="me-edit-input" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="性格特点 / Character traits" />
             </label>
             <label className="me-edit-group">
-              <span className="me-edit-label">Archive</span>
-              <textarea className="me-edit-input large" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="Background story..." />
+              <span className="me-edit-label"><span>档案</span><em>Archive</em></span>
+              <textarea className="me-edit-input large" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="背景故事 / Background story" />
             </label>
             <div className="me-edit-actions">
-              {editingId && <button className="me-action-btn danger" onClick={deleteMeProfile}>DELETE</button>}
-              <button className="me-action-btn primary" onClick={saveMeProfile}>SAVE ARCHIVE</button>
+              {editingId && <button className="me-action-btn danger" onClick={deleteMeProfile}><span>删除</span><em>Delete</em></button>}
+              <button className="me-action-btn primary" onClick={saveMeProfile}><span>保存档案</span><em>Save Archive</em></button>
             </div>
           </div>
         </section>
@@ -1382,7 +1391,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.32</p>
+      <p className="version-label">Ccat OS v0.1.33</p>
     </section>
   );
 }

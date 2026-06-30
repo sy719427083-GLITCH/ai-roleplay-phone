@@ -1731,7 +1731,12 @@ textarea.character-input {
 }
 
 .me-app-view {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  min-height: 100dvh;
   overflow-y: auto;
+  padding: max(6px, env(safe-area-inset-top)) 16px max(118px, calc(env(safe-area-inset-bottom) + 104px));
   background: var(--me-bg);
   scrollbar-width: none;
 }
@@ -1778,11 +1783,35 @@ textarea.character-input {
 }
 
 .me-vol {
+  display: grid;
+  gap: 3px;
   margin-bottom: 5px;
   color: var(--me-accent);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 3px;
+  letter-spacing: 1.2px;
+}
+
+.me-vol em,
+.me-header h2 em,
+.me-card-id em,
+.me-add-btn em,
+.me-pv-id em,
+.me-pv-text-title em,
+.me-pv-edit-btn em,
+.me-edit-back em,
+.me-edit-subtitle em,
+.me-edit-label em,
+.me-action-btn em {
+  display: block;
+  margin-top: 3px;
+  color: var(--me-sub);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  font-size: 0.62em;
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: 1.4px;
+  line-height: 1.1;
   text-transform: uppercase;
 }
 
@@ -1799,7 +1828,7 @@ textarea.character-input {
   position: relative;
   z-index: 1;
   display: grid;
-  padding: 10px 20px 140px;
+  padding: 10px 20px 10px;
 }
 
 .me-card {
@@ -1858,8 +1887,7 @@ textarea.character-input {
   color: var(--me-accent);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  letter-spacing: 1.2px;
 }
 
 .me-card-name {
@@ -1882,6 +1910,9 @@ textarea.character-input {
 }
 
 .me-add-btn {
+  display: grid;
+  place-items: center;
+  gap: 4px;
   min-height: 72px;
   border: 1px dashed var(--me-accent);
   background: transparent;
@@ -1928,9 +1959,9 @@ textarea.character-input {
 .me-pv-id {
   margin-bottom: 10px;
   color: var(--me-accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 4px;
+  letter-spacing: 1.2px;
 }
 
 .me-pv-name {
@@ -1959,12 +1990,13 @@ textarea.character-input {
 }
 
 .me-pv-text-title {
+  display: grid;
+  gap: 3px;
   margin-bottom: 8px;
   color: var(--me-sub);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .me-pv-text-content {
@@ -1974,6 +2006,9 @@ textarea.character-input {
 }
 
 .me-pv-edit-btn {
+  display: inline-grid;
+  place-items: center;
+  gap: 4px;
   margin-top: 28px;
   border: 1px solid var(--me-main);
   background: transparent;
@@ -1998,6 +2033,7 @@ textarea.character-input {
 .me-edit-dice {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   border: 0;
   background: transparent;
   color: var(--me-main);
@@ -2063,10 +2099,13 @@ textarea.character-input {
 }
 
 .me-edit-subtitle {
+  display: grid;
+  gap: 4px;
+  text-align: center;
   color: var(--me-sub);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 3px;
+  letter-spacing: 1.2px;
 }
 
 .me-edit-body {
@@ -2084,11 +2123,12 @@ textarea.character-input {
 }
 
 .me-edit-label {
+  display: grid;
+  gap: 3px;
   color: var(--me-sub);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .me-edit-input {
@@ -2123,6 +2163,9 @@ textarea.me-edit-input.large {
 }
 
 .me-action-btn {
+  display: grid;
+  place-items: center;
+  gap: 4px;
   flex: 1;
   border: 1px solid var(--me-main);
   background: transparent;
