@@ -1491,7 +1491,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.34</p>
+      <p className="version-label">Ccat OS v0.1.35</p>
     </section>
   );
 }
@@ -2433,7 +2433,7 @@ export function App() {
   const content = useMemo(() => {
     if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
     if (tab === "characters") return <CharacterAppScreen />;
-    if (tab === "me") return <MeAppScreen />;
+    if (tab === "me") return null;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
   }, [tab, hasShownLaunch]);
 
@@ -2447,6 +2447,7 @@ export function App() {
         {content}
         <BottomTabs active={tab} onChange={setTab} />
       </div>
+      {tab === "me" && <MeAppScreen />}
       {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
