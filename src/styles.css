@@ -2790,6 +2790,7 @@ select {
   height: 334px;
   margin: 4px -12px 8px;
   overflow: hidden;
+  animation: workMapReveal 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .work-map-panel::before {
@@ -2800,6 +2801,17 @@ select {
     linear-gradient(90deg, rgba(28, 28, 30, 0.018) 1px, transparent 1px) 0 0 / 26px 26px,
     linear-gradient(rgba(28, 28, 30, 0.018) 1px, transparent 1px) 0 0 / 26px 26px;
   mask-image: linear-gradient(180deg, transparent, #000 15%, #000 88%, transparent);
+}
+
+.work-map-panel::after {
+  content: "";
+  position: absolute;
+  inset: 36px 16px 42px;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.52), transparent 34%);
+  opacity: 0.56;
+  transform: translateY(0);
+  animation: workMapScan 3200ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
 
 .work-map-lines {
@@ -2837,13 +2849,27 @@ select {
 
 .work-map-lines .route {
   stroke: rgba(28, 28, 30, 0.34);
+  stroke-dasharray: 7 9;
+  stroke-dashoffset: 0;
   stroke-width: 1.7;
+  animation: workRouteFlow 1100ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
 
 .work-map-lines .radar-ring {
   stroke: rgba(28, 28, 30, 0.075);
   stroke-dasharray: 5 8;
   stroke-width: 1.2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: workRingBreathe 2600ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+.work-map-lines .radar-ring:nth-of-type(2) {
+  animation-delay: 120ms;
+}
+
+.work-map-lines .radar-ring:nth-of-type(3) {
+  animation-delay: 240ms;
 }
 
 .work-radar {
@@ -2880,6 +2906,7 @@ select {
   stroke-width: 5;
   transform: rotate(-92deg);
   transform-origin: center;
+  animation: workRadarSweep 3600ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
 
 .work-radar line {
@@ -2966,6 +2993,7 @@ select {
 }
 
 .work-pin-dot {
+  position: relative;
   display: grid;
   width: 17px;
   height: 17px;
@@ -2986,10 +3014,17 @@ select {
 .work-pin.active .work-pin-dot {
   background: #000000;
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.48), 0 0 0 8px rgba(28, 28, 30, 0.08);
+  animation: workPinPulse 1600ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
 
 .work-pin.active .work-pin-dot::after {
-  content: none;
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(28, 28, 30, 0.12);
+  border-radius: 50%;
+  animation: workPinRipple 1600ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
 
 .work-pin-label {
@@ -3014,6 +3049,98 @@ select {
   font-size: 10px;
   font-style: normal;
   line-height: 1.05;
+}
+
+@keyframes workMapReveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes workMapScan {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: translateY(8px) scale(0.96);
+  }
+
+  45% {
+    opacity: 0.7;
+    transform: translateY(-10px) scale(1.02);
+  }
+}
+
+@keyframes workRouteFlow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@keyframes workRingBreathe {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.988);
+  }
+
+  50% {
+    opacity: 0.82;
+    transform: scale(1.012);
+  }
+}
+
+@keyframes workRadarSweep {
+  0%,
+  100% {
+    stroke-dashoffset: 188;
+  }
+
+  52% {
+    stroke-dashoffset: 124;
+  }
+}
+
+@keyframes workPinPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.48), 0 0 0 8px rgba(28, 28, 30, 0.08);
+  }
+
+  50% {
+    transform: scale(0.94);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.58), 0 0 0 11px rgba(28, 28, 30, 0.11);
+  }
+}
+
+@keyframes workPinRipple {
+  0% {
+    opacity: 0.32;
+    transform: scale(0.65);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-map-panel,
+  .work-map-panel::after,
+  .work-map-lines .route,
+  .work-map-lines .radar-ring,
+  .work-radar .ring-active,
+  .work-pin.active .work-pin-dot,
+  .work-pin.active .work-pin-dot::after {
+    animation: none;
+  }
 }
 
 .work-status-card,

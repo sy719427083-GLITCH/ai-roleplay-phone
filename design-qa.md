@@ -71,3 +71,35 @@ final result: passed
 - Fresh in-app browser visual verification was not rerun because Browser Use rejected the local URL under its URL policy. Code and build verification were completed instead.
 
 final result: passed with browser-visual caveat
+
+## Work Map Motion Pass - 2026-06-30
+
+**Scope**
+- Added subtle CSS/SVG motion to the Work app map area for v0.1.39.
+- Kept the existing monochrome, low-saturation visual language.
+
+**Motion Details**
+- Map panel fades and lifts in on entry.
+- Active route uses a soft dashed flow animation.
+- Radar ring breathes with a slow iOS-style easing curve.
+- Active map pin has a small pulse/ripple state.
+- Reduced-motion users get animations disabled via `prefers-reduced-motion`.
+
+**Verification Evidence**
+- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/15-work-map-motion-late.png`
+- Automated checks:
+  - Route animation: `workRouteFlow`.
+  - Radar animation: `workRadarSweep`.
+  - Active pin animation: `workPinPulse`.
+  - Reduced motion changes those animations to `none`.
+  - Map pins count remains 5.
+  - Refresh button count remains 1.
+  - Stop button count remains 1.
+  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
+
+**Verification Commands**
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+- Local Playwright motion smoke check at `390 x 844`.
+
+final result: passed
