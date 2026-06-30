@@ -306,9 +306,9 @@ const workPins = [
 
 const chooseWorkReward = (level = 1) => {
   const roll = Math.random();
-  if (roll < 0.05) return Math.round((10000 + Math.random() * 28000) / 100) * 100;
-  if (roll < 0.25) return Math.round((1000 + Math.random() * (2400 + level * 520)) / 10) * 10;
-  return Math.round((180 + Math.random() * (560 + level * 54)) / 10) * 10;
+  if (roll < 0.05) return Math.round((1000 + Math.random() * (900 + level * 180)) / 10) * 10;
+  if (roll < 0.15) return Math.round((100 + Math.random() * (280 + level * 34)) / 10) * 10;
+  return Math.round((24 + Math.random() * (46 + level * 6)) / 5) * 5;
 };
 
 const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
@@ -370,7 +370,7 @@ const normalizeWorkJobs = (items = []) => {
   return items.slice(0, 5).map((item, index) => {
     const fallback = workCatalog[index] || workCatalog[0];
     const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
-    const reward = Math.min(99999, Math.max(1, Number(item.reward || fallback.reward)));
+    const reward = Math.min(9999, Math.max(1, Number(item.reward || fallback.reward)));
     const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
     return {
       ...fallback,
@@ -1737,7 +1737,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.40</p>
+      <p className="version-label">Ccat OS v0.1.41</p>
     </section>
   );
 }
@@ -2309,8 +2309,8 @@ function WorkAppScreen({ onClose }) {
             role: "system",
             content: `你是 Ccat OS 的工作派单生成器。根据现实世界生成 5 个可执行工作。
 必须只返回 JSON，不要 Markdown。格式：
-{"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":300,"reward":1600,"level":4,"distance":"0.3 km","icon":"review"}]}
-规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 1 到 99999，三位数最常见，四位数约 20%，五位数约 5%；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
+{"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":180,"reward":85,"level":2,"distance":"0.3 km","icon":"review"}]}
+规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 按现实兼职/零工金额生成，85% 概率为两位数，10% 概率为三位数，5% 概率为四位数，不要生成五位数；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
           },
           { role: "user", content: "生成一组现实世界工作。世界观：暂无。" },
         ],

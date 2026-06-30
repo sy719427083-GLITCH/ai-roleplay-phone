@@ -44,6 +44,28 @@
 
 final result: passed
 
+## Work Reward Realism Pass - 2026-06-30
+
+**Scope**
+- Adjusted Work app reward generation for v0.1.41.
+- Made work income closer to real-world small task amounts.
+
+**Implementation Evidence**
+- Version label: `Ccat OS v0.1.41`.
+- Local fallback reward distribution now uses:
+  - 85% two-digit rewards.
+  - 10% three-digit rewards.
+  - 5% four-digit rewards.
+- API prompt now asks for the same realistic reward distribution and explicitly avoids five-digit rewards.
+- API reward normalization caps at four digits.
+
+**Verification Commands**
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+- Local reward distribution sample over 20,000 generated rewards: two-digit `16891`, three-digit `2076`, four-digit `1033`, other `0`.
+
+final result: passed
+
 ## Work Map Progress + Dynamic Jobs Pass - 2026-06-30
 
 **Scope**
