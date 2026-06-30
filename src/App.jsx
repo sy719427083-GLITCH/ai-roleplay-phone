@@ -159,11 +159,10 @@ const workCatalog = [
 const levelMarks = ["I", "II", "III", "IV", "V"];
 
 const formatWorkTime = (milliseconds) => {
-  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+  const totalMinutes = Math.max(0, Math.ceil(milliseconds / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return [hours, minutes].map((part) => String(part).padStart(2, "0")).join(":");
 };
 
 const buildWorkJobs = () =>
@@ -1491,7 +1490,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.35</p>
+      <p className="version-label">Ccat OS v0.1.36</p>
     </section>
   );
 }
@@ -1938,19 +1937,38 @@ function WorkMap({ jobs, selectedId, onSelect }) {
   return (
     <section className="work-map-panel" aria-label="工作地图">
       <svg className="work-map-lines" viewBox="0 0 390 470" aria-hidden="true">
-        <path d="M-20 70 C82 58 135 92 218 68 C290 46 334 50 420 30" />
-        <path d="M-10 126 C70 114 128 158 200 146 C285 132 320 96 420 112" />
-        <path d="M-20 218 C72 180 146 236 214 214 C282 194 328 212 416 176" />
-        <path d="M20 338 C80 286 142 322 214 292 C286 262 326 286 398 244" />
-        <path d="M34 0 C60 102 54 208 96 296 C122 352 126 404 118 478" />
-        <path d="M170 -10 C152 74 178 156 166 238 C152 330 186 398 204 484" />
-        <path d="M286 -20 C252 86 292 142 270 222 C238 336 304 390 324 484" />
-        <path d="M365 -10 C316 70 346 160 330 244 C310 346 362 390 388 486" />
-        <path className="river" d="M410 42 C310 100 344 178 376 238 C412 306 334 356 256 386 C208 404 198 440 226 484" />
-        <path className="route" d={`M195 235 L195 302 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
-        <circle cx="195" cy="235" r="93" />
-        <circle cx="195" cy="235" r="120" />
-        <circle cx="195" cy="235" r="145" />
+        <path className="river" d="M400 22 C328 60 306 116 326 172 C350 238 392 274 344 330 C302 380 216 384 206 470" />
+        <path className="district" d="M-12 82 L70 76 L126 92 L196 78 L274 62 L402 48" />
+        <path className="district" d="M-14 146 L74 140 L132 154 L204 144 L286 128 L404 134" />
+        <path className="district" d="M-18 220 L82 202 L154 224 L224 206 L308 190 L414 170" />
+        <path className="district" d="M-20 304 L72 282 L144 298 L214 284 L302 256 L412 232" />
+        <path className="district" d="M10 392 L88 334 L162 348 L244 316 L336 300 L406 272" />
+        <path className="district" d="M42 -8 L58 72 L54 150 L72 236 L94 322 L88 484" />
+        <path className="district" d="M128 -10 L124 84 L144 162 L136 242 L154 330 L148 486" />
+        <path className="district" d="M214 -12 L206 82 L220 154 L212 238 L230 328 L246 486" />
+        <path className="district" d="M300 -12 L286 74 L296 148 L282 230 L306 326 L322 486" />
+        <path className="district" d="M360 -8 L338 82 L350 166 L334 250 L356 348 L386 486" />
+        <path className="minor" d="M24 38 L112 118 L190 112 L256 166 L332 152" />
+        <path className="minor" d="M18 178 L98 178 L152 250 L238 244 L314 306" />
+        <path className="minor" d="M54 424 L116 352 L196 358 L268 292 L372 332" />
+        <path className="minor" d="M92 18 L112 100 L104 216 L132 356 L124 470" />
+        <path className="minor" d="M176 6 L168 102 L184 196 L174 306 L204 468" />
+        <path className="minor" d="M252 0 L242 110 L262 204 L248 296 L286 466" />
+        <path className="minor" d="M330 12 L310 108 L322 196 L296 298 L342 456" />
+        <path className="minor" d="M-10 258 L62 246 L112 264 L172 258 L224 270 L290 252 L410 214" />
+        <path className="minor" d="M-8 350 L62 320 L120 330 L190 320 L258 286 L336 272" />
+        <path className="block" d="M72 96 h42 v34 h-42z" />
+        <path className="block" d="M156 128 h48 v36 h-48z" />
+        <path className="block" d="M244 88 h38 v32 h-38z" />
+        <path className="block" d="M84 260 h52 v36 h-52z" />
+        <path className="block" d="M166 274 h48 v42 h-48z" />
+        <path className="block" d="M274 236 h48 v40 h-48z" />
+        <path className="block" d="M176 366 h54 v34 h-54z" />
+        <path className="block" d="M74 366 h44 v44 h-44z" />
+        <path className="route" d={`M195 214 L195 288 L${(selectedJob.pin.x / 100) * 390} ${(selectedJob.pin.y / 100) * 470}`} />
+        <circle className="radar-ring" cx="195" cy="214" r="88" />
+        <circle className="radar-ring" cx="195" cy="214" r="116" />
+        <circle className="radar-ring" cx="195" cy="214" r="142" />
       </svg>
 
       <div className="work-radar" aria-label="工作仪表盘">
@@ -1963,7 +1981,7 @@ function WorkMap({ jobs, selectedId, onSelect }) {
           })}
         </svg>
         <div className="work-radar-copy">
-          <span>剩余</span>
+          <span>剩余时间</span>
           <strong>{selectedJob.remainingLabel}</strong>
           <em>Time Left</em>
           <b>¥{selectedJob.reward.toLocaleString("en-US")}</b>

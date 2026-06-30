@@ -15,7 +15,10 @@
   - Work app is full viewport: `390 x 844`.
   - No horizontal overflow: `scrollWidth === clientWidth === 390`.
   - Radar dashboard exists.
-  - Map pins count: 5.
+  - Map pins count: 5, all rendered as `17 x 17` circular dots.
+  - Refined map uses 29 SVG path elements for streets, blocks, route, and river.
+  - Remaining time is displayed to the minute, for example `04:59`, with no seconds.
+  - Radar bottom and selected work label are separated so the circle no longer covers the label.
   - Work choices count: 5.
   - Bottom actions are fully visible.
   - Selecting a job leaves exactly one active choice.

@@ -2797,8 +2797,8 @@ select {
   position: absolute;
   inset: 18px 0 -18px;
   background:
-    linear-gradient(90deg, rgba(28, 28, 30, 0.022) 1px, transparent 1px) 0 0 / 34px 34px,
-    linear-gradient(rgba(28, 28, 30, 0.022) 1px, transparent 1px) 0 0 / 34px 34px;
+    linear-gradient(90deg, rgba(28, 28, 30, 0.018) 1px, transparent 1px) 0 0 / 26px 26px,
+    linear-gradient(rgba(28, 28, 30, 0.018) 1px, transparent 1px) 0 0 / 26px 26px;
   mask-image: linear-gradient(180deg, transparent, #000 15%, #000 88%, transparent);
 }
 
@@ -2808,23 +2808,39 @@ select {
   width: 100%;
   height: 100%;
   fill: none;
-  stroke: rgba(28, 28, 30, 0.07);
+  stroke: rgba(28, 28, 30, 0.06);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2;
+  stroke-width: 1.45;
+}
+
+.work-map-lines .district {
+  stroke: rgba(28, 28, 30, 0.07);
+  stroke-width: 1.8;
+}
+
+.work-map-lines .minor {
+  stroke: rgba(28, 28, 30, 0.04);
+  stroke-width: 1.15;
+}
+
+.work-map-lines .block {
+  fill: rgba(28, 28, 30, 0.018);
+  stroke: rgba(28, 28, 30, 0.032);
+  stroke-width: 1;
 }
 
 .work-map-lines .river {
-  stroke: rgba(28, 28, 30, 0.075);
-  stroke-width: 28;
+  stroke: rgba(28, 28, 30, 0.06);
+  stroke-width: 24;
 }
 
 .work-map-lines .route {
-  stroke: rgba(28, 28, 30, 0.45);
-  stroke-width: 2.4;
+  stroke: rgba(28, 28, 30, 0.34);
+  stroke-width: 1.7;
 }
 
-.work-map-lines circle {
+.work-map-lines .radar-ring {
   stroke: rgba(28, 28, 30, 0.075);
   stroke-dasharray: 5 8;
   stroke-width: 1.2;
@@ -2832,7 +2848,7 @@ select {
 
 .work-radar {
   position: absolute;
-  top: 92px;
+  top: 76px;
   left: 50%;
   width: 168px;
   height: 168px;
@@ -2873,7 +2889,7 @@ select {
 
 .work-radar-copy {
   position: absolute;
-  inset: 28px 0;
+  inset: 28px 14px;
   display: grid;
   align-content: center;
   justify-items: center;
@@ -2884,40 +2900,43 @@ select {
 .work-level-pill span,
 .work-status-metric span {
   color: #8e8e93;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 520;
 }
 
 .work-radar-copy strong {
   margin-top: 3px;
   color: #111111;
-  font-size: 27px;
+  font-size: 34px;
   font-weight: 760;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 .work-radar-copy b {
-  margin-top: 7px;
+  margin-top: 8px;
   color: #1c1c1e;
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 690;
   letter-spacing: 0;
+  line-height: 1.08;
 }
 
 .work-radar-copy i {
-  margin-top: 5px;
+  margin-top: 6px;
   color: #56565c;
-  font-size: 13px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 620;
+  line-height: 1.1;
 }
 
 .work-pin {
   position: absolute;
   display: grid;
-  min-width: 64px;
-  grid-template-columns: 24px auto;
-  column-gap: 6px;
+  min-width: 58px;
+  grid-template-columns: 18px auto;
+  column-gap: 5px;
   align-items: center;
   padding: 0;
   background: transparent;
@@ -2933,70 +2952,68 @@ select {
 
 .work-pin-number {
   position: absolute;
-  top: -15px;
-  left: 16px;
+  top: -13px;
+  left: 8px;
   display: grid;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   place-items: center;
   border-radius: 50%;
-  background: rgba(28, 28, 30, 0.75);
+  background: rgba(28, 28, 30, 0.68);
   color: #ffffff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .work-pin-dot {
   display: grid;
-  width: 27px;
-  height: 36px;
+  width: 17px;
+  height: 17px;
   place-items: center;
-  border-radius: 50% 50% 50% 0;
-  background: rgba(28, 28, 30, 0.74);
-  transform: rotate(-45deg);
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  border-radius: 50%;
+  background: rgba(28, 28, 30, 0.58);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.34);
 }
 
 .work-pin-dot i {
-  width: 10px;
-  height: 10px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #f7f7f9;
 }
 
 .work-pin.active .work-pin-dot {
   background: #000000;
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.48), 0 0 0 8px rgba(28, 28, 30, 0.08);
 }
 
 .work-pin.active .work-pin-dot::after {
-  content: "";
-  position: absolute;
-  right: -8px;
-  bottom: -8px;
-  width: 28px;
-  height: 28px;
-  border: 2px solid rgba(28, 28, 30, 0.18);
-  border-radius: 50%;
+  content: none;
 }
 
 .work-pin-label {
   display: grid;
   gap: 2px;
-  padding: 5px 7px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.58);
+  min-width: 42px;
+  padding: 4px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.66);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 .work-pin-label strong {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 640;
+  line-height: 1.05;
 }
 
 .work-pin-label em {
   color: #8e8e93;
-  font-size: 11px;
+  font-size: 10px;
   font-style: normal;
+  line-height: 1.05;
 }
 
 .work-status-card,
