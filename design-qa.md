@@ -18,7 +18,8 @@
   - Map pins count: 5, all rendered as `17 x 17` circular dots.
   - Refined map uses 29 SVG path elements for streets, blocks, route, and river.
   - Remaining time is displayed to the minute, for example `04:59`, with no seconds.
-  - Radar bottom and selected work label are separated so the circle no longer covers the label.
+  - Radar is shifted upward and uses smaller internal type so it no longer crowds the selected work label.
+  - Current work content is fully visible in Chinese and English.
   - Work choices count: 5.
   - Bottom actions are fully visible.
   - Selecting a job leaves exactly one active choice.

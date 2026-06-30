@@ -2787,7 +2787,7 @@ select {
 
 .work-map-panel {
   position: relative;
-  height: 352px;
+  height: 334px;
   margin: 4px -12px 8px;
   overflow: hidden;
 }
@@ -2848,7 +2848,7 @@ select {
 
 .work-radar {
   position: absolute;
-  top: 76px;
+  top: 64px;
   left: 50%;
   width: 168px;
   height: 168px;
@@ -2907,7 +2907,7 @@ select {
 .work-radar-copy strong {
   margin-top: 3px;
   color: #111111;
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 760;
   letter-spacing: 0;
   line-height: 1;
@@ -2916,7 +2916,7 @@ select {
 .work-radar-copy b {
   margin-top: 8px;
   color: #1c1c1e;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 690;
   letter-spacing: 0;
   line-height: 1.08;
@@ -2925,7 +2925,7 @@ select {
 .work-radar-copy i {
   margin-top: 6px;
   color: #56565c;
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 620;
   line-height: 1.1;
@@ -3028,15 +3028,19 @@ select {
 
 .work-status-card {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 76px 60px 42px;
-  gap: 8px;
-  align-items: center;
+  grid-template-columns: 36px minmax(0, 1fr) 42px;
+  grid-template-areas:
+    "icon main level"
+    "stats stats stats";
+  gap: 10px 10px;
+  align-items: start;
   margin-bottom: 10px;
   border-radius: 22px;
-  padding: 12px 9px;
+  padding: 12px 11px 10px;
 }
 
 .work-status-icon {
+  grid-area: icon;
   display: grid;
   width: 34px;
   height: 34px;
@@ -3047,6 +3051,7 @@ select {
 }
 
 .work-status-main {
+  grid-area: main;
   min-width: 0;
 }
 
@@ -3068,19 +3073,26 @@ select {
 }
 
 .work-status-main p {
-  overflow: hidden;
   margin: 6px 0 3px;
   color: #1c1c1e;
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
 }
 
 .work-status-main small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #8e8e93;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.work-status-stats {
+  grid-area: stats;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid rgba(28, 28, 30, 0.055);
+  padding-top: 9px;
 }
 
 .work-status-metric,
@@ -3089,9 +3101,11 @@ select {
   min-width: 0;
   gap: 3px;
   justify-items: center;
-  border-left: 1px solid rgba(28, 28, 30, 0.06);
-  padding-left: 8px;
   text-align: center;
+}
+
+.work-status-metric + .work-status-metric {
+  border-left: 1px solid rgba(28, 28, 30, 0.06);
 }
 
 .work-status-metric strong {
@@ -3116,6 +3130,10 @@ select {
   color: #1c1c1e;
   font-size: 15px;
   font-weight: 620;
+}
+
+.work-level-pill {
+  grid-area: level;
 }
 
 .work-choice-panel {

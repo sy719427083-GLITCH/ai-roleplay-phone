@@ -1490,7 +1490,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.36</p>
+      <p className="version-label">Ccat OS v0.1.37</p>
     </section>
   );
 }
@@ -2110,15 +2110,17 @@ function WorkAppScreen({ onClose }) {
           <p>{selectedJob.content}</p>
           <small>{selectedJob.contentEn}</small>
         </div>
-        <div className="work-status-metric">
-          <span>剩余时间</span>
-          <strong>{formatWorkTime(remainingMs)}</strong>
-          <em>Time Left</em>
-        </div>
-        <div className="work-status-metric">
-          <span>报酬</span>
-          <strong>¥{selectedJob.reward.toLocaleString("en-US")}</strong>
-          <em>Reward</em>
+        <div className="work-status-stats">
+          <div className="work-status-metric">
+            <span>剩余时间</span>
+            <strong>{formatWorkTime(remainingMs)}</strong>
+            <em>Time Left</em>
+          </div>
+          <div className="work-status-metric">
+            <span>报酬</span>
+            <strong>¥{selectedJob.reward.toLocaleString("en-US")}</strong>
+            <em>Reward</em>
+          </div>
         </div>
         <div className="work-level-pill">
           <strong>{levelMarks[selectedJob.level - 1]}</strong>
