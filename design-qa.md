@@ -44,6 +44,36 @@
 
 final result: passed
 
+## Me Persona Interaction + Character Motion Pass - 2026-06-30
+
+**Scope**
+- Fixed the Me app create-persona interaction for v0.1.42.
+- Restored Character app motion details.
+- Reduced the Me app top offset so the header starts closer to the top of the full screen.
+
+**Implementation Evidence**
+- Version label: `Ccat OS v0.1.42`.
+- Me app now renders inside `phone-stage`, so the stage no longer intercepts clicks on `建立新身份`.
+- Me app header top measured at `4px` in the 390 x 844 smoke test.
+- Character app decorative background is visible again and uses the `slowRotate` animation.
+- Character app cards use `magCardIn` entrance animation.
+
+**Verification Evidence**
+- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/17-me-character-fixes.png`
+- Automated checks:
+  - `建立新身份` center hit target resolves to `.me-add-btn`.
+  - Clicking `建立新身份` opens `.me-edit-page`.
+  - Saving a test identity writes 1 entry to `apiMeProfiles`.
+  - Character decorative background display is `block`.
+  - Character motion animation names: `slowRotate`, `magCardIn`.
+
+**Verification Commands**
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
+- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
+- Local Playwright interaction smoke check at `390 x 844`.
+
+final result: passed
+
 ## Work Reward Realism Pass - 2026-06-30
 
 **Scope**
