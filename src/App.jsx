@@ -23,7 +23,6 @@ import {
   ShoppingBag,
   Smartphone,
   Soup,
-  UserRound,
   UsersRound,
   Volume2,
   WalletCards,
@@ -259,6 +258,7 @@ function QuietPanel({ title, icon: Icon }) {
 const CHARACTER_STORAGE_KEY = "apiCharacters";
 const LEGACY_CHARACTER_STORAGE_KEY = "ccat-character-profile";
 const RELATION_STORAGE_KEY = "apiRelations";
+const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
 
 const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
@@ -282,6 +282,17 @@ const createEmptyRelation = () => ({
   customType: "",
   viewA: "",
   viewB: "",
+});
+
+const createEmptyMeProfile = () => ({
+  id: "",
+  type: "user",
+  avatar: "",
+  name: "",
+  identity: "",
+  appearance: "",
+  personality: "",
+  persona: "",
 });
 
 function AvatarContent({ character }) {
@@ -317,6 +328,13 @@ function CharacterAppScreen() {
     }
     return {};
   });
+  const [meProfiles, setMeProfiles] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  });
   const [relations, setRelations] = useState(() => {
     try {
       return JSON.parse(window.localStorage.getItem(RELATION_STORAGE_KEY)) || {};
@@ -325,6 +343,8 @@ function CharacterAppScreen() {
     }
   });
   const [subTab, setSubTab] = useState("main");
+  const [previewId, setPreviewId] = useState(null);
+  const [previewType, setPreviewType] = useState("main");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editingType, setEditingType] = useState("main");
@@ -347,10 +367,33 @@ function CharacterAppScreen() {
     window.localStorage.setItem(RELATION_STORAGE_KEY, JSON.stringify(relations));
   }, [relations]);
 
+  useEffect(() => {
+    const syncMeProfiles = () => {
+      try {
+        setMeProfiles(JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {});
+      } catch {
+        setMeProfiles({});
+      }
+    };
+    syncMeProfiles();
+    window.addEventListener("storage", syncMeProfiles);
+    return () => window.removeEventListener("storage", syncMeProfiles);
+  }, []);
+
   const patchDraft = (patch) => setDraft((current) => ({ ...current, ...patch }));
   const patchRelationDraft = (patch) => setRelationDraft((current) => ({ ...current, ...patch }));
 
   const getCharacterData = (id) => {
+    if (meProfiles[id]) {
+      const profile = meProfiles[id];
+      return {
+        ...profile,
+        id,
+        type: "user",
+        name: profile.name || "未命名",
+        identity: profile.identity || "主角身份",
+      };
+    }
     if (id === USER_CHARACTER_ID) {
       return {
         id,
@@ -379,6 +422,17 @@ function CharacterAppScreen() {
   };
 
   const getRelationLabel = (relation) => (relation.type === "custom" ? relation.customType.trim() || "自定义" : relation.type);
+
+  const openCharacterPreview = (id, type = "main") => {
+    setPreviewId(id);
+    setPreviewType(type);
+  };
+
+  const closeCharacterPreview = () => {
+    setPreviewId(null);
+  };
+
+  const previewCharacter = previewId ? characters[previewId] : null;
 
   const openEditor = (id, type = "main") => {
     setEditorOpen(true);
@@ -409,8 +463,9 @@ function CharacterAppScreen() {
     return type === "npc";
   });
   const selectorKeyword = selectorSearch.trim().toLowerCase();
+  const meSelectorCharacters = Object.entries(meProfiles);
   const selectorGroups = [
-    { title: "USER", items: [[USER_CHARACTER_ID, getCharacterData(USER_CHARACTER_ID)]] },
+    { title: "我 (MY PERSONAS)", items: meSelectorCharacters.map(([id]) => [id, getCharacterData(id)]) },
     { title: "MAIN CAST", items: mainSelectorCharacters.map(([id]) => [id, getCharacterData(id)]) },
     { title: "NPC", items: npcSelectorCharacters.map(([id]) => [id, getCharacterData(id)]) },
   ].map((group) => ({
@@ -461,6 +516,7 @@ function CharacterAppScreen() {
         type: editingType,
       },
     }));
+    if (previewId === id) setPreviewId(id);
     closeEditor();
   };
 
@@ -476,6 +532,7 @@ function CharacterAppScreen() {
     setRelations((current) => Object.fromEntries(
       Object.entries(current).filter(([, relation]) => relation.charA !== deletedId && relation.charB !== deletedId),
     ));
+    if (previewId === deletedId) setPreviewId(null);
     closeEditor();
   };
 
@@ -700,7 +757,7 @@ function CharacterAppScreen() {
       ) : (
         <div className="mag-grid">
           {visibleCharacters.map(([id, character]) => (
-            <button className="mag-card" key={id} onClick={() => openEditor(id, subTab)}>
+            <button className="mag-card" key={id} onClick={() => openCharacterPreview(id, subTab)}>
               <span className="mag-card-id">NO.{id.slice(-4)}</span>
               <div className="mag-avatar-box">
                 {character.avatar ? (
@@ -720,6 +777,56 @@ function CharacterAppScreen() {
             <small>{subTab === "main" ? "NEW MAIN" : "NEW NPC"}</small>
           </button>
         </div>
+      )}
+
+      {previewCharacter && (
+        <section className="char-preview-page">
+          <div className="preview-nav">
+            <button className="preview-back" onClick={closeCharacterPreview} aria-label="返回">
+              <ChevronLeft size={22} />
+            </button>
+          </div>
+          <div className="char-pv-hero">
+            <div className="char-pv-bg">
+              {previewCharacter.avatar && <img src={previewCharacter.avatar} alt="" />}
+            </div>
+            <div className="char-pv-img">
+              {previewCharacter.avatar ? (
+                <img src={previewCharacter.avatar} alt={previewCharacter.name || "角色头像"} />
+              ) : (
+                <AvatarContent character={previewCharacter} />
+              )}
+            </div>
+          </div>
+          <div className="char-pv-content">
+            <div className="char-pv-tagline">
+              <span className="char-pv-tag">{previewType === "main" ? "MAIN CHAR" : "NPC"}</span>
+              <span className="char-pv-tag outline">{previewCharacter.worldview || "UNKNOWN WORLD"}</span>
+            </div>
+            <div className="char-pv-name">{previewCharacter.name || "UNNAMED"}</div>
+            <section className="char-pv-section">
+              <div className="char-pv-label">IDENTITY</div>
+              <div className="char-pv-text">{previewCharacter.identity || "No record."}</div>
+            </section>
+            <section className="char-pv-section">
+              <div className="char-pv-label">APPEARANCE</div>
+              <div className="char-pv-text">{previewCharacter.appearance || "No record."}</div>
+            </section>
+            <section className="char-pv-section">
+              <div className="char-pv-label">PERSONALITY</div>
+              <div className="char-pv-text">{previewCharacter.personality || "No record."}</div>
+            </section>
+            <section className="char-pv-section char-pv-archive">
+              <div className="char-pv-label">ARCHIVE</div>
+              <div className="char-pv-text">{previewCharacter.persona || "No background record."}</div>
+            </section>
+          </div>
+          <button className="fab-edit" onClick={() => openEditor(previewId, previewType)} aria-label="编辑档案">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 17.3V21h3.8L17.8 9.9l-3.7-3.7L3 17.3Zm17.7-10.2c.4-.4.4-1 0-1.4l-2.4-2.4c-.4-.4-1-.4-1.4 0l-1.8 1.8 3.7 3.7 1.9-1.7Z" />
+            </svg>
+          </button>
+        </section>
       )}
 
       {relationEditorOpen && (
@@ -935,6 +1042,321 @@ function CharacterAppScreen() {
   );
 }
 
+function MeAppScreen() {
+  const [profiles, setProfiles] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  });
+  const [previewId, setPreviewId] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(createEmptyMeProfile());
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptValue, setPromptValue] = useState("");
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(ME_PROFILE_STORAGE_KEY, JSON.stringify(profiles));
+  }, [profiles]);
+
+  const profileEntries = Object.entries(profiles);
+  const previewProfile = previewId ? profiles[previewId] : null;
+  const patchDraft = (patch) => setDraft((current) => ({ ...current, ...patch }));
+
+  const uploadMeAvatar = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 220;
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        const min = Math.min(image.width, image.height);
+        const sx = (image.width - min) / 2;
+        const sy = (image.height - min) / 2;
+        canvas.width = size;
+        canvas.height = size;
+        context?.drawImage(image, sx, sy, min, min, 0, 0, size, size);
+        patchDraft({ avatar: canvas.toDataURL("image/jpeg", 0.82) });
+      };
+      image.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
+  const openMeEditor = (id) => {
+    setEditingId(id);
+    setDraft(id && profiles[id] ? { ...createEmptyMeProfile(), ...profiles[id], id } : createEmptyMeProfile());
+    setEditorOpen(true);
+  };
+
+  const closeMeEditor = () => {
+    setEditorOpen(false);
+    setEditingId(null);
+    setDraft(createEmptyMeProfile());
+    setPromptOpen(false);
+    setPromptValue("");
+  };
+
+  const saveMeProfile = () => {
+    const name = draft.name.trim();
+    if (!name || name === "构思中...") {
+      window.alert("请提供有效的姓名");
+      return;
+    }
+    const id = editingId || `me_${Date.now()}`;
+    setProfiles((current) => ({
+      ...current,
+      [id]: {
+        ...draft,
+        id,
+        type: "user",
+        name,
+      },
+    }));
+    setPreviewId(id);
+    closeMeEditor();
+  };
+
+  const deleteMeProfile = () => {
+    if (!editingId) return;
+    if (!window.confirm(`删除操作不可逆，是否确认销毁此身份 [ ${draft.name || "未命名"} ]？`)) return;
+    const deletedId = editingId;
+    setProfiles((current) => {
+      const next = { ...current };
+      delete next[deletedId];
+      return next;
+    });
+    if (previewId === deletedId) setPreviewId(null);
+    closeMeEditor();
+  };
+
+  const generateMeProfile = async (keyword) => {
+    if (!keyword) return;
+
+    const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+    const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
+    const model = endpoint?.model || endpoint?.customModel;
+    if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) {
+      window.alert("提示：请先到设置里的 API 设置填写并保存主 API。");
+      return;
+    }
+
+    const systemPrompt = `你是一个设定集生成器。根据用户关键词，生成一个详细的【主角身份档案】（玩家自身扮演用）。
+必须严格返回 JSON，不能包含任何 Markdown 或多余文本。
+键名如下：
+{
+  "name": "名字",
+  "identity": "身份或职业",
+  "personality": "性格特点",
+  "appearance": "外貌衣着特征",
+  "persona": "背景故事，不少于150字"
+}`;
+
+    setGenerating(true);
+    patchDraft({
+      name: "构思中...",
+      identity: "构思中...",
+      appearance: "构思中...",
+      personality: "构思中...",
+      persona: "构思中...",
+    });
+    try {
+      let url = endpoint.baseUrl.replace(/\/+$/, "");
+      if (!url.endsWith("/v1")) url += "/v1";
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `关键词：${keyword}。` },
+          ],
+          temperature: 0.85,
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      let content = data?.choices?.[0]?.message?.content || "";
+      const match = content.match(/\{[\s\S]*\}/);
+      if (match) content = match[0];
+      const generated = JSON.parse(content);
+      patchDraft({
+        name: generated.name || "",
+        identity: generated.identity || "",
+        appearance: generated.appearance || "",
+        personality: generated.personality || "",
+        persona: generated.persona || "",
+      });
+    } catch {
+      window.alert("生成失败，请检查网络和 API 引擎配置。");
+      setDraft((current) => ({
+        ...current,
+        name: current.name === "构思中..." ? "" : current.name,
+        identity: current.identity === "构思中..." ? "" : current.identity,
+        appearance: current.appearance === "构思中..." ? "" : current.appearance,
+        personality: current.personality === "构思中..." ? "" : current.personality,
+        persona: current.persona === "构思中..." ? "" : current.persona,
+      }));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <section className="screen-view me-app-view me-theme">
+      <div className="me-bg-decor">
+        <div className="me-shape-1"></div>
+        <div className="me-shape-2"></div>
+      </div>
+      <header className="me-header">
+        <div className="me-vol">DIRECTOR</div>
+        <h2>MY PERSONAS.</h2>
+      </header>
+      <div className="me-list-container">
+        {profileEntries.map(([id, profile]) => (
+          <button className="me-card" key={id} onClick={() => setPreviewId(id)}>
+            <span className="me-card-avatar">
+              <AvatarContent character={profile} />
+            </span>
+            <span className="me-card-info">
+              <span className="me-card-id">ID: {id.slice(-5)}</span>
+              <strong className="me-card-name">{profile.name || "UNNAMED"}</strong>
+              <span className="me-card-identity">{profile.identity || "Director"}</span>
+            </span>
+          </button>
+        ))}
+        <button className="me-add-btn" onClick={() => openMeEditor(null)}>
+          + CREATE NEW PERSONA / 建立新身份
+        </button>
+      </div>
+
+      {previewProfile && (
+        <section className="me-preview-page me-theme">
+          <div className="preview-nav">
+            <button className="preview-back" onClick={() => setPreviewId(null)} aria-label="返回">
+              <ChevronLeft size={22} />
+            </button>
+          </div>
+          <div className="me-pv-container">
+            <div className="me-pv-frame">
+              <AvatarContent character={previewProfile} />
+            </div>
+            <div className="me-pv-typography">
+              <div className="me-pv-id">ID.{previewId.slice(-4).toUpperCase()}</div>
+              <div className="me-pv-name">{previewProfile.name || "UNNAMED"}</div>
+              <div className="me-pv-identity">{previewProfile.identity || "UNKNOWN IDENTITY"}</div>
+              <section className="me-pv-text-block">
+                <div className="me-pv-text-title">APPEARANCE</div>
+                <div className="me-pv-text-content">{previewProfile.appearance || "No record."}</div>
+              </section>
+              <section className="me-pv-text-block">
+                <div className="me-pv-text-title">PERSONALITY</div>
+                <div className="me-pv-text-content">{previewProfile.personality || "No record."}</div>
+              </section>
+              <section className="me-pv-text-block">
+                <div className="me-pv-text-title">ARCHIVE</div>
+                <div className="me-pv-text-content">{previewProfile.persona || "No background record."}</div>
+              </section>
+              <button className="me-pv-edit-btn" onClick={() => openMeEditor(previewId)}>
+                EDIT PERSONA
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {editorOpen && (
+        <section className="me-edit-page me-theme">
+          <div className="me-bg-decor">
+            <div className="me-shape-2 me-edit-shape"></div>
+          </div>
+          <nav className="me-edit-nav">
+            <button className="me-edit-back" onClick={closeMeEditor}>
+              <ChevronLeft size={16} />
+              <span>BACK</span>
+            </button>
+            <button className={generating ? "me-edit-dice breathing" : "me-edit-dice"} onClick={() => setPromptOpen(true)} aria-label="AI 构思">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2ZM7.5 18c-.8 0-1.5-.7-1.5-1.5S6.7 15 7.5 15 9 15.7 9 16.5 8.3 18 7.5 18Zm0-9C6.7 9 6 8.3 6 7.5S6.7 6 7.5 6 9 6.7 9 7.5 8.3 9 7.5 9Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm4.5 4.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5Zm0-9c-.8 0-1.5-.7-1.5-1.5S15.7 6 16.5 6 18 6.7 18 7.5 17.3 9 16.5 9Z" />
+              </svg>
+            </button>
+          </nav>
+          <div className="me-edit-hero">
+            <label className="me-edit-avatar-wrapper">
+              <input type="file" accept="image/*" onChange={uploadMeAvatar} />
+              <span className="me-edit-avatar-inner">
+                <AvatarContent character={draft} />
+              </span>
+            </label>
+            <input
+              className="me-signature-input"
+              value={draft.name}
+              onChange={(event) => patchDraft({ name: event.target.value })}
+              placeholder="Your Name"
+            />
+            <div className="me-edit-subtitle">AUTHOR & PROTAGONIST</div>
+          </div>
+          <div className="me-edit-body">
+            <label className="me-edit-group">
+              <span className="me-edit-label">Identity</span>
+              <input className="me-edit-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="Role or Title..." />
+            </label>
+            <label className="me-edit-group">
+              <span className="me-edit-label">Appearance</span>
+              <textarea className="me-edit-input" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="Physical traits..." />
+            </label>
+            <label className="me-edit-group">
+              <span className="me-edit-label">Personality</span>
+              <textarea className="me-edit-input" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="Character traits..." />
+            </label>
+            <label className="me-edit-group">
+              <span className="me-edit-label">Archive</span>
+              <textarea className="me-edit-input large" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="Background story..." />
+            </label>
+            <div className="me-edit-actions">
+              {editingId && <button className="me-action-btn danger" onClick={deleteMeProfile}>DELETE</button>}
+              <button className="me-action-btn primary" onClick={saveMeProfile}>SAVE ARCHIVE</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {promptOpen && (
+        <div className="character-prompt">
+          <div className="prompt-box">
+            <strong>设定推演系统</strong>
+            <p>请输入你想扮演的主角特质<br />如：流浪法师 / 财阀千金</p>
+            <input value={promptValue} onChange={(event) => setPromptValue(event.target.value)} placeholder="输入关键词..." autoFocus />
+            <div>
+              <button onClick={() => setPromptOpen(false)}>取消</button>
+              <button
+                onClick={() => {
+                  const value = promptValue.trim();
+                  setPromptOpen(false);
+                  generateMeProfile(value);
+                }}
+              >
+                生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function SettingsScreen({ onOpen }) {
   return (
     <section className="screen-view settings-view">
@@ -960,7 +1382,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.31</p>
+      <p className="version-label">Ccat OS v0.1.32</p>
     </section>
   );
 }
@@ -1686,7 +2108,7 @@ export function App() {
   const content = useMemo(() => {
     if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
     if (tab === "characters") return <CharacterAppScreen />;
-    if (tab === "me") return <QuietPanel title="我" icon={UserRound} />;
+    if (tab === "me") return <MeAppScreen />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
   }, [tab, hasShownLaunch]);
 
