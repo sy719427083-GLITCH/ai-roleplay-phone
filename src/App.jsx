@@ -43,7 +43,7 @@ import {
   serializeConfigs,
   STORAGE_KEY,
 } from "./apiConfig.js";
-import { getAvatarCropDraw } from "./avatarCrop.js";
+import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 
 const appGroups = [
   [
@@ -784,7 +784,7 @@ function AvatarCropModal({ source, onCancel, onConfirm }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const dragRef = useRef(null);
-  const outputSize = 240;
+  const outputSize = AVATAR_CROP_OUTPUT_SIZE;
   const previewSize = 238;
   const previewDraw = getAvatarCropDraw({
     imageWidth: imageSize.width,
@@ -842,7 +842,7 @@ function AvatarCropModal({ source, onCancel, onConfirm }) {
         offsetY: offset.y * scale,
       });
       context.drawImage(image, draw.dx, draw.dy, draw.dWidth, draw.dHeight);
-      onConfirm(canvas.toDataURL("image/jpeg", 0.86));
+      onConfirm(canvas.toDataURL("image/jpeg", 0.94));
     };
     image.onerror = () => onConfirm(source);
     image.src = source;
@@ -1968,7 +1968,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.49</p>
+      <p className="version-label">Ccat OS v0.1.50</p>
     </section>
   );
 }

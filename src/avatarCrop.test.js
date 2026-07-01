@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAvatarCropDraw } from "./avatarCrop.js";
+import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
+
+test("uses a high resolution avatar crop output", () => {
+  assert.equal(AVATAR_CROP_OUTPUT_SIZE, 1080);
+});
 
 test("centers a landscape avatar before drag and zoom", () => {
   const draw = getAvatarCropDraw({

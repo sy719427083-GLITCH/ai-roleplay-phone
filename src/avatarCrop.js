@@ -1,3 +1,5 @@
+export const AVATAR_CROP_OUTPUT_SIZE = 1080;
+
 export function getAvatarCropDraw({
   imageWidth,
   imageHeight,
