@@ -308,6 +308,7 @@ const workPins = [
 const WORK_JOBS_STORAGE_KEY = "ccatWorkJobs";
 const WORK_ACTIVE_STORAGE_KEY = "ccatActiveWork";
 const WORK_SELECTED_STORAGE_KEY = "ccatSelectedWork";
+const WORK_PAID_REFRESH_COST = 20;
 const highValueWorkKeys = new Set(["review", "night", "device", "event", "survey"]);
 
 const roundToStep = (value, step = 5) => Math.max(step, Math.round(value / step) * step);
@@ -518,6 +519,42 @@ const creditWalletFromWork = (job, amount) => {
       ],
     }),
   );
+};
+
+const spendWalletForWorkRefresh = () => {
+  let current = { balance: 0, transactions: [] };
+  try {
+    const stored = window.localStorage.getItem("roleplayWallet");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      current = {
+        balance: Number(parsed.balance) || 0,
+        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
+      };
+    }
+  } catch {
+    current = { balance: 0, transactions: [] };
+  }
+  if (current.balance < WORK_PAID_REFRESH_COST) return false;
+  const now = new Date();
+  const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  window.localStorage.setItem(
+    "roleplayWallet",
+    JSON.stringify({
+      balance: current.balance - WORK_PAID_REFRESH_COST,
+      transactions: [
+        {
+          id: Date.now(),
+          type: "sub",
+          amount: WORK_PAID_REFRESH_COST,
+          desc: "工作刷新",
+          date,
+        },
+        ...current.transactions,
+      ],
+    }),
+  );
+  return true;
 };
 
 const formatDate = (date) =>
@@ -1995,7 +2032,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.60</p>
+      <p className="version-label">Ccat OS v0.1.61</p>
     </section>
   );
 }
@@ -2561,19 +2598,6 @@ function WorkAppScreen({ onClose }) {
     }
   }, [activeWork]);
 
-  useEffect(() => {
-    if (!activeWork || activeWork.endAt > now) return;
-    const completedJob = jobs.find((job) => job.key === activeWork.jobKey);
-    if (completedJob) creditWalletFromWork(completedJob, completedJob.reward);
-    setActiveWork(null);
-  }, [activeWork, jobs, now]);
-
-  useEffect(() => {
-    if (activeWork?.endAt > now && jobs.some((job) => job.key === activeWork.jobKey)) {
-      setSelectedId(activeWork.jobKey);
-    }
-  }, [activeWork, jobs, now]);
-
   const fetchApiJobs = async () => {
     const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
     const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
@@ -2613,6 +2637,28 @@ function WorkAppScreen({ onClose }) {
     return nextJobs.length === 5 ? nextJobs : null;
   };
 
+  const generateWorkRound = async () => {
+    setLoadingJobs(true);
+    let nextJobs = null;
+    try {
+      nextJobs = await fetchApiJobs();
+    } catch {
+      nextJobs = null;
+    }
+    if (!nextJobs) nextJobs = buildWorkJobs();
+    setJobs(nextJobs);
+    setSelectedId(nextJobs[0]?.key || "review");
+    setLoadingJobs(false);
+  };
+
+  useEffect(() => {
+    if (!activeWork || activeWork.endAt > now) return;
+    const completedJob = jobs.find((job) => job.key === activeWork.jobKey);
+    if (completedJob) creditWalletFromWork(completedJob, completedJob.reward);
+    setActiveWork(null);
+    generateWorkRound();
+  }, [activeWork, jobs, now]);
+
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
   const selectedKey = selectedJob?.key || "";
   const hasRunningWork = activeWork?.endAt > now;
@@ -2641,19 +2687,13 @@ function WorkAppScreen({ onClose }) {
   };
 
   const refreshJobs = async () => {
-    if (refreshLeft <= 0 || activeWork?.endAt > Date.now()) return;
-    setLoadingJobs(true);
-    let nextJobs = null;
-    try {
-      nextJobs = await fetchApiJobs();
-    } catch {
-      nextJobs = null;
+    if (activeWork?.endAt > Date.now() || loadingJobs) return;
+    if (refreshLeft <= 0 && !spendWalletForWorkRefresh()) {
+      window.alert(`余额不足，刷新一轮需要 ¥${WORK_PAID_REFRESH_COST}。`);
+      return;
     }
-    if (!nextJobs) nextJobs = buildWorkJobs();
-    setJobs(nextJobs);
-    setSelectedId(nextJobs[0]?.key || "review");
-    setRefreshLeft((value) => Math.max(0, value - 1));
-    setLoadingJobs(false);
+    await generateWorkRound();
+    if (refreshLeft > 0) setRefreshLeft((value) => Math.max(0, value - 1));
   };
 
   const stopWork = () => {
@@ -2677,8 +2717,8 @@ function WorkAppScreen({ onClose }) {
           <strong>工作</strong>
           <span>Work</span>
         </div>
-        <button className="work-refresh-link" onClick={refreshJobs} disabled={refreshLeft <= 0 || loadingJobs || hasRunningWork}>
-          <strong>{loadingJobs ? "生成中" : `刷新 ${refreshLeft}/5`}</strong>
+        <button className="work-refresh-link" onClick={refreshJobs} disabled={loadingJobs || hasRunningWork}>
+          <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}/5` : `¥${WORK_PAID_REFRESH_COST} 刷新`}</strong>
           <span>{loadingJobs ? "Loading" : "Refresh"}</span>
         </button>
       </header>
