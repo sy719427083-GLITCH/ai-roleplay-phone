@@ -1417,6 +1417,11 @@ textarea.character-input {
   display: none;
 }
 
+.phone-stage:has(.character-edit-page) .bottom-tabs,
+.phone-stage:has(.char-preview-page) .bottom-tabs {
+  display: none;
+}
+
 @keyframes slideInRight {
   from {
     transform: translateX(100%);
@@ -2170,7 +2175,6 @@ textarea.character-input {
   overflow: hidden;
   border: 1px solid var(--me-border);
   background: rgba(92, 74, 61, 0.04);
-  filter: sepia(35%);
 }
 
 .me-card-avatar img,
@@ -2264,7 +2268,6 @@ textarea.character-input {
   overflow: hidden;
   border: 8px solid #ffffff;
   background: rgba(92, 74, 61, 0.05);
-  filter: sepia(18%);
   margin-bottom: 25px;
   box-shadow: 10px 15px 30px rgba(74, 59, 50, 0.15), inset 0 0 10px rgba(0, 0, 0, 0.05);
 }

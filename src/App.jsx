@@ -1651,6 +1651,7 @@ function MeAppScreen() {
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [cropSource, setCropSource] = useState("");
 
   useEffect(() => {
     window.localStorage.setItem(ME_PROFILE_STORAGE_KEY, JSON.stringify(profiles));
@@ -1663,7 +1664,7 @@ function MeAppScreen() {
   const uploadMeAvatar = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    readAvatarFile(file, (avatar) => patchDraft({ avatar }), 220);
+    readAvatarSource(file, setCropSource);
     event.target.value = "";
   };
 
@@ -1679,6 +1680,7 @@ function MeAppScreen() {
     setDraft(createEmptyMeProfile());
     setPromptOpen(false);
     setPromptValue("");
+    setCropSource("");
   };
 
   const saveMeProfile = () => {
@@ -1918,6 +1920,17 @@ function MeAppScreen() {
         </section>
       )}
 
+      {cropSource && (
+        <AvatarCropModal
+          source={cropSource}
+          onCancel={() => setCropSource("")}
+          onConfirm={(avatar) => {
+            patchDraft({ avatar });
+            setCropSource("");
+          }}
+        />
+      )}
+
       {promptOpen && (
         <div className="character-prompt">
           <div className="prompt-box">
@@ -1968,7 +1981,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.50</p>
+      <p className="version-label">Ccat OS v0.1.51</p>
     </section>
   );
 }
