@@ -1304,7 +1304,7 @@ textarea.character-input {
 
 .character-edit-page {
   position: fixed;
-  z-index: 45;
+  z-index: 108;
   inset: 0;
   overflow-y: auto;
   background: #f8f8fa;
@@ -1459,7 +1459,7 @@ textarea.character-input {
 
 .char-selector-modal {
   position: fixed;
-  z-index: 92;
+  z-index: 118;
   inset: 0;
   display: flex;
   flex-direction: column;
@@ -1647,7 +1647,7 @@ textarea.character-input {
 
 .character-prompt {
   position: fixed;
-  z-index: 90;
+  z-index: 120;
   inset: 0;
   display: flex;
   align-items: center;
