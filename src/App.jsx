@@ -43,6 +43,7 @@ import {
   serializeConfigs,
   STORAGE_KEY,
 } from "./apiConfig.js";
+import { getAvatarCropDraw } from "./avatarCrop.js";
 
 const appGroups = [
   [
@@ -760,12 +761,144 @@ const readAvatarFile = (file, onAvatar, size = 200) => {
   reader.readAsDataURL(file);
 };
 
+const readAvatarSource = (file, onLoad) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || "");
+    if (dataUrl) onLoad(dataUrl);
+  };
+  reader.readAsDataURL(file);
+};
+
 function AvatarContent({ character }) {
   if (character?.avatar) return <img src={character.avatar} alt={character.name || "角色头像"} />;
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4Zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4Z" />
     </svg>
+  );
+}
+
+function AvatarCropModal({ source, onCancel, onConfirm }) {
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const dragRef = useRef(null);
+  const outputSize = 240;
+  const previewSize = 238;
+  const previewDraw = getAvatarCropDraw({
+    imageWidth: imageSize.width,
+    imageHeight: imageSize.height,
+    outputSize: previewSize,
+    zoom,
+    offsetX: offset.x,
+    offsetY: offset.y,
+  });
+
+  useEffect(() => {
+    setOffset({ x: 0, y: 0 });
+    setZoom(1);
+  }, [source]);
+
+  const handlePointerDown = (event) => {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = {
+      id: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+    };
+  };
+
+  const handlePointerMove = (event) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) return;
+    setOffset({
+      x: drag.originX + event.clientX - drag.startX,
+      y: drag.originY + event.clientY - drag.startY,
+    });
+  };
+
+  const stopDrag = () => {
+    dragRef.current = null;
+  };
+
+  const confirmCrop = () => {
+    const image = new window.Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const scale = outputSize / previewSize;
+      const draw = getAvatarCropDraw({
+        imageWidth: image.width,
+        imageHeight: image.height,
+        outputSize,
+        zoom,
+        offsetX: offset.x * scale,
+        offsetY: offset.y * scale,
+      });
+      context.drawImage(image, draw.dx, draw.dy, draw.dWidth, draw.dHeight);
+      onConfirm(canvas.toDataURL("image/jpeg", 0.86));
+    };
+    image.onerror = () => onConfirm(source);
+    image.src = source;
+  };
+
+  return (
+    <div className="avatar-crop-backdrop">
+      <div className="avatar-crop-panel" role="dialog" aria-modal="true" aria-label="头像裁剪">
+        <div className="avatar-crop-title">
+          <strong>调整头像</strong>
+          <span>Drag & Zoom</span>
+        </div>
+        <div
+          className="avatar-crop-stage"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopDrag}
+          onPointerCancel={stopDrag}
+        >
+          <div className="avatar-crop-frame">
+            <img
+              src={source}
+              alt="头像裁剪预览"
+              draggable="false"
+              onLoad={(event) => {
+                setImageSize({
+                  width: event.currentTarget.naturalWidth || 1,
+                  height: event.currentTarget.naturalHeight || 1,
+                });
+              }}
+              style={{
+                width: `${previewDraw.dWidth}px`,
+                height: `${previewDraw.dHeight}px`,
+                transform: `translate(${previewDraw.dx}px, ${previewDraw.dy}px)`,
+              }}
+            />
+          </div>
+          <span className="avatar-crop-ring" aria-hidden="true"></span>
+        </div>
+        <label className="avatar-crop-slider">
+          <span>缩放</span>
+          <input
+            type="range"
+            min="1"
+            max="2.8"
+            step="0.01"
+            value={zoom}
+            onChange={(event) => setZoom(Number(event.target.value))}
+          />
+        </label>
+        <div className="avatar-crop-actions">
+          <button onClick={onCancel}>取消</button>
+          <button onClick={confirmCrop}>使用头像</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -823,6 +956,7 @@ function CharacterAppScreen() {
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [cropSource, setCropSource] = useState("");
 
   useEffect(() => {
     window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
@@ -912,6 +1046,7 @@ function CharacterAppScreen() {
     setDraft(createEmptyCharacter("main"));
     setPromptOpen(false);
     setPromptValue("");
+    setCropSource("");
   };
 
   const visibleCharacters = Object.entries(characters).filter(([, character]) => {
@@ -944,7 +1079,7 @@ function CharacterAppScreen() {
   const uploadAvatar = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    readAvatarFile(file, (avatar) => patchDraft({ avatar }), 200);
+    readAvatarSource(file, setCropSource);
     event.target.value = "";
   };
 
@@ -1465,6 +1600,17 @@ function CharacterAppScreen() {
         </section>
       )}
 
+      {cropSource && (
+        <AvatarCropModal
+          source={cropSource}
+          onCancel={() => setCropSource("")}
+          onConfirm={(avatar) => {
+            patchDraft({ avatar });
+            setCropSource("");
+          }}
+        />
+      )}
+
       {promptOpen && (
         <div className="character-prompt">
           <div className="prompt-box">
@@ -1822,7 +1968,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.48</p>
+      <p className="version-label">Ccat OS v0.1.49</p>
     </section>
   );
 }
