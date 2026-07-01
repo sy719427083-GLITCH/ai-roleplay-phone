@@ -1373,6 +1373,10 @@ function CharacterAppScreen({ onChildPageChange }) {
             <button className="preview-back" onClick={closeCharacterPreview} aria-label="返回">
               <ChevronLeft size={22} />
             </button>
+            <button className="preview-edit-top" onClick={() => openEditor(previewId, previewType)}>
+              <span>编辑档案</span>
+              <em>Edit</em>
+            </button>
           </div>
           <div className="char-pv-hero">
             <div className="char-pv-bg">
@@ -1409,11 +1413,6 @@ function CharacterAppScreen({ onChildPageChange }) {
               <div className="char-pv-text">{previewCharacter.persona || "No background record."}</div>
             </section>
           </div>
-          <button className="fab-edit" onClick={() => openEditor(previewId, previewType)} aria-label="编辑档案">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 17.3V21h3.8L17.8 9.9l-3.7-3.7L3 17.3Zm17.7-10.2c.4-.4.4-1 0-1.4l-2.4-2.4c-.4-.4-1-.4-1.4 0l-1.8 1.8 3.7 3.7 1.9-1.7Z" />
-            </svg>
-          </button>
         </section>
       )}
 
@@ -1584,15 +1583,15 @@ function CharacterAppScreen({ onChildPageChange }) {
               </label>
             </section>
             <section className="character-card">
-              <label className="character-field">
+              <label className="character-field character-field-right">
                 <span><i></i>容貌特征 / Appearance</span>
                 <textarea className="character-input" rows="2" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="发色瞳色、穿着风格等特征描写" />
               </label>
-              <label className="character-field">
+              <label className="character-field character-field-right">
                 <span><i></i>性格癖好 / Personality</span>
                 <textarea className="character-input" rows="2" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="角色的性格、习惯、口头禅等" />
               </label>
-              <label className="character-field">
+              <label className="character-field character-field-right">
                 <span><i></i>生平履历 / Persona</span>
                 <textarea className="character-input" rows="6" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="详细的背景故事与人设长文本" />
               </label>
@@ -1991,7 +1990,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.53</p>
+      <p className="version-label">Ccat OS v0.1.54</p>
     </section>
   );
 }
