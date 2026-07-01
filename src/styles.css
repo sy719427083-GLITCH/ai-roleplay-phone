@@ -546,6 +546,21 @@ body {
   background: #ffffff;
   padding: 20px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02);
+  animation: characterPanelIn 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease, background 220ms ease;
+}
+
+.character-card:nth-of-type(2) {
+  animation-delay: 40ms;
+}
+
+.character-card:nth-of-type(3) {
+  animation-delay: 80ms;
+}
+
+.character-card:focus-within {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.055);
 }
 
 .character-card.profile-card {
@@ -572,6 +587,29 @@ body {
   background: rgba(28, 28, 30, 0.03);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
   cursor: pointer;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease;
+}
+
+.avatar-uploader::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  opacity: 0;
+  background: conic-gradient(from 180deg, transparent, rgba(255, 255, 255, 0.72), transparent 34%);
+  transform: rotate(0deg);
+  transition: opacity 160ms ease;
+}
+
+.avatar-uploader:hover,
+.avatar-uploader:focus-within {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.09);
+}
+
+.avatar-uploader:hover::after,
+.avatar-uploader:focus-within::after {
+  opacity: 1;
+  animation: avatarScan 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
 .avatar-uploader input {
@@ -609,7 +647,7 @@ body {
   font-size: 15px;
   outline: none;
   padding: 0 16px;
-  transition: all 0.3s ease;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
   appearance: none;
   box-sizing: border-box;
 }
@@ -622,6 +660,7 @@ body {
   border-color: rgba(0, 0, 0, 0.05);
   background: #ffffff;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
 }
 
 .character-name-input {
@@ -647,7 +686,7 @@ body {
   color: #9e9ea5;
   font-size: 13px;
   font-weight: 600;
-  transition: 0.3s;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease, color 180ms ease, box-shadow 180ms ease;
 }
 
 .type-selector button.active {
@@ -677,6 +716,13 @@ body {
   margin-right: 6px;
   border-radius: 2px;
   background: #e83929;
+  transform-origin: center bottom;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
+}
+
+.character-field:focus-within i {
+  background: #1c1c1e;
+  transform: scaleY(1.35);
 }
 
 .character-field select.character-input {
@@ -860,8 +906,9 @@ textarea.character-input {
   padding: 15px;
   color: #1c1c1e;
   text-align: left;
-  animation: magCardIn 520ms cubic-bezier(0.32, 0.72, 0, 1) both;
-  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), background 220ms ease, filter 220ms ease;
+  animation: magCardIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms ease, filter 220ms ease, border-color 220ms ease;
+  will-change: transform;
 }
 
 .mag-card:nth-child(2) {
@@ -893,6 +940,29 @@ textarea.character-input {
   transform: scale(0.97);
 }
 
+.mag-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 12%, rgba(255, 255, 255, 0.48) 44%, transparent 68%);
+  transform: translateX(-120%);
+  transition: opacity 180ms ease;
+}
+
+.mag-card:hover,
+.mag-card:focus-visible {
+  border-color: rgba(28, 28, 30, 0.18);
+  transform: translateY(-3px);
+}
+
+.mag-card:hover::after,
+.mag-card:focus-visible::after {
+  opacity: 1;
+  animation: characterCardSheen 760ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .mag-avatar-box {
   display: flex;
   width: 100%;
@@ -903,11 +973,14 @@ textarea.character-input {
   margin-bottom: 15px;
   background: rgba(28, 28, 30, 0.03);
   filter: grayscale(20%);
-  transition: filter 0.3s;
+  transition: filter 220ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.mag-card:hover .mag-avatar-box,
+.mag-card:focus-visible .mag-avatar-box,
 .mag-card:active .mag-avatar-box {
   filter: grayscale(0%);
+  transform: scale(1.018);
 }
 
 .mag-avatar-box img {
@@ -1027,6 +1100,7 @@ textarea.character-input {
   font-weight: 650;
   letter-spacing: 1.5px;
   text-transform: uppercase;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease, border-color 180ms ease;
 }
 
 .relation-cards-container {
@@ -1036,6 +1110,8 @@ textarea.character-input {
 
 .bond-card {
   display: block;
+  position: relative;
+  overflow: hidden;
   width: 100%;
   border: 0;
   border-radius: 18px;
@@ -1044,7 +1120,29 @@ textarea.character-input {
   padding: 18px;
   text-align: left;
   backdrop-filter: blur(18px) saturate(150%);
-  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), background 220ms ease;
+  animation: bondCardIn 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms ease;
+}
+
+.bond-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--bond-x, 50%) 0%, rgba(255, 255, 255, 0.64), transparent 34%);
+  transition: opacity 180ms ease;
+}
+
+.bond-card:hover,
+.bond-card:focus-visible {
+  background: rgba(255, 255, 255, 0.86);
+  transform: translateY(-3px);
+}
+
+.bond-card:hover::before,
+.bond-card:focus-visible::before {
+  opacity: 1;
 }
 
 .bond-card:active,
@@ -1129,7 +1227,17 @@ textarea.character-input {
   z-index: 1;
   width: 100%;
   height: 1px;
-  background: rgba(28, 28, 30, 0.22);
+  overflow: hidden;
+  background: rgba(28, 28, 30, 0.14);
+}
+
+.bond-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(28, 28, 30, 0.56), transparent);
+  transform: translateX(-115%);
+  animation: bondLineFlow 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
 .bond-badge {
@@ -1143,6 +1251,13 @@ textarea.character-input {
   font-weight: 750;
   letter-spacing: 1px;
   padding: 4px 10px;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
+}
+
+.bond-card:hover .bond-badge,
+.bond-card:focus-visible .bond-badge {
+  transform: scale(1.04);
+  background: #ffffff;
 }
 
 .bond-details {
@@ -1193,7 +1308,7 @@ textarea.character-input {
   inset: 0;
   overflow-y: auto;
   background: #f8f8fa;
-  animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: slideInRight 360ms cubic-bezier(0.22, 1, 0.36, 1);
   scrollbar-width: none;
 }
 
@@ -1301,7 +1416,13 @@ textarea.character-input {
   background: rgba(28, 28, 30, 0.035);
   color: #1c1c1e;
   padding: 14px 10px;
-  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
+}
+
+.rel-char-box:hover,
+.rel-char-box:focus-visible {
+  background: rgba(28, 28, 30, 0.055);
+  transform: translateY(-2px);
 }
 
 .rel-avatar {
@@ -1447,7 +1568,13 @@ textarea.character-input {
   color: #1c1c1e;
   padding: 8px 12px;
   text-align: left;
-  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
+}
+
+.selector-item:hover,
+.selector-item:focus-visible {
+  background: rgba(255, 255, 255, 0.92);
+  transform: translateX(2px);
 }
 
 .selector-avatar {
@@ -1493,6 +1620,16 @@ textarea.character-input {
   border-radius: 16px;
   font-size: 14px;
   font-weight: 600;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), filter 160ms ease, box-shadow 160ms ease;
+}
+
+.type-selector button:active,
+.character-actions button:active,
+.prompt-box button:active,
+.preview-back:active,
+.fab-edit:active,
+.mag-tabs button:active {
+  transform: scale(0.96);
 }
 
 .character-danger {
@@ -1608,7 +1745,7 @@ textarea.character-input {
   inset: 0;
   overflow-y: auto;
   background: #f8f8fa;
-  animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: slideInRight 360ms cubic-bezier(0.22, 1, 0.36, 1);
   scrollbar-width: none;
 }
 
@@ -1623,6 +1760,22 @@ textarea.character-input {
   width: 100%;
   height: 55vh;
   min-height: 360px;
+  overflow: hidden;
+}
+
+.char-pv-hero::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 42%;
+  opacity: 0.28;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transform: translateY(-110%);
+  animation: characterScanLine 2.9s cubic-bezier(0.22, 1, 0.36, 1) 420ms infinite;
 }
 
 .char-pv-bg {
@@ -1631,6 +1784,7 @@ textarea.character-input {
   z-index: 1;
   background: rgba(28, 28, 30, 0.035);
   filter: blur(25px) brightness(0.86);
+  animation: previewBgDrift 9s ease-in-out infinite alternate;
 }
 
 .char-pv-bg img {
@@ -1647,6 +1801,7 @@ textarea.character-input {
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: previewImageIn 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .char-pv-img img {
@@ -1669,6 +1824,7 @@ textarea.character-input {
   z-index: 3;
   margin-top: -8vh;
   padding: 0 24px 120px;
+  animation: previewContentIn 460ms cubic-bezier(0.22, 1, 0.36, 1) 90ms both;
 }
 
 .char-pv-tagline {
@@ -1743,6 +1899,13 @@ textarea.character-input {
   border-radius: 50%;
   background: #1c1c1e;
   color: #ffffff;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+
+.fab-edit:hover,
+.fab-edit:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.18);
 }
 
 .fab-edit svg {
@@ -3867,6 +4030,131 @@ select {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes characterCardSheen {
+  from {
+    transform: translateX(-120%);
+  }
+
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes bondCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bondLineFlow {
+  0% {
+    transform: translateX(-115%);
+  }
+
+  48%,
+  100% {
+    transform: translateX(115%);
+  }
+}
+
+@keyframes characterPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes avatarScan {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes characterScanLine {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateY(-110%);
+  }
+
+  52% {
+    opacity: 0.28;
+  }
+
+  76%,
+  100% {
+    opacity: 0;
+    transform: translateY(260%);
+  }
+}
+
+@keyframes previewBgDrift {
+  from {
+    transform: scale(1.02) translateY(0);
+  }
+
+  to {
+    transform: scale(1.06) translateY(-8px);
+  }
+}
+
+@keyframes previewImageIn {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: scale(1.025);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+
+@keyframes previewContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mag-card,
+  .mag-card::after,
+  .bond-card,
+  .bond-card::before,
+  .bond-line::after,
+  .character-card,
+  .avatar-uploader::after,
+  .char-preview-page,
+  .character-edit-page,
+  .char-pv-hero::after,
+  .char-pv-bg,
+  .char-pv-img,
+  .char-pv-content,
+  .fab-edit {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
