@@ -1906,8 +1906,9 @@ textarea.character-input {
 }
 
 .me-app-view {
-  position: relative;
+  position: fixed;
   z-index: 10;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   height: 100dvh;

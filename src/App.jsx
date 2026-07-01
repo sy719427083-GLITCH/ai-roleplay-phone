@@ -734,6 +734,32 @@ const createEmptyMeProfile = () => ({
   persona: "",
 });
 
+const readAvatarFile = (file, onAvatar, size = 200) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || "");
+    if (!dataUrl) return;
+    onAvatar(dataUrl);
+
+    const image = new window.Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      const min = Math.min(image.width, image.height);
+      const sx = (image.width - min) / 2;
+      const sy = (image.height - min) / 2;
+      canvas.width = size;
+      canvas.height = size;
+      context.drawImage(image, sx, sy, min, min, 0, 0, size, size);
+      onAvatar(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    image.onerror = () => onAvatar(dataUrl);
+    image.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+};
+
 function AvatarContent({ character }) {
   if (character?.avatar) return <img src={character.avatar} alt={character.name || "角色头像"} />;
   return (
@@ -918,24 +944,7 @@ function CharacterAppScreen() {
   const uploadAvatar = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        const size = 200;
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        const min = Math.min(image.width, image.height);
-        const sx = (image.width - min) / 2;
-        const sy = (image.height - min) / 2;
-        canvas.width = size;
-        canvas.height = size;
-        context?.drawImage(image, sx, sy, min, min, 0, 0, size, size);
-        patchDraft({ avatar: canvas.toDataURL("image/jpeg", 0.82) });
-      };
-      image.src = String(reader.result || "");
-    };
-    reader.readAsDataURL(file);
+    readAvatarFile(file, (avatar) => patchDraft({ avatar }), 200);
     event.target.value = "";
   };
 
@@ -1508,24 +1517,7 @@ function MeAppScreen() {
   const uploadMeAvatar = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const image = new Image();
-      image.onload = () => {
-        const size = 220;
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-        const min = Math.min(image.width, image.height);
-        const sx = (image.width - min) / 2;
-        const sy = (image.height - min) / 2;
-        canvas.width = size;
-        canvas.height = size;
-        context?.drawImage(image, sx, sy, min, min, 0, 0, size, size);
-        patchDraft({ avatar: canvas.toDataURL("image/jpeg", 0.82) });
-      };
-      image.src = String(reader.result || "");
-    };
-    reader.readAsDataURL(file);
+    readAvatarFile(file, (avatar) => patchDraft({ avatar }), 220);
     event.target.value = "";
   };
 
@@ -1830,7 +1822,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.46</p>
+      <p className="version-label">Ccat OS v0.1.47</p>
     </section>
   );
 }
