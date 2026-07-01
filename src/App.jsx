@@ -1368,7 +1368,10 @@ function CharacterAppScreen({ onChildPageChange }) {
       )}
 
       {previewCharacter && (
-        <section className="char-preview-page">
+        <section
+          className="char-preview-page"
+          style={previewCharacter.avatar ? { "--char-preview-image": `url("${previewCharacter.avatar}")` } : undefined}
+        >
           <div className="preview-nav">
             <button className="preview-back" onClick={closeCharacterPreview} aria-label="返回">
               <ChevronLeft size={22} />
@@ -1992,7 +1995,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.59</p>
+      <p className="version-label">Ccat OS v0.1.60</p>
     </section>
   );
 }
