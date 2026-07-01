@@ -1992,7 +1992,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.58</p>
+      <p className="version-label">Ccat OS v0.1.59</p>
     </section>
   );
 }
@@ -3068,9 +3068,16 @@ export function App() {
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
   const hasOverlay = Boolean(openedApp || settingPage || launching);
+  const surfaceClass = [
+    "phone-surface",
+    `tab-${tab}`,
+    hasOverlay ? "overlay-active" : "",
+    hideCharacterTabs ? "character-subpage-active" : "",
+    hideMeTabs ? "me-subpage-active" : "",
+  ].filter(Boolean).join(" ");
 
   return (
-    <main className={`phone-surface ${hasOverlay ? "overlay-active" : ""}`}>
+    <main className={surfaceClass}>
       <div className="phone-stage">
         {content}
         {!((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}

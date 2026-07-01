@@ -190,6 +190,16 @@ body {
   padding: max(4px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
 }
 
+.phone-surface.tab-characters,
+.phone-surface.character-subpage-active {
+  padding-top: 0;
+}
+
+.phone-surface.character-subpage-active {
+  padding-right: 0;
+  padding-left: 0;
+}
+
 .screen-view {
   min-height: calc(100dvh - 78px);
   padding: 0 0 96px;
@@ -1909,11 +1919,11 @@ textarea.character-input {
 }
 
 .char-preview-page {
-  top: calc(-1 * max(72px, env(safe-area-inset-top)));
-  right: -16px;
-  left: -16px;
-  width: calc(100vw + 32px);
-  min-height: calc(100dvh + max(72px, env(safe-area-inset-top)));
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100vw;
+  min-height: 100dvh;
 }
 
 .char-preview-page::-webkit-scrollbar,
@@ -1925,8 +1935,8 @@ textarea.character-input {
 .char-pv-hero {
   position: relative;
   width: 100%;
-  height: calc(55vh + max(72px, env(safe-area-inset-top)));
-  min-height: calc(360px + max(72px, env(safe-area-inset-top)));
+  height: calc(55vh + max(44px, env(safe-area-inset-top)));
+  min-height: calc(360px + max(44px, env(safe-area-inset-top)));
   overflow: hidden;
 }
 
