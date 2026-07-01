@@ -1871,6 +1871,22 @@ textarea.character-input {
   text-transform: uppercase;
 }
 
+.me-preview-edit {
+  min-width: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #1c1c1e;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.me-preview-edit svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
 .char-preview-page,
 .me-preview-page,
 .me-edit-page {
@@ -2279,12 +2295,16 @@ textarea.character-input {
   background: var(--me-bg);
 }
 
+.me-preview-page {
+  top: calc(-1 * max(4px, env(safe-area-inset-top)));
+}
+
 .me-pv-container {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  padding: 100px 30px 110px;
+  padding: 58px 30px 110px;
 }
 
 .me-pv-frame {
@@ -2336,7 +2356,7 @@ textarea.character-input {
 
 .me-pv-text-block {
   margin-bottom: 25px;
-  text-align: right;
+  text-align: left;
 }
 
 .me-pv-text-title {
@@ -2479,18 +2499,6 @@ textarea.character-input {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1px;
-}
-
-.me-edit-group-right {
-  text-align: right;
-}
-
-.me-edit-group-right .me-edit-label {
-  justify-items: end;
-}
-
-.me-edit-group-right .me-edit-input {
-  text-align: right;
 }
 
 .me-edit-input {

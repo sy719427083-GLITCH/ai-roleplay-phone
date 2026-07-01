@@ -1843,9 +1843,10 @@ function MeAppScreen({ onChildPageChange }) {
             <button className="preview-back" onClick={() => setPreviewId(null)} aria-label="返回">
               <ChevronLeft size={22} />
             </button>
-            <button className="preview-edit-top" onClick={() => openMeEditor(previewId)}>
-              <span>编辑档案</span>
-              <em>Edit</em>
+            <button className="preview-edit-top me-preview-edit" onClick={() => openMeEditor(previewId)} aria-label="编辑档案">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 17.3V21h3.8L17.8 9.9l-3.7-3.7L3 17.3Zm17.7-10.2c.4-.4.4-1 0-1.4l-2.4-2.4c-.4-.4-1-.4-1.4 0l-1.8 1.8 3.7 3.7 1.9-1.7Z" />
+              </svg>
             </button>
           </div>
           <div className="me-pv-container">
@@ -1910,15 +1911,15 @@ function MeAppScreen({ onChildPageChange }) {
               <span className="me-edit-label"><span>身份</span><em>Identity</em></span>
               <input className="me-edit-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="身份或称号 / Role or Title" />
             </label>
-            <label className="me-edit-group me-edit-group-right">
+            <label className="me-edit-group">
               <span className="me-edit-label"><span>容貌</span><em>Appearance</em></span>
               <textarea className="me-edit-input" value={draft.appearance} onChange={(event) => patchDraft({ appearance: event.target.value })} placeholder="外貌特征 / Physical traits" />
             </label>
-            <label className="me-edit-group me-edit-group-right">
+            <label className="me-edit-group">
               <span className="me-edit-label"><span>性格</span><em>Personality</em></span>
               <textarea className="me-edit-input" value={draft.personality} onChange={(event) => patchDraft({ personality: event.target.value })} placeholder="性格特点 / Character traits" />
             </label>
-            <label className="me-edit-group me-edit-group-right">
+            <label className="me-edit-group">
               <span className="me-edit-label"><span>档案</span><em>Archive</em></span>
               <textarea className="me-edit-input large" value={draft.persona} onChange={(event) => patchDraft({ persona: event.target.value })} placeholder="背景故事 / Background story" />
             </label>
@@ -1991,7 +1992,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.55</p>
+      <p className="version-label">Ccat OS v0.1.56</p>
     </section>
   );
 }
