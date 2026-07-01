@@ -902,7 +902,7 @@ function AvatarCropModal({ source, onCancel, onConfirm }) {
   );
 }
 
-function CharacterAppScreen() {
+function CharacterAppScreen({ onChildPageChange }) {
   const [characters, setCharacters] = useState(() => {
     try {
       const stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
@@ -957,6 +957,11 @@ function CharacterAppScreen() {
   const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
   const [cropSource, setCropSource] = useState("");
+
+  useEffect(() => {
+    onChildPageChange?.(Boolean(previewId || editorOpen));
+    return () => onChildPageChange?.(false);
+  }, [previewId, editorOpen, onChildPageChange]);
 
   useEffect(() => {
     window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
@@ -1981,7 +1986,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.51</p>
+      <p className="version-label">Ccat OS v0.1.52</p>
     </section>
   );
 }
@@ -3007,6 +3012,7 @@ export function App() {
   const [settingPage, setSettingPage] = useState(null);
   const [launching, setLaunching] = useState(null);
   const [hasShownLaunch, setHasShownLaunch] = useState(false);
+  const [hideCharacterTabs, setHideCharacterTabs] = useState(false);
 
   useEffect(() => {
     const preventZoom = (event) => event.preventDefault();
@@ -3042,10 +3048,14 @@ export function App() {
 
   const content = useMemo(() => {
     if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
-    if (tab === "characters") return <CharacterAppScreen />;
+    if (tab === "characters") return <CharacterAppScreen onChildPageChange={setHideCharacterTabs} />;
     if (tab === "me") return <MeAppScreen />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
   }, [tab, hasShownLaunch]);
+
+  useEffect(() => {
+    if (tab !== "characters") setHideCharacterTabs(false);
+  }, [tab]);
 
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
@@ -3055,7 +3065,7 @@ export function App() {
     <main className={`phone-surface ${hasOverlay ? "overlay-active" : ""}`}>
       <div className="phone-stage">
         {content}
-        <BottomTabs active={tab} onChange={setTab} />
+        {!(tab === "characters" && hideCharacterTabs) && <BottomTabs active={tab} onChange={setTab} />}
       </div>
       {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
