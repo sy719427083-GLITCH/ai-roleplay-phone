@@ -756,7 +756,11 @@ const createEmptyRelation = () => ({
   charA: "",
   charB: "",
   type: "挚友",
+  typeA: "挚友",
+  typeB: "挚友",
   customType: "",
+  customTypeA: "",
+  customTypeB: "",
   viewA: "",
   viewB: "",
 });
@@ -1062,7 +1066,13 @@ function CharacterAppScreen({ onChildPageChange }) {
     };
   };
 
-  const getRelationLabel = (relation) => (relation.type === "custom" ? relation.customType.trim() || "自定义" : relation.type);
+  const getRelationLabel = (relation, direction = "") => {
+    const typeKey = direction === "A" ? "typeA" : direction === "B" ? "typeB" : "type";
+    const customKey = direction === "A" ? "customTypeA" : direction === "B" ? "customTypeB" : "customType";
+    const type = relation[typeKey] || relation.type || "挚友";
+    if (type !== "custom") return type;
+    return relation[customKey]?.trim() || relation.customType?.trim() || "自定义";
+  };
 
   const openCharacterPreview = (id, type = "main") => {
     setPreviewId(id);
@@ -1163,7 +1173,15 @@ function CharacterAppScreen({ onChildPageChange }) {
 
   const openRelationEditor = (id) => {
     setEditingRelationId(id);
-    setRelationDraft(id && relations[id] ? { ...createEmptyRelation(), ...relations[id] } : createEmptyRelation());
+    const currentRelation = id && relations[id] ? relations[id] : null;
+    setRelationDraft(currentRelation ? {
+      ...createEmptyRelation(),
+      ...currentRelation,
+      typeA: currentRelation.typeA || currentRelation.type || "挚友",
+      typeB: currentRelation.typeB || currentRelation.type || "挚友",
+      customTypeA: currentRelation.customTypeA || currentRelation.customType || "",
+      customTypeB: currentRelation.customTypeB || currentRelation.customType || "",
+    } : createEmptyRelation());
     setRelationEditorOpen(true);
   };
 
@@ -1184,8 +1202,12 @@ function CharacterAppScreen({ onChildPageChange }) {
       window.alert("关系双方不能是同一个人物");
       return;
     }
-    if (relationDraft.type === "custom" && !relationDraft.customType.trim()) {
-      window.alert("请填写自定义关系名称");
+    if (relationDraft.typeA === "custom" && !relationDraft.customTypeA.trim()) {
+      window.alert("请填写 A 对 B 的自定义关系名称");
+      return;
+    }
+    if (relationDraft.typeB === "custom" && !relationDraft.customTypeB.trim()) {
+      window.alert("请填写 B 对 A 的自定义关系名称");
       return;
     }
     const id = editingRelationId || `rel_${Date.now()}`;
@@ -1194,7 +1216,10 @@ function CharacterAppScreen({ onChildPageChange }) {
       [id]: {
         ...relationDraft,
         id,
-        customType: relationDraft.customType.trim(),
+        type: relationDraft.typeA || relationDraft.type,
+        customType: relationDraft.customTypeA.trim(),
+        customTypeA: relationDraft.customTypeA.trim(),
+        customTypeB: relationDraft.customTypeB.trim(),
         viewA: relationDraft.viewA.trim(),
         viewB: relationDraft.viewB.trim(),
       },
@@ -1350,7 +1375,7 @@ function CharacterAppScreen({ onChildPageChange }) {
                       </div>
                       <div className="bond-line-container">
                         <div className="bond-line"></div>
-                        <span className="bond-badge">{getRelationLabel(relation)}</span>
+                        <span className="bond-badge">双向关系</span>
                       </div>
                       <div className="bond-char">
                         <div className="bond-avatar"><AvatarContent character={charB} /></div>
@@ -1359,11 +1384,11 @@ function CharacterAppScreen({ onChildPageChange }) {
                     </div>
                     <div className="bond-details">
                       <div className="bond-view">
-                        <span className="bond-view-title">{charA.name} VIEW</span>
+                        <span className="bond-view-title">{charA.name} 对 {charB.name} · {getRelationLabel(relation, "A")}</span>
                         <p className="bond-view-text">{relation.viewA || "暂无视角描述"}</p>
                       </div>
                       <div className="bond-view">
-                        <span className="bond-view-title">{charB.name} VIEW</span>
+                        <span className="bond-view-title">{charB.name} 对 {charA.name} · {getRelationLabel(relation, "B")}</span>
                         <p className="bond-view-text">{relation.viewB || "暂无视角描述"}</p>
                       </div>
                     </div>
@@ -1475,33 +1500,62 @@ function CharacterAppScreen({ onChildPageChange }) {
                   );
                 })}
               </div>
-              <label className="character-field">
-                <span><i></i>关系类型 / Bond Type</span>
-                <select
-                  className="character-input"
-                  value={relationDraft.type}
-                  onChange={(event) => patchRelationDraft({ type: event.target.value })}
-                >
-                  {relationTypes.map((type) => (
-                    <option value={type} key={type}>{type === "custom" ? "自定义关系" : type}</option>
-                  ))}
-                </select>
-              </label>
-              {relationDraft.type === "custom" && (
+              <div className="relation-type-grid">
                 <label className="character-field">
-                  <span><i></i>自定义名称 / Custom</span>
-                  <input
+                  <span><i></i>A 对 B / Bond Type</span>
+                  <select
                     className="character-input"
-                    value={relationDraft.customType}
-                    onChange={(event) => patchRelationDraft({ customType: event.target.value })}
-                    placeholder="例如：契约共犯"
-                  />
+                    value={relationDraft.typeA || relationDraft.type}
+                    onChange={(event) => patchRelationDraft({ typeA: event.target.value, type: event.target.value })}
+                  >
+                    {relationTypes.map((type) => (
+                      <option value={type} key={type}>{type === "custom" ? "自定义关系" : type}</option>
+                    ))}
+                  </select>
                 </label>
+                <label className="character-field">
+                  <span><i></i>B 对 A / Bond Type</span>
+                  <select
+                    className="character-input"
+                    value={relationDraft.typeB || relationDraft.type}
+                    onChange={(event) => patchRelationDraft({ typeB: event.target.value })}
+                  >
+                    {relationTypes.map((type) => (
+                      <option value={type} key={type}>{type === "custom" ? "自定义关系" : type}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {(relationDraft.typeA === "custom" || relationDraft.typeB === "custom") && (
+                <div className="relation-type-grid">
+                  {relationDraft.typeA === "custom" && (
+                    <label className="character-field">
+                      <span><i></i>A 对 B 自定义 / Custom</span>
+                      <input
+                        className="character-input"
+                        value={relationDraft.customTypeA}
+                        onChange={(event) => patchRelationDraft({ customTypeA: event.target.value, customType: event.target.value })}
+                        placeholder="例如：秘密守护"
+                      />
+                    </label>
+                  )}
+                  {relationDraft.typeB === "custom" && (
+                    <label className="character-field">
+                      <span><i></i>B 对 A 自定义 / Custom</span>
+                      <input
+                        className="character-input"
+                        value={relationDraft.customTypeB}
+                        onChange={(event) => patchRelationDraft({ customTypeB: event.target.value })}
+                        placeholder="例如：危险依赖"
+                      />
+                    </label>
+                  )}
+                </div>
               )}
             </section>
             <section className="character-card">
               <label className="character-field">
-                <span><i></i>A 对 B 的看法</span>
+                <span><i></i>{relationDraft.charA ? getCharacterData(relationDraft.charA).name : "A"} 对 {relationDraft.charB ? getCharacterData(relationDraft.charB).name : "B"} 的看法</span>
                 <textarea
                   className="character-input"
                   rows="4"
@@ -1511,7 +1565,7 @@ function CharacterAppScreen({ onChildPageChange }) {
                 />
               </label>
               <label className="character-field">
-                <span><i></i>B 对 A 的看法</span>
+                <span><i></i>{relationDraft.charB ? getCharacterData(relationDraft.charB).name : "B"} 对 {relationDraft.charA ? getCharacterData(relationDraft.charA).name : "A"} 的看法</span>
                 <textarea
                   className="character-input"
                   rows="4"
@@ -2030,7 +2084,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.65</p>
+      <p className="version-label">Ccat OS v0.1.66</p>
     </section>
   );
 }
