@@ -62,6 +62,16 @@ export function createConversationForCharacter(state, character = {}) {
   };
 }
 
+export function markConversationRead(state, characterId) {
+  const normalized = normalizeMessageState(state);
+  return {
+    ...normalized,
+    conversations: normalized.conversations.map((item) =>
+      item.characterId === characterId ? { ...item, unread: 0 } : item,
+    ),
+  };
+}
+
 export function acceptFriendRequest(state, requestId, character = {}) {
   const normalized = normalizeMessageState(state);
   const request = normalized.requests.find((item) => item.id === requestId);
@@ -141,6 +151,7 @@ export function appendChatMessage(state, characterId, message) {
   const normalized = normalizeMessageState(state);
   if (!characterId || !message?.text?.trim()) return normalized;
   const histories = { ...normalized.histories };
+  const isUnread = message.from !== "me" && message.unread !== false;
   histories[characterId] = [
     ...(Array.isArray(histories[characterId]) ? histories[characterId] : []),
     {
@@ -150,5 +161,26 @@ export function appendChatMessage(state, characterId, message) {
       time: message.time || "刚刚",
     },
   ];
-  return createConversationForCharacter({ ...normalized, histories }, { id: characterId });
+  const hasConversation = normalized.conversations.some((item) => item.characterId === characterId);
+  const conversations = hasConversation
+    ? normalized.conversations.map((item) =>
+        item.characterId === characterId
+          ? {
+              ...item,
+              unread: Math.max(0, Number(item.unread) || 0) + (isUnread ? 1 : 0),
+              updatedAt: nowStamp(),
+            }
+          : item,
+      )
+    : [
+        {
+          id: `conv-${characterId}`,
+          characterId,
+          unread: isUnread ? 1 : 0,
+          pinned: false,
+          updatedAt: nowStamp(),
+        },
+        ...normalized.conversations,
+      ];
+  return { ...normalized, histories, conversations };
 }

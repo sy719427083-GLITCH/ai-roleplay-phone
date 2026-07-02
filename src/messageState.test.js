@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   acceptFriendRequest,
+  appendChatMessage,
   deleteConversation,
+  markConversationRead,
   rejectFriendRequest,
 } from "./messageState.js";
 
@@ -53,4 +55,19 @@ test("deleting a conversation removes the thread and chat history", () => {
   assert.deepEqual(next.conversations, []);
   assert.equal(next.histories["char-a"], undefined);
   assert.equal(next.contacts.length, 1);
+});
+
+test("role messages create unread counts that clear when the conversation is read", () => {
+  const state = {
+    contacts: [{ characterId: "char-a" }],
+    requests: [],
+    conversations: [{ id: "conv-char-a", characterId: "char-a", unread: 0 }],
+    histories: {},
+  };
+
+  const withUnread = appendChatMessage(state, "char-a", { from: "role", text: "新消息" });
+  assert.equal(withUnread.conversations[0].unread, 1);
+
+  const read = markConversationRead(withUnread, "char-a");
+  assert.equal(read.conversations[0].unread, 0);
 });

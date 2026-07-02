@@ -3811,6 +3811,9 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  top: calc(-1 * max(4px, env(safe-area-inset-top)));
+  height: calc(100dvh + max(4px, env(safe-area-inset-top)));
+  padding: 0;
   background: #f7f7f9;
   color: #1c1c1e;
 }
@@ -4230,7 +4233,14 @@ select {
 }
 
 .wechat-back-hotspot {
-  opacity: 0;
+  justify-self: start;
+  width: 34px;
+  height: 34px;
+  opacity: 1;
+}
+
+.wechat-back-hotspot svg {
+  stroke-width: 2.2;
 }
 
 .wechat-topbar .wechat-plus {
@@ -4408,7 +4418,7 @@ select {
 }
 
 .file-avatar {
-  background: #06c160;
+  background: #d8d8dc;
 }
 
 .file-avatar svg {
@@ -4456,7 +4466,7 @@ select {
 }
 
 .wechat-page .message-tabbar button.active {
-  color: #06c160;
+  color: #d79aaa;
   transform: none;
 }
 
@@ -4484,7 +4494,7 @@ select {
 }
 
 .wechat-page .message-tabbar button.active .wechat-tab-icon svg {
-  fill: currentColor;
+  fill: none;
   stroke: currentColor;
 }
 
@@ -4497,9 +4507,9 @@ select {
   height: 16px;
   place-items: center;
   padding: 0 4px;
-  border: 1.5px solid #f7f7f7;
+  border: 1.5px solid #fff;
   border-radius: 10px;
-  background: #fa5151;
+  background: #d79aaa;
   color: #fff;
   font-size: 10px;
   font-style: normal;

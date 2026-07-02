@@ -53,6 +53,7 @@ import {
   createIncomingFriendRequest,
   createConversationForCharacter,
   deleteConversation,
+  markConversationRead,
   normalizeMessageState,
   rejectFriendRequest,
 } from "./messageState.js";
@@ -2106,7 +2107,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.73</p>
+      <p className="version-label">Ccat OS v0.1.74</p>
     </section>
   );
 }
@@ -2927,8 +2928,9 @@ function WechatTabIcon({ type }) {
   if (type === "messages") {
     return (
       <svg viewBox="0 0 28 28" aria-hidden="true">
-        <path d="M12.2 6.2c-5 0-9 3.2-9 7.2 0 2.3 1.3 4.3 3.4 5.6l-.8 2.7 3-1.5c1.1.3 2.2.5 3.4.5 5 0 9-3.2 9-7.3s-4-7.2-9-7.2Z" />
-        <path d="M17 11.3c4.4.4 7.8 3.2 7.8 6.7 0 1.9-1 3.6-2.7 4.8l.6 2.1-2.4-1.2c-.9.3-1.9.4-3 .4-2.2 0-4.2-.7-5.6-1.8" />
+        <path d="M5.2 7.4h17.6v12.2H11.1l-4.8 3.5 1.1-3.5H5.2V7.4Z" />
+        <path d="M10 12.1h8" />
+        <path d="M10 15.6h5.8" />
       </svg>
     );
   }
@@ -3069,11 +3071,11 @@ function MessageAppScreen({ onClose }) {
   const conversations = allConversations.filter((conversation) =>
     matchesSearch(conversation.character.name, conversation.character.role, conversation.latest?.text),
   );
-  const wechatCount = Math.max(1, conversations.length + pendingCount);
+  const unreadCount = allConversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
 
   const openChat = (character) => {
     if (!character?.id) return;
-    setMessageState((current) => createConversationForCharacter(current, character));
+    setMessageState((current) => markConversationRead(createConversationForCharacter(current, character), character.id));
     setSwipedId("");
     setChatId(character.id);
   };
@@ -3103,12 +3105,13 @@ function MessageAppScreen({ onClose }) {
         history: previousHistory,
         userText,
       });
-      setMessageState((current) => appendChatMessage(current, chatId, { from: "role", text: reply }));
+      setMessageState((current) => appendChatMessage(current, chatId, { from: "role", text: reply, unread: false }));
     } catch (error) {
       setMessageState((current) =>
         appendChatMessage(current, chatId, {
           from: "role",
           text: error?.message || "消息发送失败，请稍后再试。",
+          unread: false,
         }),
       );
     } finally {
@@ -3213,22 +3216,6 @@ function MessageAppScreen({ onClose }) {
             </button>
           </div>
         ))}
-        {matchesSearch("文件传输助手", "Ccat-OS-260702") && (
-          <button className="message-row conversation-row wechat-conversation file-row">
-            <span className="message-system-avatar file-avatar">
-              <svg viewBox="0 0 28 28" aria-hidden="true">
-                <path d="M7 5h14v18H7z" />
-                <path d="M10.5 14H18" />
-                <path d="m15.5 10.5 3.5 3.5-3.5 3.5" />
-              </svg>
-            </span>
-            <span className="message-row-main">
-              <strong>文件传输助手</strong>
-              <small>Ccat-OS-260702</small>
-            </span>
-            <span className="message-row-time">14:15</span>
-          </button>
-        )}
       </div>
     </>
   );
@@ -3341,8 +3328,10 @@ function MessageAppScreen({ onClose }) {
   return (
     <section className="full-page message-page wechat-page">
       <header className="message-topbar wechat-topbar">
-        <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回"></button>
-        <strong>{messageTab === "messages" ? `信息 (${wechatCount})` : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
+        <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回">
+          <ChevronLeft size={22} />
+        </button>
+        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
         <button className="message-add wechat-plus" onClick={() => setMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
@@ -3367,7 +3356,7 @@ function MessageAppScreen({ onClose }) {
           <button className={messageTab === id ? "active" : ""} key={id} onClick={() => setMessageTab(id)}>
             <span className="wechat-tab-icon">
               <WechatTabIcon type={id} />
-              {(id === "messages" || id === "moments" || id === "me") && <i>{id === "messages" ? wechatCount : ""}</i>}
+              {id === "messages" && unreadCount > 0 && <i>{unreadCount}</i>}
             </span>
             <span>{cn}</span>
           </button>
