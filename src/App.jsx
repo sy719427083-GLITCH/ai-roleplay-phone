@@ -2107,7 +2107,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.76</p>
+      <p className="version-label">Ccat OS v0.1.77</p>
     </section>
   );
 }
@@ -2924,6 +2924,16 @@ function MessageAvatar({ character }) {
   );
 }
 
+const getPrimaryMeProfile = () => {
+  try {
+    const profiles = JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
+    const firstProfile = Object.values(profiles).find((profile) => profile?.avatar || profile?.name);
+    return firstProfile || { name: "我", identity: "我" };
+  } catch {
+    return { name: "我", identity: "我" };
+  }
+};
+
 const formatMessageTime = (value) => {
   if (!value) return "刚刚";
   const then = new Date(value).getTime();
@@ -2992,12 +3002,13 @@ const callRoleChatApi = async ({ character, history, userText }) => {
   if (!url.endsWith("/v1")) url += "/v1";
 
   const systemPrompt = `你正在 Ccat OS 的信息 APP 中扮演一个角色，直接以角色本人身份回复用户。
+当前场景是手机里的线上文字聊天，不是面对面见面，也没有共同的现实空间。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
-要求：回复要像真实聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，内容简洁自然。`;
+要求：回复要像真实线上聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令，内容简洁自然。`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -3303,6 +3314,7 @@ function MessageAppScreen({ onClose }) {
   const activeCharacter = chatId ? characterMap[chatId] || { id: chatId, name: "聊天" } : null;
   if (activeCharacter) {
     const history = messageState.histories[chatId] || [];
+    const meProfile = getPrimaryMeProfile();
     return (
       <section className="full-page message-page chat-page">
         <header className="message-topbar">
@@ -3317,6 +3329,7 @@ function MessageAppScreen({ onClose }) {
             <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
               {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
               <span className="chat-bubble">{message.text}</span>
+              {message.from === "me" && <MessageAvatar character={meProfile} />}
             </div>
           ))}
           {sending && (
