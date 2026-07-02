@@ -1917,9 +1917,7 @@ function MeAppScreen({ onChildPageChange }) {
           </div>
           <nav className="me-edit-nav">
             <button className="me-edit-back" onClick={closeMeEditor}>
-              <ChevronLeft size={16} />
-              <span>返回</span>
-              <em>Back</em>
+              <ChevronLeft size={22} />
             </button>
             <button className={generating ? "me-edit-dice breathing" : "me-edit-dice"} onClick={() => setPromptOpen(true)} aria-label="AI 构思">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2028,7 +2026,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.63</p>
+      <p className="version-label">Ccat OS v0.1.64</p>
     </section>
   );
 }
@@ -2470,10 +2468,11 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect }) {
+function WorkMap({ jobs, selectedId, radarId, onSelect }) {
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
+  const radarJob = jobs.find((job) => job.key === radarId) || selectedJob;
   const ringLength = 452;
-  const ringOffset = ringLength * (1 - Math.max(0, Math.min(1, selectedJob.remainingRatio ?? 0)));
+  const ringOffset = ringLength * (1 - Math.max(0, Math.min(1, radarJob.remainingRatio ?? 0)));
   return (
     <section className="work-map-panel" aria-label="工作地图">
       <svg className="work-map-lines" viewBox="0 0 390 470" aria-hidden="true">
@@ -2526,11 +2525,11 @@ function WorkMap({ jobs, selectedId, onSelect }) {
         </svg>
         <div className="work-radar-copy">
           <span>剩余时间</span>
-          <strong>{selectedJob.remainingLabel}</strong>
+          <strong>{radarJob.remainingLabel}</strong>
           <em>Time Left</em>
-          <b>¥{selectedJob.reward.toLocaleString("en-US")}</b>
+          <b>¥{radarJob.reward.toLocaleString("en-US")}</b>
           <small>Reward</small>
-          <i>等级 {levelMarks[selectedJob.level - 1]}</i>
+          <i>等级 {levelMarks[radarJob.level - 1]}</i>
         </div>
       </div>
 
@@ -2658,15 +2657,16 @@ function WorkAppScreen({ onClose }) {
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
   const selectedKey = selectedJob?.key || "";
   const hasRunningWork = activeWork?.endAt > now;
-  const isRunning = activeWork?.jobKey === selectedJob.key && activeWork.endAt > now;
-  const remainingMs = isRunning ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
-  const progress = isRunning
+  const activeJob = hasRunningWork ? jobs.find((job) => job.key === activeWork.jobKey) : null;
+  const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
+  const selectedDurationMs = selectedJob.durationMinutes * 60 * 1000;
+  const progress = hasRunningWork
     ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
     : 0;
   const mappedJobs = jobs.map((job) => ({
     ...job,
-    remainingLabel: job.key === selectedJob.key ? formatWorkTime(remainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
-    remainingRatio: job.key === selectedJob.key ? progress / 100 : 0,
+    remainingLabel: job.key === activeJob?.key ? formatWorkTime(activeRemainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
+    remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
   }));
 
   const selectJob = (id) => {
@@ -2693,12 +2693,12 @@ function WorkAppScreen({ onClose }) {
   };
 
   const stopWork = () => {
-    if (!isRunning || !activeWork) return;
+    if (!hasRunningWork || !activeWork || !activeJob) return;
     const elapsed = Math.max(0, Date.now() - activeWork.startAt);
     const total = Math.max(1, activeWork.endAt - activeWork.startAt);
-    const rawAmount = Math.floor(selectedJob.reward * Math.min(1, elapsed / total));
-    const amount = Math.min(selectedJob.reward, elapsed > 0 ? Math.max(1, rawAmount) : 0);
-    creditWalletFromWork(selectedJob, amount);
+    const rawAmount = Math.floor(activeJob.reward * Math.min(1, elapsed / total));
+    const amount = Math.min(activeJob.reward, elapsed > 0 ? Math.max(1, rawAmount) : 0);
+    creditWalletFromWork(activeJob, amount);
     setActiveWork(null);
     window.alert(`已停止工作，结算 ¥${amount.toLocaleString("en-US")}，已入账钱包。`);
   };
@@ -2736,7 +2736,7 @@ function WorkAppScreen({ onClose }) {
         </button>
       </div>
 
-      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} />
+      <WorkMap jobs={mappedJobs} selectedId={selectedKey} radarId={activeJob?.key || selectedKey} onSelect={selectJob} />
 
       <section className="work-status-card">
         <span className="work-status-icon">
@@ -2749,9 +2749,9 @@ function WorkAppScreen({ onClose }) {
         </div>
         <div className="work-status-stats">
           <div className="work-status-metric">
-            <span>剩余时间</span>
-            <strong>{formatWorkTime(remainingMs)}</strong>
-            <em>Time Left</em>
+            <span>总计时间</span>
+            <strong>{formatWorkTime(selectedDurationMs)}</strong>
+            <em>Total Time</em>
           </div>
           <div className="work-status-metric">
             <span>报酬</span>
@@ -2790,11 +2790,11 @@ function WorkAppScreen({ onClose }) {
         <button className="work-start" onClick={startWork} disabled={hasRunningWork}>
           <Play size={22} fill="currentColor" />
           <span>
-            <strong>{isRunning ? "进行中" : "开始"}</strong>
-            <em>{isRunning ? "Working" : "Start"}</em>
+            <strong>{hasRunningWork ? "进行中" : "开始"}</strong>
+            <em>{hasRunningWork ? "Working" : "Start"}</em>
           </span>
         </button>
-        <button className="work-stop-button" onClick={stopWork} disabled={!isRunning}>
+        <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
           <Square size={20} fill="currentColor" />
           <span>
             <strong>停止</strong>
