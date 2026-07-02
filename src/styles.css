@@ -2360,8 +2360,14 @@ textarea.character-input {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 1px;
-  margin-bottom: 30px;
+  margin-bottom: 0;
   padding-bottom: 20px;
+}
+
+.me-pv-details {
+  grid-column: 1 / -1;
+  width: 100%;
+  text-align: left;
 }
 
 .me-pv-text-block {

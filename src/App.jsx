@@ -1886,6 +1886,8 @@ function MeAppScreen({ onChildPageChange }) {
               <div className="me-pv-id">档案编号 <em>ID.{previewId.slice(-4).toUpperCase()}</em></div>
               <div className="me-pv-name">{previewProfile.name || "未命名"}</div>
               <div className="me-pv-identity">{previewProfile.identity || "未知身份"}</div>
+            </div>
+            <div className="me-pv-details">
               <section className="me-pv-text-block">
                 <div className="me-pv-text-title"><span>容貌特征</span><em>Appearance</em></div>
                 <div className="me-pv-text-content">{previewProfile.appearance || "暂无记录"}</div>
@@ -2026,7 +2028,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.62</p>
+      <p className="version-label">Ccat OS v0.1.63</p>
     </section>
   );
 }
