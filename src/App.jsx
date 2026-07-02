@@ -1375,7 +1375,11 @@ function CharacterAppScreen({ onChildPageChange }) {
                       </div>
                       <div className="bond-line-container">
                         <div className="bond-line"></div>
-                        <span className="bond-badge">双向关系</span>
+                        <span className="bond-badge bond-direction-badge">
+                          <em>A→B</em>{getRelationLabel(relation, "A")}
+                          <i></i>
+                          <em>B→A</em>{getRelationLabel(relation, "B")}
+                        </span>
                       </div>
                       <div className="bond-char">
                         <div className="bond-avatar"><AvatarContent character={charB} /></div>
@@ -2084,7 +2088,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.66</p>
+      <p className="version-label">Ccat OS v0.1.67</p>
     </section>
   );
 }
