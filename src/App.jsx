@@ -2106,7 +2106,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.71</p>
+      <p className="version-label">Ccat OS v0.1.72</p>
     </section>
   );
 }
@@ -2957,10 +2957,65 @@ function WechatTabIcon({ type }) {
   );
 }
 
+const getSelectedChatEndpoint = () => {
+  const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+  const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
+  const model = endpoint?.model || endpoint?.customModel;
+  if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) return null;
+  return { ...endpoint, model };
+};
+
+const callRoleChatApi = async ({ character, history, userText }) => {
+  const endpoint = getSelectedChatEndpoint();
+  if (!endpoint) {
+    throw new Error("请先到设置里的 API 设置填写并保存主 API。");
+  }
+
+  let url = endpoint.baseUrl.replace(/\/+$/, "");
+  if (!url.endsWith("/v1")) url += "/v1";
+
+  const systemPrompt = `你正在 Ccat OS 的信息 APP 中扮演一个角色，直接以角色本人身份回复用户。
+角色姓名：${character?.name || "未知角色"}
+身份：${character?.identity || character?.role || "未设定"}
+性格：${character?.personality || "自然、真实"}
+外貌：${character?.appearance || "未设定"}
+背景：${character?.persona || "未设定"}
+要求：回复要像真实聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，内容简洁自然。`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...history.slice(-12).map((item) => ({
+      role: item.from === "me" ? "user" : "assistant",
+      content: item.text,
+    })),
+    { role: "user", content: userText },
+  ];
+
+  const response = await fetch(`${url}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      messages,
+      temperature: Number(endpoint.temperature ?? 0.7),
+    }),
+  });
+  if (!response.ok) throw new Error(`聊天请求失败：HTTP ${response.status}`);
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content?.trim();
+  if (!content) throw new Error("聊天请求没有返回内容");
+  return content;
+};
+
 function MessageAppScreen({ onClose }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [chatId, setChatId] = useState("");
   const [draft, setDraft] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
   const swipeRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
@@ -2989,15 +3044,21 @@ function MessageAppScreen({ onClose }) {
   }, [characters, messageState.contacts.length, messageState.conversations.length, messageState.requests.length]);
 
   const pendingCount = messageState.requests.length;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const matchesSearch = (...values) => {
+    if (!normalizedSearch) return true;
+    return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+  };
   const contacts = messageState.contacts
     .map((contact) => characterMap[contact.characterId])
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((character) => matchesSearch(character.name, character.role, character.identity));
   const addableCharacters = characters.filter(
     (character) =>
       !messageState.contacts.some((contact) => contact.characterId === character.id) &&
       !messageState.requests.some((request) => request.characterId === character.id),
-  );
-  const conversations = messageState.conversations
+  ).filter((character) => matchesSearch(character.name, character.role, character.identity));
+  const allConversations = messageState.conversations
     .map((conversation) => {
       const character = characterMap[conversation.characterId] || { id: conversation.characterId, name: "未知角色" };
       const history = messageState.histories[conversation.characterId] || [];
@@ -3005,6 +3066,9 @@ function MessageAppScreen({ onClose }) {
       return { ...conversation, character, latest };
     })
     .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  const conversations = allConversations.filter((conversation) =>
+    matchesSearch(conversation.character.name, conversation.character.role, conversation.latest?.text),
+  );
   const wechatCount = Math.max(1, conversations.length + pendingCount);
 
   const openChat = (character) => {
@@ -3025,10 +3089,31 @@ function MessageAppScreen({ onClose }) {
     if (Math.abs(event.clientX - swipe.x) > 32) setSwipedId(swipe.characterId);
   };
 
-  const sendMessage = () => {
-    if (!chatId || !draft.trim()) return;
-    setMessageState((current) => appendChatMessage(current, chatId, { from: "me", text: draft }));
+  const sendMessage = async () => {
+    const userText = draft.trim();
+    if (!chatId || !userText || sending) return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const previousHistory = messageState.histories[chatId] || [];
+    setMessageState((current) => appendChatMessage(current, chatId, { from: "me", text: userText }));
     setDraft("");
+    setSending(true);
+    try {
+      const reply = await callRoleChatApi({
+        character: activeCharacter,
+        history: previousHistory,
+        userText,
+      });
+      setMessageState((current) => appendChatMessage(current, chatId, { from: "role", text: reply }));
+    } catch (error) {
+      setMessageState((current) =>
+        appendChatMessage(current, chatId, {
+          from: "role",
+          text: error?.message || "消息发送失败，请稍后再试。",
+        }),
+      );
+    } finally {
+      setSending(false);
+    }
   };
 
   const renderFriendRequests = () => (
@@ -3076,22 +3161,14 @@ function MessageAppScreen({ onClose }) {
 
   const renderMessages = () => (
     <>
-      <div className="wechat-search">
+      <label className="wechat-search">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m20 20-4.8-4.8m2.6-5.1a7.1 7.1 0 1 1-14.2 0 7.1 7.1 0 0 1 14.2 0Z" />
         </svg>
-        <span>搜索</span>
-      </div>
-      <button className="wechat-device-row">
-        <svg viewBox="0 0 28 28" aria-hidden="true">
-          <path d="M4.5 6.2h19v13h-19z" />
-          <path d="M10 23h8" />
-          <path d="M14 19.2V23" />
-        </svg>
-        <span>Mac 微信已登录，手机通知已关闭</span>
-      </button>
+        <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜索" />
+      </label>
       <div className="message-section wechat-list">
-        {conversations.length === 0 && (
+        {allConversations.length === 0 && matchesSearch("新的朋友", "好友申请", "添加角色") && (
           <button className="message-row conversation-row wechat-conversation" onClick={() => setMessageTab("friends")}>
             <span className="message-system-avatar wechat-new-avatar">新</span>
             <span className="message-row-main">
@@ -3136,20 +3213,22 @@ function MessageAppScreen({ onClose }) {
             </button>
           </div>
         ))}
-        <button className="message-row conversation-row wechat-conversation file-row">
-          <span className="message-system-avatar file-avatar">
-            <svg viewBox="0 0 28 28" aria-hidden="true">
-              <path d="M7 5h14v18H7z" />
-              <path d="M10.5 14H18" />
-              <path d="m15.5 10.5 3.5 3.5-3.5 3.5" />
-            </svg>
-          </span>
-          <span className="message-row-main">
-            <strong>文件传输助手</strong>
-            <small>Ccat-OS-260702</small>
-          </span>
-          <span className="message-row-time">14:15</span>
-        </button>
+        {matchesSearch("文件传输助手", "Ccat-OS-260702") && (
+          <button className="message-row conversation-row wechat-conversation file-row">
+            <span className="message-system-avatar file-avatar">
+              <svg viewBox="0 0 28 28" aria-hidden="true">
+                <path d="M7 5h14v18H7z" />
+                <path d="M10.5 14H18" />
+                <path d="m15.5 10.5 3.5 3.5-3.5 3.5" />
+              </svg>
+            </span>
+            <span className="message-row-main">
+              <strong>文件传输助手</strong>
+              <small>Ccat-OS-260702</small>
+            </span>
+            <span className="message-row-time">14:15</span>
+          </button>
+        )}
       </div>
     </>
   );
@@ -3242,10 +3321,18 @@ function MessageAppScreen({ onClose }) {
               <span className="chat-bubble">{message.text}</span>
             </div>
           ))}
+          {sending && (
+            <div className="chat-bubble-row">
+              <MessageAvatar character={activeCharacter} />
+              <span className="chat-bubble typing-bubble">正在输入...</span>
+            </div>
+          )}
         </div>
         <div className="chat-composer">
-          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="输入消息" />
-          <button onClick={sendMessage}>发送</button>
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter") sendMessage();
+          }} placeholder="输入消息" disabled={sending} />
+          <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
         </div>
       </section>
     );
@@ -3255,7 +3342,7 @@ function MessageAppScreen({ onClose }) {
     <section className="full-page message-page wechat-page">
       <header className="message-topbar wechat-topbar">
         <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回"></button>
-        <strong>{messageTab === "messages" ? `微信 (${wechatCount})` : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
+        <strong>{messageTab === "messages" ? `信息 (${wechatCount})` : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
         <button className="message-add wechat-plus" onClick={() => setMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
@@ -3272,7 +3359,7 @@ function MessageAppScreen({ onClose }) {
       </main>
       <nav className="message-tabbar" aria-label="消息导航">
         {[
-          ["messages", "微信"],
+          ["messages", "信息"],
           ["contacts", "通讯录"],
           ["moments", "发现"],
           ["me", "我"],

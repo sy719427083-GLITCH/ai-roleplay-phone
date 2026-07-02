@@ -4124,7 +4124,7 @@ select {
 }
 
 .chat-page {
-  background: #f2f2f4;
+  background: #fff;
 }
 
 .chat-list {
@@ -4173,7 +4173,7 @@ select {
   grid-template-columns: minmax(0, 1fr) 62px;
   gap: 10px;
   padding: 10px 14px 18px;
-  background: rgba(247, 247, 249, 0.82);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(1.25);
 }
 
@@ -4181,7 +4181,7 @@ select {
   height: 42px;
   min-width: 0;
   border-radius: 14px;
-  background: #fff;
+  background: #f7f7f7;
   color: #1c1c1e;
   padding: 0 14px;
   outline: none;
@@ -4197,11 +4197,21 @@ select {
   transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+.chat-composer button:disabled,
+.chat-composer input:disabled {
+  opacity: 0.58;
+}
+
+.typing-bubble {
+  color: #8e8e93;
+}
+
 .wechat-page {
-  background: #ededed;
+  background: #fff;
 }
 
 .wechat-page .message-main {
+  background: #fff;
   padding: 0 0 76px;
 }
 
@@ -4209,7 +4219,7 @@ select {
   grid-template-columns: 54px minmax(0, 1fr) 54px;
   height: 86px;
   padding: 24px 18px 6px;
-  background: #ededed;
+  background: #fff;
   backdrop-filter: none;
 }
 
@@ -4248,7 +4258,7 @@ select {
   height: 40px;
   margin: 8px 8px 0;
   border-radius: 5px;
-  background: #fff;
+  background: #f7f7f7;
   color: #b2b2b6;
   font-size: 17px;
   font-weight: 400;
@@ -4261,6 +4271,32 @@ select {
   stroke: #b2b2b6;
   stroke-width: 1.9;
   stroke-linecap: round;
+}
+
+.wechat-search input {
+  width: 82px;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  outline: none;
+  background: transparent;
+  color: #1c1c1e;
+  font-size: 17px;
+  text-align: left;
+}
+
+.wechat-search input::placeholder {
+  color: #b2b2b6;
+}
+
+.wechat-search:focus-within {
+  justify-content: flex-start;
+  padding: 0 14px;
+}
+
+.wechat-search:focus-within input,
+.wechat-search input:not(:placeholder-shown) {
+  width: 100%;
 }
 
 .wechat-device-row {
@@ -4296,7 +4332,7 @@ select {
 }
 
 .wechat-list {
-  background: #ededed;
+  background: #fff;
 }
 
 .wechat-conversation.message-row {
@@ -4304,7 +4340,7 @@ select {
   column-gap: 8px;
   min-height: 78px;
   padding: 9px 16px 9px 18px;
-  background: #ededed;
+  background: #fff;
 }
 
 .wechat-conversation.message-row::after {
@@ -4406,7 +4442,7 @@ select {
   border: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0;
-  background: rgba(247, 247, 247, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: none;
   backdrop-filter: blur(18px);
 }
