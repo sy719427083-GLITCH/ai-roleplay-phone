@@ -4217,8 +4217,8 @@ select {
 
 .wechat-topbar {
   grid-template-columns: 54px minmax(0, 1fr) 54px;
-  height: 86px;
-  padding: 24px 18px 6px;
+  height: 52px;
+  padding: 0 18px;
   background: #fff;
   backdrop-filter: none;
 }
