@@ -44,6 +44,18 @@ import {
   STORAGE_KEY,
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
+import {
+  MESSAGE_STORAGE_KEY,
+  acceptFriendRequest,
+  addOutgoingFriendRequest,
+  appendChatMessage,
+  createEmptyMessageState,
+  createIncomingFriendRequest,
+  createConversationForCharacter,
+  deleteConversation,
+  normalizeMessageState,
+  rejectFriendRequest,
+} from "./messageState.js";
 
 const appGroups = [
   [
@@ -2094,7 +2106,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.69</p>
+      <p className="version-label">Ccat OS v0.1.70</p>
     </section>
   );
 }
@@ -2886,9 +2898,319 @@ function WorkAppScreen({ onClose }) {
   );
 }
 
+const readMessageCharacters = () => {
+  try {
+    const stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : {};
+    return Object.entries(parsed)
+      .map(([id, character]) => ({
+        id,
+        ...character,
+        name: character?.name || "未命名角色",
+        role: character?.role || character?.identity || "角色",
+      }))
+      .filter((character) => character.id);
+  } catch {
+    return [];
+  }
+};
+
+function MessageAvatar({ character }) {
+  return (
+    <span className="message-avatar">
+      <AvatarContent character={character} />
+    </span>
+  );
+}
+
+function MessageAppScreen({ onClose }) {
+  const [messageTab, setMessageTab] = useState("messages");
+  const [chatId, setChatId] = useState("");
+  const [draft, setDraft] = useState("");
+  const [swipedId, setSwipedId] = useState("");
+  const swipeRef = useRef(null);
+  const characters = useMemo(readMessageCharacters, []);
+  const [messageState, setMessageState] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(MESSAGE_STORAGE_KEY);
+      return stored ? normalizeMessageState(JSON.parse(stored)) : createEmptyMessageState();
+    } catch {
+      return createEmptyMessageState();
+    }
+  });
+
+  const characterMap = useMemo(
+    () => Object.fromEntries(characters.map((character) => [character.id, character])),
+    [characters],
+  );
+
+  useEffect(() => {
+    window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageState));
+  }, [messageState]);
+
+  useEffect(() => {
+    if (characters.length === 0) return;
+    if (messageState.contacts.length || messageState.requests.length || messageState.conversations.length) return;
+    setMessageState((current) => createIncomingFriendRequest(current, characters[0].id));
+  }, [characters, messageState.contacts.length, messageState.conversations.length, messageState.requests.length]);
+
+  const pendingCount = messageState.requests.length;
+  const contacts = messageState.contacts
+    .map((contact) => characterMap[contact.characterId])
+    .filter(Boolean);
+  const addableCharacters = characters.filter(
+    (character) =>
+      !messageState.contacts.some((contact) => contact.characterId === character.id) &&
+      !messageState.requests.some((request) => request.characterId === character.id),
+  );
+  const conversations = messageState.conversations
+    .map((conversation) => {
+      const character = characterMap[conversation.characterId] || { id: conversation.characterId, name: "未知角色" };
+      const history = messageState.histories[conversation.characterId] || [];
+      const latest = history[history.length - 1];
+      return { ...conversation, character, latest };
+    })
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+
+  const openChat = (character) => {
+    if (!character?.id) return;
+    setMessageState((current) => createConversationForCharacter(current, character));
+    setSwipedId("");
+    setChatId(character.id);
+  };
+
+  const handleSwipeStart = (event, characterId) => {
+    swipeRef.current = { x: event.clientX, characterId };
+  };
+
+  const handleSwipeEnd = (event) => {
+    const swipe = swipeRef.current;
+    swipeRef.current = null;
+    if (!swipe) return;
+    if (Math.abs(event.clientX - swipe.x) > 32) setSwipedId(swipe.characterId);
+  };
+
+  const sendMessage = () => {
+    if (!chatId || !draft.trim()) return;
+    setMessageState((current) => appendChatMessage(current, chatId, { from: "me", text: draft }));
+    setDraft("");
+  };
+
+  const renderFriendRequests = () => (
+    <div className="message-section">
+      <button className="message-row new-friend-row" onClick={() => setMessageTab("contacts")}>
+        <span className="message-system-avatar">＋</span>
+        <span className="message-row-main">
+          <strong>添加好友</strong>
+          <small>Add Friend</small>
+        </span>
+      </button>
+      {messageState.requests.length === 0 ? (
+        <div className="message-empty">暂无新的朋友申请</div>
+      ) : (
+        messageState.requests.map((request) => {
+          const character = characterMap[request.characterId] || { name: "未知角色", role: "角色" };
+          const isIncoming = request.direction === "incoming";
+          return (
+            <div className="message-row request-row" key={request.id}>
+              <MessageAvatar character={character} />
+              <span className="message-row-main">
+                <strong>{character.name}</strong>
+                <small>{isIncoming ? "请求添加你为好友" : "等待角色确认"}</small>
+              </span>
+              <span className="request-actions">
+                <button
+                  className="request-accept"
+                  onClick={() => setMessageState((current) => acceptFriendRequest(current, request.id, character))}
+                >
+                  {isIncoming ? "同意" : "通过"}
+                </button>
+                <button
+                  className="request-reject"
+                  onClick={() => setMessageState((current) => rejectFriendRequest(current, request.id))}
+                >
+                  {isIncoming ? "拒绝" : "驳回"}
+                </button>
+              </span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  const renderMessages = () => (
+    <div className="message-section">
+      {conversations.length === 0 ? (
+        <div className="message-empty">还没有聊天，先去联系人添加角色</div>
+      ) : (
+        conversations.map((conversation) => (
+          <div
+            className={`message-swipe-row ${swipedId === conversation.characterId ? "show-delete" : ""}`}
+            key={conversation.id}
+          >
+            <button
+              className="message-row conversation-row"
+              onPointerDown={(event) => handleSwipeStart(event, conversation.characterId)}
+              onPointerUp={handleSwipeEnd}
+              onClick={() => (swipedId === conversation.characterId ? setSwipedId("") : openChat(conversation.character))}
+            >
+              <MessageAvatar character={conversation.character} />
+              <span className="message-row-main">
+                <strong>{conversation.character.name}</strong>
+                <small>{conversation.latest?.text || "已添加联系人"}</small>
+              </span>
+              <span className="message-row-time">{conversation.latest?.time || "刚刚"}</span>
+            </button>
+            <button
+              className="message-delete"
+              onClick={() => {
+                setMessageState((current) => deleteConversation(current, conversation.characterId));
+                setSwipedId("");
+              }}
+            >
+              删除
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const renderContacts = () => (
+    <div className="message-section">
+      <button className="message-row new-friend-row" onClick={() => setMessageTab("friends")}>
+        <span className="message-system-avatar">新</span>
+        <span className="message-row-main">
+          <strong>新的朋友</strong>
+          <small>{pendingCount ? `${pendingCount} 条待处理` : "Friend Requests"}</small>
+        </span>
+      </button>
+      <button className="message-row">
+        <span className="message-system-avatar">群</span>
+        <span className="message-row-main">
+          <strong>群聊</strong>
+          <small>Group Chats</small>
+        </span>
+      </button>
+      <div className="message-list-title">通讯录</div>
+      {contacts.map((character) => (
+        <button className="message-row" key={character.id} onClick={() => openChat(character)}>
+          <MessageAvatar character={character} />
+          <span className="message-row-main">
+            <strong>{character.name}</strong>
+            <small>{character.role || "角色"}</small>
+          </span>
+        </button>
+      ))}
+      {addableCharacters.length > 0 && <div className="message-list-title">可添加角色</div>}
+      {addableCharacters.map((character) => (
+        <div className="message-row request-row" key={character.id}>
+          <MessageAvatar character={character} />
+          <span className="message-row-main">
+            <strong>{character.name}</strong>
+            <small>{character.role || "角色"}</small>
+          </span>
+          <span className="request-actions">
+            <button className="request-accept" onClick={() => setMessageState((current) => addOutgoingFriendRequest(current, character.id))}>
+              添加
+            </button>
+            <button className="request-reject" onClick={() => setMessageState((current) => createIncomingFriendRequest(current, character.id))}>
+              申请
+            </button>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderMoments = () => (
+    <div className="message-section">
+      <div className="moments-cover">
+        <strong>朋友圈</strong>
+        <span>Moments</span>
+      </div>
+      <div className="message-empty">角色动态会在这里汇总</div>
+    </div>
+  );
+
+  const renderProfile = () => (
+    <div className="message-section">
+      <div className="message-profile-card">
+        <span className="message-system-avatar">我</span>
+        <div>
+          <strong>我的名片</strong>
+          <small>Me</small>
+        </div>
+      </div>
+    </div>
+  );
+
+  const activeCharacter = chatId ? characterMap[chatId] || { id: chatId, name: "聊天" } : null;
+  if (activeCharacter) {
+    const history = messageState.histories[chatId] || [];
+    return (
+      <section className="full-page message-page chat-page">
+        <header className="message-topbar">
+          <button onClick={() => setChatId("")} aria-label="返回">
+            <ChevronLeft size={21} />
+          </button>
+          <strong>{activeCharacter.name}</strong>
+          <span></span>
+        </header>
+        <div className="chat-list">
+          {history.map((message) => (
+            <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
+              {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
+              <span className="chat-bubble">{message.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="chat-composer">
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="输入消息" />
+          <button onClick={sendMessage}>发送</button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="full-page message-page">
+      <header className="message-topbar">
+        <button onClick={onClose} aria-label="返回">
+          <ChevronLeft size={21} />
+        </button>
+        <strong>{messageTab === "messages" ? "消息" : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "朋友圈" : "我"}</strong>
+        <button className="message-add" onClick={() => setMessageTab("contacts")}>＋</button>
+      </header>
+      <main className="message-main">
+        {messageTab === "messages" && renderMessages()}
+        {messageTab === "contacts" && renderContacts()}
+        {messageTab === "friends" && renderFriendRequests()}
+        {messageTab === "moments" && renderMoments()}
+        {messageTab === "me" && renderProfile()}
+      </main>
+      <nav className="message-tabbar" aria-label="消息导航">
+        {[
+          ["messages", "消息", "Msg"],
+          ["contacts", "联系人", "Contacts"],
+          ["moments", "朋友圈", "Moments"],
+          ["me", "我", "Me"],
+        ].map(([id, cn, en]) => (
+          <button className={messageTab === id ? "active" : ""} key={id} onClick={() => setMessageTab(id)}>
+            <span>{cn}</span>
+            <small>{en}</small>
+          </button>
+        ))}
+      </nav>
+    </section>
+  );
+}
+
 function OpenedApp({ app, onClose }) {
   const isWallet = app.title === "钱包";
   const isWork = app.title === "工作";
+  const isMessages = app.title === "消息";
   const [walletData, setWalletData] = useState(() => {
     try {
       const stored = window.localStorage.getItem("roleplayWallet");
@@ -2960,6 +3282,7 @@ function OpenedApp({ app, onClose }) {
   };
 
   if (isWork) return <WorkAppScreen onClose={onClose} />;
+  if (isMessages) return <MessageAppScreen onClose={onClose} />;
 
   return (
     <section
