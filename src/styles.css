@@ -4197,6 +4197,292 @@ select {
   transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+.wechat-page {
+  background: #ededed;
+}
+
+.wechat-page .message-main {
+  padding: 0 0 76px;
+}
+
+.wechat-topbar {
+  grid-template-columns: 54px minmax(0, 1fr) 54px;
+  height: 86px;
+  padding: 24px 18px 6px;
+  background: #ededed;
+  backdrop-filter: none;
+}
+
+.wechat-topbar strong {
+  color: #111;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.wechat-back-hotspot {
+  opacity: 0;
+}
+
+.wechat-topbar .wechat-plus {
+  justify-self: end;
+  width: 33px;
+  height: 33px;
+  padding: 0;
+  opacity: 1;
+}
+
+.wechat-plus svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: #111;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.wechat-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 40px;
+  margin: 8px 8px 0;
+  border-radius: 5px;
+  background: #fff;
+  color: #b2b2b6;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.wechat-search svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #b2b2b6;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+}
+
+.wechat-device-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  height: 60px;
+  margin-top: 10px;
+  padding: 0 18px;
+  background: #ededed;
+  color: #6f6f73;
+  text-align: left;
+  border-bottom: 1px solid #dedede;
+}
+
+.wechat-device-row svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: #6f6f73;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wechat-device-row span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wechat-list {
+  background: #ededed;
+}
+
+.wechat-conversation.message-row {
+  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  column-gap: 8px;
+  min-height: 78px;
+  padding: 9px 16px 9px 18px;
+  background: #ededed;
+}
+
+.wechat-conversation.message-row::after {
+  left: 84px;
+  right: 0;
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.wechat-conversation .message-avatar,
+.wechat-conversation .message-system-avatar,
+.wechat-new-avatar,
+.file-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  background: #d8d8dc;
+}
+
+.wechat-conversation .message-row-main {
+  gap: 7px;
+}
+
+.wechat-conversation .message-row-main strong {
+  color: #111;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.wechat-conversation .message-row-main small {
+  color: #9b9b9f;
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.message-row-side {
+  display: grid;
+  justify-items: end;
+  align-self: stretch;
+  gap: 7px;
+  padding-top: 7px;
+}
+
+.message-row-side svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #c5c5c8;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wechat-conversation .message-row-time,
+.file-row .message-row-time {
+  align-self: start;
+  padding-top: 7px;
+  color: #b7b7bb;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.wechat-new-avatar {
+  background: #ececec;
+  color: #767676;
+}
+
+.file-avatar {
+  background: #06c160;
+}
+
+.file-avatar svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.file-avatar svg path {
+  stroke: #fff;
+}
+
+.wechat-page .message-delete {
+  background: #e64340;
+}
+
+.wechat-page .message-swipe-row.show-delete .conversation-row {
+  transform: translateX(-74px);
+}
+
+.wechat-page .message-tabbar {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: 72px;
+  padding: 5px 0 8px;
+  border: 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0;
+  background: rgba(247, 247, 247, 0.94);
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+}
+
+.wechat-page .message-tabbar button {
+  gap: 3px;
+  color: #1c1c1e;
+  border-radius: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.wechat-page .message-tabbar button.active {
+  color: #06c160;
+  transform: none;
+}
+
+.wechat-page .message-tabbar span:not(.wechat-tab-icon) {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.wechat-tab-icon {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 30px;
+  place-items: center;
+}
+
+.wechat-tab-icon svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wechat-page .message-tabbar button.active .wechat-tab-icon svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.wechat-tab-icon i {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0 4px;
+  border: 1.5px solid #f7f7f7;
+  border-radius: 10px;
+  background: #fa5151;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.wechat-tab-icon i:empty {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  top: 0;
+  right: 0;
+}
+
+.wechat-page .message-tabbar button:nth-child(2) .wechat-tab-icon i {
+  display: none;
+}
+
 .wallet-page {
   overflow-y: auto;
   background: #f8f8fa;
