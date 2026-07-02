@@ -1354,37 +1354,51 @@ textarea.character-input {
 .bond-badge {
   position: relative;
   z-index: 2;
-  border: 1px solid rgba(28, 28, 30, 0.46);
-  border-radius: 12px;
-  background: #f8f8fa;
+  border: 1px solid rgba(28, 28, 30, 0.28);
+  border-radius: 999px;
+  background: rgba(248, 248, 250, 0.92);
   color: #1c1c1e;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 750;
-  letter-spacing: 0;
-  padding: 5px 8px;
+  letter-spacing: 1.2px;
+  padding: 4px 10px;
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), background 180ms ease;
 }
 
-.bond-direction-badge {
+.bond-direction-summary {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 5px;
-  min-width: 82px;
-  max-width: 118px;
-  text-align: left;
-  line-height: 1.08;
+  gap: 7px;
+  margin: -2px 0 14px;
 }
 
-.bond-direction-badge em {
+.bond-direction-summary span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  border: 1px solid rgba(28, 28, 30, 0.045);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 6px 9px;
+}
+
+.bond-direction-summary em {
+  overflow: hidden;
   color: #9e9ea5;
-  font-size: 8px;
+  font-size: 10px;
   font-style: normal;
-  font-weight: 760;
-  letter-spacing: 0.4px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.bond-direction-badge i {
-  display: none;
+.bond-direction-summary strong {
+  color: #1c1c1e;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0;
 }
 
 .bond-card:hover .bond-badge,
