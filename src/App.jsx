@@ -1874,8 +1874,10 @@ function MeAppScreen({ onChildPageChange }) {
       {previewProfile && (
         <section className="me-preview-page me-theme">
           <div className="preview-nav">
-            <button className="preview-back" onClick={() => setPreviewId(null)} aria-label="返回">
-              <ChevronLeft size={22} />
+            <button className="me-edit-back" onClick={() => setPreviewId(null)} aria-label="返回">
+              <ChevronLeft size={16} />
+              <span>返回</span>
+              <em>Back</em>
             </button>
           </div>
           <div className="me-pv-container">
@@ -1917,7 +1919,9 @@ function MeAppScreen({ onChildPageChange }) {
           </div>
           <nav className="me-edit-nav">
             <button className="me-edit-back" onClick={closeMeEditor}>
-              <ChevronLeft size={22} />
+              <ChevronLeft size={16} />
+              <span>返回</span>
+              <em>Back</em>
             </button>
             <button className={generating ? "me-edit-dice breathing" : "me-edit-dice"} onClick={() => setPromptOpen(true)} aria-label="AI 构思">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2026,7 +2030,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.64</p>
+      <p className="version-label">Ccat OS v0.1.65</p>
     </section>
   );
 }

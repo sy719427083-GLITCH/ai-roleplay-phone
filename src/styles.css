@@ -2174,6 +2174,7 @@ textarea.character-input {
 .me-pv-id em,
 .me-pv-text-title em,
 .me-pv-edit-btn em,
+.me-edit-back em,
 .me-edit-subtitle em,
 .me-edit-label em,
 .me-action-btn em {
@@ -2427,20 +2428,6 @@ textarea.character-input {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.5px;
-}
-
-.me-edit-back {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
-  letter-spacing: 0;
 }
 
 .me-edit-dice svg {
