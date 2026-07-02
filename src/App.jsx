@@ -2107,7 +2107,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.75</p>
+      <p className="version-label">Ccat OS v0.1.76</p>
     </section>
   );
 }
@@ -2924,6 +2924,21 @@ function MessageAvatar({ character }) {
   );
 }
 
+const formatMessageTime = (value) => {
+  if (!value) return "刚刚";
+  const then = new Date(value).getTime();
+  if (!Number.isFinite(then)) return "刚刚";
+  const diffMs = Date.now() - then;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diffMs < minute) return "刚刚";
+  if (diffMs < hour) return `${Math.max(1, Math.floor(diffMs / minute))}分钟前`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)}小时前`;
+  if (diffMs < 30 * day) return `${Math.floor(diffMs / day)}天前`;
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" }).format(new Date(then));
+};
+
 function WechatTabIcon({ type }) {
   if (type === "messages") {
     return (
@@ -3178,7 +3193,7 @@ function MessageAppScreen({ onClose }) {
               <strong>新的朋友</strong>
               <small>{pendingCount ? `${pendingCount} 条好友申请` : "去通讯录添加角色开始聊天"}</small>
             </span>
-            <span className="message-row-time">现在</span>
+            <span className="message-row-time">刚刚</span>
           </button>
         )}
         {conversations.map((conversation) => (
@@ -3198,11 +3213,7 @@ function MessageAppScreen({ onClose }) {
                 <small>{conversation.latest?.text || "已添加联系人"}</small>
               </span>
               <span className="message-row-side">
-                <span className="message-row-time">{conversation.latest?.time || "刚刚"}</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 9.8v4.4h3.1L13 18V6L8.1 9.8H5Z" />
-                  <path d="m19 8-7 9" />
-                </svg>
+                <span className="message-row-time">{formatMessageTime(conversation.latest?.createdAt || conversation.updatedAt)}</span>
               </span>
             </button>
             <button

@@ -236,7 +236,7 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-rows: 94px;
   gap: 8px 7px;
-  padding-top: 8px;
+  padding-top: 14px;
 }
 
 .app-icon-button {
@@ -4170,7 +4170,7 @@ select {
 .chat-composer {
   position: absolute;
   right: 0;
-  bottom: 0;
+  bottom: 10px;
   left: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 62px;
@@ -4462,7 +4462,7 @@ select {
 
 .wechat-page .message-tabbar {
   right: 0;
-  bottom: 10px;
+  bottom: 16px;
   left: 0;
   min-height: 72px;
   padding: 5px 0 8px;

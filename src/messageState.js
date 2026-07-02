@@ -35,6 +35,7 @@ export function createConversationForCharacter(state, character = {}) {
         from: "role",
         text: `我是${character.name || "新联系人"}，以后可以在这里找我。`,
         time: "刚刚",
+        createdAt: nowStamp(),
       },
     ];
   }
@@ -159,6 +160,7 @@ export function appendChatMessage(state, characterId, message) {
       from: message.from || "me",
       text: message.text.trim(),
       time: message.time || "刚刚",
+      createdAt: message.createdAt || nowStamp(),
     },
   ];
   const hasConversation = normalized.conversations.some((item) => item.characterId === characterId);
