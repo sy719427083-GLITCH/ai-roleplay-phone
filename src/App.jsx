@@ -2094,7 +2094,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.68</p>
+      <p className="version-label">Ccat OS v0.1.69</p>
     </section>
   );
 }
@@ -2714,21 +2714,15 @@ function WorkAppScreen({ onClose }) {
     setLoadingJobs(false);
   };
 
-  useEffect(() => {
-    if (!activeWork || activeWork.endAt > now) return;
-    const completedJob = jobs.find((job) => job.key === activeWork.jobKey);
-    if (completedJob) creditWalletFromWork(completedJob, completedJob.reward);
-    setActiveWork(null);
-    generateWorkRound();
-  }, [activeWork, jobs, now]);
-
   const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
   const selectedKey = selectedJob?.key || "";
   const hasRunningWork = activeWork?.endAt > now;
-  const activeJob = hasRunningWork ? jobs.find((job) => job.key === activeWork.jobKey) : null;
-  const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : selectedJob.durationMinutes * 60 * 1000;
+  const hasCompletedWork = Boolean(activeWork && activeWork.endAt <= now);
+  const hasPendingWork = hasRunningWork || hasCompletedWork;
+  const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
+  const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : 0;
   const selectedDurationMs = selectedJob.durationMinutes * 60 * 1000;
-  const progress = hasRunningWork
+  const progress = hasCompletedWork ? 100 : hasRunningWork
     ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
     : 0;
   const mappedJobs = jobs.map((job) => ({
@@ -2742,16 +2736,18 @@ function WorkAppScreen({ onClose }) {
   };
 
   const startWork = () => {
+    if (hasPendingWork) return;
     const startAt = Date.now();
     setActiveWork({
       jobKey: selectedJob.key,
+      job: selectedJob,
       startAt,
       endAt: startAt + selectedJob.durationMinutes * 60 * 1000,
     });
   };
 
   const refreshJobs = async () => {
-    if (activeWork?.endAt > Date.now() || loadingJobs) return;
+    if (activeWork || loadingJobs) return;
     if (refreshLeft <= 0 && !spendWalletForWorkRefresh()) {
       window.alert(`余额不足，刷新一轮需要 ¥${WORK_PAID_REFRESH_COST}。`);
       return;
@@ -2771,6 +2767,22 @@ function WorkAppScreen({ onClose }) {
     window.alert(`已停止工作，结算 ¥${amount.toLocaleString("en-US")}，已入账钱包。`);
   };
 
+  const claimWork = async () => {
+    if (!hasCompletedWork || !activeJob) return;
+    creditWalletFromWork(activeJob, activeJob.reward);
+    setActiveWork(null);
+    window.alert(`工作完成，领取 ¥${activeJob.reward.toLocaleString("en-US")}，已入账钱包。`);
+    await generateWorkRound();
+  };
+
+  const handlePrimaryWorkAction = () => {
+    if (hasCompletedWork) {
+      claimWork();
+      return;
+    }
+    startWork();
+  };
+
   return (
     <section className="full-page app-page work-page">
       <header className="work-header">
@@ -2781,7 +2793,7 @@ function WorkAppScreen({ onClose }) {
           <strong>工作</strong>
           <span>Work</span>
         </div>
-        <button className="work-refresh-link" onClick={refreshJobs} disabled={loadingJobs || hasRunningWork}>
+        <button className="work-refresh-link" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
           <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}/5` : `¥${WORK_PAID_REFRESH_COST} 刷新`}</strong>
           <span>{loadingJobs ? "Loading" : "Refresh"}</span>
         </button>
@@ -2855,11 +2867,11 @@ function WorkAppScreen({ onClose }) {
       </div>
 
       <div className="work-actions">
-        <button className="work-start" onClick={startWork} disabled={hasRunningWork}>
+        <button className={hasCompletedWork ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={hasRunningWork || loadingJobs}>
           <Play size={22} fill="currentColor" />
           <span>
-            <strong>{hasRunningWork ? "进行中" : "开始"}</strong>
-            <em>{hasRunningWork ? "Working" : "Start"}</em>
+            <strong>{hasCompletedWork ? "点击领取" : hasRunningWork ? "进行中" : "开始"}</strong>
+            <em>{hasCompletedWork ? "Claim Reward" : hasRunningWork ? "Working" : "Start"}</em>
           </span>
         </button>
         <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
