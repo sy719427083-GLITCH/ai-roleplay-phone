@@ -4210,15 +4210,32 @@ select {
 }
 
 .wechat-page {
+  isolation: isolate;
+  background: #fff;
+}
+
+.wechat-page::before {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  top: -120px;
+  right: 0;
+  left: 0;
+  height: 220px;
+  pointer-events: none;
   background: #fff;
 }
 
 .wechat-page .message-main {
+  position: relative;
+  z-index: 1;
   background: #fff;
   padding: 0 0 76px;
 }
 
 .wechat-topbar {
+  position: relative;
+  z-index: 2;
   grid-template-columns: 54px minmax(0, 1fr) 54px;
   height: 52px;
   padding: 0 18px;
@@ -4445,7 +4462,7 @@ select {
 
 .wechat-page .message-tabbar {
   right: 0;
-  bottom: 0;
+  bottom: 10px;
   left: 0;
   min-height: 72px;
   padding: 5px 0 8px;
