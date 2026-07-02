@@ -1927,20 +1927,6 @@ textarea.character-input {
   background: #f8f8fa;
 }
 
-.char-preview-page::before {
-  content: "";
-  position: fixed;
-  z-index: 3;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: max(68px, calc(env(safe-area-inset-top) + 44px));
-  pointer-events: none;
-  background:
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.08), transparent 94%),
-    var(--char-preview-image, #f8f8fa) center top / cover no-repeat;
-}
-
 .char-preview-page::-webkit-scrollbar,
 .me-preview-page::-webkit-scrollbar,
 .me-edit-page::-webkit-scrollbar {
@@ -1951,8 +1937,9 @@ textarea.character-input {
   position: relative;
   z-index: 2;
   width: 100%;
-  height: calc(55vh + max(44px, env(safe-area-inset-top)));
-  min-height: calc(360px + max(44px, env(safe-area-inset-top)));
+  margin-top: 0;
+  height: calc(55vh + max(64px, env(safe-area-inset-top)));
+  min-height: calc(372px + max(64px, env(safe-area-inset-top)));
   overflow: hidden;
   background: rgba(28, 28, 30, 0.035);
 }
@@ -1972,26 +1959,10 @@ textarea.character-input {
   animation: characterScanLine 2.9s cubic-bezier(0.22, 1, 0.36, 1) 420ms infinite;
 }
 
-.char-pv-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: rgba(28, 28, 30, 0.035);
-  filter: blur(25px) brightness(0.86);
-  animation: previewBgDrift 9s ease-in-out infinite alternate;
-}
-
-.char-pv-bg img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.48;
-}
-
 .char-pv-img {
   position: absolute;
   z-index: 2;
-  inset: 0;
+  inset: calc(-1 * max(64px, env(safe-area-inset-top))) 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2002,6 +1973,7 @@ textarea.character-input {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
 }
@@ -4351,7 +4323,6 @@ select {
   .char-preview-page,
   .character-edit-page,
   .char-pv-hero::after,
-  .char-pv-bg,
   .char-pv-img,
   .char-pv-content,
   .fab-edit {
