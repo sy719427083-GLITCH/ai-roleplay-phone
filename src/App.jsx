@@ -2200,7 +2200,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.95</p>
+      <p className="version-label">Ccat OS v0.1.96</p>
     </section>
   );
 }
@@ -4319,6 +4319,7 @@ export function App() {
         setChromeColor(getChromeColor({ locked: false, tab, openedApp: null, settingPage, launching: null }));
         setOpenedApp(null);
         requestAnimationFrame(resetViewportScroll);
+        window.setTimeout(resetViewportScroll, 80);
       }} onMessageUnreadChange={setMessageUnread} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => {
         setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));

@@ -42,8 +42,8 @@ button:active {
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   -webkit-font-smoothing: antialiased;
   background: #f7f7f9;
   overflow: hidden;
@@ -53,8 +53,8 @@ body {
 
 #root {
   width: 100vw;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   background: #f7f7f9;
   overflow: hidden;
   touch-action: manipulation;
@@ -74,10 +74,11 @@ body[data-chrome-color="me"] #root {
 .phone-surface {
   position: relative;
   width: 100vw;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: #fbfbfb;
+  overscroll-behavior: none;
 }
 
 .phone-surface {
@@ -111,7 +112,9 @@ body[data-chrome-color="me"] #root {
 .phone-stage {
   position: relative;
   z-index: 15;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
   transform-origin: center center;
   transition:
     transform 620ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -4784,7 +4787,7 @@ select {
 }
 
 .wechat-conversation.message-row {
-  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  grid-template-columns: 58px minmax(0, 1fr) 46px;
   column-gap: 8px;
   min-height: 72px;
   padding: 7px 16px 7px 18px;
@@ -4829,6 +4832,7 @@ select {
   align-self: stretch;
   gap: 7px;
   padding-top: 7px;
+  min-width: 0;
 }
 
 .message-row-side svg {
@@ -4844,10 +4848,13 @@ select {
 .wechat-conversation .message-row-time,
 .file-row .message-row-time {
   align-self: start;
-  padding-top: 7px;
+  max-width: 46px;
+  padding-top: 8px;
   color: #b7b7bb;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .wechat-new-avatar {
