@@ -738,6 +738,8 @@ const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
+const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
+const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
 
 const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
 
@@ -864,7 +866,7 @@ const splitChatMessages = (text) => {
 
 const pickProactiveMessages = (character) => {
   const seed = String(character?.name || "").length + new Date().getMinutes();
-  const count = (seed % 5) + 1;
+  const count = (seed % 2) + 1;
   return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
 };
 
@@ -2151,7 +2153,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.82</p>
+      <p className="version-label">Ccat OS v0.1.83</p>
     </section>
   );
 }
@@ -2974,7 +2976,7 @@ function TransferCard({ message, characterName, onAccept, onReject }) {
   const isPending = message.status === "pending";
   const statusText = message.status === "accepted" ? (isIncoming ? "已接收" : "对方已收款") : message.status === "rejected" ? (isIncoming ? "已拒绝" : "对方已退还") : isIncoming ? "待接收" : "等待对方确认";
   return (
-    <span className="transfer-card">
+    <span className={`transfer-card ${isPending ? "" : "settled"}`}>
       <span className="transfer-main">
         <span className="transfer-icon" aria-hidden="true">
           <svg viewBox="0 0 28 28">
@@ -3197,6 +3199,53 @@ const callRoleChatApi = async ({ character, history, userText }) => {
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) throw new Error("聊天请求没有返回内容");
   return parseRoleTransferReply(content);
+};
+
+const callRoleProactiveApi = async ({ character, history }) => {
+  const endpoint = getSelectedChatEndpoint();
+  if (!endpoint) return pickProactiveMessages(character);
+
+  let url = endpoint.baseUrl.replace(/\/+$/, "");
+  if (!url.endsWith("/v1")) url += "/v1";
+
+  const messages = [
+    {
+      role: "system",
+      content: `你正在 Ccat OS 的信息 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
+当前是线上文字聊天，不是见面。只写角色会主动发出的自然微信消息，不要解释，不要括号动作，不要星号动作，不要 emoji。
+如果根据上下文不适合主动打扰，只返回空字符串。
+最多 2 条短消息，多条用换行分隔。
+角色姓名：${character?.name || "未知角色"}
+身份：${character?.identity || character?.role || "未设定"}
+性格：${character?.personality || "自然、真实"}`,
+    },
+    ...history.slice(-12).map((item) => ({
+      role: item.from === "me" ? "user" : "assistant",
+      content: item.text,
+    })),
+    { role: "user", content: "现在如果你会主动发消息，会发什么？" },
+  ];
+
+  try {
+    const response = await fetch(`${url}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: endpoint.model,
+        messages,
+        temperature: Number(endpoint.temperature ?? 0.7),
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content?.trim() || "";
+    return splitChatMessages(content).slice(0, 2);
+  } catch {
+    return pickProactiveMessages(character);
+  }
 };
 
 const decideTransferAcceptance = async ({ character, history, amount, note }) => {
@@ -3445,6 +3494,36 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     );
   };
 
+  const triggerProactiveMessage = async () => {
+    if (!chatId || sending) return;
+    const now = Date.now();
+    const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
+    if (now - lastAt < 45000) {
+      window.alert("角色刚刚才主动过，稍等一会儿。");
+      return;
+    }
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const history = messageState.histories[chatId] || [];
+    setSending(true);
+    try {
+      const messages = await callRoleProactiveApi({ character: activeCharacter, history });
+      if (!messages.length) {
+        window.alert("现在没有适合主动发送的内容。");
+        return;
+      }
+      setMessageState((current) => {
+        let next = current;
+        messages.forEach((text) => {
+          next = appendChatMessage(next, chatId, { from: "role", text, unread: false });
+        });
+        return next;
+      });
+      window.localStorage.setItem(PROACTIVE_MESSAGE_STORAGE_KEY, String(now));
+    } finally {
+      setSending(false);
+    }
+  };
+
   const renderFriendRequests = () => (
     <div className="message-section">
       <button className="message-row new-friend-row" onClick={() => setMessageTab("contacts")}>
@@ -3680,6 +3759,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                     key={type}
                     onClick={() => {
                       if (type === "transfer") setTransferOpen(true);
+                      if (type === "proactive") triggerProactiveMessage();
                     }}
                   >
                     <span><ChatActionIcon type={type} /></span>
@@ -4053,11 +4133,12 @@ export function App() {
   useEffect(() => {
     if (locked || openedApp?.title === "消息" || launching) return undefined;
 
-    const maybeSendProactive = () => {
+    const maybeSendProactive = async () => {
       if (openedApp?.title === "消息") return;
       const now = Date.now();
       const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
-      if (now - lastAt < 45000) return;
+      if (now - lastAt < PROACTIVE_MESSAGE_COOLDOWN_MS) return;
+      if (Math.random() > 0.28) return;
 
       const state = getStoredMessageState();
       const contacts = state.contacts.filter((contact) => contact.characterId);
@@ -4065,7 +4146,9 @@ export function App() {
       const characters = Object.fromEntries(readMessageCharacters().map((character) => [character.id, character]));
       const contact = contacts[now % contacts.length];
       const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
-      const messages = pickProactiveMessages(character);
+      const history = state.histories?.[contact.characterId] || [];
+      const messages = await callRoleProactiveApi({ character, history });
+      if (!messages.length) return;
       let next = state;
       messages.forEach((text) => {
         next = appendChatMessage(next, contact.characterId, {
@@ -4082,8 +4165,8 @@ export function App() {
       });
     };
 
-    const firstTimer = window.setTimeout(maybeSendProactive, 9000);
-    const interval = window.setInterval(maybeSendProactive, 45000);
+    const firstTimer = window.setTimeout(maybeSendProactive, 90000);
+    const interval = window.setInterval(maybeSendProactive, PROACTIVE_MESSAGE_CHECK_MS);
     return () => {
       window.clearTimeout(firstTimer);
       window.clearInterval(interval);
