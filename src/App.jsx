@@ -2151,7 +2151,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.81</p>
+      <p className="version-label">Ccat OS v0.1.82</p>
     </section>
   );
 }
@@ -3648,26 +3648,23 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             </div>
           )}
         </div>
-        <div className="chat-composer">
-          <button
-            className="chat-plus-button"
-            onClick={() => {
-              setActionPanelOpen((current) => !current);
-              setTransferOpen(false);
-            }}
-            disabled={sending}
-            aria-label="更多功能"
-          >
-            +
-          </button>
-          <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter") sendMessage();
-          }} placeholder="输入消息" disabled={sending} />
-          <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
-        </div>
-        {actionPanelOpen && (
-          <div className="chat-action-panel">
-            {!transferOpen ? (
+        <div className={`chat-input-area ${actionPanelOpen ? "expanded" : ""}`}>
+          <div className="chat-composer">
+            <button
+              className="chat-plus-button"
+              onClick={() => setActionPanelOpen((current) => !current)}
+              disabled={sending}
+              aria-label="更多功能"
+            >
+              +
+            </button>
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+              if (event.key === "Enter") sendMessage();
+            }} placeholder="输入消息" disabled={sending} />
+            <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
+          </div>
+          {actionPanelOpen && (
+            <div className="chat-action-panel">
               <div className="chat-action-grid">
                 {[
                   ["transfer", "转账"],
@@ -3690,10 +3687,15 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   </button>
                 ))}
               </div>
-            ) : (
-              <div className="transfer-inline-panel">
+            </div>
+          )}
+        </div>
+        {actionPanelOpen && (
+          transferOpen && (
+            <div className="transfer-popover-backdrop">
+              <div className="transfer-popover">
                 <div className="transfer-inline-head">
-                  <button onClick={() => setTransferOpen(false)} aria-label="返回功能面板">‹</button>
+                  <button onClick={() => setTransferOpen(false)} aria-label="关闭转账">×</button>
                   <strong>转账给 {activeCharacter.name || "角色"}</strong>
                 </div>
                 <input
@@ -3713,8 +3715,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   <button onClick={sendTransfer}>发送转账</button>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )
         )}
       </section>
     );
