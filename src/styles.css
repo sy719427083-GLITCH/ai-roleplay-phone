@@ -89,11 +89,11 @@ body[data-chrome-color="white"] #root {
 .phone-surface:has(.message-page)::before {
   content: "";
   position: fixed;
-  z-index: 45;
+  z-index: 0;
   top: 0;
   right: 0;
   left: 0;
-  height: max(148px, calc(env(safe-area-inset-top) + 120px));
+  bottom: 0;
   pointer-events: none;
   background: #fff;
 }
