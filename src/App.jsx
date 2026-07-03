@@ -751,11 +751,19 @@ const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
   const meta = document.querySelector('meta[name="theme-color"]');
   meta?.setAttribute("content", color);
-  document.body.dataset.chromeColor = color === CHROME_COLORS.white ? "white" : "default";
+  document.body.dataset.chromeColor =
+    color === CHROME_COLORS.white ? "white" : color === CHROME_COLORS.me ? "me" : "default";
   document.documentElement.style.backgroundColor = color;
   document.body.style.backgroundColor = color;
   const root = document.getElementById("root");
   if (root) root.style.backgroundColor = color;
+};
+
+const resetViewportScroll = () => {
+  if (typeof window === "undefined") return;
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 };
 
 const getChromeColor = ({ locked, tab, openedApp, settingPage, launching }) => {
@@ -887,7 +895,20 @@ const splitChatMessages = (text) => {
     .split(/\n+/)
     .map((part) => sanitizeOnlineChatText(part))
     .filter(Boolean);
-  return (parts.length ? parts : [cleaned]).slice(0, 5);
+  return (parts.length ? parts : [cleaned]).slice(0, 3);
+};
+
+const waitForChatBeat = (index = 0) =>
+  new Promise((resolve) => window.setTimeout(resolve, 620 + index * 220));
+
+const formatChatClock = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "刚刚";
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 };
 
 const pickProactiveMessages = (character) => {
@@ -2179,7 +2200,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.93</p>
+      <p className="version-label">Ccat OS v0.1.94</p>
     </section>
   );
 }
@@ -3196,7 +3217,7 @@ const callRoleChatApi = async ({ character, history, userText }) => {
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
-要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。可以一次回复 1-5 条短消息，每条消息用换行分隔。
+要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次回复 3 条短消息，每条消息用换行分隔。
 如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
   const messages = [
@@ -3445,14 +3466,19 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         history: previousHistory,
         userText,
       });
-      setMessageState((current) => {
-        let next = current;
-        const messages = reply.messages?.length ? reply.messages : [reply.text];
-        messages.forEach((text) => {
-          next = appendChatMessage(next, chatId, { from: "role", text, unread: false });
-        });
-        if (reply.transfer) {
-          next = appendChatMessage(next, chatId, {
+      const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 3);
+      for (let index = 0; index < roleMessages.length; index += 1) {
+        await waitForChatBeat(index);
+        setMessageState((current) => appendChatMessage(current, chatId, {
+          from: "role",
+          text: roleMessages[index],
+          unread: false,
+        }));
+      }
+      if (reply.transfer) {
+        await waitForChatBeat(roleMessages.length);
+        setMessageState((current) =>
+          appendChatMessage(current, chatId, {
             from: "role",
             kind: "transfer",
             text: `转账 ¥${Number(reply.transfer.amount).toFixed(2)}`,
@@ -3461,10 +3487,9 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             transferDirection: "incoming",
             status: "pending",
             unread: false,
-          });
-        }
-        return next;
-      });
+          }),
+        );
+      }
     } catch (error) {
       setMessageState((current) =>
         appendChatMessage(current, chatId, {
@@ -3559,13 +3584,14 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         window.alert("现在没有适合主动发送的内容。");
         return;
       }
-      setMessageState((current) => {
-        let next = current;
-        messages.forEach((text) => {
-          next = appendChatMessage(next, chatId, { from: "role", text, unread: false });
-        });
-        return next;
-      });
+      for (let index = 0; index < messages.slice(0, 3).length; index += 1) {
+        await waitForChatBeat(index);
+        setMessageState((current) => appendChatMessage(current, chatId, {
+          from: "role",
+          text: messages[index],
+          unread: false,
+        }));
+      }
       window.localStorage.setItem(PROACTIVE_MESSAGE_STORAGE_KEY, String(now));
     } finally {
       setSending(false);
@@ -3755,16 +3781,19 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           {history.map((message) => (
             <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
               {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
-              {message.kind === "transfer" ? (
-                <TransferCard
-                  message={message}
-                  characterName={activeCharacter.name || "角色"}
-                  onAccept={() => settleIncomingTransfer(message, true)}
-                  onReject={() => settleIncomingTransfer(message, false)}
-                />
-              ) : (
-                <span className="chat-bubble">{message.text}</span>
-              )}
+              <span className="chat-message-stack">
+                {message.kind === "transfer" ? (
+                  <TransferCard
+                    message={message}
+                    characterName={activeCharacter.name || "角色"}
+                    onAccept={() => settleIncomingTransfer(message, true)}
+                    onReject={() => settleIncomingTransfer(message, false)}
+                  />
+                ) : (
+                  <span className="chat-bubble">{message.text}</span>
+                )}
+                <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>
+              </span>
               {message.from === "me" && <MessageAvatar character={meProfile} />}
             </div>
           ))}
@@ -4295,8 +4324,10 @@ export function App() {
         </button>
       )}
       {openedApp && <OpenedApp app={openedApp} onClose={() => {
+        resetViewportScroll();
         setChromeColor(getChromeColor({ locked: false, tab, openedApp: null, settingPage, launching: null }));
         setOpenedApp(null);
+        requestAnimationFrame(resetViewportScroll);
       }} onMessageUnreadChange={setMessageUnread} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => {
         setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));
