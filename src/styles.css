@@ -79,6 +79,18 @@ body {
   background: #fff;
 }
 
+.phone-surface:has(.message-page)::before {
+  content: "";
+  position: fixed;
+  z-index: 45;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: max(148px, calc(env(safe-area-inset-top) + 120px));
+  pointer-events: none;
+  background: #fff;
+}
+
 .phone-surface.tab-me,
 .phone-surface.tab-me .phone-stage {
   background: #fdfbf8;
@@ -3908,8 +3920,8 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  top: calc(-1 * max(4px, env(safe-area-inset-top)));
-  height: calc(100dvh + max(4px, env(safe-area-inset-top)));
+  top: calc(-1 * max(16px, env(safe-area-inset-top)));
+  height: calc(100dvh + max(16px, env(safe-area-inset-top)));
   padding: 0;
   background: #fff;
   color: #1c1c1e;
@@ -3919,10 +3931,10 @@ select {
   content: "";
   position: fixed;
   z-index: 0;
-  top: -180px;
+  top: -260px;
   right: 0;
   left: 0;
-  height: 260px;
+  height: 420px;
   pointer-events: none;
   background: inherit;
 }

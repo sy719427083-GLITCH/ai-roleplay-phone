@@ -842,6 +842,32 @@ const pickProactiveLine = (character) => {
   return proactiveLines[seed % proactiveLines.length];
 };
 
+const sanitizeOnlineChatText = (text) =>
+  String(text || "")
+    .replace(/\*[^*]{1,80}\*/g, "")
+    .replace(/（[^（）]{1,80}）/g, "")
+    .replace(/\([^()]{1,80}\)/g, "")
+    .replace(/^\s*[\[【].*?[\]】]\s*$/gm, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const splitChatMessages = (text) => {
+  const cleaned = sanitizeOnlineChatText(text);
+  if (!cleaned) return [];
+  const parts = cleaned
+    .split(/\n+/)
+    .map((part) => sanitizeOnlineChatText(part))
+    .filter(Boolean);
+  return (parts.length ? parts : [cleaned]).slice(0, 5);
+};
+
+const pickProactiveMessages = (character) => {
+  const seed = String(character?.name || "").length + new Date().getMinutes();
+  const count = (seed % 5) + 1;
+  return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
+};
+
 function AvatarContent({ character }) {
   if (character?.avatar) return <img src={character.avatar} alt={character.name || "角色头像"} />;
   return (
@@ -2125,7 +2151,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.79</p>
+      <p className="version-label">Ccat OS v0.1.80</p>
     </section>
   );
 }
@@ -3051,8 +3077,10 @@ const parseRoleTransferReply = (content) => {
     .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
     .trim();
   const amount = transferMatch ? Number(transferMatch[1]) : 0;
+  const messages = splitChatMessages(cleaned || (amount > 0 ? "给你转了一笔钱。" : raw));
   return {
-    text: cleaned || (amount > 0 ? "给你转了一笔钱。" : raw),
+    text: messages[0] || "",
+    messages,
     transfer: amount > 0 ? { amount, note: noteMatch?.[1]?.trim() || "角色转账" } : null,
   };
 };
@@ -3073,7 +3101,7 @@ const callRoleChatApi = async ({ character, history, userText }) => {
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
-要求：回复要像真实线上聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令，内容简洁自然。
+要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。可以一次回复 1-5 条短消息，每条消息用换行分隔。
 如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
   const messages = [
@@ -3253,7 +3281,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         userText,
       });
       setMessageState((current) => {
-        let next = appendChatMessage(current, chatId, { from: "role", text: reply.text, unread: false });
+        let next = current;
+        const messages = reply.messages?.length ? reply.messages : [reply.text];
+        messages.forEach((text) => {
+          next = appendChatMessage(next, chatId, { from: "role", text, unread: false });
+        });
         if (reply.transfer) {
           next = appendChatMessage(next, chatId, {
             from: "role",
@@ -3926,17 +3958,20 @@ export function App() {
       const characters = Object.fromEntries(readMessageCharacters().map((character) => [character.id, character]));
       const contact = contacts[now % contacts.length];
       const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
-      const text = pickProactiveLine(character);
-      const next = appendChatMessage(state, contact.characterId, {
-        from: "role",
-        text,
+      const messages = pickProactiveMessages(character);
+      let next = state;
+      messages.forEach((text) => {
+        next = appendChatMessage(next, contact.characterId, {
+          from: "role",
+          text,
+        });
       });
       writeStoredMessageState(next);
       window.localStorage.setItem(PROACTIVE_MESSAGE_STORAGE_KEY, String(now));
       setMessageUnread(getMessageUnreadCount(next));
       setMessageToast({
         character,
-        text,
+        text: messages[0],
       });
     };
 
