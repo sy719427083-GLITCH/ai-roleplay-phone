@@ -2151,7 +2151,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.80</p>
+      <p className="version-label">Ccat OS v0.1.81</p>
     </section>
   );
 }
@@ -3000,6 +3000,73 @@ function TransferCard({ message, characterName, onAccept, onReject }) {
   );
 }
 
+function ChatActionIcon({ type }) {
+  if (type === "transfer") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M14 3.8 24 9v10l-10 5.2L4 19V9l10-5.2Z" />
+        <path d="M9.6 11.3h8.8M14 8.4v10.1" />
+      </svg>
+    );
+  }
+  if (type === "poke") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M10.3 16.8 6.6 13c-.7-.7-.7-1.8 0-2.5.7-.7 1.8-.7 2.5 0l2.1 2.1V5.9c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v7.5l.7-1.5c.4-.9 1.5-1.3 2.4-.9.9.4 1.3 1.5.9 2.4l-2 4.6c-.8 1.9-2.6 3.1-4.6 3.1h-.3c-1.3 0-2.6-.5-3.6-1.5Z" />
+      </svg>
+    );
+  }
+  if (type === "memory") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M8.2 5.4h9.2l2.4 2.5v14.7H8.2V5.4Z" />
+        <path d="M17.2 5.6v4h4" />
+        <path d="M11 13.2h6M11 16.5h6M11 19.8h3.8" />
+      </svg>
+    );
+  }
+  if (type === "settings") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M14 10.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
+        <path d="M22.5 15.5v-3l-2.5-.6c-.2-.6-.5-1.1-.8-1.6l1.3-2.2-2.1-2.1-2.2 1.3c-.5-.3-1-.5-1.6-.7L14 4h-3l-.6 2.6c-.6.2-1.1.4-1.6.7L6.6 6 4.5 8.1l1.3 2.2c-.3.5-.6 1-.8 1.6l-2.5.6v3l2.5.6c.2.6.5 1.1.8 1.6l-1.3 2.2 2.1 2.1 2.2-1.3c.5.3 1 .5 1.6.7l.6 2.6h3l.6-2.6c.6-.2 1.1-.4 1.6-.7l2.2 1.3 2.1-2.1-1.3-2.2c.3-.5.6-1 .8-1.6l2.5-.6Z" />
+      </svg>
+    );
+  }
+  if (type === "proactive") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M5.2 7.4h17.6v11.2H10.8l-5.6 4V7.4Z" />
+        <path d="M10.2 12h7.6M10.2 15.5h4.6" />
+      </svg>
+    );
+  }
+  if (type === "photo") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M5 7h18v14H5V7Z" />
+        <path d="m7.8 19 4.7-5.1 3.5 3.6 2.3-2.4L22 19" />
+        <path d="M18.5 10.5h.1" />
+      </svg>
+    );
+  }
+  if (type === "voice") {
+    return (
+      <svg viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M11 6.5v15l5.6-4.1H22V10.6h-5.4L11 6.5Z" />
+        <path d="M6 11.4v5.2" />
+        <path d="M3.8 13.1v1.8" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 28 28" aria-hidden="true">
+      <path d="M8 6h12v16H8V6Z" />
+      <path d="M11 10h6M11 14h6M11 18h3.8" />
+    </svg>
+  );
+}
+
 const getPrimaryMeProfile = () => {
   try {
     const profiles = JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
@@ -3183,6 +3250,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [chatId, setChatId] = useState("");
   const [draft, setDraft] = useState("");
+  const [actionPanelOpen, setActionPanelOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
@@ -3325,6 +3393,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     const previousHistory = messageState.histories[chatId] || [];
     const note = transferNote.trim();
     setTransferOpen(false);
+    setActionPanelOpen(false);
     setTransferAmount("");
     setTransferNote("");
     setSending(true);
@@ -3580,35 +3649,71 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           )}
         </div>
         <div className="chat-composer">
-          <button className="chat-transfer-button" onClick={() => setTransferOpen(true)} disabled={sending} aria-label="转账">
-            ¥
+          <button
+            className="chat-plus-button"
+            onClick={() => {
+              setActionPanelOpen((current) => !current);
+              setTransferOpen(false);
+            }}
+            disabled={sending}
+            aria-label="更多功能"
+          >
+            +
           </button>
           <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") sendMessage();
           }} placeholder="输入消息" disabled={sending} />
           <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
         </div>
-        {transferOpen && (
-          <div className="transfer-modal-backdrop">
-            <div className="transfer-modal">
-              <strong>转账给 {activeCharacter.name || "角色"}</strong>
-              <input
-                autoFocus
-                inputMode="decimal"
-                value={transferAmount}
-                onChange={(event) => setTransferAmount(event.target.value)}
-                placeholder="输入金额 (¥)"
-              />
-              <input
-                value={transferNote}
-                onChange={(event) => setTransferNote(event.target.value)}
-                placeholder="备注，可不填"
-              />
-              <div className="transfer-modal-actions">
-                <button onClick={() => setTransferOpen(false)}>取消</button>
-                <button onClick={sendTransfer}>发送转账</button>
+        {actionPanelOpen && (
+          <div className="chat-action-panel">
+            {!transferOpen ? (
+              <div className="chat-action-grid">
+                {[
+                  ["transfer", "转账"],
+                  ["poke", "戳一戳"],
+                  ["memory", "记忆"],
+                  ["settings", "设置"],
+                  ["proactive", "主动消息"],
+                  ["photo", "图片"],
+                  ["voice", "语音"],
+                  ["note", "备注"],
+                ].map(([type, label]) => (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      if (type === "transfer") setTransferOpen(true);
+                    }}
+                  >
+                    <span><ChatActionIcon type={type} /></span>
+                    <em>{label}</em>
+                  </button>
+                ))}
               </div>
-            </div>
+            ) : (
+              <div className="transfer-inline-panel">
+                <div className="transfer-inline-head">
+                  <button onClick={() => setTransferOpen(false)} aria-label="返回功能面板">‹</button>
+                  <strong>转账给 {activeCharacter.name || "角色"}</strong>
+                </div>
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={transferAmount}
+                  onChange={(event) => setTransferAmount(event.target.value)}
+                  placeholder="输入金额 (¥)"
+                />
+                <input
+                  value={transferNote}
+                  onChange={(event) => setTransferNote(event.target.value)}
+                  placeholder="备注，可不填"
+                />
+                <div className="transfer-modal-actions">
+                  <button onClick={() => setTransferOpen(false)}>取消</button>
+                  <button onClick={sendTransfer}>发送转账</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
