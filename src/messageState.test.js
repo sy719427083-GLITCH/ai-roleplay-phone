@@ -6,6 +6,7 @@ import {
   deleteConversation,
   markConversationRead,
   rejectFriendRequest,
+  updateChatMessage,
 } from "./messageState.js";
 
 test("accepting a friend request adds the role to contacts and opens a conversation", () => {
@@ -70,4 +71,29 @@ test("role messages create unread counts that clear when the conversation is rea
 
   const read = markConversationRead(withUnread, "char-a");
   assert.equal(read.conversations[0].unread, 0);
+});
+
+test("transfer messages preserve amount and can update settlement status", () => {
+  const state = {
+    contacts: [{ characterId: "char-a" }],
+    requests: [],
+    conversations: [{ id: "conv-char-a", characterId: "char-a", unread: 0 }],
+    histories: {},
+  };
+
+  const withTransfer = appendChatMessage(state, "char-a", {
+    from: "role",
+    kind: "transfer",
+    amount: 88,
+    note: "晚饭",
+    transferDirection: "incoming",
+    status: "pending",
+  });
+  const transfer = withTransfer.histories["char-a"][0];
+  assert.equal(transfer.kind, "transfer");
+  assert.equal(transfer.amount, 88);
+  assert.equal(transfer.status, "pending");
+
+  const settled = updateChatMessage(withTransfer, "char-a", transfer.id, { status: "accepted" });
+  assert.equal(settled.histories["char-a"][0].status, "accepted");
 });

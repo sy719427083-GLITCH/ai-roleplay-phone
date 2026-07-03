@@ -217,6 +217,7 @@ body {
 
 .home-view {
   animation: fadeUp 420ms ease both;
+  padding-top: 30px;
   user-select: none;
 }
 
@@ -4202,11 +4203,20 @@ select {
   bottom: 22px;
   left: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 62px;
+  grid-template-columns: 42px minmax(0, 1fr) 62px;
   gap: 10px;
   padding: 10px 14px 18px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(1.25);
+}
+
+.chat-transfer-button {
+  height: 42px;
+  border-radius: 14px;
+  background: #f7f7f7;
+  color: #1c1c1e;
+  font-size: 18px;
+  font-weight: 620;
 }
 
 .chat-composer input {
@@ -4229,6 +4239,13 @@ select {
   transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+.chat-composer .chat-transfer-button {
+  background: #f7f7f7;
+  color: #1c1c1e;
+  font-size: 18px;
+  font-weight: 620;
+}
+
 .chat-composer button:disabled,
 .chat-composer input:disabled {
   opacity: 0.58;
@@ -4236,6 +4253,152 @@ select {
 
 .typing-bubble {
   color: #8e8e93;
+}
+
+.transfer-card {
+  display: grid;
+  width: min(236px, 72vw);
+  overflow: hidden;
+  border-radius: 7px;
+  background: #ef9f3a;
+  color: #ffffff;
+}
+
+.chat-bubble-row.mine .transfer-card {
+  background: #e99936;
+}
+
+.transfer-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 13px 14px;
+}
+
+.transfer-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.transfer-icon svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.transfer-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.transfer-copy strong {
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.05;
+}
+
+.transfer-copy em {
+  overflow: hidden;
+  font-size: 13px;
+  font-style: normal;
+  opacity: 0.88;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-footer {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px 7px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #9e9ea5;
+  font-size: 12px;
+}
+
+.transfer-actions {
+  display: inline-flex;
+  gap: 7px;
+}
+
+.transfer-actions button {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: #f3f3f5;
+  color: #1c1c1e;
+  font-size: 12px;
+}
+
+.transfer-actions button:last-child {
+  background: #1c1c1e;
+  color: #fff;
+}
+
+.transfer-modal-backdrop {
+  position: fixed;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding: 20px;
+  background: rgba(28, 28, 30, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.transfer-modal {
+  display: grid;
+  width: min(100%, 340px);
+  gap: 12px;
+  border-radius: 20px;
+  background: #fff;
+  padding: 20px;
+}
+
+.transfer-modal strong {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.transfer-modal input {
+  height: 44px;
+  border-radius: 12px;
+  background: #f7f7f7;
+  color: #1c1c1e;
+  padding: 0 13px;
+  outline: none;
+}
+
+.transfer-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 10px;
+}
+
+.transfer-modal-actions button {
+  height: 42px;
+  border-radius: 12px;
+  background: #f4f4f5;
+  color: #1c1c1e;
+  font-weight: 620;
+}
+
+.transfer-modal-actions button:last-child {
+  background: #1c1c1e;
+  color: #fff;
 }
 
 .wechat-page {

@@ -150,17 +150,28 @@ export function createIncomingFriendRequest(state, characterId) {
 
 export function appendChatMessage(state, characterId, message) {
   const normalized = normalizeMessageState(state);
-  if (!characterId || !message?.text?.trim()) return normalized;
+  const isTransfer = message?.kind === "transfer";
+  if (!characterId || (!message?.text?.trim() && !isTransfer)) return normalized;
   const histories = { ...normalized.histories };
   const isUnread = message.from !== "me" && message.unread !== false;
+  const amount = Number(message.amount) || 0;
   histories[characterId] = [
     ...(Array.isArray(histories[characterId]) ? histories[characterId] : []),
     {
       id: createMessageId("msg"),
       from: message.from || "me",
-      text: message.text.trim(),
+      text: message.text?.trim() || (isTransfer ? `转账 ¥${amount.toFixed(2)}` : ""),
       time: message.time || "刚刚",
       createdAt: message.createdAt || nowStamp(),
+      ...(isTransfer
+        ? {
+            kind: "transfer",
+            amount,
+            note: message.note || "",
+            status: message.status || "pending",
+            transferDirection: message.transferDirection || (message.from === "me" ? "outgoing" : "incoming"),
+          }
+        : {}),
     },
   ];
   const hasConversation = normalized.conversations.some((item) => item.characterId === characterId);
@@ -185,4 +196,15 @@ export function appendChatMessage(state, characterId, message) {
         ...normalized.conversations,
       ];
   return { ...normalized, histories, conversations };
+}
+
+export function updateChatMessage(state, characterId, messageId, patch = {}) {
+  const normalized = normalizeMessageState(state);
+  if (!characterId || !messageId) return normalized;
+  const histories = { ...normalized.histories };
+  const history = Array.isArray(histories[characterId]) ? histories[characterId] : [];
+  histories[characterId] = history.map((message) =>
+    message.id === messageId ? { ...message, ...patch } : message,
+  );
+  return { ...normalized, histories };
 }

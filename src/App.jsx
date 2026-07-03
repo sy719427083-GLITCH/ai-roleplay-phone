@@ -56,6 +56,7 @@ import {
   markConversationRead,
   normalizeMessageState,
   rejectFriendRequest,
+  updateChatMessage,
 } from "./messageState.js";
 
 const appGroups = [
@@ -499,11 +500,10 @@ const loadStoredActiveWork = () => {
   return null;
 };
 
-const creditWalletFromWork = (job, amount) => {
-  if (amount <= 0) return;
+const readWalletData = () => {
   let current = { balance: 0, transactions: [] };
   try {
-    const stored = window.localStorage.getItem("roleplayWallet");
+    const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       current = {
@@ -514,60 +514,45 @@ const creditWalletFromWork = (job, amount) => {
   } catch {
     current = { balance: 0, transactions: [] };
   }
+  return current;
+};
+
+const writeWalletData = (walletData) => {
+  window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
+};
+
+const formatWalletDate = () => {
   const now = new Date();
-  const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  window.localStorage.setItem(
-    "roleplayWallet",
-    JSON.stringify({
-      balance: current.balance + amount,
-      transactions: [
-        {
-          id: Date.now(),
-          type: "add",
-          amount,
-          desc: `工作结算 - ${job.title}`,
-          date,
-        },
-        ...current.transactions,
-      ],
-    }),
-  );
+  return `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+};
+
+const applyWalletTransaction = ({ type, amount, desc }) => {
+  const value = Number(amount) || 0;
+  if (value <= 0) return false;
+  const current = readWalletData();
+  if (type === "sub" && current.balance < value) return false;
+  writeWalletData({
+    balance: current.balance + (type === "add" ? value : -value),
+    transactions: [
+      {
+        id: Date.now(),
+        type,
+        amount: value,
+        desc,
+        date: formatWalletDate(),
+      },
+      ...current.transactions,
+    ],
+  });
+  return true;
+};
+
+const creditWalletFromWork = (job, amount) => {
+  applyWalletTransaction({ type: "add", amount, desc: `工作结算 - ${job.title}` });
 };
 
 const spendWalletForWorkRefresh = () => {
-  let current = { balance: 0, transactions: [] };
-  try {
-    const stored = window.localStorage.getItem("roleplayWallet");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      current = {
-        balance: Number(parsed.balance) || 0,
-        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-      };
-    }
-  } catch {
-    current = { balance: 0, transactions: [] };
-  }
-  if (current.balance < WORK_PAID_REFRESH_COST) return false;
-  const now = new Date();
-  const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  window.localStorage.setItem(
-    "roleplayWallet",
-    JSON.stringify({
-      balance: current.balance - WORK_PAID_REFRESH_COST,
-      transactions: [
-        {
-          id: Date.now(),
-          type: "sub",
-          amount: WORK_PAID_REFRESH_COST,
-          desc: "工作刷新",
-          date,
-        },
-        ...current.transactions,
-      ],
-    }),
-  );
-  return true;
+  return applyWalletTransaction({ type: "sub", amount: WORK_PAID_REFRESH_COST, desc: "工作刷新" });
 };
 
 const formatDate = (date) =>
@@ -750,6 +735,7 @@ const LEGACY_CHARACTER_STORAGE_KEY = "ccat-character-profile";
 const RELATION_STORAGE_KEY = "apiRelations";
 const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
+const WALLET_STORAGE_KEY = "roleplayWallet";
 
 const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
 
@@ -2107,7 +2093,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.77</p>
+      <p className="version-label">Ccat OS v0.1.78</p>
     </section>
   );
 }
@@ -2924,6 +2910,38 @@ function MessageAvatar({ character }) {
   );
 }
 
+function TransferCard({ message, characterName, onAccept, onReject }) {
+  const amount = Number(message.amount) || 0;
+  const isIncoming = message.transferDirection !== "outgoing";
+  const isPending = message.status === "pending";
+  const statusText = message.status === "accepted" ? (isIncoming ? "已接收" : "对方已收款") : message.status === "rejected" ? (isIncoming ? "已拒绝" : "对方已退还") : isIncoming ? "待接收" : "等待对方确认";
+  return (
+    <span className="transfer-card">
+      <span className="transfer-main">
+        <span className="transfer-icon" aria-hidden="true">
+          <svg viewBox="0 0 28 28">
+            <path d="M14 3.8 24.2 9v10L14 24.2 3.8 19V9L14 3.8Z" />
+            <path d="M10 12.2h8M14 8.8v8.4" />
+          </svg>
+        </span>
+        <span className="transfer-copy">
+          <strong>¥{amount.toFixed(2)}</strong>
+          <em>{message.note || (isIncoming ? `${characterName} 向你转账` : `转账给 ${characterName}`)}</em>
+        </span>
+      </span>
+      <span className="transfer-footer">
+        <span>{statusText}</span>
+        {isIncoming && isPending && (
+          <span className="transfer-actions">
+            <button onClick={onReject}>拒绝</button>
+            <button onClick={onAccept}>接收</button>
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
 const getPrimaryMeProfile = () => {
   try {
     const profiles = JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
@@ -2992,6 +3010,21 @@ const getSelectedChatEndpoint = () => {
   return { ...endpoint, model };
 };
 
+const parseRoleTransferReply = (content) => {
+  const raw = String(content || "").trim();
+  const transferMatch = raw.match(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*(\d+(?:\.\d{1,2})?)/i);
+  const noteMatch = raw.match(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*(.+)$/im);
+  const cleaned = raw
+    .replace(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*\d+(?:\.\d{1,2})?/gi, "")
+    .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
+    .trim();
+  const amount = transferMatch ? Number(transferMatch[1]) : 0;
+  return {
+    text: cleaned || (amount > 0 ? "给你转了一笔钱。" : raw),
+    transfer: amount > 0 ? { amount, note: noteMatch?.[1]?.trim() || "角色转账" } : null,
+  };
+};
+
 const callRoleChatApi = async ({ character, history, userText }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) {
@@ -3008,7 +3041,8 @@ const callRoleChatApi = async ({ character, history, userText }) => {
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
-要求：回复要像真实线上聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令，内容简洁自然。`;
+要求：回复要像真实线上聊天，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令，内容简洁自然。
+如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -3035,13 +3069,63 @@ const callRoleChatApi = async ({ character, history, userText }) => {
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) throw new Error("聊天请求没有返回内容");
-  return content;
+  return parseRoleTransferReply(content);
+};
+
+const decideTransferAcceptance = async ({ character, history, amount, note }) => {
+  const endpoint = getSelectedChatEndpoint();
+  const fallback = Number(amount) <= 200;
+  if (!endpoint) return { accepted: fallback, text: fallback ? "我收到了。" : "这笔我先不收。" };
+
+  let url = endpoint.baseUrl.replace(/\/+$/, "");
+  if (!url.endsWith("/v1")) url += "/v1";
+  const messages = [
+    {
+      role: "system",
+      content: `你正在 Ccat OS 的信息 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown，不要括号动作。
+角色姓名：${character?.name || "未知角色"}
+身份：${character?.identity || character?.role || "未设定"}
+性格：${character?.personality || "自然、真实"}`,
+    },
+    ...history.slice(-10).map((item) => ({
+      role: item.from === "me" ? "user" : "assistant",
+      content: item.text,
+    })),
+    { role: "user", content: `我给你转账 ¥${Number(amount).toFixed(2)}。备注：${note || "无"}。你会接受还是拒绝？` },
+  ];
+  try {
+    const response = await fetch(`${url}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: endpoint.model,
+        messages,
+        temperature: Number(endpoint.temperature ?? 0.7),
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content?.trim() || "";
+    const parsed = JSON.parse(content.replace(/^```json\s*|\s*```$/g, ""));
+    return {
+      accepted: Boolean(parsed.accepted),
+      text: String(parsed.reply || (parsed.accepted ? "我收到了。" : "这笔我先不收。")).trim(),
+    };
+  } catch {
+    return { accepted: fallback, text: fallback ? "我收到了。" : "这笔我先不收。" };
+  }
 };
 
 function MessageAppScreen({ onClose }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [chatId, setChatId] = useState("");
   const [draft, setDraft] = useState("");
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferNote, setTransferNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
@@ -3094,8 +3178,12 @@ function MessageAppScreen({ onClose }) {
       return { ...conversation, character, latest };
     })
     .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  const getMessagePreview = (message) => {
+    if (message?.kind === "transfer") return `[转账] ¥${Number(message.amount || 0).toFixed(2)}`;
+    return message?.text || "";
+  };
   const conversations = allConversations.filter((conversation) =>
-    matchesSearch(conversation.character.name, conversation.character.role, conversation.latest?.text),
+    matchesSearch(conversation.character.name, conversation.character.role, getMessagePreview(conversation.latest)),
   );
   const unreadCount = allConversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
 
@@ -3131,7 +3219,22 @@ function MessageAppScreen({ onClose }) {
         history: previousHistory,
         userText,
       });
-      setMessageState((current) => appendChatMessage(current, chatId, { from: "role", text: reply, unread: false }));
+      setMessageState((current) => {
+        let next = appendChatMessage(current, chatId, { from: "role", text: reply.text, unread: false });
+        if (reply.transfer) {
+          next = appendChatMessage(next, chatId, {
+            from: "role",
+            kind: "transfer",
+            text: `转账 ¥${Number(reply.transfer.amount).toFixed(2)}`,
+            amount: reply.transfer.amount,
+            note: reply.transfer.note,
+            transferDirection: "incoming",
+            status: "pending",
+            unread: false,
+          });
+        }
+        return next;
+      });
     } catch (error) {
       setMessageState((current) =>
         appendChatMessage(current, chatId, {
@@ -3143,6 +3246,69 @@ function MessageAppScreen({ onClose }) {
     } finally {
       setSending(false);
     }
+  };
+
+  const sendTransfer = async () => {
+    const amount = Number(transferAmount);
+    if (!chatId || !Number.isFinite(amount) || amount <= 0 || sending) return;
+    const currentWallet = readWalletData();
+    if (currentWallet.balance < amount) {
+      window.alert("钱包余额不足。");
+      return;
+    }
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const previousHistory = messageState.histories[chatId] || [];
+    const note = transferNote.trim();
+    setTransferOpen(false);
+    setTransferAmount("");
+    setTransferNote("");
+    setSending(true);
+    setMessageState((current) => appendChatMessage(current, chatId, {
+      from: "me",
+      kind: "transfer",
+      text: `转账 ¥${amount.toFixed(2)}`,
+      amount,
+      note,
+      transferDirection: "outgoing",
+      status: "pending",
+    }));
+    try {
+      const decision = await decideTransferAcceptance({
+        character: activeCharacter,
+        history: previousHistory,
+        amount,
+        note,
+      });
+      if (decision.accepted) {
+        applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` });
+      }
+      setMessageState((current) => {
+        const history = current.histories?.[chatId] || [];
+        const transferMessage = [...history].reverse().find((item) => item.kind === "transfer" && item.from === "me" && item.status === "pending");
+        let next = transferMessage
+          ? updateChatMessage(current, chatId, transferMessage.id, { status: decision.accepted ? "accepted" : "rejected" })
+          : current;
+        next = appendChatMessage(next, chatId, {
+          from: "role",
+          text: decision.text,
+          unread: false,
+        });
+        return next;
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const settleIncomingTransfer = (message, accepted) => {
+    if (!chatId || message.status !== "pending") return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "角色" };
+    if (accepted) {
+      applyWalletTransaction({ type: "add", amount: message.amount, desc: `${activeCharacter.name || "角色"} 转账` });
+    }
+    setMessageState((current) =>
+      updateChatMessage(current, chatId, message.id, { status: accepted ? "accepted" : "rejected" }),
+    );
   };
 
   const renderFriendRequests = () => (
@@ -3221,7 +3387,7 @@ function MessageAppScreen({ onClose }) {
               <MessageAvatar character={conversation.character} />
               <span className="message-row-main">
                 <strong>{conversation.character.name}</strong>
-                <small>{conversation.latest?.text || "已添加联系人"}</small>
+                <small>{getMessagePreview(conversation.latest) || "已添加联系人"}</small>
               </span>
               <span className="message-row-side">
                 <span className="message-row-time">{formatMessageTime(conversation.latest?.createdAt || conversation.updatedAt)}</span>
@@ -3328,7 +3494,16 @@ function MessageAppScreen({ onClose }) {
           {history.map((message) => (
             <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
               {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
-              <span className="chat-bubble">{message.text}</span>
+              {message.kind === "transfer" ? (
+                <TransferCard
+                  message={message}
+                  characterName={activeCharacter.name || "角色"}
+                  onAccept={() => settleIncomingTransfer(message, true)}
+                  onReject={() => settleIncomingTransfer(message, false)}
+                />
+              ) : (
+                <span className="chat-bubble">{message.text}</span>
+              )}
               {message.from === "me" && <MessageAvatar character={meProfile} />}
             </div>
           ))}
@@ -3340,11 +3515,37 @@ function MessageAppScreen({ onClose }) {
           )}
         </div>
         <div className="chat-composer">
+          <button className="chat-transfer-button" onClick={() => setTransferOpen(true)} disabled={sending} aria-label="转账">
+            ¥
+          </button>
           <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") sendMessage();
           }} placeholder="输入消息" disabled={sending} />
           <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
         </div>
+        {transferOpen && (
+          <div className="transfer-modal-backdrop">
+            <div className="transfer-modal">
+              <strong>转账给 {activeCharacter.name || "角色"}</strong>
+              <input
+                autoFocus
+                inputMode="decimal"
+                value={transferAmount}
+                onChange={(event) => setTransferAmount(event.target.value)}
+                placeholder="输入金额 (¥)"
+              />
+              <input
+                value={transferNote}
+                onChange={(event) => setTransferNote(event.target.value)}
+                placeholder="备注，可不填"
+              />
+              <div className="transfer-modal-actions">
+                <button onClick={() => setTransferOpen(false)}>取消</button>
+                <button onClick={sendTransfer}>发送转账</button>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     );
   }
@@ -3396,7 +3597,7 @@ function OpenedApp({ app, onClose }) {
   const isMessages = app.title === "消息";
   const [walletData, setWalletData] = useState(() => {
     try {
-      const stored = window.localStorage.getItem("roleplayWallet");
+      const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         return {
@@ -3420,7 +3621,7 @@ function OpenedApp({ app, onClose }) {
 
   useEffect(() => {
     if (!isWallet) return;
-    window.localStorage.setItem("roleplayWallet", JSON.stringify(walletData));
+    window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
   }, [isWallet, walletData]);
 
   const currentMonth = new Date().getMonth() + 1;
