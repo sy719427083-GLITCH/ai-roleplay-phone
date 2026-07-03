@@ -4068,11 +4068,13 @@ select {
   font-size: 14px;
   font-weight: 560;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .message-swipe-row.show-delete .message-delete {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .message-avatar,
@@ -4188,6 +4190,11 @@ select {
   font-size: 14px;
 }
 
+.message-empty.compact {
+  min-height: 82px;
+  padding: 20px;
+}
+
 .message-tabbar {
   position: absolute;
   right: 16px;
@@ -4267,6 +4274,12 @@ select {
 
 .chat-page {
   background: #fff;
+}
+
+.chat-page .message-topbar {
+  grid-template-columns: 54px minmax(0, 1fr) 54px;
+  min-height: calc(34px + max(8px, env(safe-area-inset-top)));
+  padding: max(8px, env(safe-area-inset-top)) 18px 0;
 }
 
 .chat-list {

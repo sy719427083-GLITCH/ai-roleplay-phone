@@ -47,7 +47,6 @@ import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 import {
   MESSAGE_STORAGE_KEY,
   acceptFriendRequest,
-  addOutgoingFriendRequest,
   appendChatMessage,
   createEmptyMessageState,
   createIncomingFriendRequest,
@@ -2200,7 +2199,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.96</p>
+      <p className="version-label">Ccat OS v0.1.97</p>
     </section>
   );
 }
@@ -3439,7 +3438,39 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     const swipe = swipeRef.current;
     swipeRef.current = null;
     if (!swipe) return;
-    if (Math.abs(event.clientX - swipe.x) > 32) setSwipedId(swipe.characterId);
+    const deltaX = event.clientX - swipe.x;
+    if (deltaX < -32) setSwipedId(swipe.characterId);
+    if (deltaX > 24) setSwipedId("");
+  };
+
+  const requestAddCharacter = (character) => {
+    if (!character?.id) return;
+    const accepted = Math.random() < 0.68;
+    if (!accepted) {
+      window.alert(`${character.name || "角色"} 暂时拒绝了好友申请。`);
+      return;
+    }
+    const requestId = `instant-${character.id}-${Date.now()}`;
+    setMessageState((current) =>
+      acceptFriendRequest(
+        {
+          ...current,
+          requests: [
+            {
+              id: requestId,
+              characterId: character.id,
+              direction: "outgoing",
+              status: "accepted",
+              createdAt: new Date().toISOString(),
+            },
+            ...(current.requests || []),
+          ],
+        },
+        requestId,
+        character,
+      ),
+    );
+    window.alert(`${character.name || "角色"} 已同意添加。`);
   };
 
   const sendMessage = async () => {
@@ -3591,15 +3622,9 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   const renderFriendRequests = () => (
     <div className="message-section">
-      <button className="message-row new-friend-row" onClick={() => setMessageTab("contacts")}>
-        <span className="message-system-avatar">＋</span>
-        <span className="message-row-main">
-          <strong>添加好友</strong>
-          <small>Add Friend</small>
-        </span>
-      </button>
+      <div className="message-list-title">新的朋友</div>
       {messageState.requests.length === 0 ? (
-        <div className="message-empty">暂无新的朋友申请</div>
+        <div className="message-empty compact">暂无新的朋友申请</div>
       ) : (
         messageState.requests.map((request) => {
           const character = characterMap[request.characterId] || { name: "未知角色", role: "角色" };
@@ -3628,6 +3653,28 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             </div>
           );
         })
+      )}
+      <div className="message-list-title">通讯录</div>
+      {addableCharacters.length === 0 ? (
+        <div className="message-empty compact">暂无可添加角色</div>
+      ) : (
+        addableCharacters.map((character) => (
+          <div className="message-row request-row" key={character.id}>
+            <MessageAvatar character={character} />
+            <span className="message-row-main">
+              <strong>{character.name}</strong>
+              <small>{character.role || "角色"}</small>
+            </span>
+            <span className="request-actions">
+              <button className="request-accept" onClick={() => requestAddCharacter(character)}>
+                添加
+              </button>
+              <button className="request-reject" onClick={() => setMessageState((current) => createIncomingFriendRequest(current, character.id))}>
+                主动加我
+              </button>
+            </span>
+          </div>
+        ))
       )}
     </div>
   );
@@ -3702,7 +3749,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           <small>Group Chats</small>
         </span>
       </button>
-      <div className="message-list-title">通讯录</div>
+      <div className="message-list-title">联系人</div>
       {contacts.map((character) => (
         <button className="message-row" key={character.id} onClick={() => openChat(character)}>
           <MessageAvatar character={character} />
@@ -3712,24 +3759,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           </span>
         </button>
       ))}
-      {addableCharacters.length > 0 && <div className="message-list-title">可添加角色</div>}
-      {addableCharacters.map((character) => (
-        <div className="message-row request-row" key={character.id}>
-          <MessageAvatar character={character} />
-          <span className="message-row-main">
-            <strong>{character.name}</strong>
-            <small>{character.role || "角色"}</small>
-          </span>
-          <span className="request-actions">
-            <button className="request-accept" onClick={() => setMessageState((current) => addOutgoingFriendRequest(current, character.id))}>
-              添加
-            </button>
-            <button className="request-reject" onClick={() => setMessageState((current) => createIncomingFriendRequest(current, character.id))}>
-              申请
-            </button>
-          </span>
-        </div>
-      ))}
+      {contacts.length === 0 && <div className="message-empty compact">暂无联系人</div>}
     </div>
   );
 
@@ -3873,10 +3903,14 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   return (
     <section className="full-page message-page wechat-page">
       <header className="message-topbar wechat-topbar">
-        <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回">
-          <ChevronLeft size={22} />
-        </button>
-        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "通讯录" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
+        {messageTab === "contacts" ? (
+          <span></span>
+        ) : (
+          <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回">
+            <ChevronLeft size={22} />
+          </button>
+        )}
+        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
         <button className="message-add wechat-plus" onClick={() => setMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
@@ -3894,7 +3928,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
       <nav className="message-tabbar" aria-label="消息导航">
         {[
           ["messages", "信息"],
-          ["contacts", "通讯录"],
+          ["contacts", "联系人"],
           ["moments", "发现"],
           ["me", "我"],
         ].map(([id, cn]) => (
