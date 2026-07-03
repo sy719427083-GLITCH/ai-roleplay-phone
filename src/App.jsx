@@ -740,6 +740,31 @@ const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
+const CHROME_COLORS = {
+  home: "#f7f7f9",
+  white: "#ffffff",
+  me: "#fdfbf8",
+  lock: "#fbfbfb",
+};
+
+const setChromeColor = (color) => {
+  if (typeof document === "undefined") return;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  meta?.setAttribute("content", color);
+  document.documentElement.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
+  const root = document.getElementById("root");
+  if (root) root.style.backgroundColor = color;
+};
+
+const getChromeColor = ({ locked, tab, openedApp, settingPage, launching }) => {
+  const launchTitle = launching?.type === "app" ? launching.payload?.title : "";
+  if (locked) return CHROME_COLORS.lock;
+  if (openedApp?.title === "消息" || launchTitle === "消息") return CHROME_COLORS.white;
+  if (settingPage || launching?.type === "setting") return CHROME_COLORS.home;
+  if (tab === "me") return CHROME_COLORS.me;
+  return CHROME_COLORS.home;
+};
 
 const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
 
@@ -2153,7 +2178,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.85</p>
+      <p className="version-label">Ccat OS v0.1.86</p>
     </section>
   );
 }
@@ -4114,6 +4139,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    setChromeColor(getChromeColor({ locked, tab, openedApp, settingPage, launching }));
+  }, [locked, tab, openedApp?.title, settingPage?.id, launching?.type, launching?.payload?.title]);
+
+  useEffect(() => {
     if (!launching) return undefined;
     const timer = window.setTimeout(() => {
       if (launching.type === "app") setOpenedApp(launching.payload);
@@ -4180,6 +4209,13 @@ export function App() {
   }, [messageToast]);
 
   const openWithLoader = (type, payload) => {
+    setChromeColor(getChromeColor({
+      locked: false,
+      tab,
+      openedApp: type === "app" ? payload : null,
+      settingPage: type === "setting" ? payload : null,
+      launching: { type, payload },
+    }));
     if (hasShownLaunch) {
       if (type === "app") setOpenedApp(payload);
       if (type === "setting") setSettingPage(payload);
@@ -4233,9 +4269,18 @@ export function App() {
           <i>+{Math.min(99, messageUnread)}</i>
         </button>
       )}
-      {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} onMessageUnreadChange={setMessageUnread} />}
-      {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
-      {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
+      {openedApp && <OpenedApp app={openedApp} onClose={() => {
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp: null, settingPage, launching: null }));
+        setOpenedApp(null);
+      }} onMessageUnreadChange={setMessageUnread} />}
+      {settingPage?.id === "api" && <ApiSettingsPage onBack={() => {
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));
+        setSettingPage(null);
+      }} />}
+      {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => {
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));
+        setSettingPage(null);
+      }} />}
       {launching && <LaunchLoader />}
     </main>
   );

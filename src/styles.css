@@ -1,6 +1,6 @@
 :root {
   color: #111111;
-  background: #ffffff;
+  background: #f7f7f9;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -45,7 +45,7 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  background: #ffffff;
+  background: #f7f7f9;
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -55,7 +55,7 @@ body {
   width: 100vw;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #ffffff;
+  background: #f7f7f9;
   overflow: hidden;
   touch-action: manipulation;
 }
