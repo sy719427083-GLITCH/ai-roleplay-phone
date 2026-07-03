@@ -4635,8 +4635,8 @@ select {
   position: relative;
   z-index: 5;
   grid-template-columns: 54px minmax(0, 1fr) 54px;
-  min-height: calc(42px + max(34px, env(safe-area-inset-top)));
-  padding: max(34px, env(safe-area-inset-top)) 18px 0;
+  min-height: calc(40px + max(28px, env(safe-area-inset-top)));
+  padding: max(28px, env(safe-area-inset-top)) 18px 0;
   background: #fff;
   backdrop-filter: none;
 }
@@ -4681,7 +4681,7 @@ select {
   justify-content: center;
   gap: 10px;
   height: 40px;
-  margin: 2px 8px 0;
+  margin: 0 8px 0;
   border-radius: 5px;
   background: #f7f7f7;
   color: #b2b2b6;
