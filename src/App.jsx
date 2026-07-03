@@ -2179,7 +2179,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.89</p>
+      <p className="version-label">Ccat OS v0.1.90</p>
     </section>
   );
 }
@@ -3333,6 +3333,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
   const swipeRef = useRef(null);
+  const chatListRef = useRef(null);
+  const chatScrollRef = useRef({});
   const characters = useMemo(readMessageCharacters, []);
   const [messageState, setMessageState] = useState(() => {
     try {
@@ -3391,12 +3393,32 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   );
   const unreadCount = allConversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
 
+  const closeChat = () => {
+    if (chatId && chatListRef.current) {
+      chatScrollRef.current[chatId] = chatListRef.current.scrollTop;
+    }
+    setChatId("");
+  };
+
   const openChat = (character) => {
     if (!character?.id) return;
+    if (chatId && chatListRef.current) {
+      chatScrollRef.current[chatId] = chatListRef.current.scrollTop;
+    }
     setMessageState((current) => markConversationRead(createConversationForCharacter(current, character), character.id));
     setSwipedId("");
     setChatId(character.id);
   };
+
+  useEffect(() => {
+    if (!chatId || !chatListRef.current) return;
+    const savedTop = chatScrollRef.current[chatId];
+    if (Number.isFinite(savedTop)) {
+      requestAnimationFrame(() => {
+        if (chatListRef.current) chatListRef.current.scrollTop = savedTop;
+      });
+    }
+  }, [chatId]);
 
   const handleSwipeStart = (event, characterId) => {
     swipeRef.current = { x: event.clientX, characterId };
@@ -3723,13 +3745,13 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     return (
       <section className="full-page message-page chat-page">
         <header className="message-topbar">
-          <button onClick={() => setChatId("")} aria-label="返回">
+          <button onClick={closeChat} aria-label="返回">
             <ChevronLeft size={21} />
           </button>
           <strong>{activeCharacter.name}</strong>
           <span></span>
         </header>
-        <div className="chat-list">
+        <div className="chat-list" ref={chatListRef}>
           {history.map((message) => (
             <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
               {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
