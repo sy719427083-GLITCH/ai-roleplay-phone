@@ -612,7 +612,7 @@ function LockScreen({ onUnlock }) {
   );
 }
 
-function AppIcon({ item, onOpen }) {
+function AppIcon({ item, onOpen, badge = 0 }) {
   const Icon = item.icon;
   const isSolid = item.variant === "solid";
   const isCutout = item.variant === "cutout";
@@ -635,13 +635,14 @@ function AppIcon({ item, onOpen }) {
           fill={isSolid || isCutout ? "currentColor" : "none"}
           fillOpacity={isSolid || isCutout ? 0.9 : 0}
         />
+        {badge > 0 && <em className="app-badge">+{Math.min(99, badge)}</em>}
       </span>
       <span>{item.title}</span>
     </button>
   );
 }
 
-function HomeScreen({ onOpen }) {
+function HomeScreen({ onOpen, messageUnread = 0 }) {
   const [page, setPage] = useState(0);
   const [startX, setStartX] = useState(null);
   const [dragX, setDragX] = useState(0);
@@ -699,7 +700,7 @@ function HomeScreen({ onOpen }) {
           {appGroups.map((group, index) => (
             <div className="app-grid" key={index}>
               {group.map((item) => (
-                <AppIcon item={item} key={item.title} onOpen={openApp} />
+                <AppIcon item={item} key={item.title} onOpen={openApp} badge={item.title === "消息" ? messageUnread : 0} />
               ))}
             </div>
           ))}
@@ -736,6 +737,7 @@ const RELATION_STORAGE_KEY = "apiRelations";
 const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
+const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 
 const relationTypes = ["挚友", "宿敌", "恋人", "师徒", "主仆", "血亲", "暗恋", "盟友", "死敌", "单相思", "合作", "救赎", "custom"];
 
@@ -808,6 +810,36 @@ const readAvatarSource = (file, onLoad) => {
     if (dataUrl) onLoad(dataUrl);
   };
   reader.readAsDataURL(file);
+};
+
+const getStoredMessageState = () => {
+  try {
+    const stored = window.localStorage.getItem(MESSAGE_STORAGE_KEY);
+    return stored ? normalizeMessageState(JSON.parse(stored)) : createEmptyMessageState();
+  } catch {
+    return createEmptyMessageState();
+  }
+};
+
+const writeStoredMessageState = (state) => {
+  window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(normalizeMessageState(state)));
+};
+
+const getMessageUnreadCount = (state = getStoredMessageState()) =>
+  normalizeMessageState(state).conversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
+
+const proactiveLines = [
+  "你现在方便回我吗？",
+  "刚才想到你，就发一条消息过来。",
+  "我有点事想和你说。",
+  "你今天过得怎么样？",
+  "看到一件事，忽然想问问你。",
+  "在吗？",
+];
+
+const pickProactiveLine = (character) => {
+  const seed = String(character?.name || "").length + new Date().getMinutes();
+  return proactiveLines[seed % proactiveLines.length];
 };
 
 function AvatarContent({ character }) {
@@ -2093,7 +2125,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.78</p>
+      <p className="version-label">Ccat OS v0.1.79</p>
     </section>
   );
 }
@@ -3119,7 +3151,7 @@ const decideTransferAcceptance = async ({ character, history, amount, note }) =>
   }
 };
 
-function MessageAppScreen({ onClose }) {
+function MessageAppScreen({ onClose, onUnreadChange }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [chatId, setChatId] = useState("");
   const [draft, setDraft] = useState("");
@@ -3147,6 +3179,7 @@ function MessageAppScreen({ onClose }) {
 
   useEffect(() => {
     window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageState));
+    onUnreadChange?.(getMessageUnreadCount(messageState));
   }, [messageState]);
 
   useEffect(() => {
@@ -3591,7 +3624,7 @@ function MessageAppScreen({ onClose }) {
   );
 }
 
-function OpenedApp({ app, onClose }) {
+function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
   const isWork = app.title === "工作";
   const isMessages = app.title === "消息";
@@ -3666,7 +3699,7 @@ function OpenedApp({ app, onClose }) {
   };
 
   if (isWork) return <WorkAppScreen onClose={onClose} />;
-  if (isMessages) return <MessageAppScreen onClose={onClose} />;
+  if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
 
   return (
     <section
@@ -3846,6 +3879,8 @@ export function App() {
   const [hasShownLaunch, setHasShownLaunch] = useState(false);
   const [hideCharacterTabs, setHideCharacterTabs] = useState(false);
   const [hideMeTabs, setHideMeTabs] = useState(false);
+  const [messageUnread, setMessageUnread] = useState(() => getMessageUnreadCount());
+  const [messageToast, setMessageToast] = useState(null);
 
   useEffect(() => {
     const preventZoom = (event) => event.preventDefault();
@@ -3869,6 +3904,56 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [launching]);
 
+  useEffect(() => {
+    const refreshUnread = () => setMessageUnread(getMessageUnreadCount());
+    refreshUnread();
+    window.addEventListener("storage", refreshUnread);
+    return () => window.removeEventListener("storage", refreshUnread);
+  }, []);
+
+  useEffect(() => {
+    if (locked || openedApp?.title === "消息" || launching) return undefined;
+
+    const maybeSendProactive = () => {
+      if (openedApp?.title === "消息") return;
+      const now = Date.now();
+      const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
+      if (now - lastAt < 45000) return;
+
+      const state = getStoredMessageState();
+      const contacts = state.contacts.filter((contact) => contact.characterId);
+      if (!contacts.length) return;
+      const characters = Object.fromEntries(readMessageCharacters().map((character) => [character.id, character]));
+      const contact = contacts[now % contacts.length];
+      const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
+      const text = pickProactiveLine(character);
+      const next = appendChatMessage(state, contact.characterId, {
+        from: "role",
+        text,
+      });
+      writeStoredMessageState(next);
+      window.localStorage.setItem(PROACTIVE_MESSAGE_STORAGE_KEY, String(now));
+      setMessageUnread(getMessageUnreadCount(next));
+      setMessageToast({
+        character,
+        text,
+      });
+    };
+
+    const firstTimer = window.setTimeout(maybeSendProactive, 9000);
+    const interval = window.setInterval(maybeSendProactive, 45000);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [locked, openedApp?.title, launching]);
+
+  useEffect(() => {
+    if (!messageToast) return undefined;
+    const timer = window.setTimeout(() => setMessageToast(null), 5200);
+    return () => window.clearTimeout(timer);
+  }, [messageToast]);
+
   const openWithLoader = (type, payload) => {
     if (hasShownLaunch) {
       if (type === "app") setOpenedApp(payload);
@@ -3879,12 +3964,17 @@ export function App() {
     setLaunching({ type, payload });
   };
 
+  const openMessagesFromToast = () => {
+    setMessageToast(null);
+    openWithLoader("app", { title: "消息", originX: window.innerWidth / 2, originY: 88 });
+  };
+
   const content = useMemo(() => {
-    if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} />;
+    if (tab === "home") return <HomeScreen onOpen={(app) => openWithLoader("app", app)} messageUnread={messageUnread} />;
     if (tab === "characters") return <CharacterAppScreen onChildPageChange={setHideCharacterTabs} />;
     if (tab === "me") return <MeAppScreen onChildPageChange={setHideMeTabs} />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
-  }, [tab, hasShownLaunch]);
+  }, [tab, hasShownLaunch, messageUnread]);
 
   useEffect(() => {
     if (tab !== "characters") setHideCharacterTabs(false);
@@ -3908,7 +3998,17 @@ export function App() {
         {content}
         {!((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}
       </div>
-      {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} />}
+      {messageToast && !openedApp && !settingPage && !launching && (
+        <button className="message-home-toast" onClick={openMessagesFromToast}>
+          <MessageAvatar character={messageToast.character} />
+          <span>
+            <strong>{messageToast.character.name || "新消息"}</strong>
+            <em>{messageToast.text}</em>
+          </span>
+          <i>+{Math.min(99, messageUnread)}</i>
+        </button>
+      )}
+      {openedApp && <OpenedApp app={openedApp} onClose={() => setOpenedApp(null)} onMessageUnreadChange={setMessageUnread} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => setSettingPage(null)} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => setSettingPage(null)} />}
       {launching && <LaunchLoader />}
