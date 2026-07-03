@@ -60,6 +60,11 @@ body {
   touch-action: manipulation;
 }
 
+body[data-chrome-color="white"],
+body[data-chrome-color="white"] #root {
+  background: #ffffff !important;
+}
+
 .lock-screen,
 .phone-surface {
   position: relative;
@@ -75,7 +80,9 @@ body {
 }
 
 .phone-surface:has(.message-page),
-.phone-stage:has(.message-page) {
+.phone-stage:has(.message-page),
+.phone-surface.message-opening,
+.phone-surface.message-opening .phone-stage {
   background: #fff;
 }
 
@@ -5572,6 +5579,10 @@ select {
   display: grid;
   place-items: center;
   background: #f7f7f9;
+}
+
+.phone-surface.message-opening .launch-loader {
+  background: #ffffff;
 }
 
 .launch-loader-track {

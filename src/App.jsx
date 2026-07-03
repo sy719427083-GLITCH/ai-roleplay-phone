@@ -751,6 +751,7 @@ const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
   const meta = document.querySelector('meta[name="theme-color"]');
   meta?.setAttribute("content", color);
+  document.body.dataset.chromeColor = color === CHROME_COLORS.white ? "white" : "default";
   document.documentElement.style.backgroundColor = color;
   document.body.style.backgroundColor = color;
   const root = document.getElementById("root");
@@ -2178,7 +2179,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.87</p>
+      <p className="version-label">Ccat OS v0.1.88</p>
     </section>
   );
 }
@@ -4245,10 +4246,12 @@ export function App() {
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
   const hasOverlay = Boolean(openedApp || settingPage || launching);
+  const isMessageOpening = openedApp?.title === "消息" || (launching?.type === "app" && launching.payload?.title === "消息");
   const surfaceClass = [
     "phone-surface",
     `tab-${tab}`,
     hasOverlay ? "overlay-active" : "",
+    isMessageOpening ? "message-opening" : "",
     hideCharacterTabs ? "character-subpage-active" : "",
     hideMeTabs ? "me-subpage-active" : "",
   ].filter(Boolean).join(" ");
