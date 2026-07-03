@@ -895,7 +895,7 @@ const splitChatMessages = (text) => {
     .split(/\n+/)
     .map((part) => sanitizeOnlineChatText(part))
     .filter(Boolean);
-  return (parts.length ? parts : [cleaned]).slice(0, 3);
+  return (parts.length ? parts : [cleaned]).slice(0, 5);
 };
 
 const waitForChatBeat = (index = 0) =>
@@ -2200,7 +2200,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.94</p>
+      <p className="version-label">Ccat OS v0.1.95</p>
     </section>
   );
 }
@@ -3217,7 +3217,7 @@ const callRoleChatApi = async ({ character, history, userText }) => {
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
-要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次回复 3 条短消息，每条消息用换行分隔。
+要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
 如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
   const messages = [
@@ -3355,7 +3355,6 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [swipedId, setSwipedId] = useState("");
   const swipeRef = useRef(null);
   const chatListRef = useRef(null);
-  const chatScrollRef = useRef({});
   const characters = useMemo(readMessageCharacters, []);
   const [messageState, setMessageState] = useState(() => {
     try {
@@ -3415,17 +3414,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const unreadCount = allConversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
 
   const closeChat = () => {
-    if (chatId && chatListRef.current) {
-      chatScrollRef.current[chatId] = chatListRef.current.scrollTop;
-    }
     setChatId("");
   };
 
   const openChat = (character) => {
     if (!character?.id) return;
-    if (chatId && chatListRef.current) {
-      chatScrollRef.current[chatId] = chatListRef.current.scrollTop;
-    }
     setMessageState((current) => markConversationRead(createConversationForCharacter(current, character), character.id));
     setSwipedId("");
     setChatId(character.id);
@@ -3433,13 +3426,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   useEffect(() => {
     if (!chatId || !chatListRef.current) return;
-    const savedTop = chatScrollRef.current[chatId];
-    if (Number.isFinite(savedTop)) {
-      requestAnimationFrame(() => {
-        if (chatListRef.current) chatListRef.current.scrollTop = savedTop;
-      });
-    }
-  }, [chatId]);
+    requestAnimationFrame(() => {
+      if (chatListRef.current) chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+    });
+  }, [chatId, messageState.histories?.[chatId]?.length, sending]);
 
   const handleSwipeStart = (event, characterId) => {
     swipeRef.current = { x: event.clientX, characterId };
@@ -3466,7 +3456,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         history: previousHistory,
         userText,
       });
-      const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 3);
+      const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
       for (let index = 0; index < roleMessages.length; index += 1) {
         await waitForChatBeat(index);
         setMessageState((current) => appendChatMessage(current, chatId, {
@@ -3584,11 +3574,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         window.alert("现在没有适合主动发送的内容。");
         return;
       }
-      for (let index = 0; index < messages.slice(0, 3).length; index += 1) {
+      const proactiveMessages = messages.slice(0, 5);
+      for (let index = 0; index < proactiveMessages.length; index += 1) {
         await waitForChatBeat(index);
         setMessageState((current) => appendChatMessage(current, chatId, {
           from: "role",
-          text: messages[index],
+          text: proactiveMessages[index],
           unread: false,
         }));
       }
