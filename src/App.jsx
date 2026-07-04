@@ -105,6 +105,131 @@ const tabs = [
   { id: "settings", label: "设置" },
 ];
 
+const worldbookWorlds = [
+  {
+    id: "sky-era",
+    name: "苍穹纪元",
+    genre: "高魔史诗",
+    tone: "王冠、雪原与旧画未完",
+    updated: "今日 18:40",
+    tint: "blue",
+    stats: { main: 12, support: 24, links: 18, memories: 96 },
+    characters: [
+      {
+        id: "lin",
+        name: "林砚舟",
+        identity: "流亡画师",
+        relation: "旧友",
+        status: "熟识",
+        tags: ["温和", "隐忍", "旧王城"],
+        summary: "曾为王城壁画师，因一幅未完成的星图被卷入王冠战争。流亡后以替人画像为生，仍保存着关于主角身世的残页。",
+        sections: [
+          ["背景", "出生于王城东侧的画师街，少年时被选入宫廷工坊。他见过旧王最后一次加冕，也见过城门在雪夜关闭。"],
+          ["生平", "王冠战争后，他带着半卷星图离开王城，在北境、赤砂与星坠海之间辗转。每到一处都会留下无名壁画。"],
+          ["性格", "说话克制，习惯把危险讲得很轻。真正重要的事情会先画下来，再决定是否说出口。"],
+          ["与我的关系", "早年在雨巷相识。他知道我的旧名，却从不主动提起。关系像一封没有拆开的信。"],
+          ["重要经历", "参与修复开天裂隙壁画；在雪原救下失踪信使；拒绝帝国议会召回。"],
+        ],
+      },
+      {
+        id: "shen",
+        name: "沈清瑶",
+        identity: "摄政女帝",
+        relation: "盟约",
+        status: "警惕",
+        tags: ["冷静", "王权", "白塔盟约"],
+        summary: "以摄政之名维持帝国秩序，真正目标是阻止第二次星坠。她将私人情感藏在每一道政令之后。",
+        sections: [
+          ["背景", "旧王幼女，白塔学派的前任观星者。登上王座并非野心，而是灾难之后无人可退。"],
+          ["生平", "十七岁签署白塔盟约，二十一岁平定西境叛乱，二十四岁开始秘密寻找星坠海遗物。"],
+          ["性格", "极度自持，善于计算代价。她相信温柔不能治理帝国，却仍会为无名者留下余地。"],
+          ["与我的关系", "表面是契约同盟，私下多次放走我方线人。她既需要我，也防备我。"],
+        ],
+      },
+      {
+        id: "qi",
+        name: "祁无妄",
+        identity: "禁军统领",
+        relation: "守护",
+        status: "亲近",
+        tags: ["沉默", "守誓", "长枪"],
+        summary: "掌管王城禁军，奉行古老守誓法。外界以为他效忠王座，其实他守护的是一段被抹去的预言。",
+        sections: [
+          ["背景", "出身黑曜群山的守誓家族，幼年被送入王城作为质子。"],
+          ["生平", "从质子到统领，他每一步都像被写进军令。唯一一次违令，是在王城夜谈后。"],
+          ["性格", "话少，行动直接。对承诺近乎固执，宁愿背负罪名也不解释。"],
+          ["与我的关系", "曾在雪原护送我三十七日。我们之间的信任来自沉默，而不是誓言。"],
+        ],
+      },
+      {
+        id: "bai",
+        name: "白棠",
+        identity: "星港医生",
+        relation: "恩人",
+        status: "信赖",
+        tags: ["医者", "星港", "旧伤"],
+        summary: "在星港经营一间夜诊所，收治不该活下来的人。她保存着许多人的秘密，也保存着我的旧伤记录。",
+        sections: [["背景", "前白塔医师，因拒绝交出病人名册被除名。"], ["生平", "星坠海封锁后，她将诊所搬到港口地下三层。"], ["与我的关系", "她知道我每一次濒死的原因。"]],
+      },
+    ],
+    memories: ["初遇雨巷", "旧画未完", "王城夜谈", "雪原离别"],
+  },
+  {
+    id: "fog-port",
+    name: "雾港旧梦",
+    genre: "近代悬疑",
+    tone: "煤气灯、旧报纸与失踪案",
+    updated: "昨日 23:12",
+    tint: "mist",
+    stats: { main: 8, support: 14, links: 11, memories: 54 },
+    characters: [
+      {
+        id: "yan",
+        name: "严渡",
+        identity: "私家侦探",
+        relation: "委托人",
+        status: "试探",
+        tags: ["冷幽默", "烟草", "旧案"],
+        summary: "雾港最会装作不在乎的人。十年前的港口大火夺走了他的家，也给他留下永远查不完的名单。",
+        sections: [["背景", "前警署探员，因公开质疑结案报告被迫离职。"], ["生平", "以私家侦探身份重查雾港旧案，逐渐接近失踪档案的核心。"], ["与我的关系", "他雇我翻译旧报，却从第一天起就在调查我的来历。"]],
+      },
+      {
+        id: "su",
+        name: "苏弥",
+        identity: "剧院歌者",
+        relation: "线索",
+        status: "暧昧",
+        tags: ["歌声", "假名", "红剧院"],
+        summary: "红剧院每晚最后一个谢幕的人。她唱的不是情歌，是某种只有失踪者家属才听得懂的暗号。",
+        sections: [["背景", "来自旧码头孤儿院，十二岁进入红剧院。"], ["生平", "她用假名活了七年，每个名字都对应一桩案子。"], ["性格", "明亮、敏锐，擅长把恐惧说成玩笑。"]],
+      },
+    ],
+    memories: ["红剧院雨夜", "码头旧报", "第七封信"],
+  },
+  {
+    id: "star-ring",
+    name: "星环边境",
+    genre: "科幻殖民",
+    tone: "冷光舱门、边境协议与失重告别",
+    updated: "7月2日",
+    tint: "mint",
+    stats: { main: 16, support: 25, links: 21, memories: 73 },
+    characters: [
+      {
+        id: "noa",
+        name: "诺亚·岑",
+        identity: "边境领航员",
+        relation: "搭档",
+        status: "信任",
+        tags: ["领航", "星环", "沉着"],
+        summary: "星环边境最年轻的领航员，能在无信标区域凭旧星图返航。他把每一次沉默都当作计算的一部分。",
+        sections: [["背景", "出生在殖民舰尾舱，第一次看见行星是在十六岁。"], ["生平", "完成过三次无信标跃迁，失去过两支救援队。"], ["与我的关系", "我们共享同一份航行错误记录。"]],
+      },
+    ],
+    memories: ["失重告别", "第九航道", "蓝色求救信号"],
+  },
+];
+
 const settingsItems = [
   { id: "api", label: "API设置", icon: KeyRound, featured: true },
   { id: "sound", label: "声音设置", icon: Volume2 },
@@ -2174,7 +2299,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.11</p>
+      <p className="version-label">Ccat OS V0.2.12</p>
     </section>
   );
 }
@@ -4280,10 +4405,219 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   );
 }
 
+function WorldbookAppScreen({ onClose }) {
+  const [selectedWorldId, setSelectedWorldId] = useState("");
+  const [view, setView] = useState("library");
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
+  const selectedWorld = worldbookWorlds.find((world) => world.id === selectedWorldId) || worldbookWorlds[0];
+  const selectedCharacter = selectedWorld.characters.find((character) => character.id === selectedCharacterId) || selectedWorld.characters[0];
+
+  const openWorld = (worldId) => {
+    setSelectedWorldId(worldId);
+    setSelectedCharacterId("");
+    setView("overview");
+  };
+
+  const openCharacters = () => {
+    setSelectedCharacterId("");
+    setView("characters");
+  };
+
+  const openCharacter = (characterId) => {
+    setSelectedCharacterId(characterId);
+    setView("detail");
+  };
+
+  const handleBack = () => {
+    if (view === "library") {
+      onClose();
+      return;
+    }
+    if (view === "overview") {
+      setView("library");
+      return;
+    }
+    if (view === "characters" || view === "relations") {
+      setView("overview");
+      return;
+    }
+    setView("characters");
+  };
+
+  const renderLibrary = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-hero">
+        <span className="worldbook-kicker">Celestial Character Archive</span>
+        <h1>世界书</h1>
+        <p>选择一个世界，查看人物背景、生平、关系与共同记忆。</p>
+        <div className="worldbook-search">搜索世界 / 人物 / 记忆</div>
+      </section>
+      <section className="worldbook-world-list" aria-label="世界列表">
+        {worldbookWorlds.map((world) => (
+          <button className={`worldbook-world-row ${world.tint}`} key={world.id} onClick={() => openWorld(world.id)}>
+            <span className="worldbook-world-mark">
+              <Globe2 size={22} strokeWidth={1.7} />
+            </span>
+            <span className="worldbook-world-copy">
+              <strong>{world.name}</strong>
+              <em>{world.genre} · {world.tone}</em>
+              <small>{world.stats.main + world.stats.support} 位人物 · {world.stats.memories} 段记忆 · {world.updated}</small>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        ))}
+      </section>
+    </main>
+  );
+
+  const overviewEntries = [
+    { id: "main", title: "主要人物", desc: "核心角色的背景、生平与关系", count: selectedWorld.stats.main, icon: UserRound, action: openCharacters },
+    { id: "support", title: "支线人物", desc: "旅途中出现的重要旁支人物", count: selectedWorld.stats.support, icon: UsersRound, action: openCharacters },
+    { id: "relations", title: "关系网", desc: "人物之间的连接与情感走向", count: selectedWorld.stats.links, icon: Heart, action: () => setView("relations") },
+    { id: "timeline", title: "生平时间线", desc: "按时间查看人物经历节点", count: selectedWorld.stats.memories, icon: Clock3, action: () => setView("relations") },
+    { id: "memories", title: "共同记忆", desc: "可点开的记忆标题与事件片段", count: selectedWorld.memories.length, icon: BookMarked, action: () => setView("relations") },
+  ];
+
+  const renderOverview = () => (
+    <main className="worldbook-main">
+      <section className={`worldbook-overview ${selectedWorld.tint}`}>
+        <div className="worldbook-orbit" aria-hidden="true">
+          <span></span>
+          <i></i>
+        </div>
+        <span className="worldbook-kicker">人物档案总览</span>
+        <h1>{selectedWorld.name}</h1>
+        <p>{selectedWorld.genre} · {selectedWorld.tone}</p>
+        <div className="worldbook-stat-grid">
+          <span><strong>{selectedWorld.stats.main}</strong><em>主要人物</em></span>
+          <span><strong>{selectedWorld.stats.support}</strong><em>支线人物</em></span>
+          <span><strong>{selectedWorld.stats.links}</strong><em>关系线</em></span>
+          <span><strong>{selectedWorld.stats.memories}</strong><em>记忆片段</em></span>
+        </div>
+      </section>
+      <section className="worldbook-section-list">
+        {overviewEntries.map((entry) => {
+          const Icon = entry.icon;
+          return (
+            <button key={entry.id} onClick={entry.action}>
+              <span className="worldbook-section-icon"><Icon size={19} strokeWidth={1.7} /></span>
+              <span>
+                <strong>{entry.title}</strong>
+                <em>{entry.desc}</em>
+              </span>
+              <small>{entry.count}</small>
+              <ChevronRight size={17} />
+            </button>
+          );
+        })}
+      </section>
+    </main>
+  );
+
+  const renderCharacters = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-list-head">
+        <span className="worldbook-kicker">{selectedWorld.name}</span>
+        <h1>主要人物</h1>
+        <p>先选择标题，再进入人物背景与生平正文。</p>
+      </section>
+      <section className="worldbook-person-list">
+        {selectedWorld.characters.map((character) => (
+          <button key={character.id} onClick={() => openCharacter(character.id)}>
+            <span className="worldbook-avatar">{character.name.slice(0, 1)}</span>
+            <span>
+              <strong>{character.name}</strong>
+              <em>{character.identity} / {character.relation}</em>
+            </span>
+            <small>{character.status}</small>
+            <ChevronRight size={17} />
+          </button>
+        ))}
+      </section>
+    </main>
+  );
+
+  const renderDetail = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-profile">
+        <span className="worldbook-avatar large">{selectedCharacter.name.slice(0, 1)}</span>
+        <div>
+          <span className="worldbook-kicker">{selectedWorld.name}</span>
+          <h1>{selectedCharacter.name}</h1>
+          <p>{selectedCharacter.identity} · {selectedCharacter.relation}</p>
+        </div>
+      </section>
+      <div className="worldbook-chip-row">
+        <span>{selectedCharacter.status}</span>
+        {selectedCharacter.tags.map((tag) => <span key={tag}>{tag}</span>)}
+      </div>
+      <section className="worldbook-summary">
+        <strong>人物摘要</strong>
+        <p>{selectedCharacter.summary}</p>
+      </section>
+      <section className="worldbook-detail-list">
+        {selectedCharacter.sections.map(([title, body]) => (
+          <article key={title}>
+            <h2>{title}</h2>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+    </main>
+  );
+
+  const renderRelations = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-list-head">
+        <span className="worldbook-kicker">{selectedWorld.name}</span>
+        <h1>关系与记忆</h1>
+        <p>关系网用于理解人物之间的情感与经历，记忆仍以标题列表进入详情。</p>
+      </section>
+      <section className="worldbook-relation-map">
+        <span className="me">我</span>
+        {selectedWorld.characters.slice(0, 4).map((character, index) => (
+          <button key={character.id} style={{ "--angle": `${index * 82 - 28}deg` }} onClick={() => openCharacter(character.id)}>
+            {character.name.slice(0, 1)}
+          </button>
+        ))}
+      </section>
+      <section className="worldbook-memory-list">
+        {selectedWorld.memories.map((memory, index) => (
+          <button key={memory}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{memory}</strong>
+            <ChevronRight size={16} />
+          </button>
+        ))}
+      </section>
+    </main>
+  );
+
+  return (
+    <section className="full-page app-page worldbook-page">
+      <header className="worldbook-header">
+        <button onClick={handleBack} aria-label="返回">
+          <ChevronLeft size={21} />
+        </button>
+        <span>{view === "library" ? "世界书" : view === "overview" ? selectedWorld.name : view === "detail" ? selectedCharacter.name : view === "relations" ? "关系记忆" : "人物列表"}</span>
+        <button onClick={() => setView("library")} aria-label="世界库">
+          <Database size={18} strokeWidth={1.8} />
+        </button>
+      </header>
+      {view === "library" && renderLibrary()}
+      {view === "overview" && renderOverview()}
+      {view === "characters" && renderCharacters()}
+      {view === "detail" && renderDetail()}
+      {view === "relations" && renderRelations()}
+    </section>
+  );
+}
+
 function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
   const isWork = app.title === "工作";
   const isMessages = app.title === "消息";
+  const isWorldbook = app.title === "世界书";
   const [walletData, setWalletData] = useState(() => {
     try {
       const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
@@ -4356,6 +4690,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isWork) return <WorkAppScreen onClose={onClose} />;
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
+  if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
 
   return (
     <section
