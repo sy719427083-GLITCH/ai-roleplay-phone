@@ -50,7 +50,7 @@ export const buildMomentUserComment = ({ text, replyTarget = null, now = () => n
     author: "我",
     text: cleanText,
     createdAt: now(),
-    ...(replyTo ? { replyTo, replyVerb: "回复了" } : {}),
+    ...(replyTo ? { replyTo, replyVerb: "回复" } : {}),
   };
 };
 
@@ -68,14 +68,23 @@ export const buildMomentRoleReplyComment = ({
     author: characterName || "角色",
     text: cleanText,
     replyTo,
-    replyVerb: "回复了",
+    replyVerb: "回复",
     createdAt: now(),
   };
 };
 
+export const buildMomentLikeNames = (moment = {}) => {
+  const names = [
+    ...(moment.liked ? ["我"] : []),
+    ...(Array.isArray(moment.likeNames) ? moment.likeNames : []),
+    ...(Array.isArray(moment.likes) ? moment.likes : []),
+  ].map((name) => String(name || "").trim()).filter(Boolean);
+  return [...new Set(names)];
+};
+
 const formatMomentCommentForContext = (comment = {}) => {
   const author = comment.author || "未知";
-  const replyText = comment.replyTo ? ` ${comment.replyVerb || "回复了"} ${comment.replyTo}` : "";
+  const replyText = comment.replyTo ? ` 回复 ${comment.replyTo}` : "";
   return `${author}${replyText}：${comment.text || ""}`;
 };
 

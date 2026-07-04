@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import {
   buildCharacterMomentContext,
+  buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
@@ -50,7 +51,7 @@ test("moment user comments can target a role reply with black reply wording data
   });
 
   assert.equal(comment.author, "我");
-  assert.equal(comment.replyVerb, "回复了");
+  assert.equal(comment.replyVerb, "回复");
   assert.equal(comment.replyTo, "林砚舟");
   assert.equal(comment.text, "我也想知道后续");
 });
@@ -68,7 +69,7 @@ test("moment role replies are only appended when API returns text", () => {
   });
 
   assert.equal(comment.author, "林砚舟");
-  assert.equal(comment.replyVerb, "回复了");
+  assert.equal(comment.replyVerb, "回复");
   assert.equal(comment.replyTo, "我");
   assert.equal(comment.text, "我刚好也这么想。");
 });
@@ -84,7 +85,7 @@ test("role chat moment context only includes the active character's own moments"
           text: "今天整理旧事。",
           comments: [
             { author: "我", text: "想听" },
-            { author: "林砚舟", replyVerb: "回复了", replyTo: "我", text: "慢慢说。" },
+            { author: "林砚舟", replyVerb: "回复", replyTo: "我", text: "慢慢说。" },
           ],
         },
         {
@@ -99,7 +100,7 @@ test("role chat moment context only includes the active character's own moments"
 
   assert.match(context, /林砚舟发布：今天整理旧事。/);
   assert.match(context, /我：想听/);
-  assert.match(context, /林砚舟 回复了 我：慢慢说。/);
+  assert.match(context, /林砚舟 回复 我：慢慢说。/);
   assert.doesNotMatch(context, /沈星/);
   assert.doesNotMatch(context, /别让林砚舟知道/);
 });
@@ -108,4 +109,10 @@ test("moment role reply delay is at least several minutes", () => {
   const delayMs = getMomentReplyDelayMs({ random: () => 0 });
 
   assert.equal(delayMs, 3 * 60 * 1000);
+});
+
+test("moment likes render as names instead of a sentence", () => {
+  assert.deepEqual(buildMomentLikeNames({ liked: true }), ["我"]);
+  assert.deepEqual(buildMomentLikeNames({ liked: true, likeNames: ["林砚舟", "我"] }), ["我", "林砚舟"]);
+  assert.deepEqual(buildMomentLikeNames({ liked: false, likes: ["沈星"] }), ["沈星"]);
 });

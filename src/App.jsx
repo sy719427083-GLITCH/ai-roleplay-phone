@@ -48,6 +48,7 @@ import {
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 import {
   buildCharacterMomentContext,
+  buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
@@ -2190,7 +2191,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.05</p>
+      <p className="version-label">Ccat OS V0.2.06</p>
     </section>
   );
 }
@@ -4048,9 +4049,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   <MessageCircle size={16} strokeWidth={2} />
                 </button>
               </div>
-              {(moment.liked || moment.comments?.length > 0) && (
+              {(buildMomentLikeNames(moment).length > 0 || moment.comments?.length > 0) && (
                 <div className="moment-social">
-                  {moment.liked && <div className="moment-like-line">我觉得很赞</div>}
+                  {buildMomentLikeNames(moment).length > 0 && (
+                    <div className="moment-like-line">{buildMomentLikeNames(moment).join("、")}</div>
+                  )}
                   {(moment.comments || []).map((comment) => (
                     <button
                       className={comment.author === "我" ? "moment-comment" : "moment-comment role-comment"}
@@ -4063,11 +4066,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                       <strong>{comment.author}</strong>
                       {comment.replyTo && (
                         <>
-                          <em> {comment.replyVerb || "回复"}</em>
-                          <span> {comment.replyTo}</span>
+                          <em> 回复</em>
+                          <span className="moment-reply-target"> {comment.replyTo}</span>
                         </>
                       )}
-                      <span>：{comment.text}</span>
+                      <span className="moment-comment-text">：{comment.text}</span>
                     </button>
                   ))}
                 </div>
