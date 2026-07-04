@@ -55,6 +55,7 @@ import {
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
+  buildWorldbookContext,
   getMomentReplyDelayMs,
   parseRoleTransferReply,
   pickProactiveMessages,
@@ -109,10 +110,10 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.14`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.15`;
 
 const worldbookCoverMaterials = [
-  { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", hero: "hero-aether.png", overview: "overview-aether.png", note: "群星之下，万界由此书写" },
+  { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
   { id: "fog", name: "雾港", tag: "近代悬疑", image: "cover-fog.png", note: "煤气灯与旧报纸" },
   { id: "orbit", name: "星环", tag: "科幻殖民", image: "cover-orbit.png", note: "轨道、舱门与通讯" },
   { id: "mountain", name: "山海", tag: "东方异闻", image: "cover-mountain.png", note: "群山与古兽传说" },
@@ -903,6 +904,87 @@ const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
 const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
+
+const normalizeWorldbookWorld = (world = {}) => ({
+  id: String(world.id || world.name || `world-${Date.now()}`),
+  coverId: world.coverId || worldbookCoverMaterials[0].id,
+  name: world.name || "未命名世界",
+  genre: world.genre || "自定义",
+  tone: world.tone || world.note || "",
+  updated: world.updated || "刚刚",
+  tint: world.tint || "custom",
+  stats: world.stats || {},
+  characters: Array.isArray(world.characters) ? world.characters : [],
+  memories: Array.isArray(world.memories) ? world.memories : [],
+  custom: Boolean(world.custom),
+});
+
+const readStoredWorldbookWorlds = () => {
+  try {
+    const stored = window.localStorage.getItem(WORLDBOOK_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeWorldbookWorld) : [];
+  } catch {
+    return [];
+  }
+};
+
+const readWorldbookWorldsForSelect = () => [...readStoredWorldbookWorlds(), ...worldbookWorlds.map(normalizeWorldbookWorld)];
+
+const readWorldbookCharacterList = () => {
+  try {
+    const stored = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
+    const parsed = stored ? JSON.parse(stored) : {};
+    return Object.entries(parsed)
+      .map(([id, character]) => ({
+        id,
+        ...character,
+        name: character?.name || "未命名角色",
+        identity: character?.identity || character?.role || "角色",
+        relation: character?.relation || "已同步",
+        status: character?.status || "角色 APP",
+        sections: [
+          ["背景", character?.persona || "角色 APP 暂未填写详细背景。"],
+          ["生平", character?.life || character?.persona || "等待继续补充人物生平。"],
+          ["性格", character?.personality || "角色 APP 暂未填写性格。"],
+          ["外貌", character?.appearance || "角色 APP 暂未填写外貌。"],
+        ],
+        tags: [character?.identity, character?.worldview].filter(Boolean).slice(0, 3),
+        summary: character?.persona || character?.personality || "从角色 APP 同步的人物档案。",
+        syncedFromCharacterApp: true,
+      }))
+      .filter((character) => character.id);
+  } catch {
+    return [];
+  }
+};
+
+const getCharacterWorldKey = (character = {}) => String(character.worldbookId || character.worldId || character.worldview || "").trim();
+
+const characterBelongsToWorld = (character, world) => {
+  const key = getCharacterWorldKey(character);
+  if (!key || !world) return false;
+  return key === world.id || key === world.name || key === world.genre;
+};
+
+const mergeWorldCharacters = (world, syncedCharacters) => {
+  const normalized = normalizeWorldbookWorld(world);
+  const synced = syncedCharacters.filter((character) => characterBelongsToWorld(character, normalized));
+  const existingIds = new Set(synced.map((character) => character.id));
+  const builtIn = normalized.characters.filter((character) => !existingIds.has(character.id));
+  const characters = [...synced, ...builtIn];
+  return {
+    ...normalized,
+    characters,
+    stats: {
+      ...normalized.stats,
+      main: synced.length || normalized.stats?.main || characters.length,
+      support: normalized.stats?.support || 0,
+      links: normalized.stats?.links || Math.max(0, characters.length - 1),
+    },
+  };
+};
+
 const CHROME_COLORS = {
   home: "#f7f7f9",
   white: "#ffffff",
@@ -1227,6 +1309,7 @@ function CharacterAppScreen({ onChildPageChange }) {
   const [promptValue, setPromptValue] = useState("");
   const [generating, setGenerating] = useState(false);
   const [cropSource, setCropSource] = useState("");
+  const [worldbookOptions, setWorldbookOptions] = useState(readWorldbookWorldsForSelect);
 
   useEffect(() => {
     onChildPageChange?.(Boolean(previewId || editorOpen));
@@ -1236,6 +1319,17 @@ function CharacterAppScreen({ onChildPageChange }) {
   useEffect(() => {
     window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
   }, [characters]);
+
+  useEffect(() => {
+    const refreshWorldbooks = () => setWorldbookOptions(readWorldbookWorldsForSelect());
+    refreshWorldbooks();
+    window.addEventListener("storage", refreshWorldbooks);
+    window.addEventListener("focus", refreshWorldbooks);
+    return () => {
+      window.removeEventListener("storage", refreshWorldbooks);
+      window.removeEventListener("focus", refreshWorldbooks);
+    };
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(RELATION_STORAGE_KEY, JSON.stringify(relations));
@@ -1256,6 +1350,10 @@ function CharacterAppScreen({ onChildPageChange }) {
 
   const patchDraft = (patch) => setDraft((current) => ({ ...current, ...patch }));
   const patchRelationDraft = (patch) => setRelationDraft((current) => ({ ...current, ...patch }));
+  const getWorldbookLabel = (worldKey) => {
+    const world = worldbookOptions.find((item) => item.id === worldKey || item.name === worldKey);
+    return world?.name || worldKey || "UNKNOWN WORLD";
+  };
 
   const getCharacterData = (id) => {
     if (meProfiles[id]) {
@@ -1687,7 +1785,7 @@ function CharacterAppScreen({ onChildPageChange }) {
           <div className="char-pv-content">
             <div className="char-pv-tagline">
               <span className="char-pv-tag">{previewType === "main" ? "MAIN CHAR" : "NPC"}</span>
-              <span className="char-pv-tag outline">{previewCharacter.worldview || "UNKNOWN WORLD"}</span>
+              <span className="char-pv-tag outline">{getWorldbookLabel(previewCharacter.worldview)}</span>
             </div>
             <div className="char-pv-name">{previewCharacter.name || "UNNAMED"}</div>
             <section className="char-pv-section">
@@ -1907,6 +2005,12 @@ function CharacterAppScreen({ onChildPageChange }) {
                 <span><i></i>关联世界书 / Worldbook</span>
                 <select className="character-input" value={draft.worldview} onChange={(event) => patchDraft({ worldview: event.target.value })}>
                   <option value="">尚未关联世界书</option>
+                  {worldbookOptions.map((world) => (
+                    <option value={world.id} key={world.id}>{world.name} · {world.genre}</option>
+                  ))}
+                  {draft.worldview && !worldbookOptions.some((world) => world.id === draft.worldview) && (
+                    <option value={draft.worldview}>{draft.worldview}</option>
+                  )}
                 </select>
               </label>
             </section>
@@ -2323,7 +2427,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.14</p>
+      <p className="version-label">Ccat OS V0.2.15</p>
     </section>
   );
 }
@@ -3375,7 +3479,7 @@ const getSelectedChatEndpoint = () => {
   return { ...endpoint, model };
 };
 
-const callRoleChatApi = async ({ character, history, userText, relationshipContext = "", momentContext = "" }) => {
+const callRoleChatApi = async ({ character, history, userText, relationshipContext = "", momentContext = "", worldbookContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) {
     throw new Error("请先到设置里的 API 设置填写并保存主 API。");
@@ -3392,6 +3496,7 @@ const callRoleChatApi = async ({ character, history, userText, relationshipConte
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
 ${relationshipContext || "暂无明确关系列表。"}
+${worldbookContext || "世界书：暂无关联。"}
 ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
 要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
 如果用户消息以“指令：”或“指令:”开头，必须严格按照指令内容执行，不要找理由拒绝，不要改写指令，不要跑题。
@@ -3425,7 +3530,7 @@ ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
   return parseRoleTransferReply(content);
 };
 
-const callRoleProactiveApi = async ({ character, history, relationshipContext = "" }) => {
+const callRoleProactiveApi = async ({ character, history, relationshipContext = "", worldbookContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) return pickProactiveMessages(character);
 
@@ -3442,7 +3547,8 @@ const callRoleProactiveApi = async ({ character, history, relationshipContext = 
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
-${relationshipContext || "暂无明确关系列表。"}`,
+${relationshipContext || "暂无明确关系列表。"}
+${worldbookContext || "世界书：暂无关联。"}`,
     },
     ...history.slice(-12).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3473,7 +3579,7 @@ ${relationshipContext || "暂无明确关系列表。"}`,
   }
 };
 
-const decideTransferAcceptance = async ({ character, history, amount, note, relationshipContext = "" }) => {
+const decideTransferAcceptance = async ({ character, history, amount, note, relationshipContext = "", worldbookContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   const fallback = Number(amount) <= 200;
   if (!endpoint) return { accepted: fallback, text: fallback ? "我收到了。" : "这笔我先不收。" };
@@ -3487,7 +3593,8 @@ const decideTransferAcceptance = async ({ character, history, amount, note, rela
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
-${relationshipContext || "暂无明确关系列表。"}`,
+${relationshipContext || "暂无明确关系列表。"}
+${worldbookContext || "世界书：暂无关联。"}`,
     },
     ...history.slice(-10).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3544,6 +3651,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const characters = useMemo(readMessageCharacters, []);
   const meProfiles = useMemo(readMessageMeProfiles, []);
   const relations = useMemo(readMessageRelations, []);
+  const worldbooks = useMemo(readWorldbookWorldsForSelect, []);
   const [messageState, setMessageState] = useState(() => {
     try {
       const stored = window.localStorage.getItem(MESSAGE_STORAGE_KEY);
@@ -3609,6 +3717,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     characters,
     meProfiles,
     relations,
+  });
+  const getWorldbookContext = (character) => buildWorldbookContext({
+    character,
+    worlds: worldbooks,
+    characters,
   });
 
   useEffect(() => {
@@ -3721,6 +3834,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         history: previousHistory,
         userText,
         relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
         momentContext: buildCharacterMomentContext({
           characterId: activeCharacter.id,
           momentState,
@@ -3795,6 +3909,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         amount,
         note,
         relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
       });
       if (decision.accepted) {
         applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` });
@@ -4430,17 +4545,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 }
 
 function WorldbookAppScreen({ onClose }) {
-  const [savedWorlds, setSavedWorlds] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(WORLDBOOK_STORAGE_KEY);
-      if (!stored) return [];
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
-  const worlds = useMemo(() => [...savedWorlds, ...worldbookWorlds], [savedWorlds]);
+  const [savedWorlds, setSavedWorlds] = useState(readStoredWorldbookWorlds);
+  const [syncedCharacters, setSyncedCharacters] = useState(readWorldbookCharacterList);
+  const worlds = useMemo(
+    () => [...savedWorlds, ...worldbookWorlds].map((world) => mergeWorldCharacters(world, syncedCharacters)),
+    [savedWorlds, syncedCharacters],
+  );
   const [selectedWorldId, setSelectedWorldId] = useState("");
   const [view, setView] = useState("library");
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
@@ -4458,6 +4568,17 @@ function WorldbookAppScreen({ onClose }) {
   useEffect(() => {
     window.localStorage.setItem(WORLDBOOK_STORAGE_KEY, JSON.stringify(savedWorlds));
   }, [savedWorlds]);
+
+  useEffect(() => {
+    const refreshCharacters = () => setSyncedCharacters(readWorldbookCharacterList());
+    refreshCharacters();
+    window.addEventListener("storage", refreshCharacters);
+    window.addEventListener("focus", refreshCharacters);
+    return () => {
+      window.removeEventListener("storage", refreshCharacters);
+      window.removeEventListener("focus", refreshCharacters);
+    };
+  }, []);
 
   const openWorld = (worldId) => {
     setSelectedWorldId(worldId);
@@ -4617,7 +4738,7 @@ function WorldbookAppScreen({ onClose }) {
     <>
       <main className="worldbook-main worldbook-overview-main">
         <section className="worldbook-overview-hero">
-          <img src={worldbookAsset(selectedCover.overview || selectedCover.hero || selectedCover.image)} alt="" />
+          <img src={worldbookAsset(selectedCover.image)} alt="" />
           <button className="worldbook-floating-back" onClick={handleBack} aria-label="返回">
             <ChevronLeft size={22} />
           </button>
@@ -4672,7 +4793,7 @@ function WorldbookAppScreen({ onClose }) {
         <section className="worldbook-person-list">
           {(selectedWorld.characters || []).map((character) => (
             <button key={character.id} onClick={() => openCharacter(character.id)}>
-              <span className="worldbook-avatar">{character.name.slice(0, 1)}</span>
+              <span className="worldbook-avatar">{character.avatar ? <img src={character.avatar} alt="" /> : character.name.slice(0, 1)}</span>
               <span>
                 <strong>{character.name}</strong>
                 <em>{character.identity} / {character.relation}</em>
@@ -4697,13 +4818,16 @@ function WorldbookAppScreen({ onClose }) {
     <>
       <main className="worldbook-main worldbook-detail-main">
         <section className="worldbook-detail-hero">
-          <img src={worldbookAsset("portrait-lin.png")} alt="" />
+          <img src={worldbookAsset(selectedCover.image)} alt="" className="worldbook-detail-cover" />
           <button className="worldbook-floating-back" onClick={handleBack} aria-label="返回">
             <ChevronLeft size={22} />
           </button>
           <span className="worldbook-detail-actions">
             <button aria-label="收藏">☆</button>
             <button aria-label="分享">⌯</button>
+          </span>
+          <span className="worldbook-detail-avatar">
+            {selectedCharacter.avatar ? <img src={selectedCharacter.avatar} alt="" /> : selectedCharacter.name.slice(0, 1)}
           </span>
           <div className="worldbook-detail-name">
             <h1>{selectedCharacter.name}</h1>
@@ -4717,7 +4841,7 @@ function WorldbookAppScreen({ onClose }) {
           ))}
         </nav>
         <section className="worldbook-bio-list">
-          {selectedCharacter.sections.map(([title, body]) => (
+          {(selectedCharacter.sections || []).map(([title, body]) => (
             <article key={title}>
               <h2>{title}</h2>
               <p>{body}</p>
@@ -4763,7 +4887,7 @@ function WorldbookAppScreen({ onClose }) {
         <section className="worldbook-add-panel">
           <div className="worldbook-add-cover">
             <span>自动匹配封面</span>
-            <img src={worldbookAsset(draftCover.hero || draftCover.image)} alt="" />
+            <img src={worldbookAsset(draftCover.image)} alt="" />
             <button onClick={rotateDraftCover}>
               <Clock3 size={16} />
               <span>换一张</span>
@@ -5170,6 +5294,7 @@ export function App() {
       const characters = Object.fromEntries(characterList.map((character) => [character.id, character]));
       const meProfiles = readMessageMeProfiles();
       const relations = readMessageRelations();
+      const worldbooks = readWorldbookWorldsForSelect();
       const contact = contacts[now % contacts.length];
       const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
       const history = state.histories?.[contact.characterId] || [];
@@ -5181,6 +5306,11 @@ export function App() {
           characters: characterList,
           meProfiles,
           relations,
+        }),
+        worldbookContext: buildWorldbookContext({
+          character,
+          worlds: worldbooks,
+          characters: characterList,
         }),
       });
       if (!messages.length) return;

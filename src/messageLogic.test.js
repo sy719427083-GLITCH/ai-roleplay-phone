@@ -6,6 +6,7 @@ import {
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
+  buildWorldbookContext,
   getMomentReplyDelayMs,
   parseRoleTransferReply,
   pickProactiveMessages,
@@ -41,6 +42,26 @@ test("relationship context describes both directions for the active chat role", 
   assert.match(context, /我 对 林砚舟：被守护者/);
   assert.match(context, /会下意识照顾对方/);
   assert.match(context, /信任对方/);
+});
+
+test("worldbook context only includes the active character's linked world", () => {
+  const context = buildWorldbookContext({
+    character: { id: "char-a", name: "林砚舟", worldview: "world-sky" },
+    worlds: [
+      { id: "world-sky", name: "苍穹纪元", genre: "高魔史诗", tone: "王冠与雪原。" },
+      { id: "world-city", name: "雨夜都市", genre: "现代都市", tone: "霓虹与秘密。" },
+    ],
+    characters: [
+      { id: "char-a", name: "林砚舟", worldview: "world-sky", identity: "画师" },
+      { id: "char-b", name: "沈清瑶", worldview: "world-sky", identity: "摄政者" },
+      { id: "char-c", name: "周晚", worldview: "world-city", identity: "侦探" },
+    ],
+  });
+
+  assert.match(context, /世界书：苍穹纪元/);
+  assert.match(context, /王冠与雪原/);
+  assert.match(context, /沈清瑶（摄政者）/);
+  assert.doesNotMatch(context, /周晚/);
 });
 
 test("moment user comments can target a role reply with black reply wording data", () => {

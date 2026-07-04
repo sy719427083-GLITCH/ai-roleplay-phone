@@ -166,3 +166,27 @@ export const buildRelationshipContext = ({ character, characters = [], meProfile
     ? `关系列表与关系认知：\n${lines.join("\n")}`
     : "暂无明确关系列表。";
 };
+
+const getWorldKey = (character = {}) => String(character.worldbookId || character.worldId || character.worldview || "").trim();
+
+export const buildWorldbookContext = ({ character, worlds = [], characters = [] } = {}) => {
+  const worldKey = getWorldKey(character);
+  if (!worldKey) return "世界书：暂无关联。";
+  const world = worlds.find((item) => item?.id === worldKey || item?.name === worldKey || item?.genre === worldKey);
+  if (!world) return `世界书：${worldKey}`;
+  const sameWorldCharacters = characters
+    .filter((item) => item?.id && item.id !== character?.id)
+    .filter((item) => {
+      const key = getWorldKey(item);
+      return key === world.id || key === world.name || key === world.genre;
+    })
+    .slice(0, 8)
+    .map((item) => `${item.name || "未命名角色"}（${item.identity || item.role || "角色"}）`);
+  const parts = [
+    `世界书：${world.name || world.id}`,
+    world.genre ? `世界类型：${world.genre}` : "",
+    world.tone ? `世界简介：${world.tone}` : "",
+    sameWorldCharacters.length ? `同世界角色：${sameWorldCharacters.join("、")}` : "同世界角色：暂无其他已同步角色。",
+  ].filter(Boolean);
+  return parts.join("\n");
+};

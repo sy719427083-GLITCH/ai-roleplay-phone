@@ -1,6 +1,6 @@
 # Worldbook Design QA
 
-Reference: `public/worldbook-assets/worldbook-reference-board.png`
+Reference: generated worldbook cover assets in `public/worldbook-assets/`
 
 Prototype checked at: `http://127.0.0.1:4173/ai-roleplay-phone/`
 
@@ -12,10 +12,10 @@ Screens compared:
 - 人物生平详情
 
 Result:
-- The worldbook now uses the reference board's light blue palette, white rounded cards, blue primary buttons, photo cover materials, 5-tab bottom navigation, and full image hero pages.
-- The 12 built-in cover materials are real bitmap assets extracted from the approved reference board.
-- The first world cover was re-cropped to remove selection controls from the image asset.
-- The add-world flow keeps editable fields and local persistence while matching the reference layout.
+- The worldbook keeps the light palette, white rounded cards, blue primary buttons, generated cover materials, and full image hero pages.
+- The 12 built-in cover materials are independent generated bitmap assets, not crops from a screenshot board.
+- Cropped reference, overview, hero, and built-in portrait assets were removed from the app asset folder.
+- The add-world flow keeps editable fields and local persistence, while characters assigned to a world sync from the character app.
 
 Remaining notes:
 - Runtime screenshots are rendered at the app viewport, so exact pixel measurements scale with the phone shell width, but layout hierarchy, colors, imagery, and interaction states match the approved board.

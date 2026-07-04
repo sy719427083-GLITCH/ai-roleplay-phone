@@ -5954,7 +5954,8 @@ select {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #edf6fc;
 }
 
 .worldbook-cover-art.card {
@@ -6205,7 +6206,8 @@ select {
   display: block;
   width: 100%;
   height: 312px;
-  object-fit: cover;
+  object-fit: contain;
+  background: #edf6fc;
 }
 
 .worldbook-floating-back,
@@ -6423,10 +6425,17 @@ select {
   height: 42px;
   place-items: center;
   border-radius: 999px;
+  overflow: hidden;
   background: #e9f5fc;
   color: #438fc6;
   font-size: 16px;
   font-weight: 800;
+}
+
+.worldbook-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .worldbook-empty {
@@ -6451,6 +6460,10 @@ select {
   height: 360px;
 }
 
+.worldbook-detail-hero > img.worldbook-detail-cover {
+  filter: saturate(0.96) brightness(0.9);
+}
+
 .worldbook-detail-actions {
   position: absolute;
   top: 27px;
@@ -6464,6 +6477,31 @@ select {
   position: static;
   font-size: 21px;
   font-weight: 500;
+}
+
+.worldbook-detail-avatar {
+  position: absolute;
+  left: 20px;
+  bottom: 118px;
+  z-index: 2;
+  display: grid;
+  width: 82px;
+  height: 82px;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #2b78ad;
+  font-size: 28px;
+  font-weight: 820;
+  box-shadow: 0 14px 30px rgba(22, 52, 86, 0.18);
+}
+
+.worldbook-detail-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .worldbook-detail-name {
