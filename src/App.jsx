@@ -44,6 +44,7 @@ import {
   STORAGE_KEY,
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
+import { buildRelationshipContext, pickProactiveMessages } from "./messageLogic.js";
 import {
   MESSAGE_STORAGE_KEY,
   acceptFriendRequest,
@@ -863,20 +864,6 @@ const writeStoredMessageState = (state) => {
 const getMessageUnreadCount = (state = getStoredMessageState()) =>
   normalizeMessageState(state).conversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
 
-const proactiveLines = [
-  "你现在方便回我吗？",
-  "刚才想到你，就发一条消息过来。",
-  "我有点事想和你说。",
-  "你今天过得怎么样？",
-  "看到一件事，忽然想问问你。",
-  "在吗？",
-];
-
-const pickProactiveLine = (character) => {
-  const seed = String(character?.name || "").length + new Date().getMinutes();
-  return proactiveLines[seed % proactiveLines.length];
-};
-
 const sanitizeOnlineChatText = (text) =>
   String(text || "")
     .replace(/\*[^*]{1,80}\*/g, "")
@@ -908,12 +895,6 @@ const formatChatClock = (value) => {
     minute: "2-digit",
     hour12: false,
   }).format(date);
-};
-
-const pickProactiveMessages = (character) => {
-  const seed = String(character?.name || "").length + new Date().getMinutes();
-  const count = (seed % 2) + 1;
-  return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
 };
 
 function AvatarContent({ character }) {
@@ -2199,7 +2180,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.97</p>
+      <p className="version-label">Ccat OS v0.1.98</p>
     </section>
   );
 }
@@ -3008,6 +2989,22 @@ const readMessageCharacters = () => {
   }
 };
 
+const readMessageMeProfiles = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
+const readMessageRelations = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(RELATION_STORAGE_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
 function MessageAvatar({ character }) {
   return (
     <span className="message-avatar">
@@ -3200,7 +3197,7 @@ const parseRoleTransferReply = (content) => {
   };
 };
 
-const callRoleChatApi = async ({ character, history, userText }) => {
+const callRoleChatApi = async ({ character, history, userText, relationshipContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) {
     throw new Error("请先到设置里的 API 设置填写并保存主 API。");
@@ -3216,6 +3213,7 @@ const callRoleChatApi = async ({ character, history, userText }) => {
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
+${relationshipContext || "暂无明确关系列表。"}
 要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
 如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
@@ -3247,7 +3245,7 @@ const callRoleChatApi = async ({ character, history, userText }) => {
   return parseRoleTransferReply(content);
 };
 
-const callRoleProactiveApi = async ({ character, history }) => {
+const callRoleProactiveApi = async ({ character, history, relationshipContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) return pickProactiveMessages(character);
 
@@ -3260,10 +3258,11 @@ const callRoleProactiveApi = async ({ character, history }) => {
       content: `你正在 Ccat OS 的信息 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
 当前是线上文字聊天，不是见面。只写角色会主动发出的自然微信消息，不要解释，不要括号动作，不要星号动作，不要 emoji。
 如果根据上下文不适合主动打扰，只返回空字符串。
-最多 2 条短消息，多条用换行分隔。
+随机 1 到 5 条短消息，多条用换行分隔。不要每次都只发 1 条。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
-性格：${character?.personality || "自然、真实"}`,
+性格：${character?.personality || "自然、真实"}
+${relationshipContext || "暂无明确关系列表。"}`,
     },
     ...history.slice(-12).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3288,13 +3287,13 @@ const callRoleProactiveApi = async ({ character, history }) => {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content?.trim() || "";
-    return splitChatMessages(content).slice(0, 2);
+    return splitChatMessages(content).slice(0, 5);
   } catch {
     return pickProactiveMessages(character);
   }
 };
 
-const decideTransferAcceptance = async ({ character, history, amount, note }) => {
+const decideTransferAcceptance = async ({ character, history, amount, note, relationshipContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   const fallback = Number(amount) <= 200;
   if (!endpoint) return { accepted: fallback, text: fallback ? "我收到了。" : "这笔我先不收。" };
@@ -3307,7 +3306,8 @@ const decideTransferAcceptance = async ({ character, history, amount, note }) =>
       content: `你正在 Ccat OS 的信息 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown，不要括号动作。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
-性格：${character?.personality || "自然、真实"}`,
+性格：${character?.personality || "自然、真实"}
+${relationshipContext || "暂无明确关系列表。"}`,
     },
     ...history.slice(-10).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3355,6 +3355,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const swipeRef = useRef(null);
   const chatListRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
+  const meProfiles = useMemo(readMessageMeProfiles, []);
+  const relations = useMemo(readMessageRelations, []);
   const [messageState, setMessageState] = useState(() => {
     try {
       const stored = window.localStorage.getItem(MESSAGE_STORAGE_KEY);
@@ -3411,6 +3413,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     matchesSearch(conversation.character.name, conversation.character.role, getMessagePreview(conversation.latest)),
   );
   const unreadCount = allConversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
+  const getRelationshipContext = (character) => buildRelationshipContext({
+    character,
+    characters,
+    meProfiles,
+    relations,
+  });
 
   const closeChat = () => {
     setChatId("");
@@ -3486,6 +3494,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         character: activeCharacter,
         history: previousHistory,
         userText,
+        relationshipContext: getRelationshipContext(activeCharacter),
       });
       const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
       for (let index = 0; index < roleMessages.length; index += 1) {
@@ -3555,6 +3564,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         history: previousHistory,
         amount,
         note,
+        relationshipContext: getRelationshipContext(activeCharacter),
       });
       if (decision.accepted) {
         applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` });
@@ -3600,7 +3610,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     const history = messageState.histories[chatId] || [];
     setSending(true);
     try {
-      const messages = await callRoleProactiveApi({ character: activeCharacter, history });
+      const messages = await callRoleProactiveApi({
+        character: activeCharacter,
+        history,
+        relationshipContext: getRelationshipContext(activeCharacter),
+      });
       if (!messages.length) {
         window.alert("现在没有适合主动发送的内容。");
         return;
@@ -4249,11 +4263,23 @@ export function App() {
       const state = getStoredMessageState();
       const contacts = state.contacts.filter((contact) => contact.characterId);
       if (!contacts.length) return;
-      const characters = Object.fromEntries(readMessageCharacters().map((character) => [character.id, character]));
+      const characterList = readMessageCharacters();
+      const characters = Object.fromEntries(characterList.map((character) => [character.id, character]));
+      const meProfiles = readMessageMeProfiles();
+      const relations = readMessageRelations();
       const contact = contacts[now % contacts.length];
       const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
       const history = state.histories?.[contact.characterId] || [];
-      const messages = await callRoleProactiveApi({ character, history });
+      const messages = await callRoleProactiveApi({
+        character,
+        history,
+        relationshipContext: buildRelationshipContext({
+          character,
+          characters: characterList,
+          meProfiles,
+          relations,
+        }),
+      });
       if (!messages.length) return;
       let next = state;
       messages.forEach((text) => {

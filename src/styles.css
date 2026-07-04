@@ -4278,8 +4278,8 @@ select {
 
 .chat-page .message-topbar {
   grid-template-columns: 54px minmax(0, 1fr) 54px;
-  min-height: calc(34px + max(8px, env(safe-area-inset-top)));
-  padding: max(8px, env(safe-area-inset-top)) 18px 0;
+  min-height: calc(30px + max(0px, env(safe-area-inset-top)));
+  padding: max(0px, env(safe-area-inset-top)) 18px 0;
 }
 
 .chat-list {
@@ -4674,8 +4674,8 @@ select {
   position: relative;
   z-index: 5;
   grid-template-columns: 54px minmax(0, 1fr) 54px;
-  min-height: calc(34px + max(8px, env(safe-area-inset-top)));
-  padding: max(8px, env(safe-area-inset-top)) 18px 0;
+  min-height: calc(30px + max(0px, env(safe-area-inset-top)));
+  padding: max(0px, env(safe-area-inset-top)) 18px 0;
   background: #fff;
   backdrop-filter: none;
 }
