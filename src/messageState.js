@@ -151,7 +151,8 @@ export function createIncomingFriendRequest(state, characterId) {
 export function appendChatMessage(state, characterId, message) {
   const normalized = normalizeMessageState(state);
   const isTransfer = message?.kind === "transfer";
-  if (!characterId || (!message?.text?.trim() && !isTransfer)) return normalized;
+  const isRecall = message?.kind === "recall";
+  if (!characterId || (!message?.text?.trim() && !isTransfer && !isRecall)) return normalized;
   const histories = { ...normalized.histories };
   const isUnread = message.from !== "me" && message.unread !== false;
   const amount = Number(message.amount) || 0;
@@ -170,6 +171,12 @@ export function appendChatMessage(state, characterId, message) {
             note: message.note || "",
             status: message.status || "pending",
             transferDirection: message.transferDirection || (message.from === "me" ? "outgoing" : "incoming"),
+          }
+        : {}),
+      ...(isRecall
+        ? {
+            kind: "recall",
+            recalledBy: message.recalledBy || "",
           }
         : {}),
     },

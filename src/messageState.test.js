@@ -97,3 +97,23 @@ test("transfer messages preserve amount and can update settlement status", () =>
   const settled = updateChatMessage(withTransfer, "char-a", transfer.id, { status: "accepted" });
   assert.equal(settled.histories["char-a"][0].status, "accepted");
 });
+
+test("updating a role message as recalled keeps a visible recall placeholder", () => {
+  const state = {
+    contacts: [{ characterId: "char-a" }],
+    requests: [],
+    conversations: [{ id: "conv-char-a", characterId: "char-a", unread: 0 }],
+    histories: {},
+  };
+
+  const withMessage = appendChatMessage(state, "char-a", { from: "role", text: "这条等下撤回" });
+  const message = withMessage.histories["char-a"][0];
+  const recalled = updateChatMessage(withMessage, "char-a", message.id, {
+    kind: "recall",
+    text: "林砚舟撤回了一条消息",
+    recalledBy: "林砚舟",
+  });
+
+  assert.equal(recalled.histories["char-a"][0].kind, "recall");
+  assert.equal(recalled.histories["char-a"][0].text, "林砚舟撤回了一条消息");
+});

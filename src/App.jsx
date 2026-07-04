@@ -2180,7 +2180,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.100</p>
+      <p className="version-label">Ccat OS V0.2.00</p>
     </section>
   );
 }
@@ -3013,6 +3013,16 @@ function MessageAvatar({ character }) {
   );
 }
 
+function MessageAvatarWithBadge({ character, unread = 0 }) {
+  const count = Math.max(0, Number(unread) || 0);
+  return (
+    <span className="message-avatar-badge-wrap">
+      <MessageAvatar character={character} />
+      {count > 0 && <i className="message-unread-badge">{Math.min(99, count)}</i>}
+    </span>
+  );
+}
+
 function TransferCard({ message, characterName, onAccept, onReject }) {
   const amount = Number(message.amount) || 0;
   const isIncoming = message.transferDirection !== "outgoing";
@@ -3183,12 +3193,14 @@ const getSelectedChatEndpoint = () => {
 const parseRoleTransferReply = (content) => {
   const raw = String(content || "").trim();
   const transferMatch = raw.match(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*(\d+(?:\.\d{1,2})?)/i);
+  const naturalTransferMatch = raw.match(/(?:给你|向你|我给你)?(?:转账|转了|转给你|发了|打给你|给你转)\D{0,12}¥?\s*(\d+(?:\.\d{1,2})?)/i);
   const noteMatch = raw.match(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*(.+)$/im);
   const cleaned = raw
     .replace(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*\d+(?:\.\d{1,2})?/gi, "")
     .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
+    .replace(/(?:给你|向你|我给你)?(?:转账|转了|转给你|发了|打给你|给你转)\D{0,12}¥?\s*\d+(?:\.\d{1,2})?/gi, "")
     .trim();
-  const amount = transferMatch ? Number(transferMatch[1]) : 0;
+  const amount = transferMatch ? Number(transferMatch[1]) : naturalTransferMatch ? Number(naturalTransferMatch[1]) : 0;
   const messages = splitChatMessages(cleaned || (amount > 0 ? "给你转了一笔钱。" : raw));
   return {
     text: messages[0] || "",
@@ -3354,6 +3366,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
   const swipeRef = useRef(null);
+  const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
   const meProfiles = useMemo(readMessageMeProfiles, []);
@@ -3614,6 +3627,29 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     );
   };
 
+  const recallRoleMessage = (message) => {
+    if (!chatId || message.from === "me" || message.kind === "recall") return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "角色" };
+    setMessageState((current) =>
+      updateChatMessage(current, chatId, message.id, {
+        kind: "recall",
+        text: `${activeCharacter.name || "角色"}撤回了一条消息`,
+        recalledBy: activeCharacter.name || "角色",
+      }),
+    );
+  };
+
+  const startRecallPress = (message) => {
+    if (message.from === "me" || message.kind === "recall") return;
+    window.clearTimeout(recallPressRef.current);
+    recallPressRef.current = window.setTimeout(() => recallRoleMessage(message), 560);
+  };
+
+  const cancelRecallPress = () => {
+    window.clearTimeout(recallPressRef.current);
+    recallPressRef.current = null;
+  };
+
   const triggerProactiveMessage = async () => {
     if (!chatId || sending) return;
     const now = Date.now();
@@ -3739,7 +3775,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
               onPointerUp={handleSwipeEnd}
               onClick={() => (swipedId === conversation.characterId ? setSwipedId("") : openChat(conversation.character))}
             >
-              <MessageAvatar character={conversation.character} />
+              <MessageAvatarWithBadge character={conversation.character} unread={conversation.unread} />
               <span className="message-row-main">
                 <strong>{conversation.character.name}</strong>
                 <small>{getMessagePreview(conversation.latest) || "已添加联系人"}</small>
@@ -3836,10 +3872,19 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         </header>
         <div className="chat-list" ref={chatListRef}>
           {history.map((message) => (
-            <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""}`} key={message.id}>
-              {message.from !== "me" && <MessageAvatar character={activeCharacter} />}
-              <span className="chat-message-stack">
-                {message.kind === "transfer" ? (
+            <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""} ${message.kind === "recall" ? "recall-row" : ""}`} key={message.id}>
+              {message.from !== "me" && message.kind !== "recall" && <MessageAvatar character={activeCharacter} />}
+              <span
+                className="chat-message-stack"
+                onPointerDown={() => startRecallPress(message)}
+                onPointerUp={cancelRecallPress}
+                onPointerCancel={cancelRecallPress}
+                onPointerLeave={cancelRecallPress}
+                onDoubleClick={() => recallRoleMessage(message)}
+              >
+                {message.kind === "recall" ? (
+                  <span className="chat-recall-pill">{message.text || `${activeCharacter.name || "角色"}撤回了一条消息`}</span>
+                ) : message.kind === "transfer" ? (
                   <TransferCard
                     message={message}
                     characterName={activeCharacter.name || "角色"}
@@ -3847,11 +3892,15 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                     onReject={() => settleIncomingTransfer(message, false)}
                   />
                 ) : (
-                  <span className="chat-bubble">{message.text}</span>
+                  <span
+                    className="chat-bubble"
+                  >
+                    {message.text}
+                  </span>
                 )}
-                <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>
+                {message.kind !== "recall" && <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>}
               </span>
-              {message.from === "me" && <MessageAvatar character={meProfile} />}
+              {message.from === "me" && message.kind !== "recall" && <MessageAvatar character={meProfile} />}
             </div>
           ))}
           {sending && (

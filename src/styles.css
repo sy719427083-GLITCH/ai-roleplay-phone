@@ -4091,6 +4091,38 @@ select {
   font-weight: 650;
 }
 
+.message-avatar-badge-wrap {
+  position: relative;
+  display: inline-grid;
+  width: 50px;
+  height: 50px;
+  place-items: center;
+}
+
+.message-avatar-badge-wrap .message-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+}
+
+.message-unread-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #f04b4b;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1;
+}
+
 .message-avatar img,
 .message-avatar svg {
   width: 100%;
@@ -4307,6 +4339,11 @@ select {
   justify-content: flex-end;
 }
 
+.chat-bubble-row.recall-row {
+  justify-content: center;
+  margin: 8px 0 14px;
+}
+
 .chat-message-stack {
   display: grid;
   max-width: min(74%, 336px);
@@ -4316,6 +4353,11 @@ select {
 
 .chat-bubble-row.mine .chat-message-stack {
   justify-items: end;
+}
+
+.chat-bubble-row.recall-row .chat-message-stack {
+  max-width: 100%;
+  justify-items: center;
 }
 
 .chat-bubble {
@@ -4336,6 +4378,18 @@ select {
   border-color: #1c1c1e;
   background: #1c1c1e;
   color: #fff;
+}
+
+.chat-recall-pill {
+  display: inline-grid;
+  min-height: 24px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #ededed;
+  color: #9b9b9f;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .chat-message-time {
