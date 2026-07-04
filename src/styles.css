@@ -4921,37 +4921,66 @@ select {
 
 .wechat-transfer-close {
   position: absolute;
+  z-index: 2;
   top: 10px;
   left: 10px;
   width: 30px;
   height: 30px;
   border-radius: 15px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(124, 64, 84, 0.52);
   font-size: 24px;
   line-height: 1;
 }
 
 .wechat-transfer-brand {
+  position: relative;
   display: grid;
   justify-items: center;
   gap: 8px;
   width: calc(100% + 40px);
   padding: 28px 20px 20px;
-  background:
-    radial-gradient(circle at 50% -30px, rgba(255, 255, 255, 0.9), transparent 72px),
-    linear-gradient(180deg, #fde7ef, #f6cbd8);
+  overflow: hidden;
+  background: #fff1f6;
   color: #7c4054;
 }
 
+.wechat-transfer-brand::before,
+.wechat-transfer-brand::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+.wechat-transfer-brand::before {
+  top: 16px;
+  right: 42px;
+  width: 58px;
+  height: 58px;
+  animation: transferGlowFloat 4.6s ease-in-out infinite;
+}
+
+.wechat-transfer-brand::after {
+  bottom: 14px;
+  left: 36px;
+  width: 32px;
+  height: 32px;
+  animation: transferGlowFloat 5.2s ease-in-out -1.2s infinite;
+}
+
 .wechat-transfer-brand span {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: 54px;
   height: 54px;
   place-items: center;
   border-radius: 12px;
   background: rgba(255, 248, 251, 0.98);
-  box-shadow: inset 0 0 0 1px rgba(210, 136, 158, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(210, 136, 158, 0.14), 0 8px 22px rgba(188, 118, 139, 0.12);
+  animation: transferIconPulse 3.2s ease-in-out infinite;
 }
 
 .wechat-transfer-brand svg {
@@ -4965,6 +4994,8 @@ select {
 }
 
 .wechat-transfer-brand strong {
+  position: relative;
+  z-index: 1;
   color: #7c4054;
   font-size: 15px;
   font-weight: 560;
@@ -5922,7 +5953,10 @@ select {
   .char-pv-hero::after,
   .char-pv-img,
   .char-pv-content,
-  .fab-edit {
+  .fab-edit,
+  .wechat-transfer-brand::before,
+  .wechat-transfer-brand::after,
+  .wechat-transfer-brand span {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
@@ -6110,6 +6144,26 @@ select {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes transferGlowFloat {
+  0%, 100% {
+    opacity: 0.48;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.82;
+    transform: translate3d(0, -6px, 0) scale(1.08);
+  }
+}
+
+@keyframes transferIconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
   }
 }
 

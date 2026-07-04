@@ -80,7 +80,7 @@ const appGroups = [
     { title: "钱包", icon: WalletCards, variant: "line" },
     { title: "游戏", icon: Gamepad2, variant: "line" },
     { title: "美化", icon: Palette, variant: "cutout" },
-    { title: "世界观", icon: Globe2, variant: "line" },
+    { title: "世界书", icon: Globe2, variant: "line" },
     { title: "预设", icon: ListPlus, variant: "line" },
     { title: "外卖", icon: Soup, variant: "line" },
     { title: "外出", icon: MapPin, variant: "line" },
@@ -1755,9 +1755,9 @@ function CharacterAppScreen({ onChildPageChange }) {
                 <input className="character-input" value={draft.identity} onChange={(event) => patchDraft({ identity: event.target.value })} placeholder="如: 帝国第一骑士 / 魔法学院导师" />
               </label>
               <label className="character-field">
-                <span><i></i>关联世界观 / Worldview</span>
+                <span><i></i>关联世界书 / Worldbook</span>
                 <select className="character-input" value={draft.worldview} onChange={(event) => patchDraft({ worldview: event.target.value })}>
-                  <option value="">尚未关联世界观</option>
+                  <option value="">尚未关联世界书</option>
                 </select>
               </label>
             </section>
@@ -2174,7 +2174,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.10</p>
+      <p className="version-label">Ccat OS V0.2.11</p>
     </section>
   );
 }
@@ -2765,7 +2765,7 @@ function WorkAppScreen({ onClose }) {
 {"jobs":[{"cn":"审核","en":"Review","title":"资料审核","titleEn":"Document Review","content":"核对记录、标注异常、提交摘要","contentEn":"Check records, flag issues, submit summary","durationMinutes":180,"hourlyRate":30,"reward":90,"level":2,"distance":"0.3 km","icon":"review"}]}
 规则：五个工作类型不要固定，尽量多样，可包含审核、配送、清洁、陪护、夜班、写作、助理、跑腿、备餐、代购、检修、活动、美化、游戏、调研等；durationMinutes 30 到 600；reward 必须约等于 hourlyRate * durationMinutes / 60，可以四舍五入到 5 或 10；时薪一般为两位数，仅约 5% 出现三位数时薪；约 10% 出现四位数总额，此类必须是更高端的专业工作；不要生成五位数；level 1 到 5；icon 从 review, delivery, cleaning, care, night, writing, assistant, errand, kitchen, shop, device, event, beauty, game, survey 中选择；中文内容要具体，英文要简短对应。`,
           },
-          { role: "user", content: "生成一组现实世界工作。世界观：暂无。" },
+          { role: "user", content: "生成一组现实世界工作。世界书：暂无。" },
         ],
         temperature: 0.8,
       }),
@@ -2890,8 +2890,8 @@ function WorkAppScreen({ onClose }) {
         <button>
           <Globe2 size={24} strokeWidth={1.5} />
           <span>
-            <strong>世界观：暂无</strong>
-            <em>World View: None</em>
+            <strong>世界书：暂无</strong>
+            <em>Worldbook: None</em>
           </span>
         </button>
       </div>
