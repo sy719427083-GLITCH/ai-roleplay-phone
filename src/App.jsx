@@ -26,9 +26,12 @@ import {
   Moon,
   Palette,
   Play,
+  Plus,
   Settings,
   ShoppingBag,
   Smartphone,
+  Search,
+  Sparkles,
   Soup,
   Square,
   ThumbsUp,
@@ -105,9 +108,27 @@ const tabs = [
   { id: "settings", label: "设置" },
 ];
 
+const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
+
+const worldbookCoverMaterials = [
+  { id: "aether", name: "苍穹", tag: "高魔", glyph: "星冠", tone: "mist-blue", note: "云脉、王冠与星图" },
+  { id: "fog", name: "雾港", tag: "悬疑", glyph: "灯塔", tone: "pearl-gray", note: "煤气灯与旧报纸" },
+  { id: "orbit", name: "星环", tag: "科幻", glyph: "环轨", tone: "clear-cyan", note: "轨道、舱门与通讯" },
+  { id: "mountain", name: "山海", tag: "异闻", glyph: "山纹", tone: "jade", note: "群山与古兽传说" },
+  { id: "rose", name: "王朝", tag: "宫廷", glyph: "玫瑰", tone: "rose", note: "花窗、密约与王座" },
+  { id: "campus", name: "校园", tag: "青春", glyph: "书页", tone: "apricot", note: "课桌、操场与旧夏天" },
+  { id: "waste", name: "废土", tag: "末日", glyph: "裂日", tone: "sand", note: "风暴、路标与失落城" },
+  { id: "city", name: "都市", tag: "现代", glyph: "天际", tone: "lilac", note: "霓虹、公司与秘密" },
+  { id: "river", name: "江湖", tag: "武侠", glyph: "折扇", tone: "ink", note: "雨巷、长剑与渡口" },
+  { id: "abyss", name: "深海", tag: "奇幻", glyph: "贝光", tone: "aqua", note: "海沟、鲸歌与遗迹" },
+  { id: "forest", name: "森林", tag: "童话", glyph: "叶冠", tone: "moss", note: "树屋、溪流与秘语" },
+  { id: "blank", name: "空白", tag: "自定", glyph: "新章", tone: "paper", note: "为新世界预留第一页" },
+];
+
 const worldbookWorlds = [
   {
     id: "sky-era",
+    coverId: "aether",
     name: "苍穹纪元",
     genre: "高魔史诗",
     tone: "王冠、雪原与旧画未完",
@@ -176,6 +197,7 @@ const worldbookWorlds = [
   },
   {
     id: "fog-port",
+    coverId: "fog",
     name: "雾港旧梦",
     genre: "近代悬疑",
     tone: "煤气灯、旧报纸与失踪案",
@@ -208,6 +230,7 @@ const worldbookWorlds = [
   },
   {
     id: "star-ring",
+    coverId: "orbit",
     name: "星环边境",
     genre: "科幻殖民",
     tone: "冷光舱门、边境协议与失重告别",
@@ -2299,7 +2322,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.12</p>
+      <p className="version-label">Ccat OS V0.2.13</p>
     </section>
   );
 }
@@ -4406,11 +4429,34 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 }
 
 function WorldbookAppScreen({ onClose }) {
+  const [savedWorlds, setSavedWorlds] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(WORLDBOOK_STORAGE_KEY);
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const worlds = useMemo(() => [...savedWorlds, ...worldbookWorlds], [savedWorlds]);
   const [selectedWorldId, setSelectedWorldId] = useState("");
   const [view, setView] = useState("library");
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
-  const selectedWorld = worldbookWorlds.find((world) => world.id === selectedWorldId) || worldbookWorlds[0];
-  const selectedCharacter = selectedWorld.characters.find((character) => character.id === selectedCharacterId) || selectedWorld.characters[0];
+  const [draftWorld, setDraftWorld] = useState(() => ({
+    name: "",
+    genre: "",
+    tone: "",
+    coverId: worldbookCoverMaterials[0].id,
+  }));
+  const selectedWorld = worlds.find((world) => world.id === selectedWorldId) || worlds[0];
+  const selectedCharacter = selectedWorld?.characters?.find((character) => character.id === selectedCharacterId) || selectedWorld?.characters?.[0];
+  const selectedCover = worldbookCoverMaterials.find((cover) => cover.id === selectedWorld?.coverId) || worldbookCoverMaterials[0];
+  const draftCover = worldbookCoverMaterials.find((cover) => cover.id === draftWorld.coverId) || worldbookCoverMaterials[0];
+
+  useEffect(() => {
+    window.localStorage.setItem(WORLDBOOK_STORAGE_KEY, JSON.stringify(savedWorlds));
+  }, [savedWorlds]);
 
   const openWorld = (worldId) => {
     setSelectedWorldId(worldId);
@@ -4428,9 +4474,49 @@ function WorldbookAppScreen({ onClose }) {
     setView("detail");
   };
 
+  const openAddWorld = () => {
+    const nextCover = worldbookCoverMaterials[savedWorlds.length % worldbookCoverMaterials.length];
+    setDraftWorld({ name: "", genre: "", tone: "", coverId: nextCover.id });
+    setView("add");
+  };
+
+  const rotateDraftCover = () => {
+    const currentIndex = worldbookCoverMaterials.findIndex((cover) => cover.id === draftWorld.coverId);
+    const next = worldbookCoverMaterials[(currentIndex + 1 + worldbookCoverMaterials.length) % worldbookCoverMaterials.length];
+    setDraftWorld((current) => ({ ...current, coverId: next.id }));
+  };
+
+  const saveWorld = () => {
+    const name = draftWorld.name.trim() || "未命名世界";
+    const genre = draftWorld.genre.trim() || draftCover.tag;
+    const tone = draftWorld.tone.trim() || draftCover.note;
+    const now = new Date();
+    const createdWorld = {
+      id: `custom-${Date.now()}`,
+      custom: true,
+      coverId: draftWorld.coverId,
+      name,
+      genre,
+      tone,
+      updated: `${now.getMonth() + 1}月${now.getDate()}日`,
+      tint: "custom",
+      stats: { main: 0, support: 0, links: 0, memories: 0 },
+      characters: [],
+      memories: [],
+    };
+    setSavedWorlds((current) => [createdWorld, ...current]);
+    setSelectedWorldId(createdWorld.id);
+    setSelectedCharacterId("");
+    setView("overview");
+  };
+
   const handleBack = () => {
     if (view === "library") {
       onClose();
+      return;
+    }
+    if (view === "add" || view === "materials") {
+      setView("library");
       return;
     }
     if (view === "overview") {
@@ -4444,55 +4530,84 @@ function WorldbookAppScreen({ onClose }) {
     setView("characters");
   };
 
+  const renderCover = (cover, size = "normal") => (
+    <span className={`worldbook-cover-art ${cover.tone} ${size}`} aria-hidden="true">
+      <i className="cover-sun"></i>
+      <i className="cover-ridge"></i>
+      <i className="cover-mark">{cover.glyph}</i>
+    </span>
+  );
+
+  const worldStats = (world) => {
+    const main = world.stats?.main ?? world.characters?.length ?? 0;
+    const support = world.stats?.support ?? 0;
+    const links = world.stats?.links ?? Math.max(0, (world.characters?.length || 0) - 1);
+    const memories = world.stats?.memories ?? world.memories?.length ?? 0;
+    return { main, support, links, memories };
+  };
+
   const renderLibrary = () => (
     <main className="worldbook-main">
       <section className="worldbook-hero">
-        <span className="worldbook-kicker">Celestial Character Archive</span>
-        <h1>世界书</h1>
-        <p>选择一个世界，查看人物背景、生平、关系与共同记忆。</p>
-        <div className="worldbook-search">搜索世界 / 人物 / 记忆</div>
+        <div>
+          <span className="worldbook-kicker">Character Worldbook</span>
+          <h1>世界书</h1>
+          <p>每个世界都可以独立保存人物背景、生平、关系与记忆。新增世界会自动获得一张内置封面。</p>
+        </div>
+        <button className="worldbook-add-button" onClick={openAddWorld}>
+          <Plus size={18} />
+          <span>添加世界</span>
+        </button>
       </section>
+      <button className="worldbook-search" onClick={() => setView("materials")}>
+        <Search size={16} />
+        <span>搜索世界 / 查看 12 个内置素材</span>
+      </button>
       <section className="worldbook-world-list" aria-label="世界列表">
-        {worldbookWorlds.map((world) => (
-          <button className={`worldbook-world-row ${world.tint}`} key={world.id} onClick={() => openWorld(world.id)}>
-            <span className="worldbook-world-mark">
-              <Globe2 size={22} strokeWidth={1.7} />
-            </span>
+        {worlds.map((world) => {
+          const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
+          const stats = worldStats(world);
+          return (
+          <button className={`worldbook-world-row ${cover.tone}`} key={world.id} onClick={() => openWorld(world.id)}>
+            {renderCover(cover)}
             <span className="worldbook-world-copy">
               <strong>{world.name}</strong>
               <em>{world.genre} · {world.tone}</em>
-              <small>{world.stats.main + world.stats.support} 位人物 · {world.stats.memories} 段记忆 · {world.updated}</small>
+              <small>{stats.main + stats.support} 位人物 · {stats.memories} 段记忆 · {world.custom ? "我的世界" : "内置示例"} · {world.updated}</small>
             </span>
             <ChevronRight size={18} />
           </button>
-        ))}
+          );
+        })}
       </section>
     </main>
   );
 
+  const stats = worldStats(selectedWorld);
   const overviewEntries = [
-    { id: "main", title: "主要人物", desc: "核心角色的背景、生平与关系", count: selectedWorld.stats.main, icon: UserRound, action: openCharacters },
-    { id: "support", title: "支线人物", desc: "旅途中出现的重要旁支人物", count: selectedWorld.stats.support, icon: UsersRound, action: openCharacters },
-    { id: "relations", title: "关系网", desc: "人物之间的连接与情感走向", count: selectedWorld.stats.links, icon: Heart, action: () => setView("relations") },
-    { id: "timeline", title: "生平时间线", desc: "按时间查看人物经历节点", count: selectedWorld.stats.memories, icon: Clock3, action: () => setView("relations") },
-    { id: "memories", title: "共同记忆", desc: "可点开的记忆标题与事件片段", count: selectedWorld.memories.length, icon: BookMarked, action: () => setView("relations") },
+    { id: "main", title: "主要人物", desc: "核心角色的背景、生平与关系", count: stats.main, icon: UserRound, action: openCharacters },
+    { id: "support", title: "支线人物", desc: "旅途中出现的重要旁支人物", count: stats.support, icon: UsersRound, action: openCharacters },
+    { id: "relations", title: "关系网", desc: "人物之间的连接与情感走向", count: stats.links, icon: Heart, action: () => setView("relations") },
+    { id: "timeline", title: "生平时间线", desc: "按时间查看人物经历节点", count: stats.memories, icon: Clock3, action: () => setView("relations") },
+    { id: "memories", title: "共同记忆", desc: "可点开的记忆标题与事件片段", count: selectedWorld?.memories?.length || 0, icon: BookMarked, action: () => setView("relations") },
   ];
 
   const renderOverview = () => (
     <main className="worldbook-main">
-      <section className={`worldbook-overview ${selectedWorld.tint}`}>
-        <div className="worldbook-orbit" aria-hidden="true">
-          <span></span>
-          <i></i>
+      <section className={`worldbook-overview ${selectedCover.tone}`}>
+        <div className="worldbook-overview-top">
+          {renderCover(selectedCover, "large")}
+          <div>
+            <span className="worldbook-kicker">世界总览</span>
+            <h1>{selectedWorld.name}</h1>
+            <p>{selectedWorld.genre} · {selectedWorld.tone}</p>
+          </div>
         </div>
-        <span className="worldbook-kicker">人物档案总览</span>
-        <h1>{selectedWorld.name}</h1>
-        <p>{selectedWorld.genre} · {selectedWorld.tone}</p>
         <div className="worldbook-stat-grid">
-          <span><strong>{selectedWorld.stats.main}</strong><em>主要人物</em></span>
-          <span><strong>{selectedWorld.stats.support}</strong><em>支线人物</em></span>
-          <span><strong>{selectedWorld.stats.links}</strong><em>关系线</em></span>
-          <span><strong>{selectedWorld.stats.memories}</strong><em>记忆片段</em></span>
+          <span><strong>{stats.main}</strong><em>主要人物</em></span>
+          <span><strong>{stats.support}</strong><em>支线人物</em></span>
+          <span><strong>{stats.links}</strong><em>关系线</em></span>
+          <span><strong>{stats.memories}</strong><em>记忆片段</em></span>
         </div>
       </section>
       <section className="worldbook-section-list">
@@ -4518,11 +4633,11 @@ function WorldbookAppScreen({ onClose }) {
     <main className="worldbook-main">
       <section className="worldbook-list-head">
         <span className="worldbook-kicker">{selectedWorld.name}</span>
-        <h1>主要人物</h1>
+        <h1>人物标题</h1>
         <p>先选择标题，再进入人物背景与生平正文。</p>
       </section>
       <section className="worldbook-person-list">
-        {selectedWorld.characters.map((character) => (
+        {(selectedWorld.characters || []).map((character) => (
           <button key={character.id} onClick={() => openCharacter(character.id)}>
             <span className="worldbook-avatar">{character.name.slice(0, 1)}</span>
             <span>
@@ -4533,11 +4648,18 @@ function WorldbookAppScreen({ onClose }) {
             <ChevronRight size={17} />
           </button>
         ))}
+        {(!selectedWorld.characters || selectedWorld.characters.length === 0) && (
+          <article className="worldbook-empty">
+            <Sparkles size={20} />
+            <strong>这个世界还没有人物</strong>
+            <p>先把世界建好，之后可继续添加人物背景、生平、关系和记忆。</p>
+          </article>
+        )}
       </section>
     </main>
   );
 
-  const renderDetail = () => (
+  const renderDetail = () => selectedCharacter ? (
     <main className="worldbook-main">
       <section className="worldbook-profile">
         <span className="worldbook-avatar large">{selectedCharacter.name.slice(0, 1)}</span>
@@ -4564,7 +4686,7 @@ function WorldbookAppScreen({ onClose }) {
         ))}
       </section>
     </main>
-  );
+  ) : renderCharacters();
 
   const renderRelations = () => (
     <main className="worldbook-main">
@@ -4575,18 +4697,66 @@ function WorldbookAppScreen({ onClose }) {
       </section>
       <section className="worldbook-relation-map">
         <span className="me">我</span>
-        {selectedWorld.characters.slice(0, 4).map((character, index) => (
+        {(selectedWorld.characters || []).slice(0, 4).map((character, index) => (
           <button key={character.id} style={{ "--angle": `${index * 82 - 28}deg` }} onClick={() => openCharacter(character.id)}>
             {character.name.slice(0, 1)}
           </button>
         ))}
       </section>
       <section className="worldbook-memory-list">
-        {selectedWorld.memories.map((memory, index) => (
+        {(selectedWorld.memories || []).map((memory, index) => (
           <button key={memory}>
             <span>{String(index + 1).padStart(2, "0")}</span>
             <strong>{memory}</strong>
             <ChevronRight size={16} />
+          </button>
+        ))}
+      </section>
+    </main>
+  );
+
+  const renderAddWorld = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-add-panel">
+        <div className="worldbook-add-cover">
+          {renderCover(draftCover, "hero")}
+          <button onClick={rotateDraftCover}>换一张</button>
+        </div>
+        <div className="worldbook-field-stack">
+          <label>
+            <span>世界名称</span>
+            <input value={draftWorld.name} onChange={(event) => setDraftWorld((current) => ({ ...current, name: event.target.value }))} placeholder="例如：云上王朝" />
+          </label>
+          <label>
+            <span>类型标签</span>
+            <input value={draftWorld.genre} onChange={(event) => setDraftWorld((current) => ({ ...current, genre: event.target.value }))} placeholder={draftCover.tag} />
+          </label>
+          <label>
+            <span>世界简介</span>
+            <textarea value={draftWorld.tone} onChange={(event) => setDraftWorld((current) => ({ ...current, tone: event.target.value }))} placeholder={draftCover.note}></textarea>
+          </label>
+        </div>
+        <button className="worldbook-save-button" onClick={saveWorld}>保存世界</button>
+      </section>
+    </main>
+  );
+
+  const renderMaterials = () => (
+    <main className="worldbook-main">
+      <section className="worldbook-list-head">
+        <span className="worldbook-kicker">内置素材</span>
+        <h1>12 张自动封面</h1>
+        <p>新增世界时会按顺序自动使用，也可以点选其中一张作为新世界封面。</p>
+      </section>
+      <section className="worldbook-material-grid">
+        {worldbookCoverMaterials.map((cover) => (
+          <button key={cover.id} onClick={() => {
+            setDraftWorld((current) => ({ ...current, coverId: cover.id }));
+            setView("add");
+          }}>
+            {renderCover(cover)}
+            <strong>{cover.name}</strong>
+            <span>{cover.tag}</span>
           </button>
         ))}
       </section>
@@ -4599,12 +4769,14 @@ function WorldbookAppScreen({ onClose }) {
         <button onClick={handleBack} aria-label="返回">
           <ChevronLeft size={21} />
         </button>
-        <span>{view === "library" ? "世界书" : view === "overview" ? selectedWorld.name : view === "detail" ? selectedCharacter.name : view === "relations" ? "关系记忆" : "人物列表"}</span>
-        <button onClick={() => setView("library")} aria-label="世界库">
-          <Database size={18} strokeWidth={1.8} />
+        <span>{view === "library" ? "世界书" : view === "add" ? "添加世界" : view === "materials" ? "素材库" : view === "overview" ? selectedWorld.name : view === "detail" ? selectedCharacter?.name : view === "relations" ? "关系记忆" : "人物标题"}</span>
+        <button onClick={view === "library" ? openAddWorld : () => setView("library")} aria-label={view === "library" ? "添加世界" : "世界库"}>
+          {view === "library" ? <Plus size={19} strokeWidth={1.8} /> : <Database size={18} strokeWidth={1.8} />}
         </button>
       </header>
       {view === "library" && renderLibrary()}
+      {view === "add" && renderAddWorld()}
+      {view === "materials" && renderMaterials()}
       {view === "overview" && renderOverview()}
       {view === "characters" && renderCharacters()}
       {view === "detail" && renderDetail()}

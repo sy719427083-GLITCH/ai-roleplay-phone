@@ -5058,11 +5058,8 @@ select {
 
 .worldbook-page {
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 4%, rgba(169, 199, 216, 0.26), transparent 120px),
-    radial-gradient(circle at 90% 12%, rgba(216, 184, 106, 0.18), transparent 110px),
-    linear-gradient(180deg, #ffffff 0%, #eef7fb 100%);
-  color: #1f2a35;
+  background: #f7f5ef;
+  color: #1f2623;
 }
 
 .worldbook-header {
@@ -5072,27 +5069,27 @@ select {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: center;
-  min-height: 50px;
-  padding: max(4px, env(safe-area-inset-top)) 14px 6px;
-  background: rgba(255, 255, 255, 0.74);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid rgba(221, 232, 239, 0.72);
+  min-height: 58px;
+  padding: 16px 14px 8px;
+  background: #f7f5ef;
+  border-bottom: 1px solid rgba(50, 48, 42, 0.08);
 }
 
 .worldbook-header button {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border: 0;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #24303a;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #242923;
+  box-shadow: 0 10px 24px rgba(58, 52, 42, 0.08);
 }
 
 .worldbook-header span {
   overflow: hidden;
+  color: #1d241f;
   font-size: 16px;
   font-weight: 680;
   text-align: center;
@@ -5101,9 +5098,9 @@ select {
 }
 
 .worldbook-main {
-  height: calc(100dvh - 50px);
+  height: calc(100dvh - 58px);
   overflow-y: auto;
-  padding: 16px 16px calc(26px + env(safe-area-inset-bottom));
+  padding: 14px 16px calc(28px + env(safe-area-inset-bottom));
   scrollbar-width: none;
 }
 
@@ -5115,39 +5112,32 @@ select {
 .worldbook-overview,
 .worldbook-list-head,
 .worldbook-profile,
-.worldbook-summary {
-  border: 1px solid rgba(221, 232, 239, 0.95);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 18px 44px rgba(81, 110, 130, 0.08);
+.worldbook-summary,
+.worldbook-add-panel,
+.worldbook-empty {
+  border: 1px solid rgba(70, 65, 54, 0.09);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 42px rgba(70, 58, 42, 0.08);
 }
 
 .worldbook-hero {
   position: relative;
   overflow: hidden;
+  display: grid;
+  gap: 16px;
   padding: 22px 18px 18px;
-}
-
-.worldbook-hero::after,
-.worldbook-overview::after {
-  content: "";
-  position: absolute;
-  right: -32px;
-  bottom: -44px;
-  width: 154px;
-  height: 154px;
-  border: 1px solid rgba(125, 183, 216, 0.26);
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 18px rgba(125, 183, 216, 0.06), inset 0 0 0 42px rgba(216, 184, 106, 0.05);
-  pointer-events: none;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(181, 210, 205, 0.52), transparent 92px),
+    linear-gradient(135deg, #ffffff 0%, #f3efe5 100%);
 }
 
 .worldbook-kicker {
   display: block;
-  color: #7d8c98;
+  color: #8b7961;
   font-size: 11px;
   font-weight: 650;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -5156,7 +5146,7 @@ select {
 .worldbook-list-head h1,
 .worldbook-profile h1 {
   margin: 7px 0 6px;
-  color: #1f2a35;
+  color: #1d241f;
   font-size: 28px;
   font-weight: 760;
   letter-spacing: 0;
@@ -5170,28 +5160,49 @@ select {
 .worldbook-summary p,
 .worldbook-detail-list p {
   margin: 0;
-  color: #758494;
+  color: #71766c;
   font-size: 13px;
   line-height: 1.58;
 }
 
+.worldbook-add-button,
+.worldbook-save-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  background: #25312c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 690;
+  padding: 12px 16px;
+  box-shadow: 0 14px 26px rgba(37, 49, 44, 0.18);
+}
+
 .worldbook-search {
   position: relative;
-  z-index: 1;
-  margin-top: 18px;
-  border: 1px solid #dde8ef;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  border: 1px solid rgba(70, 65, 54, 0.08);
   border-radius: 16px;
   background: #ffffff;
-  color: #a0aab3;
+  color: #8f9288;
   font-size: 13px;
   padding: 13px 14px;
+  text-align: left;
 }
 
 .worldbook-world-list,
 .worldbook-section-list,
 .worldbook-person-list,
 .worldbook-memory-list,
-.worldbook-detail-list {
+.worldbook-detail-list,
+.worldbook-material-grid {
   display: grid;
   gap: 10px;
   margin-top: 14px;
@@ -5200,50 +5211,143 @@ select {
 .worldbook-world-row,
 .worldbook-section-list button,
 .worldbook-person-list button,
-.worldbook-memory-list button {
+.worldbook-memory-list button,
+.worldbook-material-grid button {
   display: grid;
   width: 100%;
   align-items: center;
-  border: 1px solid rgba(221, 232, 239, 0.92);
+  border: 1px solid rgba(70, 65, 54, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
-  color: #1f2a35;
+  color: #1d241f;
   text-align: left;
-  box-shadow: 0 10px 24px rgba(81, 110, 130, 0.055);
+  box-shadow: 0 12px 24px rgba(70, 58, 42, 0.055);
 }
 
 .worldbook-world-row {
-  grid-template-columns: 48px minmax(0, 1fr) 20px;
+  grid-template-columns: 76px minmax(0, 1fr) 20px;
   gap: 12px;
-  min-height: 92px;
+  min-height: 108px;
   padding: 12px;
 }
 
-.worldbook-world-mark,
 .worldbook-section-icon,
 .worldbook-avatar {
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: #eef7fb;
-  color: #5d91ad;
-  box-shadow: inset 0 0 0 1px rgba(125, 183, 216, 0.18);
+  background: #eef3ef;
+  color: #668473;
+  box-shadow: inset 0 0 0 1px rgba(88, 116, 101, 0.12);
 }
 
-.worldbook-world-mark {
+.worldbook-cover-art {
+  position: relative;
+  display: grid;
+  width: 74px;
+  height: 88px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(42, 48, 40, 0.1);
+  border-radius: 18px;
+  background: var(--cover-bg, #eef3ef);
+  color: var(--cover-ink, #45665b);
+  box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.34), 0 16px 24px rgba(65, 55, 42, 0.1);
+}
+
+.worldbook-cover-art.large {
+  width: 98px;
+  height: 118px;
+  border-radius: 22px;
+}
+
+.worldbook-cover-art.hero {
+  width: 138px;
+  height: 164px;
+  border-radius: 26px;
+}
+
+.worldbook-cover-art .cover-sun,
+.worldbook-cover-art .cover-ridge {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.worldbook-cover-art .cover-sun {
+  top: 13px;
+  right: 14px;
+  width: 23px;
+  height: 23px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 0 0 9px rgba(255, 255, 255, 0.18);
+}
+
+.worldbook-cover-art .cover-ridge {
+  left: 8px;
+  right: 8px;
+  bottom: 12px;
+  height: 28px;
+  border-radius: 50% 50% 18px 18px;
+  background: rgba(255, 255, 255, 0.34);
+  clip-path: polygon(0 62%, 20% 34%, 38% 58%, 58% 18%, 76% 54%, 100% 30%, 100% 100%, 0 100%);
+}
+
+.worldbook-cover-art .cover-mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
   width: 48px;
-  height: 58px;
+  height: 48px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--cover-ink, #45665b);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
 }
 
-.worldbook-world-row.mist .worldbook-world-mark {
-  background: #f7f9fb;
-  color: #7a838a;
-}
+.worldbook-cover-art.mist-blue { --cover-bg: #dfeef4; --cover-ink: #436a7b; }
+.worldbook-cover-art.pearl-gray { --cover-bg: #ececea; --cover-ink: #6f716c; }
+.worldbook-cover-art.clear-cyan { --cover-bg: #dff3f6; --cover-ink: #3b7784; }
+.worldbook-cover-art.jade { --cover-bg: #e2f0e7; --cover-ink: #4c7961; }
+.worldbook-cover-art.rose { --cover-bg: #f8e5e9; --cover-ink: #996273; }
+.worldbook-cover-art.apricot { --cover-bg: #f8edd8; --cover-ink: #9a7650; }
+.worldbook-cover-art.sand { --cover-bg: #eee5d1; --cover-ink: #82704f; }
+.worldbook-cover-art.lilac { --cover-bg: #ebe6f5; --cover-ink: #70649b; }
+.worldbook-cover-art.ink { --cover-bg: #e8ecea; --cover-ink: #52615d; }
+.worldbook-cover-art.aqua { --cover-bg: #dff0ee; --cover-ink: #467a77; }
+.worldbook-cover-art.moss { --cover-bg: #e4efdc; --cover-ink: #5d7a4f; }
+.worldbook-cover-art.paper { --cover-bg: #f4f0e6; --cover-ink: #7d715c; }
 
-.worldbook-world-row.mint .worldbook-world-mark {
-  background: #edf7f3;
-  color: #63927f;
-}
+.worldbook-world-row.mist-blue { background: #fbfdfe; }
+.worldbook-world-row.pearl-gray { background: #fbfbfa; }
+.worldbook-world-row.clear-cyan { background: #fafdfe; }
+.worldbook-world-row.jade { background: #fbfefa; }
+.worldbook-world-row.rose { background: #fffafb; }
+.worldbook-world-row.apricot,
+.worldbook-world-row.sand,
+.worldbook-world-row.paper { background: #fffdfa; }
+.worldbook-world-row.lilac { background: #fcfbff; }
+.worldbook-world-row.ink { background: #fbfcfb; }
+.worldbook-world-row.aqua,
+.worldbook-world-row.moss { background: #fbfdfb; }
+
+.worldbook-overview.mist-blue,
+.worldbook-overview.clear-cyan { background: #eef8fa; }
+.worldbook-overview.pearl-gray,
+.worldbook-overview.ink { background: #f3f3ef; }
+.worldbook-overview.jade,
+.worldbook-overview.moss { background: #f0f7ed; }
+.worldbook-overview.rose { background: #fff0f2; }
+.worldbook-overview.apricot,
+.worldbook-overview.sand,
+.worldbook-overview.paper { background: #fbf3e3; }
+.worldbook-overview.lilac { background: #f4f0fb; }
+.worldbook-overview.aqua { background: #edf8f4; }
 
 .worldbook-world-copy,
 .worldbook-section-list button > span:nth-child(2),
@@ -5259,7 +5363,7 @@ select {
 .worldbook-memory-list strong,
 .worldbook-summary strong {
   overflow: hidden;
-  color: #1f2a35;
+  color: #1d241f;
   font-size: 15px;
   font-weight: 690;
   text-overflow: ellipsis;
@@ -5273,7 +5377,7 @@ select {
 .worldbook-section-list small,
 .worldbook-person-list small {
   overflow: hidden;
-  color: #758494;
+  color: #777a70;
   font-size: 11px;
   font-style: normal;
   text-overflow: ellipsis;
@@ -5283,37 +5387,15 @@ select {
 .worldbook-overview {
   position: relative;
   overflow: hidden;
-  min-height: 252px;
-  padding: 22px 18px 16px;
+  min-height: 236px;
+  padding: 18px;
 }
 
-.worldbook-orbit {
-  position: relative;
+.worldbook-overview-top {
   display: grid;
-  width: 118px;
-  height: 118px;
-  place-items: center;
-  margin: 4px 0 16px;
-  border: 1px solid rgba(125, 183, 216, 0.3);
-  border-radius: 999px;
-  background: rgba(238, 247, 251, 0.7);
-}
-
-.worldbook-orbit span {
-  width: 70px;
-  height: 70px;
-  border: 1px solid rgba(216, 184, 106, 0.42);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.worldbook-orbit i {
-  position: absolute;
-  width: 142px;
-  height: 38px;
-  border: 1px solid rgba(125, 183, 216, 0.34);
-  border-radius: 999px;
-  transform: rotate(-18deg);
+  grid-template-columns: 100px minmax(0, 1fr);
+  align-items: center;
+  gap: 15px;
 }
 
 .worldbook-stat-grid {
@@ -5322,26 +5404,26 @@ select {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .worldbook-stat-grid span {
   display: grid;
   gap: 2px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.62);
   padding: 9px 6px;
   text-align: center;
 }
 
 .worldbook-stat-grid strong {
-  color: #1f2a35;
+  color: #1d241f;
   font-size: 17px;
   font-weight: 760;
 }
 
 .worldbook-stat-grid em {
-  color: #758494;
+  color: #72766b;
   font-size: 10px;
   font-style: normal;
 }
@@ -5375,7 +5457,7 @@ select {
   height: 42px;
   flex: 0 0 auto;
   border-radius: 999px;
-  color: #5c7180;
+  color: #5c7669;
   font-size: 16px;
   font-weight: 720;
 }
@@ -5384,9 +5466,9 @@ select {
   width: 70px;
   height: 70px;
   background: #fff;
-  color: #5d91ad;
+  color: #60786b;
   font-size: 24px;
-  box-shadow: inset 0 0 0 1px #dde8ef, 0 14px 28px rgba(81, 110, 130, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(70, 65, 54, 0.1), 0 14px 28px rgba(70, 58, 42, 0.08);
 }
 
 .worldbook-profile {
@@ -5404,10 +5486,10 @@ select {
 }
 
 .worldbook-chip-row span {
-  border: 1px solid #dde8ef;
+  border: 1px solid rgba(70, 65, 54, 0.09);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
-  color: #5f7080;
+  color: #64695f;
   font-size: 11px;
   padding: 7px 10px;
 }
@@ -5422,7 +5504,7 @@ select {
 }
 
 .worldbook-detail-list article {
-  border: 1px solid rgba(221, 232, 239, 0.92);
+  border: 1px solid rgba(70, 65, 54, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.8);
   padding: 15px;
@@ -5430,7 +5512,7 @@ select {
 
 .worldbook-detail-list h2 {
   margin: 0 0 7px;
-  color: #1f2a35;
+  color: #1d241f;
   font-size: 15px;
   font-weight: 700;
 }
@@ -5441,7 +5523,7 @@ select {
   height: 230px;
   place-items: center;
   margin-top: 14px;
-  border: 1px solid rgba(221, 232, 239, 0.92);
+  border: 1px solid rgba(70, 65, 54, 0.08);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.72);
   overflow: hidden;
@@ -5452,9 +5534,9 @@ select {
   position: absolute;
   width: 172px;
   height: 172px;
-  border: 1px solid rgba(125, 183, 216, 0.28);
+  border: 1px solid rgba(126, 151, 135, 0.24);
   border-radius: 999px;
-  box-shadow: inset 0 0 0 44px rgba(125, 183, 216, 0.05);
+  box-shadow: inset 0 0 0 44px rgba(126, 151, 135, 0.05);
 }
 
 .worldbook-relation-map .me,
@@ -5470,7 +5552,7 @@ select {
 .worldbook-relation-map .me {
   width: 58px;
   height: 58px;
-  background: #1f2a35;
+  background: #25312c;
   color: #fff;
 }
 
@@ -5478,9 +5560,9 @@ select {
   position: absolute;
   width: 42px;
   height: 42px;
-  border: 1px solid #dde8ef;
+  border: 1px solid rgba(70, 65, 54, 0.08);
   background: #fff;
-  color: #5d91ad;
+  color: #60786b;
   transform: rotate(var(--angle)) translateY(-84px) rotate(calc(var(--angle) * -1));
 }
 
@@ -5492,9 +5574,126 @@ select {
 }
 
 .worldbook-memory-list button > span {
-  color: #c8a45d;
+  color: #a98a56;
   font-size: 12px;
   font-weight: 740;
+}
+
+.worldbook-add-panel {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.worldbook-add-cover {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 10px 0 2px;
+}
+
+.worldbook-add-cover button {
+  border: 1px solid rgba(70, 65, 54, 0.08);
+  border-radius: 999px;
+  background: #fff;
+  color: #25312c;
+  font-size: 12px;
+  font-weight: 680;
+  padding: 9px 13px;
+}
+
+.worldbook-field-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.worldbook-field-stack label {
+  display: grid;
+  gap: 7px;
+  color: #64695f;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.worldbook-field-stack input,
+.worldbook-field-stack textarea {
+  width: 100%;
+  border: 1px solid rgba(70, 65, 54, 0.1);
+  border-radius: 15px;
+  background: #fbfaf6;
+  color: #1d241f;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  outline: 0;
+  padding: 13px 14px;
+}
+
+.worldbook-field-stack textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.worldbook-save-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.worldbook-material-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.worldbook-material-grid button {
+  min-height: 154px;
+  justify-items: center;
+  gap: 7px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.worldbook-material-grid .worldbook-cover-art {
+  width: 58px;
+  height: 70px;
+  border-radius: 15px;
+}
+
+.worldbook-material-grid .cover-mark {
+  width: 40px;
+  height: 40px;
+  font-size: 11px;
+}
+
+.worldbook-material-grid strong {
+  color: #1d241f;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.worldbook-material-grid span:not(.worldbook-cover-art) {
+  color: #7a7d73;
+  font-size: 11px;
+}
+
+.worldbook-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  color: #687368;
+  text-align: center;
+}
+
+.worldbook-empty strong {
+  color: #1d241f;
+  font-size: 15px;
+}
+
+.worldbook-empty p {
+  max-width: 240px;
+  margin: 0;
+  color: #777a70;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .wechat-page::before {
