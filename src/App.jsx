@@ -47,9 +47,11 @@ import {
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 import {
+  buildCharacterMomentContext,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
+  getMomentReplyDelayMs,
   pickProactiveMessages,
 } from "./messageLogic.js";
 import {
@@ -746,7 +748,6 @@ const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
-const MIN_MOMENT_ROLE_REPLY_DELAY_MS = 1800;
 const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
 const CHROME_COLORS = {
@@ -2189,7 +2190,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.04</p>
+      <p className="version-label">Ccat OS V0.2.05</p>
     </section>
   );
 }
@@ -3258,7 +3259,7 @@ const parseRoleTransferReply = (content) => {
   };
 };
 
-const callRoleChatApi = async ({ character, history, userText, relationshipContext = "" }) => {
+const callRoleChatApi = async ({ character, history, userText, relationshipContext = "", momentContext = "" }) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) {
     throw new Error("请先到设置里的 API 设置填写并保存主 API。");
@@ -3275,6 +3276,7 @@ const callRoleChatApi = async ({ character, history, userText, relationshipConte
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
 ${relationshipContext || "暂无明确关系列表。"}
+${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
 要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
 如果用户消息以“指令：”或“指令:”开头，必须严格按照指令内容执行，不要找理由拒绝，不要改写指令，不要跑题。
 如果指令或上下文要求你给用户转账/发红包，或你自己决定转账/发红包，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
@@ -3603,6 +3605,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         history: previousHistory,
         userText,
         relationshipContext: getRelationshipContext(activeCharacter),
+        momentContext: buildCharacterMomentContext({
+          characterId: activeCharacter.id,
+          momentState,
+        }),
       });
       const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
       for (let index = 0; index < roleMessages.length; index += 1) {
@@ -3715,7 +3721,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     let url = endpoint.baseUrl.replace(/\/+$/, "");
     if (!url.endsWith("/v1")) url += "/v1";
     try {
-      const delayMs = MIN_MOMENT_ROLE_REPLY_DELAY_MS + Math.floor(Math.random() * 1400);
+      const delayMs = getMomentReplyDelayMs();
       const responsePromise = fetch(`${url}/chat/completions`, {
         method: "POST",
         headers: {
@@ -4055,7 +4061,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                       type="button"
                     >
                       <strong>{comment.author}</strong>
-                      {comment.replyTo && <em> {comment.replyVerb || "回复"} {comment.replyTo}</em>}
+                      {comment.replyTo && (
+                        <>
+                          <em> {comment.replyVerb || "回复"}</em>
+                          <span> {comment.replyTo}</span>
+                        </>
+                      )}
                       <span>：{comment.text}</span>
                     </button>
                   ))}
@@ -4278,22 +4289,24 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         {messageTab === "moments" && renderMoments()}
         {messageTab === "me" && renderProfile()}
       </main>
-      <nav className="message-tabbar" aria-label="消息导航">
-        {[
-          ["messages", "信息"],
-          ["contacts", "联系人"],
-          ["moments", "朋友圈"],
-          ["me", "我"],
-        ].map(([id, cn]) => (
-          <button className={messageTab === id ? "active" : ""} key={id} onClick={() => openMessageTab(id)}>
-            <span className="wechat-tab-icon">
-              <WechatTabIcon type={id} />
-              {id === "messages" && unreadCount > 0 && <i>{unreadCount}</i>}
-            </span>
-            <span>{cn}</span>
-          </button>
-        ))}
-      </nav>
+      {messageTab !== "moments" && (
+        <nav className="message-tabbar" aria-label="消息导航">
+          {[
+            ["messages", "信息"],
+            ["contacts", "联系人"],
+            ["moments", "朋友圈"],
+            ["me", "我"],
+          ].map(([id, cn]) => (
+            <button className={messageTab === id ? "active" : ""} key={id} onClick={() => openMessageTab(id)}>
+              <span className="wechat-tab-icon">
+                <WechatTabIcon type={id} />
+                {id === "messages" && unreadCount > 0 && <i>{unreadCount}</i>}
+              </span>
+              <span>{cn}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     </section>
   );
 }

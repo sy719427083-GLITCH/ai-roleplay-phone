@@ -4413,6 +4413,10 @@ select {
   font-weight: 600;
 }
 
+.moment-comment span {
+  color: #4f6590;
+}
+
 .moment-comment em {
   color: #111111;
   font-style: normal;

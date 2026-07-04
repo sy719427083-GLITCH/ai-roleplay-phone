@@ -1,9 +1,11 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import {
+  buildCharacterMomentContext,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
   buildRelationshipContext,
+  getMomentReplyDelayMs,
   pickProactiveMessages,
 } from "./messageLogic.js";
 
@@ -69,4 +71,41 @@ test("moment role replies are only appended when API returns text", () => {
   assert.equal(comment.replyVerb, "回复了");
   assert.equal(comment.replyTo, "我");
   assert.equal(comment.text, "我刚好也这么想。");
+});
+
+test("role chat moment context only includes the active character's own moments", () => {
+  const context = buildCharacterMomentContext({
+    characterId: "char-a",
+    momentState: {
+      items: [
+        {
+          characterId: "char-a",
+          characterName: "林砚舟",
+          text: "今天整理旧事。",
+          comments: [
+            { author: "我", text: "想听" },
+            { author: "林砚舟", replyVerb: "回复了", replyTo: "我", text: "慢慢说。" },
+          ],
+        },
+        {
+          characterId: "char-b",
+          characterName: "沈星",
+          text: "这是另一个人的动态。",
+          comments: [{ author: "我", text: "别让林砚舟知道" }],
+        },
+      ],
+    },
+  });
+
+  assert.match(context, /林砚舟发布：今天整理旧事。/);
+  assert.match(context, /我：想听/);
+  assert.match(context, /林砚舟 回复了 我：慢慢说。/);
+  assert.doesNotMatch(context, /沈星/);
+  assert.doesNotMatch(context, /别让林砚舟知道/);
+});
+
+test("moment role reply delay is at least several minutes", () => {
+  const delayMs = getMomentReplyDelayMs({ random: () => 0 });
+
+  assert.equal(delayMs, 3 * 60 * 1000);
 });

@@ -36,6 +36,11 @@ const createCommentId = (prefix, idSeed = "") => (
   idSeed ? `${prefix}-${idSeed}` : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 );
 
+export const getMomentReplyDelayMs = ({ random = Math.random } = {}) => {
+  const safeRandom = typeof random === "function" ? random : Math.random;
+  return (3 * 60 * 1000) + Math.floor(safeRandom() * 3 * 60 * 1000);
+};
+
 export const buildMomentUserComment = ({ text, replyTarget = null, now = () => new Date().toISOString(), idSeed = "" } = {}) => {
   const cleanText = String(text || "").trim();
   if (!cleanText) return null;
@@ -66,6 +71,28 @@ export const buildMomentRoleReplyComment = ({
     replyVerb: "回复了",
     createdAt: now(),
   };
+};
+
+const formatMomentCommentForContext = (comment = {}) => {
+  const author = comment.author || "未知";
+  const replyText = comment.replyTo ? ` ${comment.replyVerb || "回复了"} ${comment.replyTo}` : "";
+  return `${author}${replyText}：${comment.text || ""}`;
+};
+
+export const buildCharacterMomentContext = ({ characterId, momentState = {} } = {}) => {
+  if (!characterId) return "";
+  const moments = (Array.isArray(momentState.items) ? momentState.items : [])
+    .filter((moment) => moment?.characterId === characterId)
+    .slice(-5);
+  if (!moments.length) return "";
+  const lines = moments.flatMap((moment) => {
+    const base = `${moment.characterName || "角色"}发布：${moment.text || ""}`;
+    const comments = (Array.isArray(moment.comments) ? moment.comments : [])
+      .slice(-12)
+      .map((comment) => `- ${formatMomentCommentForContext(comment)}`);
+    return comments.length ? [base, "评论：", ...comments] : [base];
+  });
+  return `你能记得并知道自己发过的朋友圈内容和其评论，但不知道其他角色发的朋友圈。\n${lines.join("\n")}`;
 };
 
 export const buildRelationshipContext = ({ character, characters = [], meProfiles = {}, relations = {} } = {}) => {
