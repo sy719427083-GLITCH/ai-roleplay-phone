@@ -2180,7 +2180,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.00</p>
+      <p className="version-label">Ccat OS V0.2.01</p>
     </section>
   );
 }
@@ -3023,13 +3023,13 @@ function MessageAvatarWithBadge({ character, unread = 0 }) {
   );
 }
 
-function TransferCard({ message, characterName, onAccept, onReject }) {
+function TransferCard({ message, characterName, onOpen }) {
   const amount = Number(message.amount) || 0;
   const isIncoming = message.transferDirection !== "outgoing";
   const isPending = message.status === "pending";
   const statusText = message.status === "accepted" ? (isIncoming ? "已接收" : "对方已收款") : message.status === "rejected" ? (isIncoming ? "已拒绝" : "对方已退还") : isIncoming ? "待接收" : "等待对方确认";
   return (
-    <span className={`transfer-card ${isPending ? "" : "settled"}`}>
+    <button className={`transfer-card ${isPending ? "" : "settled"}`} onClick={onOpen} type="button">
       <span className="transfer-main">
         <span className="transfer-icon" aria-hidden="true">
           <svg viewBox="0 0 28 28">
@@ -3044,14 +3044,8 @@ function TransferCard({ message, characterName, onAccept, onReject }) {
       </span>
       <span className="transfer-footer">
         <span>{statusText}</span>
-        {isIncoming && isPending && (
-          <span className="transfer-actions">
-            <button onClick={onReject}>拒绝</button>
-            <button onClick={onAccept}>接收</button>
-          </span>
-        )}
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -3360,6 +3354,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [draft, setDraft] = useState("");
   const [actionPanelOpen, setActionPanelOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [activeTransferMessageId, setActiveTransferMessageId] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -3625,6 +3620,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     setMessageState((current) =>
       updateChatMessage(current, chatId, message.id, { status: accepted ? "accepted" : "rejected" }),
     );
+    setActiveTransferMessageId("");
   };
 
   const recallRoleMessage = (message) => {
@@ -3861,6 +3857,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   if (activeCharacter) {
     const history = messageState.histories[chatId] || [];
     const meProfile = getPrimaryMeProfile();
+    const activeTransferMessage = history.find((message) => message.id === activeTransferMessageId && message.kind === "transfer");
     return (
       <section className="full-page message-page chat-page">
         <header className="message-topbar">
@@ -3888,8 +3885,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   <TransferCard
                     message={message}
                     characterName={activeCharacter.name || "角色"}
-                    onAccept={() => settleIncomingTransfer(message, true)}
-                    onReject={() => settleIncomingTransfer(message, false)}
+                    onOpen={() => {
+                      cancelRecallPress();
+                      setActiveTransferMessageId(message.id);
+                    }}
                   />
                 ) : (
                   <span
@@ -3980,6 +3979,37 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
               </div>
             </div>
           )
+        )}
+        {activeTransferMessage && (
+          <div className="wechat-transfer-backdrop" onClick={() => setActiveTransferMessageId("")}>
+            <section className="wechat-transfer-sheet" onClick={(event) => event.stopPropagation()}>
+              <button className="wechat-transfer-close" onClick={() => setActiveTransferMessageId("")} aria-label="关闭">×</button>
+              <div className="wechat-transfer-brand">
+                <span>
+                  <svg viewBox="0 0 28 28" aria-hidden="true">
+                    <path d="M14 3.8 24.2 9v10L14 24.2 3.8 19V9L14 3.8Z" />
+                    <path d="M10 12.2h8M14 8.8v8.4" />
+                  </svg>
+                </span>
+                <strong>{activeTransferMessage.transferDirection === "outgoing" ? `转账给 ${activeCharacter.name || "角色"}` : `${activeCharacter.name || "角色"} 向你转账`}</strong>
+              </div>
+              <div className="wechat-transfer-amount">¥{Number(activeTransferMessage.amount || 0).toFixed(2)}</div>
+              <p>{activeTransferMessage.note || "转账"}</p>
+              <div className="wechat-transfer-status">
+                {activeTransferMessage.status === "accepted"
+                  ? activeTransferMessage.transferDirection === "outgoing" ? "对方已收款" : "已接收"
+                  : activeTransferMessage.status === "rejected"
+                    ? activeTransferMessage.transferDirection === "outgoing" ? "对方已退还" : "已拒绝"
+                    : activeTransferMessage.transferDirection === "outgoing" ? "等待对方确认" : "待接收"}
+              </div>
+              {activeTransferMessage.transferDirection !== "outgoing" && activeTransferMessage.status === "pending" && (
+                <div className="wechat-transfer-actions">
+                  <button onClick={() => settleIncomingTransfer(activeTransferMessage, false)}>退还</button>
+                  <button onClick={() => settleIncomingTransfer(activeTransferMessage, true)}>收款</button>
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </section>
     );
