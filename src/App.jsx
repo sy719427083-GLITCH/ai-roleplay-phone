@@ -2180,7 +2180,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS v0.1.98</p>
+      <p className="version-label">Ccat OS v0.1.99</p>
     </section>
   );
 }
@@ -3343,6 +3343,7 @@ ${relationshipContext || "暂无明确关系列表。"}`,
 
 function MessageAppScreen({ onClose, onUnreadChange }) {
   const [messageTab, setMessageTab] = useState("messages");
+  const [messageBackTarget, setMessageBackTarget] = useState("");
   const [chatId, setChatId] = useState("");
   const [draft, setDraft] = useState("");
   const [actionPanelOpen, setActionPanelOpen] = useState(false);
@@ -3422,6 +3423,21 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   const closeChat = () => {
     setChatId("");
+  };
+
+  const openMessageTab = (nextTab, backTarget = "") => {
+    setMessageBackTarget(backTarget);
+    setMessageTab(nextTab);
+  };
+
+  const handleMessageBack = () => {
+    if (messageBackTarget) {
+      const target = messageBackTarget;
+      setMessageBackTarget("");
+      setMessageTab(target);
+      return;
+    }
+    onClose();
   };
 
   const openChat = (character) => {
@@ -3703,7 +3719,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
       </label>
       <div className="message-section wechat-list">
         {allConversations.length === 0 && matchesSearch("新的朋友", "好友申请", "添加角色") && (
-          <button className="message-row conversation-row wechat-conversation" onClick={() => setMessageTab("friends")}>
+          <button className="message-row conversation-row wechat-conversation" onClick={() => openMessageTab("friends", "contacts")}>
             <span className="message-system-avatar wechat-new-avatar">新</span>
             <span className="message-row-main">
               <strong>新的朋友</strong>
@@ -3749,14 +3765,14 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   const renderContacts = () => (
     <div className="message-section">
-      <button className="message-row new-friend-row" onClick={() => setMessageTab("friends")}>
+      <button className="message-row new-friend-row" onClick={() => openMessageTab("friends", "contacts")}>
         <span className="message-system-avatar">新</span>
         <span className="message-row-main">
           <strong>新的朋友</strong>
           <small>{pendingCount ? `${pendingCount} 条待处理` : "Friend Requests"}</small>
         </span>
       </button>
-      <button className="message-row">
+      <button className="message-row" onClick={() => openMessageTab("groups", "contacts")}>
         <span className="message-system-avatar">群</span>
         <span className="message-row-main">
           <strong>群聊</strong>
@@ -3774,6 +3790,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         </button>
       ))}
       {contacts.length === 0 && <div className="message-empty compact">暂无联系人</div>}
+    </div>
+  );
+
+  const renderGroups = () => (
+    <div className="message-section">
+      <div className="message-empty compact">暂无群聊</div>
     </div>
   );
 
@@ -3920,12 +3942,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         {messageTab === "contacts" ? (
           <span></span>
         ) : (
-          <button className="wechat-back-hotspot" onClick={onClose} aria-label="返回">
+          <button className="wechat-back-hotspot" onClick={handleMessageBack} aria-label="返回">
             <ChevronLeft size={22} />
           </button>
         )}
-        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "moments" ? "发现" : "我"}</strong>
-        <button className="message-add wechat-plus" onClick={() => setMessageTab("contacts")} aria-label="添加">
+        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "groups" ? "群聊" : messageTab === "moments" ? "发现" : "我"}</strong>
+        <button className="message-add wechat-plus" onClick={() => openMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
             <path d="M14 8.4v11.2M8.4 14h11.2" />
@@ -3936,6 +3958,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         {messageTab === "messages" && renderMessages()}
         {messageTab === "contacts" && renderContacts()}
         {messageTab === "friends" && renderFriendRequests()}
+        {messageTab === "groups" && renderGroups()}
         {messageTab === "moments" && renderMoments()}
         {messageTab === "me" && renderProfile()}
       </main>
@@ -3946,7 +3969,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           ["moments", "发现"],
           ["me", "我"],
         ].map(([id, cn]) => (
-          <button className={messageTab === id ? "active" : ""} key={id} onClick={() => setMessageTab(id)}>
+          <button className={messageTab === id ? "active" : ""} key={id} onClick={() => openMessageTab(id)}>
             <span className="wechat-tab-icon">
               <WechatTabIcon type={id} />
               {id === "messages" && unreadCount > 0 && <i>{unreadCount}</i>}
