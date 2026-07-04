@@ -4291,6 +4291,130 @@ select {
   font-size: 26px;
 }
 
+.moments-feed {
+  background: #fff;
+}
+
+.moment-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  background: #fff;
+}
+
+.moment-card .message-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 4px;
+}
+
+.moment-body {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.moment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.moment-head strong {
+  overflow: hidden;
+  color: #4f6590;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moment-head time {
+  flex: 0 0 auto;
+  color: #b0b0b6;
+  font-size: 11px;
+}
+
+.moment-body p {
+  margin: 0;
+  color: #1c1c1e;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.moment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 24px;
+  color: #687798;
+  font-size: 12px;
+}
+
+.moment-actions button {
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: #687798;
+  font-size: 12px;
+}
+
+.moment-actions button.liked {
+  color: #d79aaa;
+}
+
+.moment-social {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  background: #f3f3f5;
+  color: #1c1c1e;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.moment-like-line {
+  color: #4f6590;
+}
+
+.moment-comment strong,
+.moment-comment em {
+  color: #4f6590;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.moment-comment-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.moment-comment-box input {
+  height: 32px;
+  min-width: 0;
+  padding: 0 9px;
+  border-radius: 4px;
+  outline: none;
+  background: #f7f7f7;
+  color: #1c1c1e;
+  font-size: 13px;
+}
+
+.moment-comment-box button {
+  height: 32px;
+  border-radius: 4px;
+  background: #1c1c1e;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 560;
+}
+
 .message-profile-card {
   display: flex;
   align-items: center;
@@ -4305,7 +4429,11 @@ select {
 }
 
 .chat-page {
-  background: #fff;
+  background: #f4f4f4;
+}
+
+.chat-page::before {
+  background: #f4f4f4;
 }
 
 .chat-page .message-topbar {
@@ -4361,23 +4489,43 @@ select {
 }
 
 .chat-bubble {
+  position: relative;
   max-width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(28, 28, 30, 0.06);
-  border-radius: 15px;
-  border-top-left-radius: 5px;
-  background: #f6f6f7;
+  padding: 9px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  background: #fff;
   color: #1c1c1e;
   font-size: 15px;
   line-height: 1.45;
 }
 
+.chat-bubble::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border-left: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: inherit;
+  transform: rotate(45deg);
+}
+
 .chat-bubble-row.mine .chat-bubble {
-  border-radius: 15px;
-  border-top-right-radius: 5px;
+  border-radius: 6px;
   border-color: #1c1c1e;
   background: #1c1c1e;
   color: #fff;
+}
+
+.chat-bubble-row.mine .chat-bubble::before {
+  right: -5px;
+  left: auto;
+  border: 0;
+  border-top: 1px solid #1c1c1e;
+  border-right: 1px solid #1c1c1e;
 }
 
 .chat-recall-pill {
@@ -4479,10 +4627,10 @@ select {
 
 .transfer-card {
   display: grid;
-  width: min(236px, 72vw);
+  width: min(258px, 74vw);
   overflow: hidden;
-  border-radius: 7px;
-  background: #ef9f3a;
+  border-radius: 5px;
+  background: #f09b3b;
   color: #ffffff;
   text-align: left;
   transition: filter 0.24s ease, opacity 0.24s ease;
@@ -4494,7 +4642,7 @@ select {
 }
 
 .chat-bubble-row.mine .transfer-card {
-  background: #e99936;
+  background: #f09b3b;
 }
 
 .transfer-card.settled {
@@ -4505,26 +4653,26 @@ select {
 .transfer-main {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 72px;
-  padding: 13px 14px;
+  gap: 11px;
+  min-height: 74px;
+  padding: 12px 13px;
 }
 
 .transfer-icon {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.22);
+  border-radius: 5px;
+  background: #f8cf62;
 }
 
 .transfer-icon svg {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   fill: none;
-  stroke: #fff;
+  stroke: #bd6b16;
   stroke-width: 1.9;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -4533,33 +4681,36 @@ select {
 .transfer-copy {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 5px;
 }
 
 .transfer-copy strong {
-  font-size: 20px;
-  font-weight: 650;
-  line-height: 1.05;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transfer-copy em {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 12px;
   font-style: normal;
-  opacity: 0.88;
+  opacity: 0.78;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .transfer-footer {
   display: flex;
-  min-height: 34px;
+  min-height: 28px;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 10px 7px 14px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #9e9ea5;
+  padding: 6px 10px 6px 13px;
+  background: #fff;
+  color: #9b9b9f;
   font-size: 12px;
 }
 

@@ -738,6 +738,7 @@ const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
+const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
 const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
 const CHROME_COLORS = {
@@ -2180,7 +2181,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.01</p>
+      <p className="version-label">Ccat OS V0.2.02</p>
     </section>
   );
 }
@@ -3005,6 +3006,50 @@ const readMessageRelations = () => {
   }
 };
 
+const getMomentDayKey = () => new Date().toISOString().slice(0, 10);
+
+const normalizeMomentState = (value = {}) => ({
+  dayKey: value.dayKey || getMomentDayKey(),
+  dailyCount: Number(value.dailyCount) || 0,
+  lastCreatedAt: value.lastCreatedAt || "",
+  items: Array.isArray(value.items) ? value.items : [],
+});
+
+const readMomentState = () => {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(MOMENTS_STORAGE_KEY)) || {};
+    const normalized = normalizeMomentState(parsed);
+    return normalized.dayKey === getMomentDayKey()
+      ? normalized
+      : { ...normalized, dayKey: getMomentDayKey(), dailyCount: 0 };
+  } catch {
+    return normalizeMomentState();
+  }
+};
+
+const pickMomentText = (character) => {
+  const nameSeed = String(character?.name || "").length;
+  const pool = [
+    "今天想把一些旧事慢慢整理清楚。",
+    "忽然觉得，有些话还是留到合适的时候再说。",
+    "窗外很安静，适合想一点不那么急的事。",
+    "刚刚完成一件小事，心里总算松了一点。",
+    "有时候只是想看看大家都在做什么。",
+  ];
+  return pool[(nameSeed + new Date().getHours()) % pool.length];
+};
+
+const createRoleMoment = (character) => ({
+  id: `moment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  characterId: character?.id || "",
+  characterName: character?.name || "角色",
+  avatar: character?.avatar || "",
+  text: pickMomentText(character),
+  createdAt: new Date().toISOString(),
+  liked: false,
+  comments: [],
+});
+
 function MessageAvatar({ character }) {
   return (
     <span className="message-avatar">
@@ -3033,17 +3078,19 @@ function TransferCard({ message, characterName, onOpen }) {
       <span className="transfer-main">
         <span className="transfer-icon" aria-hidden="true">
           <svg viewBox="0 0 28 28">
-            <path d="M14 3.8 24.2 9v10L14 24.2 3.8 19V9L14 3.8Z" />
-            <path d="M10 12.2h8M14 8.8v8.4" />
+            <path d="M6.2 6.6h15.6v14.8H6.2z" />
+            <path d="M6.2 10.6c3.4 2.3 12.2 2.3 15.6 0" />
+            <path d="M14 10.4v7.2" />
+            <path d="M11.4 14.2h5.2" />
           </svg>
         </span>
         <span className="transfer-copy">
-          <strong>¥{amount.toFixed(2)}</strong>
-          <em>{message.note || (isIncoming ? `${characterName} 向你转账` : `转账给 ${characterName}`)}</em>
+          <strong>{message.note || (isIncoming ? `${characterName} 发来的红包` : `发给 ${characterName} 的红包`)}</strong>
+          <em>{isPending ? "领取红包" : statusText}</em>
         </span>
       </span>
       <span className="transfer-footer">
-        <span>{statusText}</span>
+        <span>微信红包</span>
       </span>
     </button>
   );
@@ -3358,6 +3405,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [momentDrafts, setMomentDrafts] = useState({});
+  const [momentState, setMomentState] = useState(readMomentState);
   const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
   const swipeRef = useRef(null);
@@ -3384,6 +3433,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageState));
     onUnreadChange?.(getMessageUnreadCount(messageState));
   }, [messageState]);
+
+  useEffect(() => {
+    window.localStorage.setItem(MOMENTS_STORAGE_KEY, JSON.stringify(momentState));
+  }, [momentState]);
 
   useEffect(() => {
     if (characters.length === 0) return;
@@ -3428,6 +3481,26 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     meProfiles,
     relations,
   });
+
+  useEffect(() => {
+    const sourceCharacters = contacts.length ? contacts : characters;
+    if (!sourceCharacters.length) return;
+    setMomentState((current) => {
+      const today = getMomentDayKey();
+      const reset = current.dayKey === today ? current : { ...current, dayKey: today, dailyCount: 0 };
+      const lastAt = reset.lastCreatedAt ? new Date(reset.lastCreatedAt).getTime() : 0;
+      const enoughGap = !lastAt || Date.now() - lastAt > 4 * 60 * 60 * 1000;
+      const shouldCreate = reset.items.length === 0 || (reset.dailyCount < 3 && enoughGap && Math.random() < 0.28);
+      if (!shouldCreate) return reset;
+      const character = sourceCharacters[(Date.now() + reset.dailyCount) % sourceCharacters.length];
+      return {
+        ...reset,
+        dailyCount: Math.min(3, reset.dailyCount + 1),
+        lastCreatedAt: new Date().toISOString(),
+        items: [createRoleMoment(character), ...reset.items].slice(0, 40),
+      };
+    });
+  }, [characters.length, contacts.length]);
 
   const closeChat = () => {
     setChatId("");
@@ -3621,6 +3694,86 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
       updateChatMessage(current, chatId, message.id, { status: accepted ? "accepted" : "rejected" }),
     );
     setActiveTransferMessageId("");
+  };
+
+  const replyToMomentComment = async ({ moment, commentText }) => {
+    const endpoint = getSelectedChatEndpoint();
+    if (!endpoint) {
+      return "看到了，我会记着。";
+    }
+    let url = endpoint.baseUrl.replace(/\/+$/, "");
+    if (!url.endsWith("/v1")) url += "/v1";
+    try {
+      const response = await fetch(`${url}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: endpoint.model,
+          temperature: Number(endpoint.temperature ?? 0.7),
+          messages: [
+            {
+              role: "system",
+              content: `你在朋友圈里扮演${moment.characterName || "角色"}，针对用户评论做一句自然回复。不要 emoji，不要括号动作，不要解释。`,
+            },
+            { role: "user", content: `我的朋友圈内容：${moment.text}\n用户评论：${commentText}` },
+          ],
+        }),
+      });
+      if (!response.ok) throw new Error("moment reply failed");
+      const data = await response.json();
+      return sanitizeOnlineChatText(data?.choices?.[0]?.message?.content || "").split(/\n+/)[0] || "嗯，我看到了。";
+    } catch {
+      return "嗯，我看到了。";
+    }
+  };
+
+  const toggleMomentLike = (momentId) => {
+    setMomentState((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === momentId ? { ...item, liked: !item.liked } : item),
+    }));
+  };
+
+  const submitMomentComment = async (moment) => {
+    const text = String(momentDrafts[moment.id] || "").trim();
+    if (!text) return;
+    const userComment = {
+      id: `comment-${Date.now()}`,
+      author: "我",
+      text,
+      createdAt: new Date().toISOString(),
+    };
+    setMomentDrafts((current) => ({ ...current, [moment.id]: "" }));
+    setMomentState((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.id === moment.id ? { ...item, comments: [...(item.comments || []), userComment] } : item,
+      ),
+    }));
+    const reply = await replyToMomentComment({ moment, commentText: text });
+    setMomentState((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.id === moment.id
+          ? {
+              ...item,
+              comments: [
+                ...(item.comments || []),
+                {
+                  id: `comment-${Date.now()}-reply`,
+                  author: moment.characterName || "角色",
+                  text: reply,
+                  replyTo: "我",
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            }
+          : item,
+      ),
+    }));
   };
 
   const recallRoleMessage = (message) => {
@@ -3832,12 +3985,53 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   );
 
   const renderMoments = () => (
-    <div className="message-section">
+    <div className="message-section moments-feed">
       <div className="moments-cover">
         <strong>朋友圈</strong>
         <span>Moments</span>
       </div>
-      <div className="message-empty">角色动态会在这里汇总</div>
+      {momentState.items.length === 0 ? (
+        <div className="message-empty">角色动态会在这里汇总</div>
+      ) : (
+        momentState.items.map((moment) => (
+          <article className="moment-card" key={moment.id}>
+            <MessageAvatar character={{ name: moment.characterName, avatar: moment.avatar }} />
+            <div className="moment-body">
+              <div className="moment-head">
+                <strong>{moment.characterName}</strong>
+                <time>{formatMessageTime(moment.createdAt)}</time>
+              </div>
+              <p>{moment.text}</p>
+              <div className="moment-actions">
+                <button className={moment.liked ? "liked" : ""} onClick={() => toggleMomentLike(moment.id)}>
+                  {moment.liked ? "已赞" : "点赞"}
+                </button>
+                <span>评论</span>
+              </div>
+              {(moment.liked || moment.comments?.length > 0) && (
+                <div className="moment-social">
+                  {moment.liked && <div className="moment-like-line">我觉得很赞</div>}
+                  {(moment.comments || []).map((comment) => (
+                    <div className="moment-comment" key={comment.id}>
+                      <strong>{comment.author}</strong>
+                      {comment.replyTo && <em> 回复 {comment.replyTo}</em>}
+                      <span>：{comment.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="moment-comment-box">
+                <input
+                  value={momentDrafts[moment.id] || ""}
+                  onChange={(event) => setMomentDrafts((current) => ({ ...current, [moment.id]: event.target.value }))}
+                  placeholder="评论"
+                />
+                <button onClick={() => submitMomentComment(moment)}>发送</button>
+              </div>
+            </div>
+          </article>
+        ))
+      )}
     </div>
   );
 
@@ -3991,10 +4185,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                     <path d="M10 12.2h8M14 8.8v8.4" />
                   </svg>
                 </span>
-                <strong>{activeTransferMessage.transferDirection === "outgoing" ? `转账给 ${activeCharacter.name || "角色"}` : `${activeCharacter.name || "角色"} 向你转账`}</strong>
+                <strong>{activeTransferMessage.transferDirection === "outgoing" ? `发给 ${activeCharacter.name || "角色"} 的红包` : `${activeCharacter.name || "角色"} 发来的红包`}</strong>
               </div>
               <div className="wechat-transfer-amount">¥{Number(activeTransferMessage.amount || 0).toFixed(2)}</div>
-              <p>{activeTransferMessage.note || "转账"}</p>
+              <p>{activeTransferMessage.note || "微信红包"}</p>
               <div className="wechat-transfer-status">
                 {activeTransferMessage.status === "accepted"
                   ? activeTransferMessage.transferDirection === "outgoing" ? "对方已收款" : "已接收"
@@ -4025,7 +4219,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             <ChevronLeft size={22} />
           </button>
         )}
-        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "groups" ? "群聊" : messageTab === "moments" ? "发现" : "我"}</strong>
+        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "groups" ? "群聊" : messageTab === "moments" ? "朋友圈" : "我"}</strong>
         <button className="message-add wechat-plus" onClick={() => openMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
@@ -4045,7 +4239,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         {[
           ["messages", "信息"],
           ["contacts", "联系人"],
-          ["moments", "发现"],
+          ["moments", "朋友圈"],
           ["me", "我"],
         ].map(([id, cn]) => (
           <button className={messageTab === id ? "active" : ""} key={id} onClick={() => openMessageTab(id)}>
