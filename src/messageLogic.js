@@ -32,6 +32,51 @@ export const pickProactiveMessages = (character, options = {}) => {
   return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
 };
 
+export const sanitizeOnlineChatText = (text) =>
+  String(text || "")
+    .replace(/（[^）]*）/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\*[^*]+\*/g, "")
+    .replace(/【[^】]*】/g, "")
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/^\s*(旁白|动作|心理|表情)\s*[:：].*$/gim, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+
+export const splitChatMessages = (text) => {
+  const cleaned = sanitizeOnlineChatText(text);
+  if (!cleaned) return [];
+  return cleaned
+    .split(/\n+|(?<=[。！？!?])\s+/)
+    .map((part) => sanitizeOnlineChatText(part))
+    .filter(Boolean);
+};
+
+export const parseRoleTransferReply = (content) => {
+  const raw = String(content || "").trim();
+  const transferMatch = raw.match(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*(\d+(?:\.\d{1,2})?)/i);
+  const hasTransferIntent = /(?:转账|转了|转给你|发红包|红包|发给你|打给你|给你转|我转给你|收下|碎银|银钱|银子|拿去买)/i.test(raw);
+  const amountMatch = raw.match(/¥\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:块|元|rmb|RMB)/i);
+  const noteMatch = raw.match(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*(.+)$/im);
+  const cleaned = raw
+    .replace(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*\d+(?:\.\d{1,2})?/gi, "")
+    .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
+    .trim();
+  const amount = transferMatch
+    ? Number(transferMatch[1])
+    : hasTransferIntent && amountMatch
+      ? Number(amountMatch[1] || amountMatch[2])
+      : hasTransferIntent
+        ? 66
+        : 0;
+  const messages = splitChatMessages(cleaned || (amount > 0 ? "给你转了一笔钱。" : raw));
+  return {
+    text: messages[0] || "",
+    messages,
+    transfer: amount > 0 ? { amount, note: noteMatch?.[1]?.trim() || "角色转账" } : null,
+  };
+};
+
 const createCommentId = (prefix, idSeed = "") => (
   idSeed ? `${prefix}-${idSeed}` : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 );

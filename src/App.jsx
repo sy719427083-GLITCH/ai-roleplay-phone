@@ -53,7 +53,10 @@ import {
   buildMomentUserComment,
   buildRelationshipContext,
   getMomentReplyDelayMs,
+  parseRoleTransferReply,
   pickProactiveMessages,
+  sanitizeOnlineChatText,
+  splitChatMessages,
 } from "./messageLogic.js";
 import {
   MESSAGE_STORAGE_KEY,
@@ -874,26 +877,6 @@ const writeStoredMessageState = (state) => {
 
 const getMessageUnreadCount = (state = getStoredMessageState()) =>
   normalizeMessageState(state).conversations.reduce((sum, conversation) => sum + Math.max(0, Number(conversation.unread) || 0), 0);
-
-const sanitizeOnlineChatText = (text) =>
-  String(text || "")
-    .replace(/\*[^*]{1,80}\*/g, "")
-    .replace(/（[^（）]{1,80}）/g, "")
-    .replace(/\([^()]{1,80}\)/g, "")
-    .replace(/^\s*[\[【].*?[\]】]\s*$/gm, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-const splitChatMessages = (text) => {
-  const cleaned = sanitizeOnlineChatText(text);
-  if (!cleaned) return [];
-  const parts = cleaned
-    .split(/\n+/)
-    .map((part) => sanitizeOnlineChatText(part))
-    .filter(Boolean);
-  return (parts.length ? parts : [cleaned]).slice(0, 5);
-};
 
 const waitForChatBeat = (index = 0) =>
   new Promise((resolve) => window.setTimeout(resolve, 620 + index * 220));
@@ -2191,7 +2174,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.06</p>
+      <p className="version-label">Ccat OS V0.2.07</p>
     </section>
   );
 }
@@ -3083,24 +3066,26 @@ function TransferCard({ message, characterName, onOpen }) {
   const isIncoming = message.transferDirection !== "outgoing";
   const isPending = message.status === "pending";
   const statusText = message.status === "accepted" ? (isIncoming ? "已接收" : "对方已收款") : message.status === "rejected" ? (isIncoming ? "已拒绝" : "对方已退还") : isIncoming ? "待接收" : "等待对方确认";
+  const title = message.note || (isIncoming ? `${characterName} 发来的红包` : `发给 ${characterName} 的红包`);
   return (
     <button className={`transfer-card ${isPending ? "" : "settled"}`} onClick={onOpen} type="button">
       <span className="transfer-main">
         <span className="transfer-icon" aria-hidden="true">
           <svg viewBox="0 0 28 28">
-            <path d="M6.2 6.6h15.6v14.8H6.2z" />
-            <path d="M6.2 10.6c3.4 2.3 12.2 2.3 15.6 0" />
-            <path d="M14 10.4v7.2" />
-            <path d="M11.4 14.2h5.2" />
+            <path d="M5.8 8.6h16.4v11.8H5.8z" />
+            <path d="M5.8 9.2 14 14l8.2-4.8" />
+            <path d="M14 13.7v5.2" />
+            <path d="M11.4 16h5.2" />
           </svg>
         </span>
         <span className="transfer-copy">
-          <strong>{message.note || (isIncoming ? `${characterName} 发来的红包` : `发给 ${characterName} 的红包`)}</strong>
-          <em>{isPending ? "领取红包" : statusText}</em>
+          <strong>{title}</strong>
+          <em>{amount > 0 ? `¥${amount.toFixed(2)} · ${isPending ? "点击查看" : statusText}` : statusText}</em>
         </span>
       </span>
       <span className="transfer-footer">
         <span>微信红包</span>
+        <span>{isPending ? "未领取" : statusText}</span>
       </span>
     </button>
   );
@@ -3239,25 +3224,6 @@ const getSelectedChatEndpoint = () => {
   const model = endpoint?.model || endpoint?.customModel;
   if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) return null;
   return { ...endpoint, model };
-};
-
-const parseRoleTransferReply = (content) => {
-  const raw = String(content || "").trim();
-  const transferMatch = raw.match(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*(\d+(?:\.\d{1,2})?)/i);
-  const hasTransferIntent = /(?:转账|转了|转给你|发红包|红包|发给你|打给你|给你转|我转给你|收下)/i.test(raw);
-  const amountMatch = raw.match(/¥\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:块|元|rmb|RMB)/i);
-  const noteMatch = raw.match(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*(.+)$/im);
-  const cleaned = raw
-    .replace(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*\d+(?:\.\d{1,2})?/gi, "")
-    .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
-    .trim();
-  const amount = transferMatch ? Number(transferMatch[1]) : hasTransferIntent && amountMatch ? Number(amountMatch[1] || amountMatch[2]) : 0;
-  const messages = splitChatMessages(cleaned || (amount > 0 ? "给你转了一笔钱。" : raw));
-  return {
-    text: messages[0] || "",
-    messages,
-    transfer: amount > 0 ? { amount, note: noteMatch?.[1]?.trim() || "角色转账" } : null,
-  };
 };
 
 const callRoleChatApi = async ({ character, history, userText, relationshipContext = "", momentContext = "" }) => {

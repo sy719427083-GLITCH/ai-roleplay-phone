@@ -7,6 +7,7 @@ import {
   buildMomentUserComment,
   buildRelationshipContext,
   getMomentReplyDelayMs,
+  parseRoleTransferReply,
   pickProactiveMessages,
 } from "./messageLogic.js";
 
@@ -115,4 +116,12 @@ test("moment likes render as names instead of a sentence", () => {
   assert.deepEqual(buildMomentLikeNames({ liked: true }), ["我"]);
   assert.deepEqual(buildMomentLikeNames({ liked: true, likeNames: ["林砚舟", "我"] }), ["我", "林砚舟"]);
   assert.deepEqual(buildMomentLikeNames({ liked: false, likes: ["沈星"] }), ["沈星"]);
+});
+
+test("transfer intent without explicit amount still creates a small transfer card", () => {
+  const reply = parseRoleTransferReply("再转最后一点碎银，拿去买酒喝");
+
+  assert.equal(reply.text, "再转最后一点碎银，拿去买酒喝");
+  assert.equal(reply.transfer.amount, 66);
+  assert.equal(reply.transfer.note, "角色转账");
 });
