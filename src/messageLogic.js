@@ -32,6 +32,42 @@ export const pickProactiveMessages = (character, options = {}) => {
   return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
 };
 
+const createCommentId = (prefix, idSeed = "") => (
+  idSeed ? `${prefix}-${idSeed}` : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+);
+
+export const buildMomentUserComment = ({ text, replyTarget = null, now = () => new Date().toISOString(), idSeed = "" } = {}) => {
+  const cleanText = String(text || "").trim();
+  if (!cleanText) return null;
+  const replyTo = String(replyTarget?.author || replyTarget?.characterName || "").trim();
+  return {
+    id: createCommentId("comment", idSeed),
+    author: "我",
+    text: cleanText,
+    createdAt: now(),
+    ...(replyTo ? { replyTo, replyVerb: "回复了" } : {}),
+  };
+};
+
+export const buildMomentRoleReplyComment = ({
+  replyText,
+  characterName = "角色",
+  replyTo = "我",
+  now = () => new Date().toISOString(),
+  idSeed = "",
+} = {}) => {
+  const cleanText = String(replyText || "").trim();
+  if (!cleanText) return null;
+  return {
+    id: createCommentId("comment", idSeed || "reply"),
+    author: characterName || "角色",
+    text: cleanText,
+    replyTo,
+    replyVerb: "回复了",
+    createdAt: now(),
+  };
+};
+
 export const buildRelationshipContext = ({ character, characters = [], meProfiles = {}, relations = {} } = {}) => {
   if (!character?.id) return "暂无明确关系列表。";
   const charactersById = Object.fromEntries(characters.map((item) => [item.id, item]));

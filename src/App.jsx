@@ -22,6 +22,7 @@ import {
   ListPlus,
   Mail,
   MapPin,
+  MessageCircle,
   Moon,
   Palette,
   Play,
@@ -30,6 +31,7 @@ import {
   Smartphone,
   Soup,
   Square,
+  ThumbsUp,
   UserRound,
   UsersRound,
   Volume2,
@@ -44,7 +46,12 @@ import {
   STORAGE_KEY,
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
-import { buildRelationshipContext, pickProactiveMessages } from "./messageLogic.js";
+import {
+  buildMomentRoleReplyComment,
+  buildMomentUserComment,
+  buildRelationshipContext,
+  pickProactiveMessages,
+} from "./messageLogic.js";
 import {
   MESSAGE_STORAGE_KEY,
   acceptFriendRequest,
@@ -739,6 +746,7 @@ const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
+const MIN_MOMENT_ROLE_REPLY_DELAY_MS = 1800;
 const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
 const CHROME_COLORS = {
@@ -2181,7 +2189,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.03</p>
+      <p className="version-label">Ccat OS V0.2.04</p>
     </section>
   );
 }
@@ -3407,6 +3415,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [transferNote, setTransferNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [momentDrafts, setMomentDrafts] = useState({});
+  const [activeMomentCommentId, setActiveMomentCommentId] = useState("");
+  const [momentReplyTargets, setMomentReplyTargets] = useState({});
   const [momentState, setMomentState] = useState(readMomentState);
   const [sending, setSending] = useState(false);
   const [swipedId, setSwipedId] = useState("");
@@ -3697,15 +3707,16 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     setActiveTransferMessageId("");
   };
 
-  const replyToMomentComment = async ({ moment, commentText }) => {
+  const replyToMomentComment = async ({ moment, commentText, replyTarget = null }) => {
     const endpoint = getSelectedChatEndpoint();
     if (!endpoint) {
-      return "看到了，我会记着。";
+      return null;
     }
     let url = endpoint.baseUrl.replace(/\/+$/, "");
     if (!url.endsWith("/v1")) url += "/v1";
     try {
-      const response = await fetch(`${url}/chat/completions`, {
+      const delayMs = MIN_MOMENT_ROLE_REPLY_DELAY_MS + Math.floor(Math.random() * 1400);
+      const responsePromise = fetch(`${url}/chat/completions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${endpoint.apiKey.trim()}`,
@@ -3717,17 +3728,24 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           messages: [
             {
               role: "system",
-              content: `你在朋友圈里扮演${moment.characterName || "角色"}，针对用户评论做一句自然回复。不要 emoji，不要括号动作，不要解释。`,
+              content: `你在朋友圈里扮演${moment.characterName || "角色"}，必须以角色本人身份针对用户评论做一句自然回复。不要 emoji，不要括号动作，不要解释，不要提到 API 或 AI。`,
             },
-            { role: "user", content: `我的朋友圈内容：${moment.text}\n用户评论：${commentText}` },
+            {
+              role: "user",
+              content: `我的朋友圈内容：${moment.text}\n${replyTarget?.author ? `用户正在回复你之前的评论：${replyTarget.text || ""}\n` : ""}用户评论：${commentText}`,
+            },
           ],
         }),
       });
+      const [response] = await Promise.all([
+        responsePromise,
+        new Promise((resolve) => setTimeout(resolve, delayMs)),
+      ]);
       if (!response.ok) throw new Error("moment reply failed");
       const data = await response.json();
-      return sanitizeOnlineChatText(data?.choices?.[0]?.message?.content || "").split(/\n+/)[0] || "嗯，我看到了。";
+      return sanitizeOnlineChatText(data?.choices?.[0]?.message?.content || "").split(/\n+/)[0] || null;
     } catch {
-      return "嗯，我看到了。";
+      return null;
     }
   };
 
@@ -3738,39 +3756,42 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     }));
   };
 
+  const openMomentCommentBox = (momentId, replyTarget = null) => {
+    setActiveMomentCommentId(momentId);
+    setMomentReplyTargets((current) => ({
+      ...current,
+      [momentId]: replyTarget,
+    }));
+  };
+
   const submitMomentComment = async (moment) => {
     const text = String(momentDrafts[moment.id] || "").trim();
     if (!text) return;
-    const userComment = {
-      id: `comment-${Date.now()}`,
-      author: "我",
-      text,
-      createdAt: new Date().toISOString(),
-    };
+    const replyTarget = momentReplyTargets[moment.id] || null;
+    const userComment = buildMomentUserComment({ text, replyTarget });
+    if (!userComment) return;
     setMomentDrafts((current) => ({ ...current, [moment.id]: "" }));
+    setMomentReplyTargets((current) => ({ ...current, [moment.id]: null }));
     setMomentState((current) => ({
       ...current,
       items: current.items.map((item) =>
         item.id === moment.id ? { ...item, comments: [...(item.comments || []), userComment] } : item,
       ),
     }));
-    const reply = await replyToMomentComment({ moment, commentText: text });
+    const reply = await replyToMomentComment({ moment, commentText: text, replyTarget });
+    const roleReply = buildMomentRoleReplyComment({
+      replyText: reply,
+      characterName: moment.characterName || "角色",
+      replyTo: "我",
+    });
+    if (!roleReply) return;
     setMomentState((current) => ({
       ...current,
       items: current.items.map((item) =>
         item.id === moment.id
           ? {
               ...item,
-              comments: [
-                ...(item.comments || []),
-                {
-                  id: `comment-${Date.now()}-reply`,
-                  author: moment.characterName || "角色",
-                  text: reply,
-                  replyTo: "我",
-                  createdAt: new Date().toISOString(),
-                },
-              ],
+              comments: [...(item.comments || []), roleReply],
             }
           : item,
       ),
@@ -4004,31 +4025,52 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
               </div>
               <p>{moment.text}</p>
               <div className="moment-actions">
-                <button className={moment.liked ? "liked" : ""} onClick={() => toggleMomentLike(moment.id)}>
-                  {moment.liked ? "已赞" : "点赞"}
+                <button
+                  className={moment.liked ? "liked moment-icon-action" : "moment-icon-action"}
+                  onClick={() => toggleMomentLike(moment.id)}
+                  aria-label={moment.liked ? "取消点赞" : "点赞"}
+                  title={moment.liked ? "取消点赞" : "点赞"}
+                >
+                  <ThumbsUp size={16} strokeWidth={2} />
                 </button>
-                <span>评论</span>
+                <button
+                  className="moment-icon-action"
+                  onClick={() => openMomentCommentBox(moment.id)}
+                  aria-label="评论"
+                  title="评论"
+                >
+                  <MessageCircle size={16} strokeWidth={2} />
+                </button>
               </div>
               {(moment.liked || moment.comments?.length > 0) && (
                 <div className="moment-social">
                   {moment.liked && <div className="moment-like-line">我觉得很赞</div>}
                   {(moment.comments || []).map((comment) => (
-                    <div className="moment-comment" key={comment.id}>
+                    <button
+                      className={comment.author === "我" ? "moment-comment" : "moment-comment role-comment"}
+                      key={comment.id}
+                      onClick={() => {
+                        if (comment.author !== "我") openMomentCommentBox(moment.id, comment);
+                      }}
+                      type="button"
+                    >
                       <strong>{comment.author}</strong>
-                      {comment.replyTo && <em> 回复 {comment.replyTo}</em>}
+                      {comment.replyTo && <em> {comment.replyVerb || "回复"} {comment.replyTo}</em>}
                       <span>：{comment.text}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
-              <div className="moment-comment-box">
-                <input
-                  value={momentDrafts[moment.id] || ""}
-                  onChange={(event) => setMomentDrafts((current) => ({ ...current, [moment.id]: event.target.value }))}
-                  placeholder="评论"
-                />
-                <button onClick={() => submitMomentComment(moment)}>发送</button>
-              </div>
+              {activeMomentCommentId === moment.id && (
+                <div className="moment-comment-box">
+                  <input
+                    value={momentDrafts[moment.id] || ""}
+                    onChange={(event) => setMomentDrafts((current) => ({ ...current, [moment.id]: event.target.value }))}
+                    placeholder={momentReplyTargets[moment.id]?.author ? `回复 ${momentReplyTargets[moment.id].author}` : "评论"}
+                  />
+                  <button onClick={() => submitMomentComment(moment)}>发送</button>
+                </div>
+              )}
             </div>
           </article>
         ))

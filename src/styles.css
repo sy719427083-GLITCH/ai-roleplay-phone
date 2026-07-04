@@ -4356,15 +4356,24 @@ select {
 }
 
 .moment-actions button {
+  display: inline-grid;
+  place-items: center;
   height: 24px;
+  min-width: 24px;
   padding: 0;
+  border: 0;
   background: transparent;
   color: #687798;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .moment-actions button.liked {
   color: #d79aaa;
+}
+
+.moment-icon-action svg {
+  display: block;
 }
 
 .moment-social {
@@ -4381,11 +4390,33 @@ select {
   color: #4f6590;
 }
 
-.moment-comment strong,
-.moment-comment em {
+.moment-comment {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1c1c1e;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.moment-comment.role-comment {
+  cursor: pointer;
+}
+
+.moment-comment strong {
   color: #4f6590;
   font-style: normal;
   font-weight: 600;
+}
+
+.moment-comment em {
+  color: #111111;
+  font-style: normal;
+  font-weight: 500;
 }
 
 .moment-comment-box {
