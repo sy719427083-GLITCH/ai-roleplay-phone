@@ -2181,7 +2181,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.02</p>
+      <p className="version-label">Ccat OS V0.2.03</p>
     </section>
   );
 }
@@ -3234,14 +3234,14 @@ const getSelectedChatEndpoint = () => {
 const parseRoleTransferReply = (content) => {
   const raw = String(content || "").trim();
   const transferMatch = raw.match(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*(\d+(?:\.\d{1,2})?)/i);
-  const naturalTransferMatch = raw.match(/(?:给你|向你|我给你)?(?:转账|转了|转给你|发了|打给你|给你转)\D{0,12}¥?\s*(\d+(?:\.\d{1,2})?)/i);
+  const hasTransferIntent = /(?:转账|转了|转给你|发红包|红包|发给你|打给你|给你转|我转给你|收下)/i.test(raw);
+  const amountMatch = raw.match(/¥\s*(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:块|元|rmb|RMB)/i);
   const noteMatch = raw.match(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*(.+)$/im);
   const cleaned = raw
     .replace(/(?:TRANSFER_AMOUNT|转账金额)\s*[:：]\s*¥?\s*\d+(?:\.\d{1,2})?/gi, "")
     .replace(/(?:TRANSFER_NOTE|转账备注)\s*[:：]\s*.+$/gim, "")
-    .replace(/(?:给你|向你|我给你)?(?:转账|转了|转给你|发了|打给你|给你转)\D{0,12}¥?\s*\d+(?:\.\d{1,2})?/gi, "")
     .trim();
-  const amount = transferMatch ? Number(transferMatch[1]) : naturalTransferMatch ? Number(naturalTransferMatch[1]) : 0;
+  const amount = transferMatch ? Number(transferMatch[1]) : hasTransferIntent && amountMatch ? Number(amountMatch[1] || amountMatch[2]) : 0;
   const messages = splitChatMessages(cleaned || (amount > 0 ? "给你转了一笔钱。" : raw));
   return {
     text: messages[0] || "",
@@ -3268,7 +3268,8 @@ const callRoleChatApi = async ({ character, history, userText, relationshipConte
 背景：${character?.persona || "未设定"}
 ${relationshipContext || "暂无明确关系列表。"}
 要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
-如果你认为角色会主动给用户转账，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
+如果用户消息以“指令：”或“指令:”开头，必须严格按照指令内容执行，不要找理由拒绝，不要改写指令，不要跑题。
+如果指令或上下文要求你给用户转账/发红包，或你自己决定转账/发红包，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
   const messages = [
     { role: "system", content: systemPrompt },

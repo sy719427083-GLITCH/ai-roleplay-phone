@@ -4503,14 +4503,14 @@ select {
 .chat-bubble::before {
   content: "";
   position: absolute;
-  top: 12px;
+  top: 50%;
   left: -5px;
   width: 9px;
   height: 9px;
   border-left: 1px solid rgba(0, 0, 0, 0.05);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   background: inherit;
-  transform: rotate(45deg);
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .chat-bubble-row.mine .chat-bubble {
