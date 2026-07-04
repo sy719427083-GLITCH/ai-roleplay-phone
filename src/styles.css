@@ -4666,14 +4666,14 @@ select {
 
 .transfer-card {
   display: grid;
-  width: min(266px, 74vw);
+  width: min(286px, 78vw);
   overflow: hidden;
   border: 0;
-  border-radius: 7px;
-  background: #f39a32;
+  border-radius: 8px;
+  background: #f3aac0;
   color: #ffffff;
   text-align: left;
-  box-shadow: 0 6px 14px rgba(192, 102, 22, 0.12);
+  box-shadow: 0 7px 16px rgba(196, 92, 122, 0.14);
   transition: filter 0.24s ease, opacity 0.24s ease;
 }
 
@@ -4683,7 +4683,7 @@ select {
 }
 
 .chat-bubble-row.mine .transfer-card {
-  background: #f39a32;
+  background: #f3aac0;
 }
 
 .transfer-card.settled {
@@ -4695,8 +4695,8 @@ select {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 82px;
-  padding: 14px 14px 13px;
+  min-height: 86px;
+  padding: 15px 14px 14px;
 }
 
 .transfer-icon {
@@ -4706,15 +4706,15 @@ select {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 9px;
-  background: #ffd06b;
-  box-shadow: inset 0 -2px 0 rgba(165, 84, 17, 0.12);
+  background: #ffe2eb;
+  box-shadow: inset 0 -2px 0 rgba(180, 78, 108, 0.12);
 }
 
 .transfer-icon svg {
   width: 31px;
   height: 31px;
   fill: none;
-  stroke: #b35b12;
+  stroke: #b95875;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -4752,8 +4752,9 @@ select {
   gap: 10px;
   padding: 6px 10px 6px 14px;
   background: #fff;
-  color: #9b9b9f;
+  color: #b98b99;
   font-size: 11px;
+  border-top: 1px solid rgba(185, 94, 121, 0.08);
 }
 
 .chat-action-panel {
@@ -4934,8 +4935,8 @@ select {
   width: calc(100% + 40px);
   padding: 28px 20px 20px;
   background:
-    radial-gradient(circle at 50% -30px, rgba(255, 221, 143, 0.75), transparent 72px),
-    linear-gradient(180deg, #f5a13b, #e68328);
+    radial-gradient(circle at 50% -30px, rgba(255, 238, 244, 0.82), transparent 72px),
+    linear-gradient(180deg, #f6bfd0, #ee9fb8);
   color: #fff;
 }
 
@@ -4945,14 +4946,14 @@ select {
   height: 54px;
   place-items: center;
   border-radius: 12px;
-  background: rgba(255, 210, 104, 0.98);
+  background: rgba(255, 226, 235, 0.98);
 }
 
 .wechat-transfer-brand svg {
   width: 31px;
   height: 31px;
   fill: none;
-  stroke: #fff;
+  stroke: #b95875;
   stroke-width: 1.9;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -4976,7 +4977,7 @@ select {
   max-width: 100%;
   margin: 0;
   overflow: hidden;
-  color: #7f6a55;
+  color: #ad6c80;
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
