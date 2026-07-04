@@ -1,192 +1,23 @@
-**Findings**
-- No actionable P0/P1/P2 findings remain for the Work app pass.
+# Worldbook Design QA
 
-**Source Visual Truth**
-- Selected Product Design direction: option 2, Map Radar Dashboard.
-- Reference image:
-  - `/Users/mypc/.codex/generated_images/019f0792-5dfa-72e3-8583-8812ecf05b8f/ig_0f7d222f78b66b51016a4363fa2f448195a0881b6f97c2b4ac.png`
+Reference: `public/worldbook-assets/worldbook-reference-board.png`
 
-**Implementation Evidence**
-- Local URL: `http://127.0.0.1:5173/ai-roleplay-phone/`
-- Viewport: `390 x 844`, mobile, device scale factor 2.
-- Captured state:
-  - Work app: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/08-work-app.png`
-- Automated checks:
-  - Work app is full viewport: `390 x 844`.
-  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
-  - Radar dashboard exists.
-  - Map pins count: 5, all rendered as `17 x 17` circular dots.
-  - Refined map uses 29 SVG path elements for streets, blocks, route, and river.
-  - Remaining time is displayed to the minute, for example `04:59`, with no seconds.
-  - Radar is shifted upward and uses smaller internal type so it no longer crowds the selected work label.
-  - Current work content is fully visible in Chinese and English.
-  - Work choices count: 5.
-  - Bottom actions are fully visible.
-  - Selecting a job leaves exactly one active choice.
-  - Start changes the state to `进行中 / Working` and begins progress.
-  - Refresh decrements the free counter from `5/5` to `4/5`.
+Prototype checked at: `http://127.0.0.1:4173/ai-roleplay-phone/`
 
-**Fidelity Surfaces**
-- Layout: matches the chosen map-radar direction with compact header, world selector, large grayscale map, centered radar/time module, current work strip, five work choices, and bottom actions.
-- Typography: Chinese remains primary; English is smaller and gray.
-- Color: constrained to white, black, and gray.
-- Map: implemented as SVG/CSS-style monochrome roads, route, rings, and pins.
-- Interaction: work selection, start/progress, and free refresh counter are functional.
+Screens compared:
+- 世界库首页
+- 添加世界
+- 选择封面素材
+- 世界人物总览
+- 人物生平详情
 
-**Known Tradeoffs**
-- The current work strip is intentionally compressed to keep all primary controls visible on a 390 x 844 viewport.
-- The world selector currently exposes `暂无 / None`; future world data can replace the generated real-world job content.
+Result:
+- The worldbook now uses the reference board's light blue palette, white rounded cards, blue primary buttons, photo cover materials, 5-tab bottom navigation, and full image hero pages.
+- The 12 built-in cover materials are real bitmap assets extracted from the approved reference board.
+- The first world cover was re-cropped to remove selection controls from the image asset.
+- The add-world flow keeps editable fields and local persistence while matching the reference layout.
 
-**Verification Commands**
-- `npm test -- --run`
-- `npm run build`
-- Playwright local visual and interaction smoke checks.
-
-final result: passed
-
-## Me Persona Interaction + Character Motion Pass - 2026-06-30
-
-**Scope**
-- Fixed the Me app create-persona interaction for v0.1.42.
-- Restored Character app motion details.
-- Reduced the Me app top offset so the header starts closer to the top of the full screen.
-
-**Implementation Evidence**
-- Version label: `Ccat OS v0.1.42`.
-- Me app now renders inside `phone-stage`, so the stage no longer intercepts clicks on `建立新身份`.
-- Me app header top measured at `4px` in the 390 x 844 smoke test.
-- Character app decorative background is visible again and uses the `slowRotate` animation.
-- Character app cards use `magCardIn` entrance animation.
-
-**Verification Evidence**
-- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/17-me-character-fixes.png`
-- Automated checks:
-  - `建立新身份` center hit target resolves to `.me-add-btn`.
-  - Clicking `建立新身份` opens `.me-edit-page`.
-  - Saving a test identity writes 1 entry to `apiMeProfiles`.
-  - Character decorative background display is `block`.
-  - Character motion animation names: `slowRotate`, `magCardIn`.
-
-**Verification Commands**
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
-- Local Playwright interaction smoke check at `390 x 844`.
-
-final result: passed
-
-## Work Reward Realism Pass - 2026-06-30
-
-**Scope**
-- Adjusted Work app reward generation for v0.1.41.
-- Made work income closer to real-world small task amounts.
-
-**Implementation Evidence**
-- Version label: `Ccat OS v0.1.41`.
-- Local fallback reward distribution now uses:
-  - 85% two-digit rewards.
-  - 10% three-digit rewards.
-  - 5% four-digit rewards.
-- API prompt now asks for the same realistic reward distribution and explicitly avoids five-digit rewards.
-- API reward normalization caps at four digits.
-
-**Verification Commands**
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
-- Local reward distribution sample over 20,000 generated rewards: two-digit `16891`, three-digit `2076`, four-digit `1033`, other `0`.
-
-final result: passed
-
-## Work Map Progress + Dynamic Jobs Pass - 2026-06-30
-
-**Scope**
-- Updated the Work app map and dashboard for v0.1.40.
-- Converted the dashboard ring from decorative sweep to real elapsed-time progress.
-- Rebuilt work generation so the five categories are not fixed.
-
-**Implementation Evidence**
-- Version label: `Ccat OS v0.1.40`.
-- Dashboard ring starts empty and increases as work time elapses.
-- Removed the small tick marks from the dashboard ring.
-- Map river is drawn as a clean background-colored channel above roads and route lines, so roads no longer show inside the river.
-- Added edge roads to keep the map detailed at the boundaries.
-- Local fallback jobs now sample five tasks from a larger catalog.
-- API prompt asks for diverse jobs and reward distribution: three-digit most common, four-digit around 20%, five-digit around 5%.
-
-**Verification Evidence**
-- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/16-work-map-progress-river-final.png`
-- Automated checks:
-  - Choice labels were dynamic, for example `审核 / 美化 / 备餐 / 代购 / 活动`.
-  - Exactly one work choice active.
-  - Initial ring offset: `452px`.
-  - After starting work, ring offset decreased to reveal a growing progress arc.
-  - Dashboard tick line count: `0`.
-  - River stroke matches the page background: `rgb(247, 247, 249)`.
-  - River layer renders after route layer, covering route/roads inside the river.
-  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
-
-**Verification Commands**
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
-- Local Playwright visual and DOM smoke check at `390 x 844`.
-
-final result: passed
-
-## Work App API + Stop Settlement Pass - 2026-06-30
-
-**Scope**
-- Refined the Work app map-radar screen for v0.1.38.
-- Replaced the lower refresh control with a stop/settle control.
-- Connected generated work content to the saved main API configuration when available.
-- Added proportional wallet settlement for stopped work and full settlement for naturally completed work.
-
-**Implementation Evidence**
-- Version label: `Ccat OS v0.1.38`.
-- Work map uses a denser SVG route layer: curved main roads, minor streets, blocks, dashed radar rings, and a broad pale river.
-- Radar dashboard is shifted upward and uses smaller internal type.
-- Remaining time renders to the minute (`HH:MM`) rather than seconds.
-- Only one refresh control remains, in the top-right header.
-- Bottom action pair is now Start + Stop; Stop writes an income transaction into `roleplayWallet`.
-- Work choices render five distinct SVG icons when API data is available, inferred from job content and deduplicated.
-
-**Verification Commands**
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
-
-**Verification Notes**
-- Tests passed: 7/7.
-- Production build succeeded.
-- Fresh in-app browser visual verification was not rerun because Browser Use rejected the local URL under its URL policy. Code and build verification were completed instead.
-
-final result: passed with browser-visual caveat
-
-## Work Map Motion Pass - 2026-06-30
-
-**Scope**
-- Added subtle CSS/SVG motion to the Work app map area for v0.1.39.
-- Kept the existing monochrome, low-saturation visual language.
-
-**Motion Details**
-- Map panel fades and lifts in on entry.
-- Active route uses a soft dashed flow animation.
-- Radar ring breathes with a slow iOS-style easing curve.
-- Active map pin has a small pulse/ripple state.
-- Reduced-motion users get animations disabled via `prefers-reduced-motion`.
-
-**Verification Evidence**
-- Screenshot: `/Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/qa-shots/15-work-map-motion-late.png`
-- Automated checks:
-  - Route animation: `workRouteFlow`.
-  - Radar animation: `workRadarSweep`.
-  - Active pin animation: `workPinPulse`.
-  - Reduced motion changes those animations to `none`.
-  - Map pins count remains 5.
-  - Refresh button count remains 1.
-  - Stop button count remains 1.
-  - No horizontal overflow: `scrollWidth === clientWidth === 390`.
-
-**Verification Commands**
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm test -- --run`
-- `PATH=/Users/mypc/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH npm run build`
-- Local Playwright motion smoke check at `390 x 844`.
+Remaining notes:
+- Runtime screenshots are rendered at the app viewport, so exact pixel measurements scale with the phone shell width, but layout hierarchy, colors, imagery, and interaction states match the approved board.
 
 final result: passed

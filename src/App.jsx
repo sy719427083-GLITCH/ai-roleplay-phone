@@ -109,20 +109,21 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.14`;
 
 const worldbookCoverMaterials = [
-  { id: "aether", name: "苍穹", tag: "高魔", glyph: "星冠", tone: "mist-blue", note: "云脉、王冠与星图" },
-  { id: "fog", name: "雾港", tag: "悬疑", glyph: "灯塔", tone: "pearl-gray", note: "煤气灯与旧报纸" },
-  { id: "orbit", name: "星环", tag: "科幻", glyph: "环轨", tone: "clear-cyan", note: "轨道、舱门与通讯" },
-  { id: "mountain", name: "山海", tag: "异闻", glyph: "山纹", tone: "jade", note: "群山与古兽传说" },
-  { id: "rose", name: "王朝", tag: "宫廷", glyph: "玫瑰", tone: "rose", note: "花窗、密约与王座" },
-  { id: "campus", name: "校园", tag: "青春", glyph: "书页", tone: "apricot", note: "课桌、操场与旧夏天" },
-  { id: "waste", name: "废土", tag: "末日", glyph: "裂日", tone: "sand", note: "风暴、路标与失落城" },
-  { id: "city", name: "都市", tag: "现代", glyph: "天际", tone: "lilac", note: "霓虹、公司与秘密" },
-  { id: "river", name: "江湖", tag: "武侠", glyph: "折扇", tone: "ink", note: "雨巷、长剑与渡口" },
-  { id: "abyss", name: "深海", tag: "奇幻", glyph: "贝光", tone: "aqua", note: "海沟、鲸歌与遗迹" },
-  { id: "forest", name: "森林", tag: "童话", glyph: "叶冠", tone: "moss", note: "树屋、溪流与秘语" },
-  { id: "blank", name: "空白", tag: "自定", glyph: "新章", tone: "paper", note: "为新世界预留第一页" },
+  { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", hero: "hero-aether.png", overview: "overview-aether.png", note: "群星之下，万界由此书写" },
+  { id: "fog", name: "雾港", tag: "近代悬疑", image: "cover-fog.png", note: "煤气灯与旧报纸" },
+  { id: "orbit", name: "星环", tag: "科幻殖民", image: "cover-orbit.png", note: "轨道、舱门与通讯" },
+  { id: "mountain", name: "山海", tag: "东方异闻", image: "cover-mountain.png", note: "群山与古兽传说" },
+  { id: "rose", name: "王朝", tag: "宫廷权谋", image: "cover-rose.png", note: "花窗、密约与王座" },
+  { id: "campus", name: "校园", tag: "青春日常", image: "cover-campus.png", note: "课桌、操场与旧夏天" },
+  { id: "waste", name: "废土", tag: "末日废土", image: "cover-waste.png", note: "风暴、路标与失落城" },
+  { id: "city", name: "都市", tag: "现代都市", image: "cover-city.png", note: "高楼、雨夜与秘密" },
+  { id: "river", name: "江湖", tag: "武侠江湖", image: "cover-river.png", note: "雨巷、长剑与渡口" },
+  { id: "abyss", name: "深海", tag: "深海奇幻", image: "cover-abyss.png", note: "海沟、鲸歌与遗迹" },
+  { id: "forest", name: "森林", tag: "森林童话", image: "cover-forest.png", note: "树屋、溪流与秘语" },
+  { id: "blank", name: "空白", tag: "自定义", image: "cover-blank.png", note: "为新世界预留第一页" },
 ];
 
 const worldbookWorlds = [
@@ -2322,7 +2323,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.13</p>
+      <p className="version-label">Ccat OS V0.2.14</p>
     </section>
   );
 }
@@ -4530,11 +4531,10 @@ function WorldbookAppScreen({ onClose }) {
     setView("characters");
   };
 
-  const renderCover = (cover, size = "normal") => (
-    <span className={`worldbook-cover-art ${cover.tone} ${size}`} aria-hidden="true">
-      <i className="cover-sun"></i>
-      <i className="cover-ridge"></i>
-      <i className="cover-mark">{cover.glyph}</i>
+  const renderCover = (cover, size = "normal", selected = false) => (
+    <span className={`worldbook-cover-art ${size} ${selected ? "selected" : ""}`} aria-hidden="true">
+      <img src={worldbookAsset(cover.image)} alt="" />
+      {selected && <i>✓</i>}
     </span>
   );
 
@@ -4547,233 +4547,307 @@ function WorldbookAppScreen({ onClose }) {
   };
 
   const renderLibrary = () => (
-    <main className="worldbook-main">
-      <section className="worldbook-hero">
+    <main className="worldbook-main worldbook-library">
+      <section className="worldbook-library-head">
         <div>
-          <span className="worldbook-kicker">Character Worldbook</span>
           <h1>世界书</h1>
-          <p>每个世界都可以独立保存人物背景、生平、关系与记忆。新增世界会自动获得一张内置封面。</p>
+          <p>为每个世界保存人物生平</p>
         </div>
-        <button className="worldbook-add-button" onClick={openAddWorld}>
-          <Plus size={18} />
-          <span>添加世界</span>
+        <button onClick={() => setView("materials")}>管理素材</button>
+      </section>
+      <button className="worldbook-primary" onClick={openAddWorld}>
+        <Plus size={21} strokeWidth={1.9} />
+        <span>添加世界</span>
+      </button>
+      <section className="worldbook-search-row">
+        <button className="worldbook-search">
+          <Search size={17} />
+          <span>搜索世界 / 人物</span>
+        </button>
+        <button className="worldbook-filter" aria-label="筛选">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16l-6.4 7.2v4.4l-3.2 1.8v-6.2z" /></svg>
         </button>
       </section>
-      <button className="worldbook-search" onClick={() => setView("materials")}>
-        <Search size={16} />
-        <span>搜索世界 / 查看 12 个内置素材</span>
-      </button>
       <section className="worldbook-world-list" aria-label="世界列表">
         {worlds.map((world) => {
           const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
           const stats = worldStats(world);
           return (
-          <button className={`worldbook-world-row ${cover.tone}`} key={world.id} onClick={() => openWorld(world.id)}>
-            {renderCover(cover)}
-            <span className="worldbook-world-copy">
-              <strong>{world.name}</strong>
-              <em>{world.genre} · {world.tone}</em>
-              <small>{stats.main + stats.support} 位人物 · {stats.memories} 段记忆 · {world.custom ? "我的世界" : "内置示例"} · {world.updated}</small>
-            </span>
-            <ChevronRight size={18} />
-          </button>
+            <button className="worldbook-world-card" key={world.id} onClick={() => openWorld(world.id)}>
+              {renderCover(cover, "card")}
+              <span className="worldbook-world-copy">
+                <strong>{world.name}</strong>
+                <em>{world.genre}</em>
+                <small>人物数量　{stats.main + stats.support} 人</small>
+                <small>最近更新　{world.updated}</small>
+              </span>
+              <ChevronRight size={21} strokeWidth={1.7} />
+            </button>
           );
         })}
+        <button className="worldbook-create-card" onClick={openAddWorld}>
+          <span><Plus size={22} /></span>
+          <strong>创建新世界 · 自动分配封面</strong>
+          <em>快速开始你的角色世界</em>
+        </button>
       </section>
     </main>
+  );
+
+  const renderHeader = (title, action = null) => (
+    <header className="worldbook-header">
+      <button onClick={handleBack} aria-label="返回">
+        <ChevronLeft size={23} />
+      </button>
+      <span>{title}</span>
+      {action || <i></i>}
+    </header>
   );
 
   const stats = worldStats(selectedWorld);
   const overviewEntries = [
-    { id: "main", title: "主要人物", desc: "核心角色的背景、生平与关系", count: stats.main, icon: UserRound, action: openCharacters },
-    { id: "support", title: "支线人物", desc: "旅途中出现的重要旁支人物", count: stats.support, icon: UsersRound, action: openCharacters },
-    { id: "relations", title: "关系网", desc: "人物之间的连接与情感走向", count: stats.links, icon: Heart, action: () => setView("relations") },
-    { id: "timeline", title: "生平时间线", desc: "按时间查看人物经历节点", count: stats.memories, icon: Clock3, action: () => setView("relations") },
-    { id: "memories", title: "共同记忆", desc: "可点开的记忆标题与事件片段", count: selectedWorld?.memories?.length || 0, icon: BookMarked, action: () => setView("relations") },
+    { id: "main", title: "主要人物", desc: "世界中的核心人物一览", count: stats.main, icon: UserRound, action: openCharacters },
+    { id: "support", title: "支线人物", desc: "配角与重要关联人物", count: stats.support, icon: UsersRound, action: openCharacters },
+    { id: "relations", title: "关系网", desc: "人物关系与情感脉络", count: stats.links, icon: Heart, action: () => setView("relations") },
+    { id: "timeline", title: "生平时间线", desc: "关键事件与人生轨迹", count: "", icon: ClipboardCheck, action: () => setView("relations") },
+    { id: "memories", title: "共同记忆", desc: "重要记忆片段集合", count: stats.memories, icon: BookMarked, action: () => setView("relations") },
   ];
 
   const renderOverview = () => (
-    <main className="worldbook-main">
-      <section className={`worldbook-overview ${selectedCover.tone}`}>
-        <div className="worldbook-overview-top">
-          {renderCover(selectedCover, "large")}
-          <div>
-            <span className="worldbook-kicker">世界总览</span>
+    <>
+      <main className="worldbook-main worldbook-overview-main">
+        <section className="worldbook-overview-hero">
+          <img src={worldbookAsset(selectedCover.overview || selectedCover.hero || selectedCover.image)} alt="" />
+          <button className="worldbook-floating-back" onClick={handleBack} aria-label="返回">
+            <ChevronLeft size={22} />
+          </button>
+          <button className="worldbook-floating-more" onClick={() => setView("materials")} aria-label="更多">
+            <span></span><span></span><span></span>
+          </button>
+          <div className="worldbook-overview-copy">
             <h1>{selectedWorld.name}</h1>
-            <p>{selectedWorld.genre} · {selectedWorld.tone}</p>
+            <em>{selectedWorld.genre}</em>
+            <p>{selectedCover.note}</p>
           </div>
-        </div>
-        <div className="worldbook-stat-grid">
-          <span><strong>{stats.main}</strong><em>主要人物</em></span>
-          <span><strong>{stats.support}</strong><em>支线人物</em></span>
-          <span><strong>{stats.links}</strong><em>关系线</em></span>
-          <span><strong>{stats.memories}</strong><em>记忆片段</em></span>
-        </div>
-      </section>
-      <section className="worldbook-section-list">
-        {overviewEntries.map((entry) => {
-          const Icon = entry.icon;
-          return (
-            <button key={entry.id} onClick={entry.action}>
-              <span className="worldbook-section-icon"><Icon size={19} strokeWidth={1.7} /></span>
-              <span>
-                <strong>{entry.title}</strong>
-                <em>{entry.desc}</em>
-              </span>
-              <small>{entry.count}</small>
-              <ChevronRight size={17} />
-            </button>
-          );
-        })}
-      </section>
-    </main>
+        </section>
+        <section className="worldbook-stat-grid">
+          <span><em>主要人物</em><strong>{stats.main}</strong></span>
+          <span><em>支线人物</em><strong>{stats.support}</strong></span>
+          <span><em>关系</em><strong>{stats.links}</strong></span>
+          <span><em>记忆</em><strong>{stats.memories}</strong></span>
+        </section>
+        <button className="worldbook-primary worldbook-person-add">
+          <Plus size={20} />
+          <span>新增人物</span>
+        </button>
+        <section className="worldbook-section-list">
+          {overviewEntries.map((entry) => {
+            const Icon = entry.icon;
+            return (
+              <button key={entry.id} onClick={entry.action}>
+                <span className={`worldbook-section-icon ${entry.id}`}><Icon size={20} strokeWidth={1.8} /></span>
+                <span>
+                  <strong>{entry.title}</strong>
+                  <em>{entry.desc}</em>
+                </span>
+                <small>{entry.count}</small>
+                <ChevronRight size={18} strokeWidth={1.7} />
+              </button>
+            );
+          })}
+        </section>
+      </main>
+    </>
   );
 
   const renderCharacters = () => (
-    <main className="worldbook-main">
-      <section className="worldbook-list-head">
-        <span className="worldbook-kicker">{selectedWorld.name}</span>
-        <h1>人物标题</h1>
-        <p>先选择标题，再进入人物背景与生平正文。</p>
-      </section>
-      <section className="worldbook-person-list">
-        {(selectedWorld.characters || []).map((character) => (
-          <button key={character.id} onClick={() => openCharacter(character.id)}>
-            <span className="worldbook-avatar">{character.name.slice(0, 1)}</span>
-            <span>
-              <strong>{character.name}</strong>
-              <em>{character.identity} / {character.relation}</em>
-            </span>
-            <small>{character.status}</small>
-            <ChevronRight size={17} />
-          </button>
-        ))}
-        {(!selectedWorld.characters || selectedWorld.characters.length === 0) && (
-          <article className="worldbook-empty">
-            <Sparkles size={20} />
-            <strong>这个世界还没有人物</strong>
-            <p>先把世界建好，之后可继续添加人物背景、生平、关系和记忆。</p>
-          </article>
-        )}
-      </section>
-    </main>
+    <>
+      {renderHeader("人物档案")}
+      <main className="worldbook-main">
+        <section className="worldbook-list-head">
+          <span>{selectedWorld.name}</span>
+          <h1>人物档案</h1>
+          <p>点标题进入人物背景与生平正文。</p>
+        </section>
+        <section className="worldbook-person-list">
+          {(selectedWorld.characters || []).map((character) => (
+            <button key={character.id} onClick={() => openCharacter(character.id)}>
+              <span className="worldbook-avatar">{character.name.slice(0, 1)}</span>
+              <span>
+                <strong>{character.name}</strong>
+                <em>{character.identity} / {character.relation}</em>
+              </span>
+              <small>{character.status}</small>
+              <ChevronRight size={17} />
+            </button>
+          ))}
+          {(!selectedWorld.characters || selectedWorld.characters.length === 0) && (
+            <article className="worldbook-empty">
+              <Sparkles size={22} />
+              <strong>这个世界还没有人物</strong>
+              <p>先把世界建好，之后可继续添加人物背景、生平、关系和记忆。</p>
+            </article>
+          )}
+        </section>
+      </main>
+    </>
   );
 
   const renderDetail = () => selectedCharacter ? (
-    <main className="worldbook-main">
-      <section className="worldbook-profile">
-        <span className="worldbook-avatar large">{selectedCharacter.name.slice(0, 1)}</span>
-        <div>
-          <span className="worldbook-kicker">{selectedWorld.name}</span>
-          <h1>{selectedCharacter.name}</h1>
-          <p>{selectedCharacter.identity} · {selectedCharacter.relation}</p>
-        </div>
-      </section>
-      <div className="worldbook-chip-row">
-        <span>{selectedCharacter.status}</span>
-        {selectedCharacter.tags.map((tag) => <span key={tag}>{tag}</span>)}
-      </div>
-      <section className="worldbook-summary">
-        <strong>人物摘要</strong>
-        <p>{selectedCharacter.summary}</p>
-      </section>
-      <section className="worldbook-detail-list">
-        {selectedCharacter.sections.map(([title, body]) => (
-          <article key={title}>
-            <h2>{title}</h2>
-            <p>{body}</p>
+    <>
+      <main className="worldbook-main worldbook-detail-main">
+        <section className="worldbook-detail-hero">
+          <img src={worldbookAsset("portrait-lin.png")} alt="" />
+          <button className="worldbook-floating-back" onClick={handleBack} aria-label="返回">
+            <ChevronLeft size={22} />
+          </button>
+          <span className="worldbook-detail-actions">
+            <button aria-label="收藏">☆</button>
+            <button aria-label="分享">⌯</button>
+          </span>
+          <div className="worldbook-detail-name">
+            <h1>{selectedCharacter.name}</h1>
+            <p>{selectedCharacter.identity} / {selectedCharacter.relation}</p>
+            <span>{selectedCharacter.status}</span>
+          </div>
+        </section>
+        <nav className="worldbook-detail-tabs">
+          {["档案", "时间线", "记忆", "关系"].map((tab, index) => (
+            <button className={index === 0 ? "active" : ""} key={tab}>{tab}</button>
+          ))}
+        </nav>
+        <section className="worldbook-bio-list">
+          {selectedCharacter.sections.map(([title, body]) => (
+            <article key={title}>
+              <h2>{title}</h2>
+              <p>{body}</p>
+            </article>
+          ))}
+          <article className="worldbook-timeline">
+            <h2>重要经历</h2>
+            {["初遇雨巷", "旧画未完", "王城夜谈"].map((item, index) => (
+              <p key={item}><i></i><strong>{item}</strong><span>{index === 0 ? "相识" : index === 1 ? "信任" : "同行"}</span></p>
+            ))}
           </article>
-        ))}
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   ) : renderCharacters();
 
   const renderRelations = () => (
-    <main className="worldbook-main">
-      <section className="worldbook-list-head">
-        <span className="worldbook-kicker">{selectedWorld.name}</span>
-        <h1>关系与记忆</h1>
-        <p>关系网用于理解人物之间的情感与经历，记忆仍以标题列表进入详情。</p>
-      </section>
-      <section className="worldbook-relation-map">
-        <span className="me">我</span>
-        {(selectedWorld.characters || []).slice(0, 4).map((character, index) => (
-          <button key={character.id} style={{ "--angle": `${index * 82 - 28}deg` }} onClick={() => openCharacter(character.id)}>
-            {character.name.slice(0, 1)}
-          </button>
-        ))}
-      </section>
-      <section className="worldbook-memory-list">
-        {(selectedWorld.memories || []).map((memory, index) => (
-          <button key={memory}>
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <strong>{memory}</strong>
-            <ChevronRight size={16} />
-          </button>
-        ))}
-      </section>
-    </main>
+    <>
+      {renderHeader("记忆库")}
+      <main className="worldbook-main">
+        <section className="worldbook-list-head">
+          <span>{selectedWorld.name}</span>
+          <h1>共同记忆</h1>
+          <p>关系网用于理解人物之间的情感与经历。</p>
+        </section>
+        <section className="worldbook-memory-list">
+          {(selectedWorld.memories || []).map((memory, index) => (
+            <button key={memory}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{memory}</strong>
+              <ChevronRight size={16} />
+            </button>
+          ))}
+        </section>
+      </main>
+    </>
   );
 
   const renderAddWorld = () => (
-    <main className="worldbook-main">
-      <section className="worldbook-add-panel">
-        <div className="worldbook-add-cover">
-          {renderCover(draftCover, "hero")}
-          <button onClick={rotateDraftCover}>换一张</button>
-        </div>
-        <div className="worldbook-field-stack">
-          <label>
-            <span>世界名称</span>
-            <input value={draftWorld.name} onChange={(event) => setDraftWorld((current) => ({ ...current, name: event.target.value }))} placeholder="例如：云上王朝" />
+    <>
+      {renderHeader("添加世界")}
+      <main className="worldbook-main worldbook-add-main">
+        <section className="worldbook-add-panel">
+          <div className="worldbook-add-cover">
+            <span>自动匹配封面</span>
+            <img src={worldbookAsset(draftCover.hero || draftCover.image)} alt="" />
+            <button onClick={rotateDraftCover}>
+              <Clock3 size={16} />
+              <span>换一张</span>
+            </button>
+          </div>
+          <div className="worldbook-field-stack">
+            <label>
+              <span>世界名称 *</span>
+              <input value={draftWorld.name} maxLength={20} onChange={(event) => setDraftWorld((current) => ({ ...current, name: event.target.value }))} placeholder="请输入世界名称" />
+              <small>{draftWorld.name.length}/20</small>
+            </label>
+            <label>
+              <span>类型标签 *</span>
+              <button className="worldbook-select-field" onClick={() => setView("materials")}>
+                <em>{draftWorld.genre || "选择或输入标签（最多 3 个）"}</em>
+                <ChevronRight size={18} />
+              </button>
+            </label>
+            <label>
+              <span>世界简介</span>
+              <textarea value={draftWorld.tone} maxLength={200} onChange={(event) => setDraftWorld((current) => ({ ...current, tone: event.target.value }))} placeholder="介绍这个世界的背景、设定与核心冲突..."></textarea>
+              <small>{draftWorld.tone.length}/200</small>
+            </label>
+          </div>
+          <label className="worldbook-toggle-row">
+            <span>保存后进入人物档案</span>
+            <input type="checkbox" defaultChecked />
           </label>
-          <label>
-            <span>类型标签</span>
-            <input value={draftWorld.genre} onChange={(event) => setDraftWorld((current) => ({ ...current, genre: event.target.value }))} placeholder={draftCover.tag} />
-          </label>
-          <label>
-            <span>世界简介</span>
-            <textarea value={draftWorld.tone} onChange={(event) => setDraftWorld((current) => ({ ...current, tone: event.target.value }))} placeholder={draftCover.note}></textarea>
-          </label>
-        </div>
-        <button className="worldbook-save-button" onClick={saveWorld}>保存世界</button>
-      </section>
-    </main>
+          <button className="worldbook-primary worldbook-save-button" onClick={saveWorld}>保存世界</button>
+          <button className="worldbook-secondary" onClick={rotateDraftCover}>
+            <Clock3 size={17} />
+            <span>换一张素材</span>
+          </button>
+        </section>
+      </main>
+    </>
   );
 
   const renderMaterials = () => (
-    <main className="worldbook-main">
-      <section className="worldbook-list-head">
-        <span className="worldbook-kicker">内置素材</span>
-        <h1>12 张自动封面</h1>
-        <p>新增世界时会按顺序自动使用，也可以点选其中一张作为新世界封面。</p>
-      </section>
-      <section className="worldbook-material-grid">
-        {worldbookCoverMaterials.map((cover) => (
-          <button key={cover.id} onClick={() => {
-            setDraftWorld((current) => ({ ...current, coverId: cover.id }));
-            setView("add");
-          }}>
-            {renderCover(cover)}
-            <strong>{cover.name}</strong>
-            <span>{cover.tag}</span>
-          </button>
-        ))}
-      </section>
-    </main>
+    <>
+      {renderHeader("选择封面素材")}
+      <main className="worldbook-main worldbook-material-main">
+        <section className="worldbook-material-head">
+          <p>系统内置 12 张，可随时更换</p>
+        </section>
+        <section className="worldbook-material-grid">
+          {worldbookCoverMaterials.map((cover) => {
+            const isSelected = cover.id === draftWorld.coverId;
+            return (
+              <button className={isSelected ? "active" : ""} key={cover.id} onClick={() => setDraftWorld((current) => ({ ...current, coverId: cover.id, genre: cover.tag }))}>
+                {renderCover(cover, "material", isSelected)}
+                <strong>{cover.name}</strong>
+              </button>
+            );
+          })}
+        </section>
+        <button className="worldbook-primary worldbook-use-cover" onClick={() => setView("add")}>使用此封面</button>
+      </main>
+    </>
+  );
+
+  const renderTabbar = () => (
+    <nav className="worldbook-tabbar" aria-label="世界书导航">
+      {[
+        ["library", "世界库", BookMarked],
+        ["characters", "人物档案", UserRound],
+        ["relations", "记忆库", BookMarked],
+        ["materials", "素材馆", Palette],
+        ["me", "我的", UserRound],
+      ].map(([id, label, Icon]) => (
+        <button key={id} className={(view === id || (id === "characters" && view === "detail")) ? "active" : ""} onClick={() => {
+          if (id === "me") return;
+          if (id === "characters" && !selectedWorldId) openWorld(selectedWorld.id);
+          else setView(id);
+        }}>
+          <Icon size={19} strokeWidth={1.8} />
+          <span>{label}</span>
+        </button>
+      ))}
+    </nav>
   );
 
   return (
     <section className="full-page app-page worldbook-page">
-      <header className="worldbook-header">
-        <button onClick={handleBack} aria-label="返回">
-          <ChevronLeft size={21} />
-        </button>
-        <span>{view === "library" ? "世界书" : view === "add" ? "添加世界" : view === "materials" ? "素材库" : view === "overview" ? selectedWorld.name : view === "detail" ? selectedCharacter?.name : view === "relations" ? "关系记忆" : "人物标题"}</span>
-        <button onClick={view === "library" ? openAddWorld : () => setView("library")} aria-label={view === "library" ? "添加世界" : "世界库"}>
-          {view === "library" ? <Plus size={19} strokeWidth={1.8} /> : <Database size={18} strokeWidth={1.8} />}
-        </button>
-      </header>
       {view === "library" && renderLibrary()}
       {view === "add" && renderAddWorld()}
       {view === "materials" && renderMaterials()}
@@ -4781,6 +4855,7 @@ function WorldbookAppScreen({ onClose }) {
       {view === "characters" && renderCharacters()}
       {view === "detail" && renderDetail()}
       {view === "relations" && renderRelations()}
+      {view !== "add" && view !== "materials" && view !== "detail" && renderTabbar()}
     </section>
   );
 }
