@@ -3,7 +3,7 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: #b7daf2;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.29");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.30");
   color: #111111;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
@@ -5804,6 +5804,12 @@ select {
   color: var(--wb-ink);
 }
 
+html.standalone-pwa .worldbook-page {
+  top: calc(-1 * var(--wb-safe-top));
+  bottom: auto;
+  height: calc(100dvh + var(--wb-safe-top));
+}
+
 .worldbook-page::before {
   content: "";
   position: fixed;
@@ -5875,6 +5881,11 @@ select {
   overflow-x: hidden;
 }
 
+html.standalone-pwa .worldbook-library {
+  height: calc(100dvh + var(--wb-safe-top));
+  padding-top: calc(var(--wb-safe-top) * 2);
+}
+
 .worldbook-library::before {
   content: "";
   position: fixed;
@@ -5903,6 +5914,10 @@ select {
   margin: 0;
   padding: 0;
   text-align: center;
+}
+
+html.standalone-pwa .worldbook-library-head {
+  top: max(34px, calc((var(--wb-safe-top) * 2) + 26px));
 }
 
 .worldbook-library-head h1 {
@@ -5941,6 +5956,10 @@ select {
   box-shadow: 0 10px 24px rgba(24, 67, 101, 0.12);
 }
 
+html.standalone-pwa .worldbook-library-back {
+  top: max(10px, calc((var(--wb-safe-top) * 2) + 10px));
+}
+
 .worldbook-library-hero {
   position: relative;
   z-index: 1;
@@ -5951,6 +5970,11 @@ select {
   margin: calc(-1 * var(--wb-safe-top)) 0 18px;
   border-radius: 0;
   background: var(--wb-sky-top);
+}
+
+html.standalone-pwa .worldbook-library-hero {
+  height: calc(332px + var(--wb-safe-top));
+  margin-top: calc(-2 * var(--wb-safe-top));
 }
 
 .worldbook-library-hero img {
@@ -6002,6 +6026,10 @@ select {
   border-radius: 18px;
   transform: translateX(-50%);
   box-shadow: 0 14px 26px rgba(72, 150, 209, 0.26);
+}
+
+html.standalone-pwa .worldbook-hero-add {
+  top: calc((var(--wb-safe-top) * 2) + 122px);
 }
 
 .worldbook-search-row {

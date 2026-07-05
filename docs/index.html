@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#b7daf2" />
+    <meta name="theme-color" content="transparent" />
     <meta name="color-scheme" content="light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -19,14 +19,20 @@
         margin: 0;
         min-height: 100%;
         background-color: #b7daf2;
-        background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.29");
+        background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.30");
         background-position: top center;
         background-repeat: no-repeat;
         background-size: cover;
       }
     </style>
-    <script type="module" crossorigin src="/ai-roleplay-phone/assets/index-CepRRYKY.js"></script>
-    <link rel="stylesheet" crossorigin href="/ai-roleplay-phone/assets/index-Q7TIPV5J.css">
+    <script>
+      (() => {
+        const isStandalone = window.navigator.standalone || window.matchMedia?.("(display-mode: standalone)")?.matches;
+        if (isStandalone) document.documentElement.classList.add("standalone-pwa");
+      })();
+    </script>
+    <script type="module" crossorigin src="/ai-roleplay-phone/assets/index-DJ5W8_TR.js"></script>
+    <link rel="stylesheet" crossorigin href="/ai-roleplay-phone/assets/index-BJR_PbEh.css">
   </head>
   <body>
     <div id="root"></div>

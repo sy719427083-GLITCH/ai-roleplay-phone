@@ -7,5 +7,5 @@
   "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
   "background_color": "#b7daf2",
-  "theme_color": "#b7daf2"
+  "theme_color": "transparent"
 }
