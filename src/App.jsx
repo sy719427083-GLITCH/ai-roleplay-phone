@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.21`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.22`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -990,14 +990,23 @@ const CHROME_COLORS = {
   white: "#ffffff",
   me: "#fdfbf8",
   lock: "#fbfbfb",
+  worldbook: "#dff1ff",
 };
 
 const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
   const meta = document.querySelector('meta[name="theme-color"]');
   meta?.setAttribute("content", color);
-  document.body.dataset.chromeColor =
-    color === CHROME_COLORS.white ? "white" : color === CHROME_COLORS.me ? "me" : "default";
+  const chromeMode =
+    color === CHROME_COLORS.white
+      ? "white"
+      : color === CHROME_COLORS.me
+        ? "me"
+        : color === CHROME_COLORS.worldbook
+          ? "worldbook"
+          : "default";
+  document.documentElement.dataset.chromeColor = chromeMode;
+  document.body.dataset.chromeColor = chromeMode;
   document.documentElement.style.backgroundColor = color;
   document.body.style.backgroundColor = color;
   const root = document.getElementById("root");
@@ -1015,7 +1024,7 @@ const getChromeColor = ({ locked, tab, openedApp, settingPage, launching }) => {
   const launchTitle = launching?.type === "app" ? launching.payload?.title : "";
   if (locked) return CHROME_COLORS.lock;
   if (openedApp?.title === "消息" || launchTitle === "消息") return CHROME_COLORS.white;
-  if (openedApp?.title === "世界书" || launchTitle === "世界书") return "#dff1ff";
+  if (openedApp?.title === "世界书" || launchTitle === "世界书") return CHROME_COLORS.worldbook;
   if (settingPage || launching?.type === "setting") return CHROME_COLORS.home;
   if (tab === "me") return CHROME_COLORS.me;
   return CHROME_COLORS.home;
@@ -2428,7 +2437,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.21</p>
+      <p className="version-label">Ccat OS V0.2.22</p>
     </section>
   );
 }
@@ -5406,11 +5415,13 @@ export function App() {
 
   const hasOverlay = Boolean(openedApp || settingPage || launching);
   const isMessageOpening = openedApp?.title === "消息" || (launching?.type === "app" && launching.payload?.title === "消息");
+  const isWorldbookOpening = openedApp?.title === "世界书" || (launching?.type === "app" && launching.payload?.title === "世界书");
   const surfaceClass = [
     "phone-surface",
     `tab-${tab}`,
     hasOverlay ? "overlay-active" : "",
     isMessageOpening ? "message-opening" : "",
+    isWorldbookOpening ? "worldbook-opening" : "",
     hideCharacterTabs ? "character-subpage-active" : "",
     hideMeTabs ? "me-subpage-active" : "",
   ].filter(Boolean).join(" ");

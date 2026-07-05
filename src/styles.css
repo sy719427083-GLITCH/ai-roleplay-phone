@@ -70,13 +70,18 @@ body[data-chrome-color="me"] #root {
   background: #fdfbf8 !important;
 }
 
+html[data-chrome-color="worldbook"],
+html[data-chrome-color="worldbook"] body,
+html[data-chrome-color="worldbook"] #root,
+body[data-chrome-color="worldbook"],
+body[data-chrome-color="worldbook"] #root,
 body:has(.worldbook-page),
 body:has(.worldbook-page) #root {
   background-color: #dff1ff !important;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.21") !important;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.22") !important;
   background-position: center top !important;
   background-repeat: no-repeat !important;
-  background-size: 100vw calc(100dvh + env(safe-area-inset-top, 0px)) !important;
+  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px)) !important;
 }
 
 .lock-screen,
@@ -236,13 +241,15 @@ body:has(.worldbook-page) #root {
   padding: max(4px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
 }
 
+.phone-surface.worldbook-opening,
+.phone-surface.worldbook-opening .phone-stage,
 .phone-surface:has(.worldbook-page) {
   padding: 0;
   background-color: #dff1ff;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.21");
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.22");
   background-position: center top;
   background-repeat: no-repeat;
-  background-size: 100vw calc(100dvh + env(safe-area-inset-top, 0px));
+  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px));
 }
 
 .phone-surface.tab-characters,
@@ -5833,11 +5840,11 @@ select {
 
 .worldbook-library-hero {
   position: relative;
-  z-index: 0;
+  z-index: 1;
   overflow: hidden;
   width: 100vw;
-  height: calc(100dvh + env(safe-area-inset-top, 0px));
-  margin: calc(-1 * env(safe-area-inset-top, 0px)) 0 calc(304px - 100dvh);
+  height: calc(286px + env(safe-area-inset-top, 0px));
+  margin: calc(-1 * env(safe-area-inset-top, 0px)) 0 18px;
   border-radius: 0;
   background: #eaf6ff;
 }
@@ -5854,12 +5861,12 @@ select {
   content: "";
   position: absolute;
   right: 0;
+  bottom: -1px;
   left: 0;
-  top: 190px;
   z-index: 1;
-  height: calc(100% - 189px);
+  height: 86px;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(251, 253, 255, 0) 0%, rgba(251, 253, 255, 0.76) 18%, #fbfdff 36%, #fbfdff 100%);
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0) 0%, rgba(251, 253, 255, 0.78) 62%, #fbfdff 100%);
 }
 
 .worldbook-primary {
