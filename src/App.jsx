@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.16`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.17`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2427,7 +2427,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.16</p>
+      <p className="version-label">Ccat OS V0.2.17</p>
     </section>
   );
 }
@@ -4686,19 +4686,17 @@ function WorldbookAppScreen({ onClose }) {
       <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
         <ChevronLeft size={24} />
       </button>
-      <section className="worldbook-library-hero" aria-hidden="true">
+      <section className="worldbook-library-hero">
         <img src={worldbookAsset("hero-worldbook.png")} alt="" />
-      </section>
-      <section className="worldbook-library-head">
-        <div>
+        <div className="worldbook-library-head">
           <h1>世界书</h1>
-          <p>为每个世界保存人物生平</p>
+          <p>你的角色世界与生平档案</p>
         </div>
+        <button className="worldbook-primary worldbook-hero-add" onClick={openAddWorld}>
+          <Plus size={21} strokeWidth={1.9} />
+          <span>添加世界</span>
+        </button>
       </section>
-      <button className="worldbook-primary" onClick={openAddWorld}>
-        <Plus size={21} strokeWidth={1.9} />
-        <span>添加世界</span>
-      </button>
       <section className="worldbook-search-row">
         <button className="worldbook-search">
           <Search size={17} />
