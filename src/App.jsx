@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.34`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.35`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -993,7 +993,7 @@ const CHROME_COLORS = {
   worldbook: "transparent",
 };
 
-const WORLDBOOK_CHROME_BACKGROUND = `transparent url("${worldbookAsset("hero-worldbook.png")}") top center / cover no-repeat`;
+const WORLDBOOK_CHROME_BACKGROUND = "transparent";
 
 const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
@@ -2449,7 +2449,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.34</p>
+      <p className="version-label">Ccat OS V0.2.35</p>
     </section>
   );
 }
@@ -4995,26 +4995,6 @@ function WorldbookAppScreen({ onClose }) {
     </>
   );
 
-  const renderTabbar = () => (
-    <nav className="worldbook-tabbar" aria-label="世界书导航">
-      {[
-        ["library", "世界库", BookMarked],
-        ["characters", "人物档案", UserRound],
-        ["relations", "记忆库", BookMarked],
-        ["materials", "素材馆", Palette],
-      ].map(([id, label, Icon]) => (
-        <button key={id} className={(view === id || (id === "characters" && view === "detail")) ? "active" : ""} onClick={() => {
-          if ((id === "characters" || id === "relations") && !selectedWorld) return;
-          if (id === "characters" && !selectedWorldId) openWorld(selectedWorld.id);
-          else setView(id);
-        }}>
-          <Icon size={19} strokeWidth={1.8} />
-          <span>{label}</span>
-        </button>
-      ))}
-    </nav>
-  );
-
   return (
     <section className="full-page app-page worldbook-page">
       {view === "library" && renderLibrary()}
@@ -5024,7 +5004,6 @@ function WorldbookAppScreen({ onClose }) {
       {view === "characters" && renderCharacters()}
       {view === "detail" && renderDetail()}
       {view === "relations" && renderRelations()}
-      {view !== "add" && view !== "materials" && view !== "detail" && renderTabbar()}
     </section>
   );
 }
