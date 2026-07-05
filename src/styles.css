@@ -3,7 +3,7 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: #b7daf2;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.28");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.29");
   color: #111111;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
