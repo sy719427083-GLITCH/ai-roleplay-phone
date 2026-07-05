@@ -70,6 +70,15 @@ body[data-chrome-color="me"] #root {
   background: #fdfbf8 !important;
 }
 
+body:has(.worldbook-page),
+body:has(.worldbook-page) #root {
+  background-color: #dff1ff !important;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.20") !important;
+  background-position: center top !important;
+  background-repeat: no-repeat !important;
+  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px)) !important;
+}
+
 .lock-screen,
 .phone-surface {
   position: relative;
@@ -229,7 +238,11 @@ body[data-chrome-color="me"] #root {
 
 .phone-surface:has(.worldbook-page) {
   padding: 0;
-  background: #fbfdff;
+  background-color: #dff1ff;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.20");
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px));
 }
 
 .phone-surface.tab-characters,
@@ -5822,8 +5835,8 @@ select {
   z-index: 1;
   overflow: hidden;
   width: 100vw;
-  height: 286px;
-  margin: 0 0 18px;
+  height: calc(286px + env(safe-area-inset-top, 0px));
+  margin: calc(-1 * env(safe-area-inset-top, 0px)) 0 18px;
   border-radius: 0;
   background: #eaf6ff;
 }

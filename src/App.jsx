@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.19`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.20`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -1015,6 +1015,7 @@ const getChromeColor = ({ locked, tab, openedApp, settingPage, launching }) => {
   const launchTitle = launching?.type === "app" ? launching.payload?.title : "";
   if (locked) return CHROME_COLORS.lock;
   if (openedApp?.title === "消息" || launchTitle === "消息") return CHROME_COLORS.white;
+  if (openedApp?.title === "世界书" || launchTitle === "世界书") return "#dff1ff";
   if (settingPage || launching?.type === "setting") return CHROME_COLORS.home;
   if (tab === "me") return CHROME_COLORS.me;
   return CHROME_COLORS.home;
@@ -2427,7 +2428,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.19</p>
+      <p className="version-label">Ccat OS V0.2.20</p>
     </section>
   );
 }
