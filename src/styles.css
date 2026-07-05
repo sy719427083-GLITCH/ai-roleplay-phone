@@ -2,7 +2,7 @@
   --wb-safe-top: env(safe-area-inset-top, 0px);
   --wb-sky-top: #b7daf2;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.25");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.26");
   color: #111111;
   background: #f7f7f9;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
@@ -87,7 +87,7 @@ body[data-chrome-color="worldbook"],
 body[data-chrome-color="worldbook"] #root,
 body:has(.worldbook-page),
 body:has(.worldbook-page) #root {
-  background-color: var(--wb-sky-top) !important;
+  background-color: transparent !important;
   background-image: var(--wb-hero-image) !important;
   background-position: top center !important;
   background-repeat: no-repeat !important;
@@ -5859,6 +5859,22 @@ select {
   padding: var(--wb-safe-top) 0 102px;
   background: var(--wb-page-bg);
   overflow-x: hidden;
+}
+
+.worldbook-library::before {
+  content: "";
+  position: fixed;
+  top: calc(-1 * var(--wb-safe-top));
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: calc(352px + var(--wb-safe-top));
+  pointer-events: none;
+  background-color: var(--wb-sky-top);
+  background-image: var(--wb-hero-image);
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .worldbook-library-head {
