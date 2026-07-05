@@ -85,10 +85,10 @@ body[data-chrome-color="worldbook"] #root,
 body:has(.worldbook-page),
 body:has(.worldbook-page) #root {
   background-color: #dff1ff !important;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.23") !important;
-  background-position: center top !important;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.24") !important;
+  background-position: top center !important;
   background-repeat: no-repeat !important;
-  background-size: 100vw calc(286px + var(--wb-safe-top)) !important;
+  background-size: cover !important;
 }
 
 .lock-screen,
@@ -253,10 +253,10 @@ body:has(.worldbook-page) #root {
 .phone-surface:has(.worldbook-page) {
   padding: 0;
   background-color: #dff1ff;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.23");
-  background-position: center top;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.24");
+  background-position: top center;
   background-repeat: no-repeat;
-  background-size: 100vw calc(286px + var(--wb-safe-top));
+  background-size: cover;
 }
 
 .phone-surface.tab-characters,
@@ -5752,10 +5752,10 @@ select {
   height: calc(286px + var(--wb-safe-top));
   pointer-events: none;
   background-color: #dff1ff;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.23");
-  background-position: center top;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.24");
+  background-position: top center;
   background-repeat: no-repeat;
-  background-size: 100vw calc(286px + var(--wb-safe-top));
+  background-size: cover;
 }
 
 .worldbook-page button {
@@ -5866,6 +5866,7 @@ select {
 .worldbook-library-hero {
   position: relative;
   z-index: 1;
+  isolation: isolate;
   overflow: hidden;
   width: 100vw;
   height: calc(286px + var(--wb-safe-top));
@@ -5875,11 +5876,14 @@ select {
 }
 
 .worldbook-library-hero img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
+  object-position: top center;
 }
 
 .worldbook-library-hero::after {
