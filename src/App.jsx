@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.24`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.25`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -990,8 +990,10 @@ const CHROME_COLORS = {
   white: "#ffffff",
   me: "#fdfbf8",
   lock: "#fbfbfb",
-  worldbook: "#dff1ff",
+  worldbook: "#b7daf2",
 };
+
+const WORLDBOOK_CHROME_BACKGROUND = `#b7daf2 url("${worldbookAsset("hero-worldbook.png")}") top center / cover no-repeat`;
 
 const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
@@ -1007,10 +1009,16 @@ const setChromeColor = (color) => {
           : "default";
   document.documentElement.dataset.chromeColor = chromeMode;
   document.body.dataset.chromeColor = chromeMode;
+  const background = chromeMode === "worldbook" ? WORLDBOOK_CHROME_BACKGROUND : color;
+  document.documentElement.style.background = background;
   document.documentElement.style.backgroundColor = color;
+  document.body.style.background = background;
   document.body.style.backgroundColor = color;
   const root = document.getElementById("root");
-  if (root) root.style.backgroundColor = color;
+  if (root) {
+    root.style.background = background;
+    root.style.backgroundColor = color;
+  }
 };
 
 const resetViewportScroll = () => {
@@ -2437,7 +2445,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.24</p>
+      <p className="version-label">Ccat OS V0.2.25</p>
     </section>
   );
 }
