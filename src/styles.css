@@ -3,7 +3,7 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: #b7daf2;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.30");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.31");
   color: #111111;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
@@ -92,6 +92,20 @@ body[data-chrome-color="white"] #root {
 body[data-chrome-color="me"],
 body[data-chrome-color="me"] #root {
   background: #fdfbf8 !important;
+}
+
+html.standalone-pwa,
+html.standalone-pwa body,
+html.standalone-pwa #root,
+html.standalone-pwa body[data-chrome-color="white"],
+html.standalone-pwa body[data-chrome-color="white"] #root,
+html.standalone-pwa body[data-chrome-color="me"],
+html.standalone-pwa body[data-chrome-color="me"] #root {
+  background-color: transparent !important;
+  background-image: var(--wb-hero-image) !important;
+  background-position: top center !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
 }
 
 html[data-chrome-color="worldbook"],
@@ -7916,6 +7930,14 @@ html.standalone-pwa .worldbook-hero-add {
 
 .phone-surface.message-opening .launch-loader {
   background: #ffffff;
+}
+
+.phone-surface.worldbook-opening .launch-loader {
+  background-color: var(--wb-sky-top);
+  background-image: var(--wb-hero-image);
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .launch-loader-track {

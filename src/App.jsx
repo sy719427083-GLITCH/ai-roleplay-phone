@@ -110,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.30`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.31`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -997,6 +997,7 @@ const WORLDBOOK_CHROME_BACKGROUND = `#b7daf2 url("${worldbookAsset("hero-worldbo
 
 const setChromeColor = (color) => {
   if (typeof document === "undefined") return;
+  const isStandalonePwa = document.documentElement.classList.contains("standalone-pwa");
   const chromeMode =
     color === CHROME_COLORS.white
       ? "white"
@@ -1005,14 +1006,14 @@ const setChromeColor = (color) => {
         : color === CHROME_COLORS.worldbook
           ? "worldbook"
           : "default";
-  const themeColor = chromeMode === "worldbook" ? "transparent" : color || CHROME_COLORS.home;
+  const themeColor = isStandalonePwa || chromeMode === "worldbook" ? "transparent" : color || CHROME_COLORS.home;
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
     meta.setAttribute("content", themeColor);
   });
   document.documentElement.dataset.chromeColor = chromeMode;
   document.body.dataset.chromeColor = chromeMode;
-  const background = chromeMode === "worldbook" ? WORLDBOOK_CHROME_BACKGROUND : color;
-  const chromeBackgroundColor = chromeMode === "worldbook" ? "transparent" : color;
+  const background = isStandalonePwa || chromeMode === "worldbook" ? WORLDBOOK_CHROME_BACKGROUND : color;
+  const chromeBackgroundColor = isStandalonePwa || chromeMode === "worldbook" ? "transparent" : color;
   document.documentElement.style.background = background;
   document.documentElement.style.backgroundColor = chromeBackgroundColor;
   document.body.style.background = background;
@@ -2448,7 +2449,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.30</p>
+      <p className="version-label">Ccat OS V0.2.31</p>
     </section>
   );
 }
