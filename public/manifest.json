@@ -6,5 +6,6 @@
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
-  "background_color": "#fbfdff"
+  "background_color": "transparent",
+  "theme_color": "transparent"
 }

@@ -3,8 +3,12 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.32");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.34");
   color: #111111;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  min-height: 100dvh;
   background-color: transparent;
   background-image: var(--wb-hero-image);
   background-position: top center;
@@ -58,6 +62,8 @@ button:active {
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
   height: 100vh;
   height: 100dvh;
   -webkit-font-smoothing: antialiased;
@@ -5808,20 +5814,14 @@ select {
   --wb-line: #d9e8f4;
   --wb-card: rgba(255, 255, 255, 0.94);
   position: fixed;
-  inset: 0;
+  inset: calc(-1 * var(--wb-safe-top)) 0 auto 0;
   overflow: hidden;
   width: 100vw;
   height: 100vh;
-  height: 100dvh;
+  height: calc(100dvh + var(--wb-safe-top));
   padding: 0;
   background: var(--wb-page-bg);
   color: var(--wb-ink);
-}
-
-html.standalone-pwa .worldbook-page {
-  top: calc(-1 * var(--wb-safe-top));
-  bottom: auto;
-  height: calc(100dvh + var(--wb-safe-top));
 }
 
 .worldbook-page::before {
@@ -5889,15 +5889,10 @@ html.standalone-pwa .worldbook-page {
 .worldbook-library {
   position: relative;
   isolation: isolate;
-  height: 100dvh;
-  padding: var(--wb-safe-top) 0 102px;
+  height: calc(100dvh + var(--wb-safe-top));
+  padding: calc(var(--wb-safe-top) * 2) 0 102px;
   background: var(--wb-page-bg);
   overflow-x: hidden;
-}
-
-html.standalone-pwa .worldbook-library {
-  height: calc(100dvh + var(--wb-safe-top));
-  padding-top: calc(var(--wb-safe-top) * 2);
 }
 
 .worldbook-library::before {
@@ -5920,7 +5915,7 @@ html.standalone-pwa .worldbook-library {
   position: absolute;
   left: 24px;
   right: 24px;
-  top: max(34px, calc(var(--wb-safe-top) + 26px));
+  top: max(34px, calc((var(--wb-safe-top) * 2) + 26px));
   z-index: 2;
   display: grid;
   justify-items: center;
@@ -5928,10 +5923,6 @@ html.standalone-pwa .worldbook-library {
   margin: 0;
   padding: 0;
   text-align: center;
-}
-
-html.standalone-pwa .worldbook-library-head {
-  top: max(34px, calc((var(--wb-safe-top) * 2) + 26px));
 }
 
 .worldbook-library-head h1 {
@@ -5957,7 +5948,7 @@ html.standalone-pwa .worldbook-library-head {
 .worldbook-library-back {
   position: absolute;
   left: 14px;
-  top: max(10px, var(--wb-safe-top));
+  top: max(10px, calc((var(--wb-safe-top) * 2) + 10px));
   z-index: 4;
   display: grid;
   width: 40px;
@@ -5970,25 +5961,16 @@ html.standalone-pwa .worldbook-library-head {
   box-shadow: 0 10px 24px rgba(24, 67, 101, 0.12);
 }
 
-html.standalone-pwa .worldbook-library-back {
-  top: max(10px, calc((var(--wb-safe-top) * 2) + 10px));
-}
-
 .worldbook-library-hero {
   position: relative;
   z-index: 1;
   isolation: isolate;
   overflow: hidden;
   width: 100vw;
-  height: 332px;
-  margin: calc(-1 * var(--wb-safe-top)) 0 18px;
+  height: calc(332px + var(--wb-safe-top));
+  margin: calc(-2 * var(--wb-safe-top)) 0 18px;
   border-radius: 0;
   background: var(--wb-sky-top);
-}
-
-html.standalone-pwa .worldbook-library-hero {
-  height: calc(332px + var(--wb-safe-top));
-  margin-top: calc(-2 * var(--wb-safe-top));
 }
 
 .worldbook-library-hero img {
@@ -6033,17 +6015,13 @@ html.standalone-pwa .worldbook-library-hero {
 .worldbook-hero-add {
   position: absolute;
   left: 50%;
-  top: calc(var(--wb-safe-top) + 122px);
+  top: calc((var(--wb-safe-top) * 2) + 122px);
   z-index: 2;
   width: min(268px, calc(100% - 96px));
   height: 48px;
   border-radius: 18px;
   transform: translateX(-50%);
   box-shadow: 0 14px 26px rgba(72, 150, 209, 0.26);
-}
-
-html.standalone-pwa .worldbook-hero-add {
-  top: calc((var(--wb-safe-top) * 2) + 122px);
 }
 
 .worldbook-search-row {
