@@ -73,10 +73,10 @@ body[data-chrome-color="me"] #root {
 body:has(.worldbook-page),
 body:has(.worldbook-page) #root {
   background-color: #dff1ff !important;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.20") !important;
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.21") !important;
   background-position: center top !important;
   background-repeat: no-repeat !important;
-  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px)) !important;
+  background-size: 100vw calc(100dvh + env(safe-area-inset-top, 0px)) !important;
 }
 
 .lock-screen,
@@ -239,10 +239,10 @@ body:has(.worldbook-page) #root {
 .phone-surface:has(.worldbook-page) {
   padding: 0;
   background-color: #dff1ff;
-  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.20");
+  background-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.21");
   background-position: center top;
   background-repeat: no-repeat;
-  background-size: 100vw calc(286px + env(safe-area-inset-top, 0px));
+  background-size: 100vw calc(100dvh + env(safe-area-inset-top, 0px));
 }
 
 .phone-surface.tab-characters,
@@ -5774,6 +5774,7 @@ select {
 
 .worldbook-library {
   position: relative;
+  isolation: isolate;
   height: 100dvh;
   padding: 0 0 102px;
   background: #fbfdff;
@@ -5832,11 +5833,11 @@ select {
 
 .worldbook-library-hero {
   position: relative;
-  z-index: 1;
+  z-index: 0;
   overflow: hidden;
   width: 100vw;
-  height: calc(286px + env(safe-area-inset-top, 0px));
-  margin: calc(-1 * env(safe-area-inset-top, 0px)) 0 18px;
+  height: calc(100dvh + env(safe-area-inset-top, 0px));
+  margin: calc(-1 * env(safe-area-inset-top, 0px)) 0 calc(304px - 100dvh);
   border-radius: 0;
   background: #eaf6ff;
 }
@@ -5853,12 +5854,12 @@ select {
   content: "";
   position: absolute;
   right: 0;
-  bottom: -1px;
   left: 0;
+  top: 190px;
   z-index: 1;
-  height: 86px;
+  height: calc(100% - 189px);
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(251, 253, 255, 0) 0%, rgba(251, 253, 255, 0.78) 62%, #fbfdff 100%);
+  background: linear-gradient(180deg, rgba(251, 253, 255, 0) 0%, rgba(251, 253, 255, 0.76) 18%, #fbfdff 36%, #fbfdff 100%);
 }
 
 .worldbook-primary {
@@ -5890,6 +5891,8 @@ select {
 }
 
 .worldbook-search-row {
+  position: relative;
+  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 10px;
@@ -5932,6 +5935,8 @@ select {
 }
 
 .worldbook-world-list {
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: 14px;
   margin: 24px 18px 0;
