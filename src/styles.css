@@ -1,8 +1,9 @@
 :root {
   --wb-safe-top: env(safe-area-inset-top, 0px);
+  --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: #b7daf2;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.26");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.27");
   color: #111111;
   background: #f7f7f9;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
@@ -15,6 +16,7 @@
 @supports (-webkit-touch-callout: none) {
   :root {
     --wb-safe-top: max(44px, env(safe-area-inset-top, 0px));
+    --wb-bleed-top: max(96px, env(safe-area-inset-top, 0px));
   }
 }
 
@@ -98,11 +100,11 @@ body[data-chrome-color="worldbook"]::before,
 body:has(.worldbook-page)::before {
   content: "";
   position: fixed;
-  top: calc(-1 * var(--wb-safe-top));
+  top: calc(-1 * var(--wb-bleed-top));
   right: 0;
   left: 0;
   z-index: 0;
-  height: calc(100dvh + var(--wb-safe-top));
+  height: calc(100dvh + var(--wb-bleed-top));
   pointer-events: none;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
@@ -289,11 +291,11 @@ body:has(.worldbook-page) #root {
 .phone-surface:has(.worldbook-page)::before {
   content: "";
   position: fixed;
-  top: calc(-1 * var(--wb-safe-top));
+  top: calc(-1 * var(--wb-bleed-top));
   right: 0;
   left: 0;
   z-index: 0;
-  height: calc(100dvh + var(--wb-safe-top));
+  height: calc(100dvh + var(--wb-bleed-top));
   pointer-events: none;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
@@ -5793,11 +5795,11 @@ select {
 .worldbook-page::before {
   content: "";
   position: fixed;
-  top: calc(-1 * var(--wb-safe-top));
+  top: calc(-1 * var(--wb-bleed-top));
   right: 0;
   left: 0;
   z-index: 0;
-  height: calc(352px + var(--wb-safe-top));
+  height: calc(352px + var(--wb-bleed-top));
   pointer-events: none;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
@@ -5864,11 +5866,11 @@ select {
 .worldbook-library::before {
   content: "";
   position: fixed;
-  top: calc(-1 * var(--wb-safe-top));
+  top: calc(-1 * var(--wb-bleed-top));
   right: 0;
   left: 0;
   z-index: 0;
-  height: calc(352px + var(--wb-safe-top));
+  height: calc(352px + var(--wb-bleed-top));
   pointer-events: none;
   background-color: var(--wb-sky-top);
   background-image: var(--wb-hero-image);
