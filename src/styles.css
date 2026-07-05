@@ -1,11 +1,11 @@
 :root {
   --wb-safe-top: env(safe-area-inset-top, 0px);
   --wb-bleed-top: var(--wb-safe-top);
-  --wb-sky-top: #b7daf2;
+  --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.31");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.32");
   color: #111111;
-  background-color: var(--wb-sky-top);
+  background-color: transparent;
   background-image: var(--wb-hero-image);
   background-position: top center;
   background-repeat: no-repeat;
@@ -61,7 +61,7 @@ body {
   height: 100vh;
   height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  background-color: var(--wb-sky-top);
+  background-color: transparent;
   background-image: var(--wb-hero-image);
   background-position: top center;
   background-repeat: no-repeat;
@@ -75,7 +75,7 @@ body {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background-color: var(--wb-sky-top);
+  background-color: transparent;
   background-image: var(--wb-hero-image);
   background-position: top center;
   background-repeat: no-repeat;
