@@ -1,15 +1,18 @@
 :root {
+  --app-home-bg: #f7f7f9;
+  --app-me-bg: #fdfbf8;
+  --app-white-bg: #ffffff;
   --wb-safe-top: env(safe-area-inset-top, 0px);
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.41");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.42");
   color: #111111;
   width: 100%;
   height: 100%;
   min-height: 100%;
   min-height: 100dvh;
-  background-color: transparent;
+  background-color: var(--app-home-bg);
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -63,7 +66,7 @@ body {
   height: 100vh;
   height: 100dvh;
   -webkit-font-smoothing: antialiased;
-  background-color: transparent;
+  background-color: var(--app-home-bg);
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: manipulation;
@@ -73,25 +76,25 @@ body {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background-color: transparent;
+  background-color: var(--app-home-bg);
   overflow: hidden;
   touch-action: manipulation;
 }
 
 body[data-chrome-color="white"],
 body[data-chrome-color="white"] #root {
-  background: #ffffff !important;
+  background: var(--app-white-bg) !important;
 }
 
 body[data-chrome-color="me"],
 body[data-chrome-color="me"] #root {
-  background: #fdfbf8 !important;
+  background: var(--app-me-bg) !important;
 }
 
 html.standalone-pwa,
 html.standalone-pwa body,
 html.standalone-pwa #root {
-  background-color: #f7f7f9;
+  background-color: var(--app-home-bg);
   background-image: none !important;
 }
 
@@ -142,14 +145,14 @@ body:has(.worldbook-page) #root {
 }
 
 .phone-surface {
-  background: #f7f7f9;
+  background: var(--app-home-bg);
 }
 
 .phone-surface:has(.message-page),
 .phone-stage:has(.message-page),
 .phone-surface.message-opening,
 .phone-surface.message-opening .phone-stage {
-  background: #fff;
+  background: var(--app-white-bg);
 }
 
 .phone-surface:has(.message-page)::before {
@@ -161,12 +164,12 @@ body:has(.worldbook-page) #root {
   left: 0;
   bottom: 0;
   pointer-events: none;
-  background: #fff;
+  background: var(--app-white-bg);
 }
 
 .phone-surface.tab-me,
 .phone-surface.tab-me .phone-stage {
-  background: #fdfbf8;
+  background: var(--app-me-bg);
 }
 
 .phone-stage {
@@ -176,6 +179,7 @@ body:has(.worldbook-page) #root {
   height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
+  background: var(--app-home-bg);
   overscroll-behavior: none;
   transform-origin: center center;
   transition:
@@ -287,6 +291,32 @@ body:has(.worldbook-page) #root {
 
 .phone-surface {
   padding: 0;
+}
+
+.phone-surface::after {
+  content: "";
+  position: fixed;
+  right: 0;
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
+  left: 0;
+  z-index: 1;
+  height: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  pointer-events: none;
+  background: var(--app-home-bg);
+}
+
+.phone-surface.message-opening::after,
+.phone-surface:has(.message-page)::after {
+  background: var(--app-white-bg);
+}
+
+.phone-surface.tab-me::after {
+  background: var(--app-me-bg);
+}
+
+.phone-surface.worldbook-opening::after,
+.phone-surface:has(.worldbook-page)::after {
+  display: none;
 }
 
 .phone-surface.worldbook-opening,
@@ -447,11 +477,12 @@ body:has(.worldbook-page) #root {
 }
 
 .bottom-tabs {
+  --home-tab-safe-sink: min(28px, env(safe-area-inset-bottom, 0px));
   position: fixed;
   z-index: 20;
   left: 18px;
   right: 18px;
-  bottom: 0;
+  bottom: calc(var(--home-tab-safe-sink) * -1);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   height: 76px;
