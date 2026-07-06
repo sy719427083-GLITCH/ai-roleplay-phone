@@ -99,9 +99,6 @@ const appGroups = [
     { title: "情侣空间", icon: Heart, variant: "solid" },
     { title: "查手机", icon: Smartphone, variant: "line" },
     { title: "日程", icon: CalendarDays, variant: "line" },
-    { title: "角色", icon: UserRound, variant: "line" },
-    { title: "我", icon: UserRound, variant: "solid" },
-    { title: "设置", icon: Settings, variant: "line" },
   ],
 ];
 
@@ -113,7 +110,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.37`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.38`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2450,7 +2447,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.37</p>
+      <p className="version-label">Ccat OS V0.2.38</p>
     </section>
   );
 }
@@ -5377,18 +5374,6 @@ export function App() {
   }, [messageToast]);
 
   const openWithLoader = (type, payload) => {
-    if (type === "app" && payload?.title === "角色") {
-      setTab("characters");
-      return;
-    }
-    if (type === "app" && payload?.title === "我") {
-      setTab("me");
-      return;
-    }
-    if (type === "app" && payload?.title === "设置") {
-      setTab("settings");
-      return;
-    }
     setChromeColor(getChromeColor({
       locked: false,
       tab,
@@ -5435,7 +5420,7 @@ export function App() {
     <main className={surfaceClass}>
       <div className="phone-stage">
         {content}
-        {tab !== "home" && !((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}
+        {!((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}
       </div>
       {messageToast && !openedApp && !settingPage && (
         <button className="message-home-toast" onClick={openMessagesFromToast}>
