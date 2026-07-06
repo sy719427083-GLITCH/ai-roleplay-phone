@@ -2,11 +2,13 @@
   --app-home-bg: #f7f7f9;
   --app-me-bg: #fdfbf8;
   --app-white-bg: #ffffff;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-viewport-height: 100dvh;
   --wb-safe-top: env(safe-area-inset-top, 0px);
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.42");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.43");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -22,6 +24,8 @@
 
 @supports (-webkit-touch-callout: none) {
   :root {
+    --app-safe-bottom: max(34px, env(safe-area-inset-bottom, 0px));
+    --app-viewport-height: calc(100dvh + var(--app-safe-bottom));
     --wb-safe-top: max(44px, env(safe-area-inset-top, 0px));
     --wb-bleed-top: max(96px, env(safe-area-inset-top, 0px));
   }
@@ -62,9 +66,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height);
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-viewport-height);
   -webkit-font-smoothing: antialiased;
   background-color: var(--app-home-bg);
   overflow: hidden;
@@ -75,7 +79,7 @@ body {
 #root {
   width: 100vw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-viewport-height);
   background-color: var(--app-home-bg);
   overflow: hidden;
   touch-action: manipulation;
@@ -138,7 +142,7 @@ body:has(.worldbook-page) #root {
   position: relative;
   width: 100vw;
   height: 100vh;
-  height: 100dvh;
+  height: var(--app-viewport-height);
   overflow: hidden;
   background: #fbfbfb;
   overscroll-behavior: none;
@@ -176,8 +180,8 @@ body:has(.worldbook-page) #root {
   position: relative;
   z-index: 15;
   width: 100%;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: var(--app-viewport-height);
+  min-height: var(--app-viewport-height);
   overflow: hidden;
   background: var(--app-home-bg);
   overscroll-behavior: none;
@@ -297,10 +301,10 @@ body:has(.worldbook-page) #root {
   content: "";
   position: fixed;
   right: 0;
-  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
+  bottom: calc(-1 * var(--app-safe-bottom));
   left: 0;
   z-index: 1;
-  height: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  height: calc(var(--app-safe-bottom) + 18px);
   pointer-events: none;
   background: var(--app-home-bg);
 }
@@ -477,7 +481,7 @@ body:has(.worldbook-page) #root {
 }
 
 .bottom-tabs {
-  --home-tab-safe-sink: min(28px, env(safe-area-inset-bottom, 0px));
+  --home-tab-safe-sink: var(--app-safe-bottom);
   position: fixed;
   z-index: 20;
   left: 18px;
