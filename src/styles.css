@@ -3,7 +3,7 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.40");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.41");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -454,8 +454,8 @@ body:has(.worldbook-page) #root {
   bottom: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  height: calc(76px + env(safe-area-inset-bottom, 0px));
-  padding: 9px 10px max(9px, env(safe-area-inset-bottom, 0px));
+  height: 76px;
+  padding: 9px 10px;
   border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 999px;
