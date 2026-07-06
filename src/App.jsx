@@ -99,6 +99,9 @@ const appGroups = [
     { title: "情侣空间", icon: Heart, variant: "solid" },
     { title: "查手机", icon: Smartphone, variant: "line" },
     { title: "日程", icon: CalendarDays, variant: "line" },
+    { title: "角色", icon: UserRound, variant: "line" },
+    { title: "我", icon: UserRound, variant: "solid" },
+    { title: "设置", icon: Settings, variant: "line" },
   ],
 ];
 
@@ -110,7 +113,7 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.36`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.37`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -1031,12 +1034,11 @@ const resetViewportScroll = () => {
   document.body.scrollTop = 0;
 };
 
-const getChromeColor = ({ locked, tab, openedApp, settingPage, launching }) => {
-  const launchTitle = launching?.type === "app" ? launching.payload?.title : "";
+const getChromeColor = ({ locked, tab, openedApp, settingPage }) => {
   if (locked) return CHROME_COLORS.lock;
-  if (openedApp?.title === "消息" || launchTitle === "消息") return CHROME_COLORS.white;
-  if (openedApp?.title === "世界书" || launchTitle === "世界书") return CHROME_COLORS.worldbook;
-  if (settingPage || launching?.type === "setting") return CHROME_COLORS.home;
+  if (openedApp?.title === "消息") return CHROME_COLORS.white;
+  if (openedApp?.title === "世界书") return CHROME_COLORS.worldbook;
+  if (settingPage) return CHROME_COLORS.home;
   if (tab === "me") return CHROME_COLORS.me;
   return CHROME_COLORS.home;
 };
@@ -2448,7 +2450,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.36</p>
+      <p className="version-label">Ccat OS V0.2.37</p>
     </section>
   );
 }
@@ -4702,66 +4704,95 @@ function WorldbookAppScreen({ onClose }) {
     return { main, support, links, memories };
   };
 
-  const renderLibrary = () => (
-    <main className="worldbook-main worldbook-library">
-      <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
-        <ChevronLeft size={24} />
-      </button>
-      <section className="worldbook-library-hero">
-        <img src={worldbookAsset("hero-worldbook.png")} alt="" />
-        <div className="worldbook-library-head">
-          <h1>世界书</h1>
-          <p>你的角色世界与生平档案</p>
-        </div>
-        <button className="worldbook-primary worldbook-hero-add" onClick={openAddWorld}>
-          <Plus size={21} strokeWidth={1.9} />
-          <span>添加世界</span>
+  const renderLibrary = () => {
+    const libraryStats = worlds.reduce((total, world) => {
+      const stats = worldStats(world);
+      return {
+        characters: total.characters + stats.main + stats.support,
+        links: total.links + stats.links,
+        memories: total.memories + stats.memories,
+      };
+    }, { characters: 0, links: 0, memories: 0 });
+
+    return (
+      <main className="worldbook-main worldbook-library">
+        <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
+          <ChevronLeft size={24} />
         </button>
-      </section>
-      <section className="worldbook-search-row">
-        <button className="worldbook-search">
-          <Search size={17} />
-          <span>搜索世界 / 人物</span>
-        </button>
-        <button className="worldbook-filter" aria-label="筛选">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16l-6.4 7.2v4.4l-3.2 1.8v-6.2z" /></svg>
-        </button>
-      </section>
-      <section className="worldbook-world-list" aria-label="世界列表">
-        {worlds.map((world) => {
-          const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
-          const stats = worldStats(world);
-          return (
-            <article className="worldbook-world-card" key={world.id}>
-              <button className="worldbook-world-open" onClick={() => openWorld(world.id)}>
-                {renderCover(cover, "card")}
-                <span className="worldbook-world-copy">
-                  <strong>{world.name}</strong>
-                  <em>{world.genre}</em>
-                  <small>人物数量　{stats.main + stats.support} 人</small>
-                  <small>最近更新　{world.updated}</small>
-                </span>
-                <ChevronRight size={21} strokeWidth={1.7} />
-              </button>
-              <button className="worldbook-delete-world" onClick={(event) => deleteWorld(event, world.id)}>删除</button>
+        <section className="worldbook-library-hero">
+          <img src={worldbookAsset("hero-worldbook.png")} alt="" />
+          <div className="worldbook-library-head">
+            <h1>世界书</h1>
+            <p>你的角色世界与生平档案</p>
+          </div>
+          <button className="worldbook-primary worldbook-hero-add" onClick={openAddWorld}>
+            <Plus size={21} strokeWidth={1.9} />
+            <span>添加世界</span>
+          </button>
+        </section>
+        <section className="worldbook-search-row">
+          <button className="worldbook-search">
+            <Search size={17} />
+            <span>搜索世界 / 人物</span>
+          </button>
+          <button className="worldbook-filter" aria-label="筛选">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16l-6.4 7.2v4.4l-3.2 1.8v-6.2z" /></svg>
+          </button>
+        </section>
+        <section className="worldbook-library-dashboard" aria-label="世界书总览">
+          <div>
+            <span>
+              <em>世界</em>
+              <strong>{worlds.length}</strong>
+            </span>
+            <span>
+              <em>人物</em>
+              <strong>{libraryStats.characters}</strong>
+            </span>
+            <span>
+              <em>关系</em>
+              <strong>{libraryStats.links}</strong>
+            </span>
+          </div>
+          <p>集中记录世界设定、人物背景、生平时间线、关系脉络与共同记忆。</p>
+        </section>
+        <section className="worldbook-world-list" aria-label="世界列表">
+          {worlds.map((world) => {
+            const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
+            const stats = worldStats(world);
+            return (
+              <article className="worldbook-world-card" key={world.id}>
+                <button className="worldbook-world-open" onClick={() => openWorld(world.id)}>
+                  {renderCover(cover, "card")}
+                  <span className="worldbook-world-copy">
+                    <strong>{world.name}</strong>
+                    <em>{world.genre}</em>
+                    <small className="worldbook-world-note">{world.tone || cover.note}</small>
+                    <small>人物数量　{stats.main + stats.support} 人</small>
+                    <small>最近更新　{world.updated}</small>
+                  </span>
+                  <ChevronRight size={21} strokeWidth={1.7} />
+                </button>
+                <button className="worldbook-delete-world" onClick={(event) => deleteWorld(event, world.id)}>删除</button>
+              </article>
+            );
+          })}
+          {worlds.length === 0 && (
+            <article className="worldbook-empty worldbook-library-empty">
+              <Sparkles size={22} />
+              <strong>还没有世界书</strong>
+              <p>点击添加世界，系统会自动分配一张横版封面。这里会归档人物背景、生平经历、关系网与共同记忆。</p>
             </article>
-          );
-        })}
-        {worlds.length === 0 && (
-          <article className="worldbook-empty worldbook-library-empty">
-            <Sparkles size={22} />
-            <strong>还没有世界书</strong>
-            <p>点击添加世界，系统会自动分配一张横版封面。</p>
-          </article>
-        )}
-        <button className="worldbook-create-card" onClick={openAddWorld}>
-          <span><Plus size={22} /></span>
-          <strong>创建新世界 · 自动分配封面</strong>
-          <em>快速开始你的角色世界</em>
-        </button>
-      </section>
-    </main>
-  );
+          )}
+          <button className="worldbook-create-card" onClick={openAddWorld}>
+            <span><Plus size={22} /></span>
+            <strong>创建新世界 · 自动分配封面</strong>
+            <em>快速开始你的角色世界</em>
+          </button>
+        </section>
+      </main>
+    );
+  };
 
   const renderHeader = (title, action = null) => (
     <header className="worldbook-header">
@@ -5245,23 +5276,11 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   );
 }
 
-function LaunchLoader() {
-  return (
-    <section className="launch-loader" aria-label="正在进入">
-      <div className="launch-loader-track">
-        <span></span>
-      </div>
-    </section>
-  );
-}
-
 export function App() {
   const [locked, setLocked] = useState(true);
   const [tab, setTab] = useState("home");
   const [openedApp, setOpenedApp] = useState(null);
   const [settingPage, setSettingPage] = useState(null);
-  const [launching, setLaunching] = useState(null);
-  const [hasShownLaunch, setHasShownLaunch] = useState(false);
   const [hideCharacterTabs, setHideCharacterTabs] = useState(false);
   const [hideMeTabs, setHideMeTabs] = useState(false);
   const [messageUnread, setMessageUnread] = useState(() => getMessageUnreadCount());
@@ -5280,18 +5299,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    setChromeColor(getChromeColor({ locked, tab, openedApp, settingPage, launching }));
-  }, [locked, tab, openedApp?.title, settingPage?.id, launching?.type, launching?.payload?.title]);
-
-  useEffect(() => {
-    if (!launching) return undefined;
-    const timer = window.setTimeout(() => {
-      if (launching.type === "app") setOpenedApp(launching.payload);
-      if (launching.type === "setting") setSettingPage(launching.payload);
-      setLaunching(null);
-    }, 920);
-    return () => window.clearTimeout(timer);
-  }, [launching]);
+    setChromeColor(getChromeColor({ locked, tab, openedApp, settingPage }));
+  }, [locked, tab, openedApp?.title, settingPage?.id]);
 
   useEffect(() => {
     const refreshUnread = () => setMessageUnread(getMessageUnreadCount());
@@ -5301,7 +5310,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (locked || openedApp?.title === "消息" || launching) return undefined;
+    if (locked || openedApp?.title === "消息") return undefined;
 
     const maybeSendProactive = async () => {
       if (openedApp?.title === "消息") return;
@@ -5359,7 +5368,7 @@ export function App() {
       window.clearTimeout(firstTimer);
       window.clearInterval(interval);
     };
-  }, [locked, openedApp?.title, launching]);
+  }, [locked, openedApp?.title]);
 
   useEffect(() => {
     if (!messageToast) return undefined;
@@ -5368,20 +5377,26 @@ export function App() {
   }, [messageToast]);
 
   const openWithLoader = (type, payload) => {
+    if (type === "app" && payload?.title === "角色") {
+      setTab("characters");
+      return;
+    }
+    if (type === "app" && payload?.title === "我") {
+      setTab("me");
+      return;
+    }
+    if (type === "app" && payload?.title === "设置") {
+      setTab("settings");
+      return;
+    }
     setChromeColor(getChromeColor({
       locked: false,
       tab,
       openedApp: type === "app" ? payload : null,
       settingPage: type === "setting" ? payload : null,
-      launching: { type, payload },
     }));
-    if (hasShownLaunch) {
-      if (type === "app") setOpenedApp(payload);
-      if (type === "setting") setSettingPage(payload);
-      return;
-    }
-    setHasShownLaunch(true);
-    setLaunching({ type, payload });
+    if (type === "app") setOpenedApp(payload);
+    if (type === "setting") setSettingPage(payload);
   };
 
   const openMessagesFromToast = () => {
@@ -5394,7 +5409,7 @@ export function App() {
     if (tab === "characters") return <CharacterAppScreen onChildPageChange={setHideCharacterTabs} />;
     if (tab === "me") return <MeAppScreen onChildPageChange={setHideMeTabs} />;
     return <SettingsScreen onOpen={(item) => openWithLoader("setting", item)} />;
-  }, [tab, hasShownLaunch, messageUnread]);
+  }, [tab, messageUnread]);
 
   useEffect(() => {
     if (tab !== "characters") setHideCharacterTabs(false);
@@ -5403,9 +5418,9 @@ export function App() {
 
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
-  const hasOverlay = Boolean(openedApp || settingPage || launching);
-  const isMessageOpening = openedApp?.title === "消息" || (launching?.type === "app" && launching.payload?.title === "消息");
-  const isWorldbookOpening = openedApp?.title === "世界书" || (launching?.type === "app" && launching.payload?.title === "世界书");
+  const hasOverlay = Boolean(openedApp || settingPage);
+  const isMessageOpening = openedApp?.title === "消息";
+  const isWorldbookOpening = openedApp?.title === "世界书";
   const surfaceClass = [
     "phone-surface",
     `tab-${tab}`,
@@ -5420,9 +5435,9 @@ export function App() {
     <main className={surfaceClass}>
       <div className="phone-stage">
         {content}
-        {!((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}
+        {tab !== "home" && !((tab === "characters" && hideCharacterTabs) || (tab === "me" && hideMeTabs)) && <BottomTabs active={tab} onChange={setTab} />}
       </div>
-      {messageToast && !openedApp && !settingPage && !launching && (
+      {messageToast && !openedApp && !settingPage && (
         <button className="message-home-toast" onClick={openMessagesFromToast}>
           <MessageAvatar character={messageToast.character} />
           <span>
@@ -5434,20 +5449,19 @@ export function App() {
       )}
       {openedApp && <OpenedApp app={openedApp} onClose={() => {
         resetViewportScroll();
-        setChromeColor(getChromeColor({ locked: false, tab, openedApp: null, settingPage, launching: null }));
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp: null, settingPage }));
         setOpenedApp(null);
         requestAnimationFrame(resetViewportScroll);
         window.setTimeout(resetViewportScroll, 80);
       }} onMessageUnreadChange={setMessageUnread} />}
       {settingPage?.id === "api" && <ApiSettingsPage onBack={() => {
-        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null }));
         setSettingPage(null);
       }} />}
       {settingPage && settingPage.id !== "api" && <GenericSettingPage item={settingPage} onBack={() => {
-        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null, launching: null }));
+        setChromeColor(getChromeColor({ locked: false, tab, openedApp, settingPage: null }));
         setSettingPage(null);
       }} />}
-      {launching && <LaunchLoader />}
     </main>
   );
 }
