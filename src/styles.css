@@ -9,7 +9,8 @@
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.55");
+  --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.56");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -27,6 +28,7 @@
   :root {
     --app-safe-bottom: max(34px, env(safe-area-inset-bottom, 0px));
     --app-safe-top-clearance: max(62px, env(safe-area-inset-top, 0px));
+    --editor-safe-top: max(92px, calc(env(safe-area-inset-top, 0px) + 24px));
     --app-viewport-height: calc(100dvh + var(--app-safe-bottom));
     --wb-safe-top: max(44px, env(safe-area-inset-top, 0px));
     --wb-bleed-top: max(96px, env(safe-area-inset-top, 0px));
@@ -2614,7 +2616,7 @@ textarea.character-input {
 
 .me-preview-page,
 .me-edit-page {
-  top: calc(-1 * max(4px, env(safe-area-inset-top)));
+  top: 0;
 }
 
 .me-pv-container {
@@ -2722,7 +2724,7 @@ textarea.character-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: max(18px, env(safe-area-inset-top)) 20px 0;
+  padding: var(--editor-safe-top) 20px 0;
 }
 
 .me-edit-back,
@@ -6635,7 +6637,7 @@ select {
 .worldbook-overview-hero,
 .worldbook-detail-hero {
   position: relative;
-  min-height: 228px;
+  min-height: calc(236px + var(--editor-safe-top));
   overflow: hidden;
   border-radius: 0 0 24px 24px;
   margin: calc(-1 * env(safe-area-inset-top)) -16px 0;
@@ -6646,7 +6648,7 @@ select {
 .worldbook-detail-hero > img {
   display: block;
   width: 100%;
-  height: 228px;
+  height: calc(236px + var(--editor-safe-top));
   object-fit: cover;
   background: #edf6fc;
 }
@@ -6654,7 +6656,7 @@ select {
 .worldbook-floating-back,
 .worldbook-detail-actions button {
   position: absolute;
-  top: 27px;
+  top: var(--editor-safe-top);
   z-index: 2;
   display: grid;
   width: 40px;
@@ -6675,7 +6677,8 @@ select {
   position: absolute;
   left: 20px;
   right: 20px;
-  bottom: 18px;
+  top: calc(var(--editor-safe-top) + 58px);
+  bottom: auto;
   color: #fff;
   text-shadow: 0 2px 12px rgba(16, 47, 80, 0.28);
 }
@@ -6876,13 +6879,13 @@ select {
 }
 
 .worldbook-detail-hero {
-  min-height: 238px;
+  min-height: calc(246px + var(--editor-safe-top));
   border-radius: 0 0 22px 22px;
   background: #eef4f8;
 }
 
 .worldbook-detail-hero > img {
-  height: 238px;
+  height: calc(246px + var(--editor-safe-top));
 }
 
 .worldbook-detail-hero > img.worldbook-detail-cover {
@@ -6891,7 +6894,7 @@ select {
 
 .worldbook-detail-actions {
   position: absolute;
-  top: 27px;
+  top: var(--editor-safe-top);
   right: 16px;
   z-index: 2;
   display: flex;
