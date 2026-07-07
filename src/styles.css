@@ -8,7 +8,8 @@
   --wb-bleed-top: var(--wb-safe-top);
   --wb-sky-top: transparent;
   --wb-page-bg: #fbfdff;
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.48");
+  --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.49");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -25,6 +26,7 @@
 @supports (-webkit-touch-callout: none) {
   :root {
     --app-safe-bottom: max(34px, env(safe-area-inset-bottom, 0px));
+    --app-safe-top-clearance: max(62px, env(safe-area-inset-top, 0px));
     --app-viewport-height: calc(100dvh + var(--app-safe-bottom));
     --wb-safe-top: max(44px, env(safe-area-inset-top, 0px));
     --wb-bleed-top: max(96px, env(safe-area-inset-top, 0px));
@@ -658,6 +660,10 @@ body:has(.worldbook-page) #root {
   text-transform: uppercase;
 }
 
+.settings-view {
+  padding-top: calc(var(--app-safe-top-clearance) + 12px);
+}
+
 .settings-list,
 .glass-form,
 .api-block {
@@ -732,6 +738,7 @@ body:has(.worldbook-page) #root {
 .character-view {
   position: relative;
   overflow-y: auto;
+  padding-top: calc(var(--app-safe-top-clearance) + 8px);
   padding-bottom: 112px;
 }
 
@@ -1733,7 +1740,7 @@ textarea.character-input {
   min-height: 44px;
   border-bottom: 0;
   background: transparent;
-  padding: 8px 8px 6px;
+  padding: calc(var(--app-safe-top-clearance) + 10px) 8px 8px;
   backdrop-filter: none;
 }
 
@@ -1889,7 +1896,7 @@ textarea.character-input {
   grid-template-columns: 72px 1fr 60px;
   align-items: center;
   min-height: 52px;
-  padding: 8px 12px 2px;
+  padding: calc(var(--app-safe-top-clearance) + 8px) 12px 4px;
 }
 
 .selector-close {
@@ -2122,7 +2129,7 @@ textarea.character-input {
 .preview-nav {
   position: absolute;
   z-index: 100;
-  top: max(18px, env(safe-area-inset-top));
+  top: calc(var(--app-safe-top-clearance) + 8px);
   left: 18px;
   right: 18px;
   display: flex;
