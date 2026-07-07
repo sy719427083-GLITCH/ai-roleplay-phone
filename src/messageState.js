@@ -215,3 +215,20 @@ export function updateChatMessage(state, characterId, messageId, patch = {}) {
   );
   return { ...normalized, histories };
 }
+
+export function deleteChatMessage(state, characterId, messageId) {
+  const normalized = normalizeMessageState(state);
+  if (!characterId || !messageId) return normalized;
+  const histories = { ...normalized.histories };
+  const history = Array.isArray(histories[characterId]) ? histories[characterId] : [];
+  const nextHistory = history.filter((message) => message.id !== messageId);
+  if (nextHistory.length === history.length) return normalized;
+  histories[characterId] = nextHistory;
+  const latest = nextHistory[nextHistory.length - 1];
+  const conversations = normalized.conversations.map((conversation) =>
+    conversation.characterId === characterId
+      ? { ...conversation, updatedAt: latest?.createdAt || nowStamp() }
+      : conversation,
+  );
+  return { ...normalized, histories, conversations };
+}

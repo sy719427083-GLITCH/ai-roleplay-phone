@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   acceptFriendRequest,
   appendChatMessage,
+  deleteChatMessage,
   deleteConversation,
   markConversationRead,
   rejectFriendRequest,
@@ -116,4 +117,22 @@ test("updating a role message as recalled keeps a visible recall placeholder", (
 
   assert.equal(recalled.histories["char-a"][0].kind, "recall");
   assert.equal(recalled.histories["char-a"][0].text, "林砚舟撤回了一条消息");
+});
+
+test("deleting a chat message removes it from the stored history", () => {
+  const state = {
+    contacts: [{ characterId: "char-a" }],
+    requests: [],
+    conversations: [{ id: "conv-char-a", characterId: "char-a", unread: 0 }],
+    histories: {},
+  };
+
+  const withMe = appendChatMessage(state, "char-a", { from: "me", text: "上一句" });
+  const withRole = appendChatMessage(withMe, "char-a", { from: "role", text: "要删除的回复" });
+  const roleMessage = withRole.histories["char-a"][1];
+
+  const next = deleteChatMessage(withRole, "char-a", roleMessage.id);
+
+  assert.deepEqual(next.histories["char-a"].map((message) => message.text), ["上一句"]);
+  assert.equal(next.histories["char-a"].some((message) => message.id === roleMessage.id), false);
 });

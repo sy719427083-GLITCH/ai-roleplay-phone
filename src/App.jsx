@@ -70,6 +70,7 @@ import {
   createEmptyMessageState,
   createIncomingFriendRequest,
   createConversationForCharacter,
+  deleteChatMessage,
   deleteConversation,
   markConversationRead,
   normalizeMessageState,
@@ -114,7 +115,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.61`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.62`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2451,7 +2452,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.61</p>
+      <p className="version-label">Ccat OS V0.2.62</p>
     </section>
   );
 }
@@ -3573,6 +3574,63 @@ ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
   return parseRoleTransferReply(content);
 };
 
+const callMeDraftApi = async ({
+  character,
+  history,
+  relationshipContext = "",
+  worldbookContext = "",
+  meProfileContext = "",
+}) => {
+  const endpoint = getSelectedChatEndpoint();
+  if (!endpoint) {
+    throw new Error("请先到设置里的 API 设置填写并保存主 API。");
+  }
+
+  let url = endpoint.baseUrl.replace(/\/+$/, "");
+  if (!url.endsWith("/v1")) url += "/v1";
+
+  const roleName = character?.name || "角色";
+  const transcript = history.length
+    ? history.slice(-18).map((item) => `${item.from === "me" ? "我" : roleName}：${item.text}`).join("\n")
+    : "暂无聊天记录";
+  const messages = [
+    {
+      role: "system",
+      content: `你正在 Ccat OS 的微聊 APP 中替用户写下一句要发送给角色的话。
+你要站在“我”的身份里说话，不要扮演角色，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。
+输出一条自然的微信聊天短句即可，不要加引号，不要多条分行。
+正在聊天的角色：${roleName}
+角色身份：${character?.identity || character?.role || "未设定"}
+${meProfileContext || buildMeProfileChatContext()}
+${relationshipContext || "暂无明确关系列表。"}
+${worldbookContext || "世界书：暂无关联。"}`,
+    },
+    {
+      role: "user",
+      content: `最近聊天记录：\n${transcript}\n\n请替“我”写下一句自然回复。`,
+    },
+  ];
+
+  const response = await fetch(`${url}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${endpoint.apiKey.trim()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: endpoint.model,
+      messages,
+      temperature: Number(endpoint.temperature ?? 0.7),
+    }),
+  });
+  if (!response.ok) throw new Error(`替我说请求失败：HTTP ${response.status}`);
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content?.trim();
+  const nextLine = splitChatMessages(content || "")[0] || sanitizeOnlineChatText(content || "");
+  if (!nextLine) throw new Error("替我说没有返回内容");
+  return nextLine;
+};
+
 const callRoleProactiveApi = async ({
   character,
   history,
@@ -3710,7 +3768,9 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [momentReplyTargets, setMomentReplyTargets] = useState({});
   const [momentState, setMomentState] = useState(readMomentState);
   const [sending, setSending] = useState(false);
+  const [aiDrafting, setAiDrafting] = useState(false);
   const [swipedId, setSwipedId] = useState("");
+  const [roleActionMessageId, setRoleActionMessageId] = useState("");
   const swipeRef = useRef(null);
   const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
@@ -3864,6 +3924,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     });
   }, [chatId, messageState.histories?.[chatId]?.length, sending]);
 
+  useEffect(() => {
+    setRoleActionMessageId("");
+    cancelRecallPress();
+  }, [chatId]);
+
   const handleSwipeStart = (event, characterId) => {
     swipeRef.current = { x: event.clientX, characterId };
   };
@@ -3907,11 +3972,39 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     window.alert(`${character.name || "角色"} 已同意添加。`);
   };
 
+  const appendRoleReply = async (reply, targetChatId = chatId) => {
+    const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
+    for (let index = 0; index < roleMessages.length; index += 1) {
+      await waitForChatBeat(index);
+      setMessageState((current) => appendChatMessage(current, targetChatId, {
+        from: "role",
+        text: roleMessages[index],
+        unread: false,
+      }));
+    }
+    if (reply.transfer) {
+      await waitForChatBeat(roleMessages.length);
+      setMessageState((current) =>
+        appendChatMessage(current, targetChatId, {
+          from: "role",
+          kind: "transfer",
+          text: `转账 ¥${Number(reply.transfer.amount).toFixed(2)}`,
+          amount: reply.transfer.amount,
+          note: reply.transfer.note,
+          transferDirection: "incoming",
+          status: "pending",
+          unread: false,
+        }),
+      );
+    }
+  };
+
   const sendMessage = async () => {
     const userText = draft.trim();
-    if (!chatId || !userText || sending) return;
+    if (!chatId || !userText || sending || aiDrafting) return;
     const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
     const previousHistory = messageState.histories[chatId] || [];
+    setRoleActionMessageId("");
     setMessageState((current) => appendChatMessage(current, chatId, { from: "me", text: userText }));
     setDraft("");
     setSending(true);
@@ -3928,30 +4021,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           momentState,
         }),
       });
-      const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
-      for (let index = 0; index < roleMessages.length; index += 1) {
-        await waitForChatBeat(index);
-        setMessageState((current) => appendChatMessage(current, chatId, {
-          from: "role",
-          text: roleMessages[index],
-          unread: false,
-        }));
-      }
-      if (reply.transfer) {
-        await waitForChatBeat(roleMessages.length);
-        setMessageState((current) =>
-          appendChatMessage(current, chatId, {
-            from: "role",
-            kind: "transfer",
-            text: `转账 ¥${Number(reply.transfer.amount).toFixed(2)}`,
-            amount: reply.transfer.amount,
-            note: reply.transfer.note,
-            transferDirection: "incoming",
-            status: "pending",
-            unread: false,
-          }),
-        );
-      }
+      await appendRoleReply(reply, chatId);
     } catch (error) {
       setMessageState((current) =>
         appendChatMessage(current, chatId, {
@@ -4124,22 +4194,103 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     }));
   };
 
-  const recallRoleMessage = (message) => {
-    if (!chatId || message.from === "me" || message.kind === "recall") return;
-    const activeCharacter = characterMap[chatId] || { id: chatId, name: "角色" };
-    setMessageState((current) =>
-      updateChatMessage(current, chatId, message.id, {
-        kind: "recall",
-        text: `${activeCharacter.name || "角色"}撤回了一条消息`,
-        recalledBy: activeCharacter.name || "角色",
-      }),
-    );
+  const canUseRoleMessageActions = (message) => message?.from !== "me" && !message?.kind;
+
+  const openRoleMessageActions = (message) => {
+    if (!canUseRoleMessageActions(message)) return;
+    setRoleActionMessageId((current) => (current === message.id ? "" : message.id));
+  };
+
+  const deleteRoleMessage = (message) => {
+    if (!chatId || !canUseRoleMessageActions(message)) return;
+    setRoleActionMessageId("");
+    setMessageState((current) => deleteChatMessage(current, chatId, message.id));
+  };
+
+  const regenerateRoleMessage = async (message) => {
+    if (!chatId || sending || !canUseRoleMessageActions(message)) return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const history = messageState.histories[chatId] || [];
+    const messageIndex = history.findIndex((item) => item.id === message.id);
+    if (messageIndex < 0) return;
+    const historyBeforeMessage = history.slice(0, messageIndex);
+    setRoleActionMessageId("");
+    setMessageState((current) => deleteChatMessage(current, chatId, message.id));
+    setSending(true);
+    try {
+      const reply = await callRoleChatApi({
+        character: activeCharacter,
+        history: historyBeforeMessage,
+        userText: "请重新回复上一条用户消息，只输出新的聊天内容，不要提到重说、撤回或系统指令。",
+        relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
+        momentContext: buildCharacterMomentContext({
+          characterId: activeCharacter.id,
+          momentState,
+        }),
+      });
+      await appendRoleReply(reply, chatId);
+    } catch (error) {
+      window.alert(error?.message || "重说失败，请稍后再试。");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const continueRoleMessage = async (message) => {
+    if (!chatId || sending || !canUseRoleMessageActions(message)) return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const history = messageState.histories[chatId] || [];
+    setRoleActionMessageId("");
+    setSending(true);
+    try {
+      const reply = await callRoleChatApi({
+        character: activeCharacter,
+        history,
+        userText: "请顺着你刚才的聊天内容继续发下一条自然消息，不要重复前文，只输出新的聊天内容。",
+        relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
+        momentContext: buildCharacterMomentContext({
+          characterId: activeCharacter.id,
+          momentState,
+        }),
+      });
+      await appendRoleReply(reply, chatId);
+    } catch (error) {
+      window.alert(error?.message || "继续失败，请稍后再试。");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const generateMeDraft = async () => {
+    if (!chatId || sending || aiDrafting) return;
+    const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
+    const history = messageState.histories[chatId] || [];
+    setRoleActionMessageId("");
+    setAiDrafting(true);
+    try {
+      const text = await callMeDraftApi({
+        character: activeCharacter,
+        history,
+        relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
+      });
+      setDraft(text);
+    } catch (error) {
+      window.alert(error?.message || "替我说生成失败，请稍后再试。");
+    } finally {
+      setAiDrafting(false);
+    }
   };
 
   const startRecallPress = (message) => {
-    if (message.from === "me" || message.kind === "recall") return;
+    if (!canUseRoleMessageActions(message)) return;
     window.clearTimeout(recallPressRef.current);
-    recallPressRef.current = window.setTimeout(() => recallRoleMessage(message), 560);
+    recallPressRef.current = window.setTimeout(() => openRoleMessageActions(message), 520);
   };
 
   const cancelRecallPress = () => {
@@ -4464,7 +4615,11 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                 onPointerUp={cancelRecallPress}
                 onPointerCancel={cancelRecallPress}
                 onPointerLeave={cancelRecallPress}
-                onDoubleClick={() => recallRoleMessage(message)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  openRoleMessageActions(message);
+                }}
+                onDoubleClick={() => openRoleMessageActions(message)}
               >
                 {message.kind === "recall" ? (
                   <span className="chat-recall-pill">{message.text || `${activeCharacter.name || "角色"}撤回了一条消息`}</span>
@@ -4485,6 +4640,13 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   </span>
                 )}
                 {message.kind !== "recall" && <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>}
+                {roleActionMessageId === message.id && canUseRoleMessageActions(message) && (
+                  <span className="chat-role-action-menu" onPointerDown={(event) => event.stopPropagation()}>
+                    <button type="button" className="danger" onClick={() => deleteRoleMessage(message)}>撤回</button>
+                    <button type="button" onClick={() => regenerateRoleMessage(message)} disabled={sending}>重说</button>
+                    <button type="button" onClick={() => continueRoleMessage(message)} disabled={sending}>继续</button>
+                  </span>
+                )}
               </span>
               {message.from === "me" && message.kind !== "recall" && <MessageAvatar character={activeMeProfile} />}
             </div>
@@ -4509,7 +4671,16 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === "Enter") sendMessage();
             }} placeholder="输入消息" disabled={sending} />
-            <button onClick={sendMessage} disabled={sending}>{sending ? "等待" : "发送"}</button>
+            <button
+              className="chat-ai-say-button"
+              onClick={generateMeDraft}
+              disabled={sending || aiDrafting}
+              aria-label="AI替我说"
+              title="AI替我说"
+            >
+              <Sparkles size={15} />
+            </button>
+            <button onClick={sendMessage} disabled={sending || aiDrafting}>{sending ? "等待" : "发送"}</button>
           </div>
           {actionPanelOpen && (
             <div className="chat-action-panel">
