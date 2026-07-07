@@ -77,6 +77,22 @@ export const parseRoleTransferReply = (content) => {
   };
 };
 
+export const buildMeProfileChatContext = (profile = {}) => {
+  const name = String(profile?.name || "").trim();
+  const identity = String(profile?.identity || profile?.role || "").trim();
+  const appearance = String(profile?.appearance || "").trim();
+  const personality = String(profile?.personality || "").trim();
+  const persona = String(profile?.persona || profile?.background || "").trim();
+  const lines = [
+    `聊天对象：${name || "我"}`,
+    identity ? `身份：${identity}` : "",
+    appearance ? `外貌：${appearance}` : "",
+    personality ? `性格：${personality}` : "",
+    persona ? `背景：${persona}` : "",
+  ].filter(Boolean);
+  return `你正在和以下“我 APP”身份聊天：\n${lines.join("\n")}`;
+};
+
 const createCommentId = (prefix, idSeed = "") => (
   idSeed ? `${prefix}-${idSeed}` : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`
 );

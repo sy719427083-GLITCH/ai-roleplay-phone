@@ -51,6 +51,7 @@ import {
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 import {
   buildCharacterMomentContext,
+  buildMeProfileChatContext,
   buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
@@ -76,9 +77,11 @@ import {
   updateChatMessage,
 } from "./messageState.js";
 
+const MESSAGE_APP_TITLE = "微聊";
+
 const appGroups = [
   [
-    { title: "消息", icon: Mail, variant: "line" },
+    { title: MESSAGE_APP_TITLE, icon: Mail, variant: "line" },
     { title: "论坛", icon: UsersRound, variant: "line" },
     { title: "小红书", icon: BookMarked, variant: "cutout" },
     { title: "钱包", icon: WalletCards, variant: "line" },
@@ -110,7 +113,8 @@ const tabs = [
 ];
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.53`;
+const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.54`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -863,7 +867,7 @@ function HomeScreen({ onOpen, messageUnread = 0 }) {
           {appGroups.map((group, index) => (
             <div className="app-grid" key={index}>
               {group.map((item) => (
-                <AppIcon item={item} key={item.title} onOpen={openApp} badge={item.title === "消息" ? messageUnread : 0} />
+                <AppIcon item={item} key={item.title} onOpen={openApp} badge={item.title === MESSAGE_APP_TITLE ? messageUnread : 0} />
               ))}
             </div>
           ))}
@@ -1033,7 +1037,7 @@ const resetViewportScroll = () => {
 
 const getChromeColor = ({ locked, tab, openedApp, settingPage }) => {
   if (locked) return CHROME_COLORS.lock;
-  if (openedApp?.title === "消息") return CHROME_COLORS.white;
+  if (openedApp?.title === MESSAGE_APP_TITLE) return CHROME_COLORS.white;
   if (openedApp?.title === "世界书") return CHROME_COLORS.worldbook;
   if (settingPage) return CHROME_COLORS.home;
   if (tab === "me") return CHROME_COLORS.me;
@@ -2447,7 +2451,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.53</p>
+      <p className="version-label">Ccat OS V0.2.54</p>
     </section>
   );
 }
@@ -3264,6 +3268,16 @@ const readMessageMeProfiles = () => {
   }
 };
 
+const toMessageMeProfileList = (profiles = {}) =>
+  Object.entries(profiles || {})
+    .map(([id, profile]) => ({
+      ...(profile || {}),
+      id: profile?.id || id,
+      name: profile?.name || profile?.identity || "我",
+      identity: profile?.identity || "我的身份",
+    }))
+    .filter((profile) => profile.id);
+
 const readMessageRelations = () => {
   try {
     return JSON.parse(window.localStorage.getItem(RELATION_STORAGE_KEY)) || {};
@@ -3499,7 +3513,15 @@ const getSelectedChatEndpoint = () => {
   return { ...endpoint, model };
 };
 
-const callRoleChatApi = async ({ character, history, userText, relationshipContext = "", momentContext = "", worldbookContext = "" }) => {
+const callRoleChatApi = async ({
+  character,
+  history,
+  userText,
+  relationshipContext = "",
+  momentContext = "",
+  worldbookContext = "",
+  meProfileContext = "",
+}) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) {
     throw new Error("请先到设置里的 API 设置填写并保存主 API。");
@@ -3508,13 +3530,14 @@ const callRoleChatApi = async ({ character, history, userText, relationshipConte
   let url = endpoint.baseUrl.replace(/\/+$/, "");
   if (!url.endsWith("/v1")) url += "/v1";
 
-  const systemPrompt = `你正在 Ccat OS 的信息 APP 中扮演一个角色，直接以角色本人身份回复用户。
+  const systemPrompt = `你正在 Ccat OS 的微聊 APP 中扮演一个角色，直接以角色本人身份回复用户。
 当前场景是手机里的线上文字聊天，不是面对面见面，也没有共同的现实空间。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
 外貌：${character?.appearance || "未设定"}
 背景：${character?.persona || "未设定"}
+${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
 ${worldbookContext || "世界书：暂无关联。"}
 ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
@@ -3550,7 +3573,13 @@ ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
   return parseRoleTransferReply(content);
 };
 
-const callRoleProactiveApi = async ({ character, history, relationshipContext = "", worldbookContext = "" }) => {
+const callRoleProactiveApi = async ({
+  character,
+  history,
+  relationshipContext = "",
+  worldbookContext = "",
+  meProfileContext = "",
+}) => {
   const endpoint = getSelectedChatEndpoint();
   if (!endpoint) return pickProactiveMessages(character);
 
@@ -3560,13 +3589,14 @@ const callRoleProactiveApi = async ({ character, history, relationshipContext = 
   const messages = [
     {
       role: "system",
-      content: `你正在 Ccat OS 的信息 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
+      content: `你正在 Ccat OS 的微聊 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
 当前是线上文字聊天，不是见面。只写角色会主动发出的自然微信消息，不要解释，不要括号动作，不要星号动作，不要 emoji。
 如果根据上下文不适合主动打扰，只返回空字符串。
 随机 1 到 5 条短消息，多条用换行分隔。不要每次都只发 1 条。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
+${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
 ${worldbookContext || "世界书：暂无关联。"}`,
     },
@@ -3599,7 +3629,15 @@ ${worldbookContext || "世界书：暂无关联。"}`,
   }
 };
 
-const decideTransferAcceptance = async ({ character, history, amount, note, relationshipContext = "", worldbookContext = "" }) => {
+const decideTransferAcceptance = async ({
+  character,
+  history,
+  amount,
+  note,
+  relationshipContext = "",
+  worldbookContext = "",
+  meProfileContext = "",
+}) => {
   const endpoint = getSelectedChatEndpoint();
   const fallback = Number(amount) <= 200;
   if (!endpoint) return { accepted: fallback, text: fallback ? "我收到了。" : "这笔我先不收。" };
@@ -3609,10 +3647,11 @@ const decideTransferAcceptance = async ({ character, history, amount, note, rela
   const messages = [
     {
       role: "system",
-      content: `你正在 Ccat OS 的信息 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown，不要括号动作。
+      content: `你正在 Ccat OS 的微聊 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown，不要括号动作。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
+${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
 ${worldbookContext || "世界书：暂无关联。"}`,
     },
@@ -3659,6 +3698,13 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedChatMeId, setSelectedChatMeId] = useState(() => {
+    try {
+      return window.localStorage.getItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const [momentDrafts, setMomentDrafts] = useState({});
   const [activeMomentCommentId, setActiveMomentCommentId] = useState("");
   const [momentReplyTargets, setMomentReplyTargets] = useState({});
@@ -3669,7 +3715,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
-  const meProfiles = useMemo(readMessageMeProfiles, []);
+  const meProfileMap = useMemo(readMessageMeProfiles, []);
+  const meProfiles = useMemo(() => toMessageMeProfileList(meProfileMap), [meProfileMap]);
   const relations = useMemo(readMessageRelations, []);
   const worldbooks = useMemo(readWorldbookWorldsForSelect, []);
   const [messageState, setMessageState] = useState(() => {
@@ -3685,11 +3732,31 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     () => Object.fromEntries(characters.map((character) => [character.id, character])),
     [characters],
   );
+  const activeMeProfile = useMemo(
+    () => meProfiles.find((profile) => profile.id === selectedChatMeId) || meProfiles[0] || getPrimaryMeProfile(),
+    [meProfiles, selectedChatMeId],
+  );
+  const activeMeProfileContext = useMemo(
+    () => buildMeProfileChatContext(activeMeProfile),
+    [activeMeProfile],
+  );
 
   useEffect(() => {
     window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageState));
     onUnreadChange?.(getMessageUnreadCount(messageState));
   }, [messageState]);
+
+  useEffect(() => {
+    if (!meProfiles.length) return;
+    if (!meProfiles.some((profile) => profile.id === selectedChatMeId)) {
+      setSelectedChatMeId(meProfiles[0].id);
+    }
+  }, [meProfiles, selectedChatMeId]);
+
+  useEffect(() => {
+    if (!selectedChatMeId) return;
+    window.localStorage.setItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY, selectedChatMeId);
+  }, [selectedChatMeId]);
 
   useEffect(() => {
     window.localStorage.setItem(MOMENTS_STORAGE_KEY, JSON.stringify(momentState));
@@ -3735,7 +3802,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const getRelationshipContext = (character) => buildRelationshipContext({
     character,
     characters,
-    meProfiles,
+    meProfiles: meProfileMap,
     relations,
   });
   const getWorldbookContext = (character) => buildWorldbookContext({
@@ -3855,6 +3922,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         userText,
         relationshipContext: getRelationshipContext(activeCharacter),
         worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
         momentContext: buildCharacterMomentContext({
           characterId: activeCharacter.id,
           momentState,
@@ -3930,6 +3998,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         note,
         relationshipContext: getRelationshipContext(activeCharacter),
         worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
       });
       if (decision.accepted) {
         applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` });
@@ -4094,6 +4163,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         character: activeCharacter,
         history,
         relationshipContext: getRelationshipContext(activeCharacter),
+        worldbookContext: getWorldbookContext(activeCharacter),
+        meProfileContext: activeMeProfileContext,
       });
       if (!messages.length) {
         window.alert("现在没有适合主动发送的内容。");
@@ -4357,7 +4428,6 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const activeCharacter = chatId ? characterMap[chatId] || { id: chatId, name: "聊天" } : null;
   if (activeCharacter) {
     const history = messageState.histories[chatId] || [];
-    const meProfile = getPrimaryMeProfile();
     const activeTransferMessage = history.find((message) => message.id === activeTransferMessageId && message.kind === "transfer");
     return (
       <section className="full-page message-page chat-page">
@@ -4366,7 +4436,23 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             <ChevronLeft size={21} />
           </button>
           <strong>{activeCharacter.name}</strong>
-          <span></span>
+          <label className="chat-me-selector" aria-label="选择我的身份">
+            <span className="chat-me-avatar">
+              <AvatarContent character={activeMeProfile} />
+            </span>
+            <select
+              value={activeMeProfile?.id || ""}
+              onChange={(event) => setSelectedChatMeId(event.target.value)}
+            >
+              {meProfiles.length ? (
+                meProfiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>{profile.name || "我"}</option>
+                ))
+              ) : (
+                <option value="">我</option>
+              )}
+            </select>
+          </label>
         </header>
         <div className="chat-list" ref={chatListRef}>
           {history.map((message) => (
@@ -4400,7 +4486,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                 )}
                 {message.kind !== "recall" && <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>}
               </span>
-              {message.from === "me" && message.kind !== "recall" && <MessageAvatar character={meProfile} />}
+              {message.from === "me" && message.kind !== "recall" && <MessageAvatar character={activeMeProfile} />}
             </div>
           ))}
           {sending && (
@@ -4526,7 +4612,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
             <ChevronLeft size={22} />
           </button>
         )}
-        <strong>{messageTab === "messages" ? `信息${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "groups" ? "群聊" : messageTab === "moments" ? "朋友圈" : "我"}</strong>
+        <strong>{messageTab === "messages" ? `${MESSAGE_APP_TITLE}${unreadCount ? ` (${unreadCount})` : ""}` : messageTab === "contacts" ? "联系人" : messageTab === "friends" ? "新的朋友" : messageTab === "groups" ? "群聊" : messageTab === "moments" ? "朋友圈" : "我"}</strong>
         <button className="message-add wechat-plus" onClick={() => openMessageTab("contacts")} aria-label="添加">
           <svg viewBox="0 0 28 28" aria-hidden="true">
             <circle cx="14" cy="14" r="11.2" />
@@ -4543,9 +4629,9 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         {messageTab === "me" && renderProfile()}
       </main>
       {messageTab !== "moments" && (
-        <nav className="message-tabbar" aria-label="消息导航">
+        <nav className="message-tabbar" aria-label="微聊导航">
           {[
-            ["messages", "信息"],
+            ["messages", MESSAGE_APP_TITLE],
             ["contacts", "联系人"],
             ["moments", "朋友圈"],
             ["me", "我"],
@@ -5038,7 +5124,7 @@ function WorldbookAppScreen({ onClose }) {
 function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
   const isWork = app.title === "工作";
-  const isMessages = app.title === "消息";
+  const isMessages = app.title === MESSAGE_APP_TITLE;
   const isWorldbook = app.title === "世界书";
   const [walletData, setWalletData] = useState(() => {
     try {
@@ -5307,10 +5393,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (locked || openedApp?.title === "消息") return undefined;
+    if (locked || openedApp?.title === MESSAGE_APP_TITLE) return undefined;
 
     const maybeSendProactive = async () => {
-      if (openedApp?.title === "消息") return;
+      if (openedApp?.title === MESSAGE_APP_TITLE) return;
       const now = Date.now();
       const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
       if (now - lastAt < PROACTIVE_MESSAGE_COOLDOWN_MS) return;
@@ -5324,6 +5410,7 @@ export function App() {
       const meProfiles = readMessageMeProfiles();
       const relations = readMessageRelations();
       const worldbooks = readWorldbookWorldsForSelect();
+      const meProfileContext = buildMeProfileChatContext(toMessageMeProfileList(meProfiles)[0] || getPrimaryMeProfile());
       const contact = contacts[now % contacts.length];
       const character = characters[contact.characterId] || { id: contact.characterId, name: "角色" };
       const history = state.histories?.[contact.characterId] || [];
@@ -5341,6 +5428,7 @@ export function App() {
           worlds: worldbooks,
           characters: characterList,
         }),
+        meProfileContext,
       });
       if (!messages.length) return;
       let next = state;
@@ -5386,7 +5474,7 @@ export function App() {
 
   const openMessagesFromToast = () => {
     setMessageToast(null);
-    openWithLoader("app", { title: "消息", originX: window.innerWidth / 2, originY: 88 });
+    openWithLoader("app", { title: MESSAGE_APP_TITLE, originX: window.innerWidth / 2, originY: 88 });
   };
 
   const content = useMemo(() => {
@@ -5404,7 +5492,7 @@ export function App() {
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
   const hasOverlay = Boolean(openedApp || settingPage);
-  const isMessageOpening = openedApp?.title === "消息";
+  const isMessageOpening = openedApp?.title === MESSAGE_APP_TITLE;
   const isWorldbookOpening = openedApp?.title === "世界书";
   const surfaceClass = [
     "phone-surface",

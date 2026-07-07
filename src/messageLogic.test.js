@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import {
   buildCharacterMomentContext,
+  buildMeProfileChatContext,
   buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
@@ -42,6 +43,28 @@ test("relationship context describes both directions for the active chat role", 
   assert.match(context, /我 对 林砚舟：被守护者/);
   assert.match(context, /会下意识照顾对方/);
   assert.match(context, /信任对方/);
+});
+
+test("me profile chat context includes the selected user identity and background", () => {
+  const context = buildMeProfileChatContext({
+    name: "清瑶",
+    identity: "流亡公主",
+    appearance: "银发蓝眼",
+    personality: "谨慎但温柔",
+    persona: "自幼离宫，在边境长大。",
+  });
+
+  assert.match(context, /聊天对象：清瑶/);
+  assert.match(context, /身份：流亡公主/);
+  assert.match(context, /外貌：银发蓝眼/);
+  assert.match(context, /性格：谨慎但温柔/);
+  assert.match(context, /背景：自幼离宫/);
+});
+
+test("me profile chat context falls back to user when no profile is selected", () => {
+  const context = buildMeProfileChatContext();
+
+  assert.match(context, /聊天对象：我/);
 });
 
 test("worldbook context only includes the active character's linked world", () => {
