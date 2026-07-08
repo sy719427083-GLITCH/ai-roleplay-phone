@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.67");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.68");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -6504,7 +6504,7 @@ select {
   justify-items: center;
   gap: 0;
   width: 100vw;
-  height: calc(292px + env(safe-area-inset-top, 0px));
+  height: calc(326px + env(safe-area-inset-top, 0px));
   margin: calc(-1 * env(safe-area-inset-top, 0px)) -22px 18px;
   overflow: hidden;
   background: #dceefa;
@@ -6523,27 +6523,16 @@ select {
   background: linear-gradient(180deg, rgba(251, 253, 255, 0) 0%, rgba(251, 253, 255, 0.78) 58%, var(--wb-page-bg) 100%);
 }
 
-.worldbook-add-cover > span {
-  position: absolute;
-  top: max(124px, calc(env(safe-area-inset-top, 0px) + 118px));
-  left: 78px;
-  z-index: 2;
-  border-radius: 999px;
-  background: #fff3d6;
-  color: #a17128;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 11px;
-}
-
 .worldbook-add-cover img {
   position: relative;
   z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
+  object-position: center 58%;
   border-radius: 0;
+  transform: translateY(10px) scale(1.06);
+  transform-origin: center 58%;
 }
 
 .worldbook-add-cover > button:not(.worldbook-add-back) {
@@ -6570,6 +6559,8 @@ select {
   z-index: 10;
   width: 48px;
   height: 48px;
+  background: transparent;
+  box-shadow: none;
   pointer-events: auto;
   touch-action: manipulation;
   transform: none;
