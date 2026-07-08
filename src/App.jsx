@@ -115,7 +115,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.64`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.65`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2452,7 +2452,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.64</p>
+      <p className="version-label">Ccat OS V0.2.65</p>
     </section>
   );
 }
@@ -5212,10 +5212,12 @@ function WorldbookAppScreen({ onClose }) {
 
   const renderAddWorld = () => (
     <>
-      {renderHeader("添加世界")}
       <main className="worldbook-main worldbook-add-main">
         <section className="worldbook-add-panel">
           <div className="worldbook-add-cover">
+            <button className="worldbook-floating-back worldbook-add-back" onClick={handleBack} aria-label="返回">
+              <ChevronLeft size={22} />
+            </button>
             <span>自动匹配封面</span>
             <img src={worldbookAsset(draftCover.image)} alt="" />
             <button onClick={rotateDraftCover}>
