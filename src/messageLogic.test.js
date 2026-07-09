@@ -8,6 +8,7 @@ import {
   buildMomentUserComment,
   buildRealTimeContext,
   canSendProactiveMessageNow,
+  normalizeProactiveMessageSettings,
   buildRelationshipContext,
   buildWorldbookContext,
   getMomentReplyDelayMs,
@@ -55,6 +56,50 @@ test("proactive settings can block quiet hours and frequency cooldowns", () => {
   });
   assert.equal(offDecision.allowed, false);
   assert.match(offDecision.reason, /关闭/);
+});
+
+test("proactive quiet hours use the selected time window", () => {
+  const nightDecision = canSendProactiveMessageNow({
+    settings: {
+      quietByRealTime: true,
+      frequency: "frequent",
+      quietStart: "21:30",
+      quietEnd: "06:15",
+    },
+    lastAt: 0,
+    now: new Date("2026-07-08T22:00:00+08:00"),
+  });
+  assert.equal(nightDecision.allowed, false);
+
+  const outsideNightDecision = canSendProactiveMessageNow({
+    settings: {
+      quietByRealTime: true,
+      frequency: "frequent",
+      quietStart: "21:30",
+      quietEnd: "06:15",
+    },
+    lastAt: 0,
+    now: new Date("2026-07-08T12:00:00+08:00"),
+  });
+  assert.equal(outsideNightDecision.allowed, true);
+
+  const noonDecision = canSendProactiveMessageNow({
+    settings: {
+      quietByRealTime: true,
+      frequency: "frequent",
+      quietStart: "12:00",
+      quietEnd: "14:00",
+    },
+    lastAt: 0,
+    now: new Date("2026-07-08T13:00:00+08:00"),
+  });
+  assert.equal(noonDecision.allowed, false);
+});
+
+test("legacy disabled proactive settings migrate to frequency none", () => {
+  const settings = normalizeProactiveMessageSettings({ enabled: false, frequency: "medium" });
+
+  assert.equal(settings.frequency, "none");
 });
 
 test("relationship context describes both directions for the active chat role", () => {

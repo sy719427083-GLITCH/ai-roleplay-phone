@@ -119,7 +119,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.69`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.70`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2470,7 +2470,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.69</p>
+      <p className="version-label">Ccat OS V0.2.70</p>
     </section>
   );
 }
@@ -3901,7 +3901,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     characters,
   });
   const updateProactiveSettings = (patch) => {
-    setProactiveSettings((current) => normalizeProactiveMessageSettings({ ...current, ...patch }));
+    setProactiveSettings((current) => {
+      const { enabled: _enabled, ...rest } = current;
+      return normalizeProactiveMessageSettings({ ...rest, ...patch });
+    });
   };
 
   useEffect(() => {
@@ -4792,31 +4795,37 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                 </div>
                 <button onClick={() => setProactiveSettingsOpen(false)} aria-label="关闭主动消息设置">×</button>
               </div>
-              <label className="chat-proactive-switch">
-                <span>
-                  <strong>开启主动消息</strong>
-                  <small>关闭后角色不会主动发起聊天。</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={proactiveSettings.enabled}
-                  onChange={(event) => updateProactiveSettings({
-                    enabled: event.target.checked,
-                    frequency: event.target.checked && proactiveSettings.frequency === "none" ? "medium" : proactiveSettings.frequency,
-                  })}
-                />
-              </label>
-              <label className="chat-proactive-switch">
-                <span>
-                  <strong>按现实时间避开休息时段</strong>
-                  <small>深夜到清晨，角色会自动不打扰。</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={proactiveSettings.quietByRealTime}
-                  onChange={(event) => updateProactiveSettings({ quietByRealTime: event.target.checked })}
-                />
-              </label>
+              <div className="chat-proactive-quiet">
+                <button
+                  type="button"
+                  className={`chat-proactive-bar-toggle ${proactiveSettings.quietByRealTime ? "active" : ""}`}
+                  onClick={() => updateProactiveSettings({ quietByRealTime: !proactiveSettings.quietByRealTime })}
+                >
+                  <span>
+                    <strong>现实时间避开休息时段</strong>
+                    <small>{proactiveSettings.quietByRealTime ? "已开启" : "已关闭"}</small>
+                  </span>
+                  <em>{proactiveSettings.quietByRealTime ? "ON" : "OFF"}</em>
+                </button>
+                <div className="chat-proactive-time-row">
+                  <label>
+                    <span>开始</span>
+                    <input
+                      type="time"
+                      value={proactiveSettings.quietStart || "23:00"}
+                      onChange={(event) => updateProactiveSettings({ quietStart: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>结束</span>
+                    <input
+                      type="time"
+                      value={proactiveSettings.quietEnd || "07:00"}
+                      onChange={(event) => updateProactiveSettings({ quietEnd: event.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
               <div className="chat-proactive-frequency">
                 <span>发消息频繁度</span>
                 <div>
@@ -4825,7 +4834,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                       key={value}
                       type="button"
                       className={proactiveSettings.frequency === value ? "active" : ""}
-                      onClick={() => updateProactiveSettings({ frequency: value, enabled: value !== "none" })}
+                      onClick={() => updateProactiveSettings({ frequency: value })}
                     >
                       {label}
                     </button>
@@ -4833,9 +4842,6 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                 </div>
                 <small>当前：{PROACTIVE_MESSAGE_FREQUENCIES[proactiveSettings.frequency]?.label || "中等"}</small>
               </div>
-              <button className="chat-proactive-send-now" onClick={triggerProactiveMessage} disabled={sending}>
-                让角色主动说一句
-              </button>
             </section>
           </div>
         )}

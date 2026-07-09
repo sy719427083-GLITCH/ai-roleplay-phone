@@ -40,12 +40,28 @@ export const PROACTIVE_MESSAGE_FREQUENCIES = {
 };
 
 export const normalizeProactiveMessageSettings = (settings = {}) => {
-  const frequency = PROACTIVE_MESSAGE_FREQUENCIES[settings?.frequency] ? settings.frequency : "medium";
+  const legacyDisabled = settings?.enabled === false;
+  const frequency = legacyDisabled
+    ? "none"
+    : PROACTIVE_MESSAGE_FREQUENCIES[settings?.frequency] ? settings.frequency : "medium";
   return {
-    enabled: settings?.enabled !== false,
+    enabled: frequency !== "none",
     quietByRealTime: settings?.quietByRealTime !== false,
     frequency,
+    quietStart: normalizeQuietTime(settings?.quietStart, "23:00"),
+    quietEnd: normalizeQuietTime(settings?.quietEnd, "07:00"),
   };
+};
+
+const normalizeQuietTime = (value, fallback) => {
+  const text = String(value || "").trim();
+  const match = text.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  return match ? text : fallback;
+};
+
+const quietTimeToMinutes = (value) => {
+  const [hour, minute] = normalizeQuietTime(value, "00:00").split(":").map(Number);
+  return (hour * 60) + minute;
 };
 
 const getChinaTimeParts = (date = new Date()) => {
@@ -67,9 +83,18 @@ export const buildRealTimeContext = (date = new Date()) => {
   return `现实时间：${parts.year}-${parts.month}-${parts.day} ${parts.weekday} ${parts.hour}:${parts.minute}（Asia/Shanghai）。角色需要据此判断早晚、工作日、深夜与是否适合主动打扰，但不要生硬报时。`;
 };
 
-export const isRealTimeQuietForProactive = (date = new Date()) => {
-  const hour = Number(getChinaTimeParts(date).hour);
-  return Number.isFinite(hour) && (hour >= 23 || hour < 7);
+export const isRealTimeQuietForProactive = (date = new Date(), settings = {}) => {
+  const parts = getChinaTimeParts(date);
+  const currentMinutes = (Number(parts.hour) * 60) + Number(parts.minute);
+  if (!Number.isFinite(currentMinutes)) return false;
+  const normalized = normalizeProactiveMessageSettings(settings);
+  const startMinutes = quietTimeToMinutes(normalized.quietStart);
+  const endMinutes = quietTimeToMinutes(normalized.quietEnd);
+  if (startMinutes === endMinutes) return false;
+  if (startMinutes < endMinutes) {
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }
+  return currentMinutes >= startMinutes || currentMinutes < endMinutes;
 };
 
 export const getProactiveCooldownMs = (settings = {}) => {
@@ -82,7 +107,7 @@ export const canSendProactiveMessageNow = ({ settings = {}, lastAt = 0, now = ne
   if (!normalized.enabled || normalized.frequency === "none") {
     return { allowed: false, reason: "主动消息已关闭。" };
   }
-  if (normalized.quietByRealTime && isRealTimeQuietForProactive(now)) {
+  if (normalized.quietByRealTime && isRealTimeQuietForProactive(now, normalized)) {
     return { allowed: false, reason: "现在是休息时间，角色不会主动打扰。" };
   }
   const cooldownMs = getProactiveCooldownMs(normalized);
