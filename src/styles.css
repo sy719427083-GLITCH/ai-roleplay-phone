@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.70");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.71");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -5290,31 +5290,46 @@ select {
 
 .chat-proactive-time-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .chat-proactive-time-row label {
-  display: grid;
-  gap: 5px;
+  display: flex;
   min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #ececf0;
+  border-radius: 14px;
+  background: #fff;
+  padding: 9px 10px 9px 14px;
   color: #7d7d85;
   font-size: 12px;
   font-weight: 620;
 }
 
+.chat-proactive-time-row label span {
+  flex: 0 0 auto;
+  color: #5f5f66;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .chat-proactive-time-row input {
-  width: 100%;
-  height: 38px;
+  width: 132px;
+  height: 34px;
+  flex: 0 0 auto;
   border: 1px solid #e7e7eb;
-  border-radius: 11px;
-  background: #fff;
+  border-radius: 10px;
+  background: #f7f7f8;
   color: #1c1c1e;
   font: inherit;
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 720;
   outline: 0;
-  padding: 0 10px;
+  padding: 0 8px;
   text-align: center;
 }
 
