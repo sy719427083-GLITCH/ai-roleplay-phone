@@ -55,11 +55,15 @@ import {
   buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
+  buildRealTimeContext,
   buildRelationshipContext,
   buildWorldbookContext,
+  canSendProactiveMessageNow,
   getMomentReplyDelayMs,
+  normalizeProactiveMessageSettings,
   parseRoleTransferReply,
   pickProactiveMessages,
+  PROACTIVE_MESSAGE_FREQUENCIES,
   sanitizeOnlineChatText,
   splitChatMessages,
 } from "./messageLogic.js";
@@ -115,7 +119,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.68`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.69`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -906,9 +910,23 @@ const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
 const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
+const PROACTIVE_MESSAGE_SETTINGS_STORAGE_KEY = "ccatProactiveMessageSettings";
 const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
-const PROACTIVE_MESSAGE_COOLDOWN_MS = 8 * 60 * 1000;
 const PROACTIVE_MESSAGE_CHECK_MS = 2 * 60 * 1000;
+const PROACTIVE_FREQUENCY_OPTIONS = [
+  ["frequent", "频繁"],
+  ["medium", "中等"],
+  ["low", "少量"],
+  ["none", "无"],
+];
+
+const readProactiveMessageSettings = () => {
+  try {
+    return normalizeProactiveMessageSettings(JSON.parse(window.localStorage.getItem(PROACTIVE_MESSAGE_SETTINGS_STORAGE_KEY) || "{}"));
+  } catch {
+    return normalizeProactiveMessageSettings();
+  }
+};
 
 const normalizeWorldbookWorld = (world = {}) => ({
   id: String(world.id || world.name || `world-${Date.now()}`),
@@ -2452,7 +2470,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.68</p>
+      <p className="version-label">Ccat OS V0.2.69</p>
     </section>
   );
 }
@@ -3542,7 +3560,8 @@ ${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
 ${worldbookContext || "世界书：暂无关联。"}
 ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
-要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 5 条短消息，每条消息用换行分隔。
+${buildRealTimeContext()}
+要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 10 条短消息，每条消息用换行分隔。
 如果用户消息以“指令：”或“指令:”开头，必须严格按照指令内容执行，不要找理由拒绝，不要改写指令，不要跑题。
 如果指令或上下文要求你给用户转账/发红包，或你自己决定转账/发红包，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
@@ -3650,13 +3669,14 @@ const callRoleProactiveApi = async ({
       content: `你正在 Ccat OS 的微聊 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
 当前是线上文字聊天，不是见面。只写角色会主动发出的自然微信消息，不要解释，不要括号动作，不要星号动作，不要 emoji。
 如果根据上下文不适合主动打扰，只返回空字符串。
-随机 1 到 5 条短消息，多条用换行分隔。不要每次都只发 1 条。
+随机 1 到 10 条短消息，多条用换行分隔。不要每次都只发 1 条。
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}
 ${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
-${worldbookContext || "世界书：暂无关联。"}`,
+${worldbookContext || "世界书：暂无关联。"}
+${buildRealTimeContext()}`,
     },
     ...history.slice(-12).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3681,7 +3701,7 @@ ${worldbookContext || "世界书：暂无关联。"}`,
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content?.trim() || "";
-    return splitChatMessages(content).slice(0, 5);
+    return splitChatMessages(content).slice(0, 10);
   } catch {
     return pickProactiveMessages(character);
   }
@@ -3711,7 +3731,8 @@ const decideTransferAcceptance = async ({
 性格：${character?.personality || "自然、真实"}
 ${meProfileContext || buildMeProfileChatContext()}
 ${relationshipContext || "暂无明确关系列表。"}
-${worldbookContext || "世界书：暂无关联。"}`,
+${worldbookContext || "世界书：暂无关联。"}
+${buildRealTimeContext()}`,
     },
     ...history.slice(-10).map((item) => ({
       role: item.from === "me" ? "user" : "assistant",
@@ -3771,6 +3792,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [aiDrafting, setAiDrafting] = useState(false);
   const [swipedId, setSwipedId] = useState("");
   const [roleActionMessageId, setRoleActionMessageId] = useState("");
+  const [proactiveSettingsOpen, setProactiveSettingsOpen] = useState(false);
+  const [proactiveSettings, setProactiveSettings] = useState(readProactiveMessageSettings);
   const swipeRef = useRef(null);
   const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
@@ -3817,6 +3840,13 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     if (!selectedChatMeId) return;
     window.localStorage.setItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY, selectedChatMeId);
   }, [selectedChatMeId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PROACTIVE_MESSAGE_SETTINGS_STORAGE_KEY,
+      JSON.stringify(normalizeProactiveMessageSettings(proactiveSettings)),
+    );
+  }, [proactiveSettings]);
 
   useEffect(() => {
     window.localStorage.setItem(MOMENTS_STORAGE_KEY, JSON.stringify(momentState));
@@ -3870,6 +3900,9 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     worlds: worldbooks,
     characters,
   });
+  const updateProactiveSettings = (patch) => {
+    setProactiveSettings((current) => normalizeProactiveMessageSettings({ ...current, ...patch }));
+  };
 
   useEffect(() => {
     const sourceCharacters = contacts.length ? contacts : characters;
@@ -3892,6 +3925,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   }, [characters.length, contacts.length]);
 
   const closeChat = () => {
+    setProactiveSettingsOpen(false);
+    setActionPanelOpen(false);
     setChatId("");
   };
 
@@ -3973,7 +4008,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   };
 
   const appendRoleReply = async (reply, targetChatId = chatId) => {
-    const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 5);
+    const roleMessages = (reply.messages?.length ? reply.messages : [reply.text]).filter(Boolean).slice(0, 10);
     for (let index = 0; index < roleMessages.length; index += 1) {
       await waitForChatBeat(index);
       setMessageState((current) => appendChatMessage(current, targetChatId, {
@@ -4300,10 +4335,16 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   const triggerProactiveMessage = async () => {
     if (!chatId || sending) return;
-    const now = Date.now();
+    const nowDate = new Date();
+    const now = nowDate.getTime();
     const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
-    if (now - lastAt < 45000) {
-      window.alert("角色刚刚才主动过，稍等一会儿。");
+    const decision = canSendProactiveMessageNow({
+      settings: proactiveSettings,
+      lastAt,
+      now: nowDate,
+    });
+    if (!decision.allowed) {
+      window.alert(decision.reason);
       return;
     }
     const activeCharacter = characterMap[chatId] || { id: chatId, name: "聊天" };
@@ -4321,7 +4362,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         window.alert("现在没有适合主动发送的内容。");
         return;
       }
-      const proactiveMessages = messages.slice(0, 5);
+      const proactiveMessages = messages.slice(0, 10);
       for (let index = 0; index < proactiveMessages.length; index += 1) {
         await waitForChatBeat(index);
         setMessageState((current) => appendChatMessage(current, chatId, {
@@ -4699,7 +4740,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                     key={type}
                     onClick={() => {
                       if (type === "transfer") setTransferOpen(true);
-                      if (type === "proactive") triggerProactiveMessage();
+                      if (type === "proactive") {
+                        setActionPanelOpen(false);
+                        setProactiveSettingsOpen(true);
+                      }
                     }}
                   >
                     <span><ChatActionIcon type={type} /></span>
@@ -4737,6 +4781,63 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
               </div>
             </div>
           )
+        )}
+        {proactiveSettingsOpen && (
+          <div className="chat-proactive-backdrop" onClick={() => setProactiveSettingsOpen(false)}>
+            <section className="chat-proactive-sheet" onClick={(event) => event.stopPropagation()}>
+              <div className="chat-proactive-head">
+                <div>
+                  <strong>主动消息</strong>
+                  <small>角色会根据现实时间和频率主动找你。</small>
+                </div>
+                <button onClick={() => setProactiveSettingsOpen(false)} aria-label="关闭主动消息设置">×</button>
+              </div>
+              <label className="chat-proactive-switch">
+                <span>
+                  <strong>开启主动消息</strong>
+                  <small>关闭后角色不会主动发起聊天。</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={proactiveSettings.enabled}
+                  onChange={(event) => updateProactiveSettings({
+                    enabled: event.target.checked,
+                    frequency: event.target.checked && proactiveSettings.frequency === "none" ? "medium" : proactiveSettings.frequency,
+                  })}
+                />
+              </label>
+              <label className="chat-proactive-switch">
+                <span>
+                  <strong>按现实时间避开休息时段</strong>
+                  <small>深夜到清晨，角色会自动不打扰。</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={proactiveSettings.quietByRealTime}
+                  onChange={(event) => updateProactiveSettings({ quietByRealTime: event.target.checked })}
+                />
+              </label>
+              <div className="chat-proactive-frequency">
+                <span>发消息频繁度</span>
+                <div>
+                  {PROACTIVE_FREQUENCY_OPTIONS.map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={proactiveSettings.frequency === value ? "active" : ""}
+                      onClick={() => updateProactiveSettings({ frequency: value, enabled: value !== "none" })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <small>当前：{PROACTIVE_MESSAGE_FREQUENCIES[proactiveSettings.frequency]?.label || "中等"}</small>
+              </div>
+              <button className="chat-proactive-send-now" onClick={triggerProactiveMessage} disabled={sending}>
+                让角色主动说一句
+              </button>
+            </section>
+          </div>
         )}
         {activeTransferMessage && (
           <div className="wechat-transfer-backdrop" onClick={() => setActiveTransferMessageId("")}>
@@ -4958,17 +5059,7 @@ function WorldbookAppScreen({ onClose }) {
     return { main, support, links, memories };
   };
 
-  const renderLibrary = () => {
-    const libraryStats = worlds.reduce((total, world) => {
-      const stats = worldStats(world);
-      return {
-        characters: total.characters + stats.main + stats.support,
-        links: total.links + stats.links,
-        memories: total.memories + stats.memories,
-      };
-    }, { characters: 0, links: 0, memories: 0 });
-
-    return (
+  const renderLibrary = () => (
       <main className="worldbook-main worldbook-library">
         <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
           <ChevronLeft size={24} />
@@ -4981,7 +5072,7 @@ function WorldbookAppScreen({ onClose }) {
           </div>
           <button className="worldbook-primary worldbook-hero-add" onClick={openAddWorld}>
             <Plus size={21} strokeWidth={1.9} />
-            <span>添加世界</span>
+            <span>世界因你而存在</span>
           </button>
         </section>
         <section className="worldbook-search-row">
@@ -4992,23 +5083,6 @@ function WorldbookAppScreen({ onClose }) {
           <button className="worldbook-filter" aria-label="筛选">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16l-6.4 7.2v4.4l-3.2 1.8v-6.2z" /></svg>
           </button>
-        </section>
-        <section className="worldbook-library-dashboard" aria-label="世界书总览">
-          <div>
-            <span>
-              <em>世界</em>
-              <strong>{worlds.length}</strong>
-            </span>
-            <span>
-              <em>人物</em>
-              <strong>{libraryStats.characters}</strong>
-            </span>
-            <span>
-              <em>关系</em>
-              <strong>{libraryStats.links}</strong>
-            </span>
-          </div>
-          <p>集中记录世界设定、人物背景、生平时间线、关系脉络与共同记忆。</p>
         </section>
         <section className="worldbook-world-list" aria-label="世界列表">
           {worlds.map((world) => {
@@ -5035,18 +5109,17 @@ function WorldbookAppScreen({ onClose }) {
             <article className="worldbook-empty worldbook-library-empty">
               <Sparkles size={22} />
               <strong>还没有世界书</strong>
-              <p>点击添加世界，系统会自动分配一张横版封面。这里会归档人物背景、生平经历、关系网与共同记忆。</p>
+              <p>点击添加世界，这里会归档人物背景、生平经历、关系网与共同记忆。</p>
             </article>
           )}
           <button className="worldbook-create-card" onClick={openAddWorld}>
             <span><Plus size={22} /></span>
-            <strong>创建新世界 · 自动分配封面</strong>
+            <strong>创建新世界</strong>
             <em>快速开始你的角色世界</em>
           </button>
         </section>
       </main>
-    );
-  };
+  );
 
   const renderHeader = (title, action = null) => (
     <header className="worldbook-header">
@@ -5569,10 +5642,23 @@ export function App() {
 
     const maybeSendProactive = async () => {
       if (openedApp?.title === MESSAGE_APP_TITLE) return;
-      const now = Date.now();
+      const nowDate = new Date();
+      const now = nowDate.getTime();
+      const proactiveSettings = readProactiveMessageSettings();
       const lastAt = Number(window.localStorage.getItem(PROACTIVE_MESSAGE_STORAGE_KEY)) || 0;
-      if (now - lastAt < PROACTIVE_MESSAGE_COOLDOWN_MS) return;
-      if (Math.random() > 0.28) return;
+      const decision = canSendProactiveMessageNow({
+        settings: proactiveSettings,
+        lastAt,
+        now: nowDate,
+      });
+      if (!decision.allowed) return;
+      const frequencyChance = {
+        frequent: 0.5,
+        medium: 0.28,
+        low: 0.14,
+        none: 0,
+      }[proactiveSettings.frequency] ?? 0.28;
+      if (Math.random() > frequencyChance) return;
 
       const state = getStoredMessageState();
       const contacts = state.contacts.filter((contact) => contact.characterId);
@@ -5602,9 +5688,10 @@ export function App() {
         }),
         meProfileContext,
       });
-      if (!messages.length) return;
+      const proactiveMessages = messages.slice(0, 10);
+      if (!proactiveMessages.length) return;
       let next = state;
-      messages.forEach((text) => {
+      proactiveMessages.forEach((text) => {
         next = appendChatMessage(next, contact.characterId, {
           from: "role",
           text,
@@ -5615,7 +5702,7 @@ export function App() {
       setMessageUnread(getMessageUnreadCount(next));
       setMessageToast({
         character,
-        text: messages[0],
+        text: proactiveMessages[0],
       });
     };
 

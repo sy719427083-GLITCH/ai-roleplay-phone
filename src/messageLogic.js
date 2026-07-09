@@ -28,8 +28,71 @@ export const pickProactiveMessages = (character, options = {}) => {
   const random = typeof options.random === "function" ? options.random : Math.random;
   const minute = Number.isFinite(options.minute) ? options.minute : new Date().getMinutes();
   const seed = String(character?.name || "").length + minute;
-  const count = Math.min(5, Math.max(1, Math.floor(random() * 5) + 1));
+  const count = Math.min(10, Math.max(1, Math.floor(random() * 10) + 1));
   return Array.from({ length: count }, (_, index) => proactiveLines[(seed + index) % proactiveLines.length]);
+};
+
+export const PROACTIVE_MESSAGE_FREQUENCIES = {
+  frequent: { label: "频繁", cooldownMs: 10 * 60 * 1000 },
+  medium: { label: "中等", cooldownMs: 45 * 60 * 1000 },
+  low: { label: "少量", cooldownMs: 3 * 60 * 60 * 1000 },
+  none: { label: "无", cooldownMs: Infinity },
+};
+
+export const normalizeProactiveMessageSettings = (settings = {}) => {
+  const frequency = PROACTIVE_MESSAGE_FREQUENCIES[settings?.frequency] ? settings.frequency : "medium";
+  return {
+    enabled: settings?.enabled !== false,
+    quietByRealTime: settings?.quietByRealTime !== false,
+    frequency,
+  };
+};
+
+const getChinaTimeParts = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+};
+
+export const buildRealTimeContext = (date = new Date()) => {
+  const parts = getChinaTimeParts(date);
+  return `现实时间：${parts.year}-${parts.month}-${parts.day} ${parts.weekday} ${parts.hour}:${parts.minute}（Asia/Shanghai）。角色需要据此判断早晚、工作日、深夜与是否适合主动打扰，但不要生硬报时。`;
+};
+
+export const isRealTimeQuietForProactive = (date = new Date()) => {
+  const hour = Number(getChinaTimeParts(date).hour);
+  return Number.isFinite(hour) && (hour >= 23 || hour < 7);
+};
+
+export const getProactiveCooldownMs = (settings = {}) => {
+  const normalized = normalizeProactiveMessageSettings(settings);
+  return PROACTIVE_MESSAGE_FREQUENCIES[normalized.frequency].cooldownMs;
+};
+
+export const canSendProactiveMessageNow = ({ settings = {}, lastAt = 0, now = new Date() } = {}) => {
+  const normalized = normalizeProactiveMessageSettings(settings);
+  if (!normalized.enabled || normalized.frequency === "none") {
+    return { allowed: false, reason: "主动消息已关闭。" };
+  }
+  if (normalized.quietByRealTime && isRealTimeQuietForProactive(now)) {
+    return { allowed: false, reason: "现在是休息时间，角色不会主动打扰。" };
+  }
+  const cooldownMs = getProactiveCooldownMs(normalized);
+  const lastTime = Number(lastAt) || 0;
+  const nowTime = now instanceof Date ? now.getTime() : Number(now) || Date.now();
+  if (Number.isFinite(cooldownMs) && lastTime && nowTime - lastTime < cooldownMs) {
+    const label = PROACTIVE_MESSAGE_FREQUENCIES[normalized.frequency].label;
+    return { allowed: false, reason: `主动消息频率为${label}，角色还不会这么快再主动发来。` };
+  }
+  return { allowed: true, reason: "" };
 };
 
 export const sanitizeOnlineChatText = (text) =>

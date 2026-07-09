@@ -6,6 +6,8 @@ import {
   buildMomentLikeNames,
   buildMomentRoleReplyComment,
   buildMomentUserComment,
+  buildRealTimeContext,
+  canSendProactiveMessageNow,
   buildRelationshipContext,
   buildWorldbookContext,
   getMomentReplyDelayMs,
@@ -13,11 +15,46 @@ import {
   pickProactiveMessages,
 } from "./messageLogic.js";
 
-test("proactive fallback can generate up to five messages", () => {
+test("proactive fallback can generate up to ten messages", () => {
   const messages = pickProactiveMessages({ name: "林砚舟" }, { random: () => 0.99, minute: 12 });
 
-  assert.equal(messages.length, 5);
+  assert.equal(messages.length, 10);
   assert.ok(messages.every(Boolean));
+});
+
+test("real time context exposes current China time for role chat", () => {
+  const context = buildRealTimeContext(new Date("2026-07-08T15:30:00+08:00"));
+
+  assert.match(context, /现实时间/);
+  assert.match(context, /Asia\/Shanghai/);
+  assert.match(context, /2026/);
+  assert.match(context, /15:30/);
+});
+
+test("proactive settings can block quiet hours and frequency cooldowns", () => {
+  const quietDecision = canSendProactiveMessageNow({
+    settings: { enabled: true, quietByRealTime: true, frequency: "frequent" },
+    lastAt: 0,
+    now: new Date("2026-07-08T01:00:00+08:00"),
+  });
+  assert.equal(quietDecision.allowed, false);
+  assert.match(quietDecision.reason, /休息/);
+
+  const cooldownDecision = canSendProactiveMessageNow({
+    settings: { enabled: true, quietByRealTime: false, frequency: "medium" },
+    lastAt: Date.parse("2026-07-08T12:00:00+08:00"),
+    now: new Date("2026-07-08T12:10:00+08:00"),
+  });
+  assert.equal(cooldownDecision.allowed, false);
+  assert.match(cooldownDecision.reason, /中等/);
+
+  const offDecision = canSendProactiveMessageNow({
+    settings: { enabled: true, quietByRealTime: false, frequency: "none" },
+    lastAt: 0,
+    now: new Date("2026-07-08T12:00:00+08:00"),
+  });
+  assert.equal(offDecision.allowed, false);
+  assert.match(offDecision.reason, /关闭/);
 });
 
 test("relationship context describes both directions for the active chat role", () => {

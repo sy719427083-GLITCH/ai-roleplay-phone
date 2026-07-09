@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.68");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.69");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -5164,6 +5164,155 @@ select {
   color: #fff;
 }
 
+.chat-proactive-backdrop {
+  position: fixed;
+  z-index: 9;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  padding: 20px;
+  background: rgba(28, 28, 30, 0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.chat-proactive-sheet {
+  display: grid;
+  width: min(100%, 352px);
+  gap: 12px;
+  border-radius: 22px;
+  background: #fff;
+  color: #1c1c1e;
+  padding: 18px;
+  box-shadow: 0 20px 54px rgba(28, 28, 30, 0.17);
+}
+
+.chat-proactive-head,
+.chat-proactive-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.chat-proactive-head div,
+.chat-proactive-switch span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-proactive-head strong {
+  font-size: 17px;
+  font-weight: 720;
+}
+
+.chat-proactive-head small,
+.chat-proactive-switch small,
+.chat-proactive-frequency small {
+  color: #8a8a91;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.chat-proactive-head button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: #f5f5f6;
+  color: #1c1c1e;
+  font-size: 22px;
+}
+
+.chat-proactive-switch {
+  min-height: 58px;
+  border-radius: 16px;
+  background: #f8f8f9;
+  padding: 10px 12px;
+}
+
+.chat-proactive-switch strong,
+.chat-proactive-frequency > span {
+  color: #242427;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.chat-proactive-switch input {
+  width: 46px;
+  height: 28px;
+  flex: 0 0 auto;
+  appearance: none;
+  border-radius: 999px;
+  background: #d8d8dd;
+  padding: 3px;
+  outline: none;
+  transition: background 0.2s ease;
+}
+
+.chat-proactive-switch input::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease;
+}
+
+.chat-proactive-switch input:checked {
+  background: #1c1c1e;
+}
+
+.chat-proactive-switch input:checked::before {
+  transform: translateX(18px);
+}
+
+.chat-proactive-frequency {
+  display: grid;
+  gap: 9px;
+  border-radius: 16px;
+  background: #f8f8f9;
+  padding: 12px;
+}
+
+.chat-proactive-frequency div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.chat-proactive-frequency button {
+  height: 34px;
+  border-radius: 12px;
+  background: #fff;
+  color: #6f6f75;
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.chat-proactive-frequency button.active {
+  background: #1c1c1e;
+  color: #fff;
+}
+
+.chat-proactive-send-now {
+  height: 44px;
+  border-radius: 14px;
+  background: #1c1c1e;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 680;
+}
+
+.chat-proactive-send-now:disabled {
+  opacity: 0.55;
+}
+
 .wechat-transfer-backdrop {
   position: fixed;
   z-index: 12;
@@ -6131,7 +6280,7 @@ select {
   isolation: isolate;
   overflow: hidden;
   width: 100vw;
-  height: calc(332px + var(--wb-safe-top));
+  height: calc(352px + var(--wb-safe-top));
   margin: calc(-2 * var(--wb-safe-top)) 0 18px;
   border-radius: 0;
   background: var(--wb-sky-top);
@@ -6179,13 +6328,18 @@ select {
 .worldbook-hero-add {
   position: absolute;
   left: 50%;
-  top: calc((var(--wb-safe-top) * 2) + 122px);
+  top: calc((var(--wb-safe-top) * 2) + 124px);
   z-index: 2;
-  width: min(268px, calc(100% - 96px));
-  height: 48px;
-  border-radius: 18px;
+  width: auto;
+  min-width: 0;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 0;
+  background: transparent;
+  color: #173757;
   transform: translateX(-50%);
-  box-shadow: 0 14px 26px rgba(72, 150, 209, 0.26);
+  box-shadow: none;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.82);
 }
 
 .worldbook-search-row {
@@ -6194,7 +6348,7 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 44px;
   gap: 10px;
-  margin: 2px 18px 0;
+  margin: -74px 18px 26px;
 }
 
 .worldbook-search {
@@ -6205,7 +6359,7 @@ select {
   margin: 0;
   border: 1px solid #dbe8f2;
   border-radius: 18px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
   color: #8ca0b3;
   font-size: 13px;
   padding: 0 14px;
@@ -6219,7 +6373,7 @@ select {
   place-items: center;
   border: 1px solid #dbe8f2;
   border-radius: 18px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
   color: #163456;
 }
 
@@ -6284,7 +6438,7 @@ select {
   z-index: 2;
   display: grid;
   gap: 14px;
-  margin: 16px 18px 0;
+  margin: 0 18px;
 }
 
 .worldbook-world-card {
