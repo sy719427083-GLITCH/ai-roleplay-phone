@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.72");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.73");
   color: #111111;
   width: 100%;
   height: 100%;

@@ -129,6 +129,29 @@ export const sanitizeOnlineChatText = (text) =>
     .replace(/[ \t]+\n/g, "\n")
     .trim();
 
+const weChatEmojiMap = {
+  叹气: "😮‍💨",
+  捂脸: "🤦",
+  裂开: "😭",
+  笑哭: "😂",
+  偷笑: "🤭",
+  发呆: "😐",
+  流泪: "😢",
+  生气: "😠",
+  无语: "🙄",
+  疑问: "🤔",
+  害羞: "😳",
+  委屈: "🥺",
+  鼓掌: "👏",
+  赞: "👍",
+  爱心: "❤️",
+  抱拳: "🙏",
+  OK: "👌",
+};
+
+export const renderWeChatEmojiText = (text) =>
+  String(text || "").replace(/\[([^\]]+)\]/g, (match, label) => weChatEmojiMap[label.trim()] || match);
+
 export const splitChatMessages = (text) => {
   const cleaned = sanitizeOnlineChatText(text);
   if (!cleaned) return [];

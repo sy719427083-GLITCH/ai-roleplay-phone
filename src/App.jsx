@@ -64,6 +64,7 @@ import {
   parseRoleTransferReply,
   pickProactiveMessages,
   PROACTIVE_MESSAGE_FREQUENCIES,
+  renderWeChatEmojiText,
   sanitizeOnlineChatText,
   splitChatMessages,
 } from "./messageLogic.js";
@@ -119,7 +120,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.72`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.73`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2470,7 +2471,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.72</p>
+      <p className="version-label">Ccat OS V0.2.73</p>
     </section>
   );
 }
@@ -4696,7 +4697,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
                   <span
                     className="chat-bubble"
                   >
-                    {message.text}
+                    {renderWeChatEmojiText(message.text)}
                   </span>
                 )}
                 {message.kind !== "recall" && <time className="chat-message-time">{formatChatClock(message.createdAt)}</time>}

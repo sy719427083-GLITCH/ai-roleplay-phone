@@ -14,6 +14,7 @@ import {
   getMomentReplyDelayMs,
   parseRoleTransferReply,
   pickProactiveMessages,
+  renderWeChatEmojiText,
   sanitizeOnlineChatText,
 } from "./messageLogic.js";
 
@@ -30,6 +31,11 @@ test("online chat sanitizer preserves emoji and virtual sticker messages", () =>
   assert.match(text, /😂/);
   assert.match(text, /【发了一个猫猫无语的表情包】/);
   assert.match(text, /\[捂脸\]/);
+});
+
+test("wechat emoji labels render as emoji in chat text", () => {
+  assert.equal(renderWeChatEmojiText("行吧[叹气]\n[捂脸]"), "行吧😮‍💨\n🤦");
+  assert.equal(renderWeChatEmojiText("未知[不存在]"), "未知[不存在]");
 });
 
 test("real time context exposes current China time for role chat", () => {
