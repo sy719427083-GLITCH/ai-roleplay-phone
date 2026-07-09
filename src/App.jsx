@@ -119,7 +119,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.71`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.72`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2470,7 +2470,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.71</p>
+      <p className="version-label">Ccat OS V0.2.72</p>
     </section>
   );
 }
@@ -3532,6 +3532,20 @@ const getSelectedChatEndpoint = () => {
   return { ...endpoint, model };
 };
 
+const MICRO_CHAT_ROLE_STYLE_PROMPT = `【身份与场景设定】
+请注意：我们现在完全是在用“微聊”进行纯线上的文字聊天，我们并没有面对面。你只能看到我发给你的文字、表情包，没有任何物理空间的接触。
+
+【绝对禁止的格式】
+严禁出现任何形式的“动作描写”、“神态描写”或“心理活动”。
+绝对不能使用括号、星号等符号来描述动作。例如：绝对不允许出现“（摆弄文件）我知道了”、“皱眉 你在干嘛”这种小说或面对面语 C 的格式。
+你所有的情绪、潜台词，只能通过你发出的文字、标点符号、Emoji 表情来体现。
+
+【微信聊天语言风格】
+极度口语化与碎片化：不要发长篇大论的小作文。像真人打字一样，一句话能说明白的绝不说两句。如果话很多，请用“回车换行”来模拟连续发送多条消息。
+网感与语气词：根据你的角色人设，自然地使用微信常用语气词（如：啊、呢、哈、滴滴、嗯嗯、哦、草、无语）或常用网络用语。
+善用标点与表情：多用波浪号“~”、省略号“...”、感叹号“！”。可以穿插使用 Emoji（如 😂、🙄、🤔）或者微信自带表情（如 [捂脸]、[裂开]、[叹气]）。
+表情包代替动作：如果你想表达无奈或搞笑，不要写动作，可以虚拟发送一个表情包，格式为：【发了一个猫猫无语的表情包】。`;
+
 const callRoleChatApi = async ({
   character,
   history,
@@ -3561,7 +3575,8 @@ ${relationshipContext || "暂无明确关系列表。"}
 ${worldbookContext || "世界书：暂无关联。"}
 ${momentContext || "你暂时没有可参考的自己朋友圈记录。"}
 ${buildRealTimeContext()}
-要求：回复要像真实微信聊天语气，不要解释自己是 AI，不要写旁白，不要使用 emoji，不要使用括号动作、星号动作或舞台指令。你在线上不知道对方的动作、表情或现场状态，所以不要描写看见、靠近、触碰等非聊天内容。每次最多回复 10 条短消息，每条消息用换行分隔。
+${MICRO_CHAT_ROLE_STYLE_PROMPT}
+每次最多回复 10 条短消息，每条消息用换行分隔。
 如果用户消息以“指令：”或“指令:”开头，必须严格按照指令内容执行，不要找理由拒绝，不要改写指令，不要跑题。
 如果指令或上下文要求你给用户转账/发红包，或你自己决定转账/发红包，请在回复正文最后额外单独写一行 TRANSFER_AMOUNT:金额，可选再写 TRANSFER_NOTE:备注；这两行不会展示给用户。`;
 
@@ -3667,7 +3682,7 @@ const callRoleProactiveApi = async ({
     {
       role: "system",
       content: `你正在 Ccat OS 的微聊 APP 中扮演角色，根据最近聊天内容判断是否适合主动发消息。
-当前是线上文字聊天，不是见面。只写角色会主动发出的自然微信消息，不要解释，不要括号动作，不要星号动作，不要 emoji。
+${MICRO_CHAT_ROLE_STYLE_PROMPT}
 如果根据上下文不适合主动打扰，只返回空字符串。
 随机 1 到 10 条短消息，多条用换行分隔。不要每次都只发 1 条。
 角色姓名：${character?.name || "未知角色"}
@@ -3725,7 +3740,8 @@ const decideTransferAcceptance = async ({
   const messages = [
     {
       role: "system",
-      content: `你正在 Ccat OS 的微聊 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown，不要括号动作。
+      content: `你正在 Ccat OS 的微聊 APP 中扮演角色，判断是否接受用户的线上转账。必须只返回 JSON：{"accepted":true或false,"reply":"一句自然聊天回复"}。不要 Markdown。
+${MICRO_CHAT_ROLE_STYLE_PROMPT}
 角色姓名：${character?.name || "未知角色"}
 身份：${character?.identity || character?.role || "未设定"}
 性格：${character?.personality || "自然、真实"}

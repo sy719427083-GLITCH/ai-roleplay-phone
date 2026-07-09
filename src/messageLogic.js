@@ -125,8 +125,6 @@ export const sanitizeOnlineChatText = (text) =>
     .replace(/（[^）]*）/g, "")
     .replace(/\([^)]*\)/g, "")
     .replace(/\*[^*]+\*/g, "")
-    .replace(/【[^】]*】/g, "")
-    .replace(/\[[^\]]*\]/g, "")
     .replace(/^\s*(旁白|动作|心理|表情)\s*[:：].*$/gim, "")
     .replace(/[ \t]+\n/g, "\n")
     .trim();

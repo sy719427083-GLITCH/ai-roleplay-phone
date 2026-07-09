@@ -14,6 +14,7 @@ import {
   getMomentReplyDelayMs,
   parseRoleTransferReply,
   pickProactiveMessages,
+  sanitizeOnlineChatText,
 } from "./messageLogic.js";
 
 test("proactive fallback can generate up to ten messages", () => {
@@ -21,6 +22,14 @@ test("proactive fallback can generate up to ten messages", () => {
 
   assert.equal(messages.length, 10);
   assert.ok(messages.every(Boolean));
+});
+
+test("online chat sanitizer preserves emoji and virtual sticker messages", () => {
+  const text = sanitizeOnlineChatText("有点无语😂\n【发了一个猫猫无语的表情包】\n[捂脸]");
+
+  assert.match(text, /😂/);
+  assert.match(text, /【发了一个猫猫无语的表情包】/);
+  assert.match(text, /\[捂脸\]/);
 });
 
 test("real time context exposes current China time for role chat", () => {
