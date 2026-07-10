@@ -4,10 +4,10 @@ Source visual truth: `/Users/mypc/.codex/generated_images/019f2c6f-b568-7851-8d9
 
 Implementation screenshots:
 
-- `tmp/design-qa/work-modern-390x844.png`
-- `tmp/design-qa/work-xuanhuan-390x844.png`
-- `tmp/design-qa/work-xuanhuan-375x812.png`
-- Combined comparison: `tmp/design-qa/work-comparison.png`
+- `docs/superpowers/qa/work-modern-390x844.png`
+- `docs/superpowers/qa/work-xuanhuan-390x844.png`
+- `docs/superpowers/qa/work-xuanhuan-375x812.png`
+- Combined comparison: `docs/superpowers/qa/work-comparison.png`
 
 Prototype: `http://127.0.0.1:4173/ai-roleplay-phone/`
 
