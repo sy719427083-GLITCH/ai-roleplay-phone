@@ -27,6 +27,7 @@ import {
   Palette,
   Play,
   Plus,
+  RefreshCw,
   Settings,
   ShoppingBag,
   Smartphone,
@@ -132,9 +133,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.78`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.78`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.78`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.79`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.79`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.79`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2483,7 +2484,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.78</p>
+      <p className="version-label">Ccat OS V0.2.79</p>
     </section>
   );
 }
@@ -2925,10 +2926,10 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect, themeId }) {
+function WorkMap({ jobs, selectedId, onSelect, onClear, themeId }) {
   const selectedBuilding = jobs.find((job) => job.key === selectedId);
   return (
-    <section className="work-map-panel" aria-label="工作地图">
+    <section className="work-map-panel" aria-label="工作地图" onClick={onClear}>
       {selectedBuilding && (
         <img
           className="work-building-pixel-outline"
@@ -2950,7 +2951,10 @@ function WorkMap({ jobs, selectedId, onSelect, themeId }) {
               width: `${hitArea.width}%`,
               height: `${hitArea.height}%`,
             }}
-            onClick={() => onSelect(job.key)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(job.key);
+            }}
             aria-label={`${job.placeName}：${job.title}`}
           >
             <span className="work-building-label">
@@ -3086,8 +3090,8 @@ function WorkAppScreen({ onClose }) {
   const hasCompletedWork = Boolean(activeWork && activeWork.endAt <= now);
   const hasPendingWork = hasRunningWork || hasCompletedWork;
   const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
-  const displayJob = selectedJob || activeJob;
-  const selectedKey = displayJob?.key || "";
+  const displayJob = selectedJob;
+  const selectedKey = selectedJob?.key || "";
   const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : 0;
   const progress = hasCompletedWork ? 100 : hasRunningWork
     ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
@@ -3109,9 +3113,11 @@ function WorkAppScreen({ onClose }) {
   }, [themeId, hasPendingWork]);
 
   const selectJob = (id) => {
-    if (hasRunningWork) return;
+    if (hasPendingWork && id !== activeJob?.key) return;
     setSelectedId(id);
   };
+
+  const clearSelectedJob = () => setSelectedId("");
 
   const chooseReality = async () => {
     if (hasPendingWork || loadingJobs || workSource === "reality") return;
@@ -3199,26 +3205,18 @@ function WorkAppScreen({ onClose }) {
         <button className="work-back" onClick={onClose} aria-label="返回">
           <ChevronLeft size={22} />
         </button>
-        <div className="work-title">
-          <strong>工作</strong>
-          <span>{workSource === "worldbook" && selectedWorld ? selectedWorld.name : "现实街区"}</span>
+        <div className="work-world work-world-compact">
+          <button className={workSource === "reality" ? "active" : ""} onClick={chooseReality} disabled={hasPendingWork}>
+            <strong>现实</strong>
+          </button>
+          <button className={workSource === "worldbook" ? "active" : ""} onClick={openWorldPicker} disabled={hasPendingWork}>
+            <strong>{workSource === "worldbook" && selectedWorld ? selectedWorld.name : "当前世界书"}</strong>
+          </button>
         </div>
-        <button className="work-refresh-link" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
-          <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}/5` : `¥${WORK_PAID_REFRESH_COST} 刷新`}</strong>
-          <span>{mapStatus || theme.name}</span>
-        </button>
+        <span className="work-header-spacer" aria-hidden="true"></span>
       </header>
 
-      <div className="work-world">
-        <button className={workSource === "reality" ? "active" : ""} onClick={chooseReality} disabled={hasPendingWork}>
-          <strong>现实</strong>
-        </button>
-        <button className={workSource === "worldbook" ? "active" : ""} onClick={openWorldPicker} disabled={hasPendingWork}>
-          <strong>{workSource === "worldbook" && selectedWorld ? selectedWorld.name : "当前世界书"}</strong>
-        </button>
-      </div>
-
-      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} themeId={themeId} />
+      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} onClear={clearSelectedJob} themeId={themeId} />
 
       {displayMappedJob && (
         <section className="work-detail-card" aria-live="polite">
@@ -3247,6 +3245,12 @@ function WorkAppScreen({ onClose }) {
           <span>
             <strong>{hasCompletedWork ? "点击领取" : hasRunningWork ? "进行中" : "开始"}</strong>
             <em>{hasCompletedWork ? "Claim Reward" : hasRunningWork ? "Working" : "Start"}</em>
+          </span>
+        </button>
+        <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
+          <RefreshCw size={15} />
+          <span>
+            <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}` : `¥${WORK_PAID_REFRESH_COST}`}</strong>
           </span>
         </button>
         <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>

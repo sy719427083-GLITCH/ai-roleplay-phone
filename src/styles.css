@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.78");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.79");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9196,6 +9196,51 @@ select {
   animation: workPixelOutlineIn 170ms ease-out;
 }
 
+.work-map-panel {
+  pointer-events: auto;
+}
+
+.work-header {
+  min-height: calc(60px + env(safe-area-inset-top, 0px));
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  align-items: end;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top, 0px)) 12px 7px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.work-world-compact {
+  min-height: 36px;
+  margin: 0;
+  border-radius: 12px;
+  background: rgba(247, 252, 253, 0.16);
+  backdrop-filter: blur(9px) saturate(140%);
+  -webkit-backdrop-filter: blur(9px) saturate(140%);
+}
+
+.work-world-compact button {
+  min-height: 36px;
+  padding: 0 8px;
+}
+
+.work-world-compact strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.work-world-compact button.active::after {
+  bottom: 3px;
+  height: 2px;
+}
+
+.work-header-spacer {
+  width: 44px;
+  height: 44px;
+}
+
 .work-building-label {
   position: relative;
   z-index: 2;
@@ -9223,27 +9268,27 @@ select {
   position: absolute;
   z-index: 7;
   right: 14px;
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(57px + env(safe-area-inset-bottom, 0px));
   left: 14px;
   display: grid;
-  min-height: 104px;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  gap: 10px;
+  min-height: 82px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   border: 1px solid rgba(255, 255, 255, 0.82);
   border-radius: 18px;
-  background: rgba(246, 252, 253, 0.26);
-  padding: 12px 14px;
+  background: rgba(246, 252, 253, 0.15);
+  padding: 8px 10px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 16px 36px rgba(28, 70, 94, 0.15);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(8px) saturate(145%);
+  -webkit-backdrop-filter: blur(8px) saturate(145%);
   animation: workDetailIn 180ms ease-out;
 }
 
 .work-detail-icon {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 13px;
@@ -9272,7 +9317,7 @@ select {
 
 .work-detail-copy strong {
   color: #153e5d;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .work-detail-copy small {
@@ -9307,9 +9352,10 @@ select {
 .work-actions {
   right: 14px;
   bottom: calc(7px + env(safe-area-inset-bottom, 0px));
-  left: auto;
-  width: 218px;
-  gap: 7px;
+  left: 14px;
+  width: auto;
+  grid-template-columns: 1.65fr 1fr 1fr;
+  gap: 6px;
   margin: 0;
   border: 0;
   border-radius: 15px;
@@ -9321,9 +9367,30 @@ select {
 }
 
 .work-actions button {
-  min-height: 45px;
+  min-height: 42px;
   border-radius: 14px;
   padding: 0 10px;
+}
+
+.work-actions .work-start,
+.work-actions .work-refresh-button,
+.work-actions .work-stop-button {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(9px) saturate(145%);
+  -webkit-backdrop-filter: blur(9px) saturate(145%);
+}
+
+.work-actions .work-start {
+  background: rgba(91, 167, 211, 0.22);
+}
+
+.work-actions .work-refresh-button {
+  color: #39739a;
+}
+
+.work-actions .work-stop-button {
+  color: #b85b57;
 }
 
 .work-actions button span {
