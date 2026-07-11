@@ -114,6 +114,16 @@ export const withWorkMapTheme = (world = {}) => ({
   workMapTheme: inferWorkMapTheme(world),
 });
 
+export const resolveWorkMapView = (worlds = [], selectedWorldId = "", source = "reality") => {
+  const selectedWorld = worlds.find((world) => world.id === selectedWorldId) || worlds[0] || null;
+  const themeId = source === "worldbook" && selectedWorld ? inferWorkMapTheme(selectedWorld) : "modern";
+  return {
+    selectedWorld,
+    themeId,
+    theme: getWorkTheme(themeId),
+  };
+};
+
 const normalizeNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
   return Math.min(max, Math.max(min, Number.isFinite(parsed) ? parsed : fallback));

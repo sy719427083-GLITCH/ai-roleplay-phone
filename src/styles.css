@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.75");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.76");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -8987,6 +8987,7 @@ select {
   background-repeat: no-repeat;
   background-size: cover;
   color: #14324b;
+  overflow: hidden;
 }
 
 .work-header {
@@ -8996,13 +8997,20 @@ select {
   -webkit-backdrop-filter: blur(18px) saturate(145%);
 }
 
-.work-back,
-.work-refresh-link {
+.work-back {
   border: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.24);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 22px rgba(42, 83, 105, 0.1);
-  backdrop-filter: blur(14px) saturate(150%);
-  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(10px) saturate(145%);
+  -webkit-backdrop-filter: blur(10px) saturate(145%);
+}
+
+.work-refresh-link {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .work-world {
@@ -9010,10 +9018,10 @@ select {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 16px;
-  background: rgba(247, 252, 253, 0.34);
+  background: rgba(247, 252, 253, 0.2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 12px 28px rgba(32, 77, 102, 0.1);
-  backdrop-filter: blur(18px) saturate(155%);
-  -webkit-backdrop-filter: blur(18px) saturate(155%);
+  backdrop-filter: blur(12px) saturate(145%);
+  -webkit-backdrop-filter: blur(12px) saturate(145%);
 }
 
 .work-world button {
@@ -9042,10 +9050,13 @@ select {
 .work-map-panel {
   position: absolute;
   z-index: 1;
-  inset: 0;
+  top: calc(132px + env(safe-area-inset-top, 0px));
+  right: 0;
+  bottom: calc(366px + env(safe-area-inset-bottom, 0px));
+  left: 0;
   width: 100%;
-  height: 100%;
-  min-height: 100dvh;
+  height: auto;
+  min-height: 220px;
   overflow: visible;
   pointer-events: none;
   background: transparent;
@@ -9057,21 +9068,25 @@ select {
 
 .work-pin-label {
   border-color: rgba(255, 255, 255, 0.7);
-  background: rgba(250, 254, 255, 0.52);
+  background: rgba(250, 254, 255, 0.32);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 8px 20px rgba(30, 69, 91, 0.12);
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  backdrop-filter: blur(9px) saturate(145%);
+  -webkit-backdrop-filter: blur(9px) saturate(145%);
 }
 
 .work-choice-panel {
-  position: relative;
+  position: absolute;
   z-index: 4;
-  margin-top: clamp(250px, 36vh, 360px);
+  right: 14px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  left: 14px;
+  max-height: 282px;
+  margin: 0;
   border-color: rgba(255, 255, 255, 0.7);
-  background: rgba(247, 252, 253, 0.36);
+  background: rgba(247, 252, 253, 0.2);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 18px 38px rgba(34, 73, 96, 0.12);
-  backdrop-filter: blur(18px) saturate(145%);
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  backdrop-filter: blur(11px) saturate(145%);
+  -webkit-backdrop-filter: blur(11px) saturate(145%);
 }
 
 .work-choice-panel button,
@@ -9081,42 +9096,55 @@ select {
 }
 
 .work-choice-panel button.active {
-  background: rgba(238, 249, 255, 0.54);
+  background: rgba(238, 249, 255, 0.32);
+}
+
+.work-choice-panel button {
+  min-height: 56px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.work-choice-copy small,
+.work-choice-expanded {
+  display: none;
 }
 
 .work-actions {
-  position: sticky;
+  position: absolute;
   z-index: 8;
+  right: 10px;
   bottom: 0;
-  margin: 8px 10px 0;
+  left: 10px;
+  margin: 8px 0 0;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-bottom: 0;
   border-radius: 20px 20px 0 0;
-  background: rgba(246, 251, 252, 0.34);
+  background: rgba(246, 251, 252, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 -10px 32px rgba(31, 68, 88, 0.1);
-  backdrop-filter: blur(22px) saturate(155%);
-  -webkit-backdrop-filter: blur(22px) saturate(155%);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
 }
 
 .work-actions button {
   min-height: 54px;
   border: 1px solid rgba(255, 255, 255, 0.74);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.24);
   color: #174e72;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 8px 20px rgba(35, 80, 103, 0.12);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
 }
 
 .work-actions .work-start {
-  background: rgba(91, 167, 211, 0.5);
+  background: rgba(91, 167, 211, 0.38);
   color: #fff;
   text-shadow: 0 1px 4px rgba(29, 82, 112, 0.3);
 }
 
 .work-actions .work-stop-button {
-  background: rgba(255, 247, 246, 0.42);
+  background: rgba(255, 247, 246, 0.28);
   color: #b64f4c;
 }

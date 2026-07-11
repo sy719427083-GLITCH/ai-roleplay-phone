@@ -91,6 +91,7 @@ import {
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
+  resolveWorkMapView,
   withWorkMapTheme,
 } from "./workThemes.js";
 
@@ -131,8 +132,8 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.75`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.75`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.76`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.76`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2481,7 +2482,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.75</p>
+      <p className="version-label">Ccat OS V0.2.76</p>
     </section>
   );
 }
@@ -2964,9 +2965,8 @@ function WorkAppScreen({ onClose }) {
       return "";
     }
   });
-  const selectedWorld = worldbooks.find((world) => world.id === selectedWorldId) || worldbooks[0] || null;
-  const themeId = workSource === "worldbook" && selectedWorld ? inferWorkMapTheme(selectedWorld) : "modern";
-  const theme = getWorkTheme(themeId);
+  const { selectedWorld, themeId, theme } = resolveWorkMapView(worldbooks, selectedWorldId, workSource);
+  const mapImageUrl = `${workMapAsset(theme.asset)}&theme=${themeId}&world=${encodeURIComponent(selectedWorld?.id || "reality")}`;
   const [jobs, setJobs] = useState(() => loadStoredWorkJobs(themeId));
   const [selectedId, setSelectedId] = useState(() => {
     try {
@@ -3108,6 +3108,7 @@ function WorkAppScreen({ onClose }) {
   const chooseReality = async () => {
     if (hasPendingWork || loadingJobs || workSource === "reality") return;
     setWorkSource("reality");
+    window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "reality");
     setWorldPickerOpen(false);
     await generateWorkRound("modern", null);
   };
@@ -3127,6 +3128,8 @@ function WorkAppScreen({ onClose }) {
     const nextThemeId = inferWorkMapTheme(world);
     setSelectedWorldId(world.id);
     setWorkSource("worldbook");
+    window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, world.id);
+    window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "worldbook");
     setWorldPickerOpen(false);
     await generateWorkRound(nextThemeId, world);
   };
@@ -3182,7 +3185,7 @@ function WorkAppScreen({ onClose }) {
   return (
     <section
       className="full-page app-page work-page"
-      style={{ "--work-map-image": `url("${workMapAsset(theme.asset)}")` }}
+      style={{ "--work-map-image": `url("${mapImageUrl}")` }}
     >
       <header className="work-header">
         <button className="work-back" onClick={onClose} aria-label="返回">

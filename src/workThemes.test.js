@@ -5,6 +5,7 @@ import {
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
+  resolveWorkMapView,
   withWorkMapTheme,
 } from "./workThemes.js";
 
@@ -30,6 +31,19 @@ test("automatic themes are recalculated when the worldbook genre changes", () =>
   const modern = withWorkMapTheme({ id: "world-a", genre: "现代都市" });
   const xuanhuan = withWorkMapTheme({ ...modern, genre: "东方玄幻修真" });
   assert.equal(xuanhuan.workMapTheme, "xuanhuan");
+});
+
+test("switching worldbooks resolves a new theme and image immediately", () => {
+  const worlds = [
+    { id: "city", genre: "现代都市" },
+    { id: "cultivation", genre: "东方玄幻修真" },
+  ];
+  const city = resolveWorkMapView(worlds, "city", "worldbook");
+  const cultivation = resolveWorkMapView(worlds, "cultivation", "worldbook");
+  assert.equal(city.themeId, "modern");
+  assert.equal(cultivation.themeId, "xuanhuan");
+  assert.notEqual(city.theme.asset, cultivation.theme.asset);
+  assert.equal(cultivation.selectedWorld.id, "cultivation");
 });
 
 test("replaces work that does not belong to the selected theme", () => {
