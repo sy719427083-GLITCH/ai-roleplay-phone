@@ -94,7 +94,11 @@ export const WORK_MAP_THEMES = {
 export const getWorkTheme = (themeId) => WORK_MAP_THEMES[themeId] || WORK_MAP_THEMES.modern;
 
 export const inferWorkMapTheme = (world = {}) => {
-  if (world.workMapTheme && WORK_MAP_THEMES[world.workMapTheme]) return world.workMapTheme;
+  if (
+    world.workMapThemeMode === "manual"
+    && world.workMapTheme
+    && WORK_MAP_THEMES[world.workMapTheme]
+  ) return world.workMapTheme;
   const source = `${world.genre || ""} ${world.tone || ""}`;
   if (/玄幻|仙侠|修真|高魔东方|高魔史诗/.test(source)) return "xuanhuan";
   if (/古代|宫廷|武侠|江湖/.test(source)) return "ancient_cn";
@@ -106,6 +110,7 @@ export const inferWorkMapTheme = (world = {}) => {
 
 export const withWorkMapTheme = (world = {}) => ({
   ...world,
+  workMapThemeMode: world.workMapThemeMode === "manual" ? "manual" : "auto",
   workMapTheme: inferWorkMapTheme(world),
 });
 

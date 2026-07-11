@@ -15,9 +15,21 @@ test("infers themed work maps from worldbook genres", () => {
   assert.equal(inferWorkMapTheme({ genre: "雾港悬疑" }), "modern");
 });
 
-test("an explicit valid theme overrides automatic worldbook inference", () => {
-  assert.equal(inferWorkMapTheme({ genre: "玄幻", workMapTheme: "ancient_cn" }), "ancient_cn");
+test("only a manual theme overrides automatic worldbook inference", () => {
+  assert.equal(inferWorkMapTheme({ genre: "玄幻", workMapTheme: "ancient_cn" }), "xuanhuan");
+  assert.equal(inferWorkMapTheme({
+    genre: "玄幻",
+    workMapTheme: "ancient_cn",
+    workMapThemeMode: "manual",
+  }), "ancient_cn");
   assert.equal(withWorkMapTheme({ id: "world-a", genre: "高魔史诗" }).workMapTheme, "xuanhuan");
+  assert.equal(withWorkMapTheme({ id: "world-a", genre: "高魔史诗" }).workMapThemeMode, "auto");
+});
+
+test("automatic themes are recalculated when the worldbook genre changes", () => {
+  const modern = withWorkMapTheme({ id: "world-a", genre: "现代都市" });
+  const xuanhuan = withWorkMapTheme({ ...modern, genre: "东方玄幻修真" });
+  assert.equal(xuanhuan.workMapTheme, "xuanhuan");
 });
 
 test("replaces work that does not belong to the selected theme", () => {

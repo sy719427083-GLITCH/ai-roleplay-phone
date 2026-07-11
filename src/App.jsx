@@ -50,6 +50,7 @@ import {
   STORAGE_KEY,
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
+import { tryWriteJson } from "./storageSafety.js";
 import {
   buildCharacterMomentContext,
   buildMeProfileChatContext,
@@ -130,8 +131,8 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.74`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.74`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.75`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.75`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -942,6 +943,8 @@ const normalizeWorldbookWorld = (world = {}) => withWorkMapTheme({
   characters: Array.isArray(world.characters) ? world.characters : [],
   memories: Array.isArray(world.memories) ? world.memories : [],
   custom: Boolean(world.custom),
+  workMapTheme: world.workMapTheme,
+  workMapThemeMode: world.workMapThemeMode,
 });
 
 const readStoredWorldbookWorlds = () => {
@@ -1239,7 +1242,7 @@ function AvatarCropModal({ source, onCancel, onConfirm }) {
         offsetY: offset.y * scale,
       });
       context.drawImage(image, draw.dx, draw.dy, draw.dWidth, draw.dHeight);
-      onConfirm(canvas.toDataURL("image/jpeg", 0.94));
+      onConfirm(canvas.toDataURL("image/jpeg", 0.82));
     };
     image.onerror = () => onConfirm(source);
     image.src = source;
@@ -1362,7 +1365,7 @@ function CharacterAppScreen({ onChildPageChange }) {
   }, [previewId, editorOpen, onChildPageChange]);
 
   useEffect(() => {
-    window.localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characters));
+    tryWriteJson(window.localStorage, CHARACTER_STORAGE_KEY, characters);
   }, [characters]);
 
   useEffect(() => {
@@ -1514,15 +1517,21 @@ function CharacterAppScreen({ onChildPageChange }) {
       return;
     }
     const id = editingId || `char_${Date.now()}`;
-    setCharacters((current) => ({
-      ...current,
+    const nextCharacters = {
+      ...characters,
       [id]: {
         ...draft,
         id,
         name,
         type: editingType,
       },
-    }));
+    };
+    const persisted = tryWriteJson(window.localStorage, CHARACTER_STORAGE_KEY, nextCharacters);
+    if (!persisted.ok) {
+      window.alert("角色资料占用空间过大，暂时无法保存。请更换较小的头像后重试，当前编辑内容不会丢失。");
+      return;
+    }
+    setCharacters(nextCharacters);
     if (previewId === id) setPreviewId(id);
     closeEditor();
   };
@@ -2472,7 +2481,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.74</p>
+      <p className="version-label">Ccat OS V0.2.75</p>
     </section>
   );
 }
@@ -2917,8 +2926,6 @@ function GenericSettingPage({ item, onBack }) {
 function WorkMap({ jobs, selectedId, onSelect, theme }) {
   return (
     <section className="work-map-panel" aria-label="工作地图">
-      <img className="work-map-image" src={workMapAsset(theme.asset)} alt={`${theme.name}工作地图`} />
-
       {jobs.map((job, index) => {
         const active = job.key === selectedId;
         return (
@@ -2942,7 +2949,7 @@ function WorkMap({ jobs, selectedId, onSelect, theme }) {
 }
 
 function WorkAppScreen({ onClose }) {
-  const worldbooks = useMemo(readWorldbookWorldsForSelect, []);
+  const [worldbooks, setWorldbooks] = useState(readWorldbookWorldsForSelect);
   const [workSource, setWorkSource] = useState(() => {
     try {
       return window.localStorage.getItem(WORK_SOURCE_STORAGE_KEY) === "worldbook" ? "worldbook" : "reality";
@@ -2978,6 +2985,17 @@ function WorkAppScreen({ onClose }) {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const refreshWorldbooks = () => setWorldbooks(readWorldbookWorldsForSelect());
+    refreshWorldbooks();
+    window.addEventListener("storage", refreshWorldbooks);
+    window.addEventListener("focus", refreshWorldbooks);
+    return () => {
+      window.removeEventListener("storage", refreshWorldbooks);
+      window.removeEventListener("focus", refreshWorldbooks);
+    };
   }, []);
 
   useEffect(() => {
@@ -3075,6 +3093,13 @@ function WorkAppScreen({ onClose }) {
     remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
   }));
 
+  useEffect(() => {
+    if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
+    const nextJobs = loadStoredWorkJobs(themeId);
+    setJobs(nextJobs);
+    setSelectedId(nextJobs[0]?.key || "");
+  }, [themeId, hasPendingWork]);
+
   const selectJob = (id) => {
     if (hasRunningWork) return;
     setSelectedId(id);
@@ -3089,7 +3114,9 @@ function WorkAppScreen({ onClose }) {
 
   const openWorldPicker = () => {
     if (hasPendingWork || loadingJobs) return;
-    if (!worldbooks.length) {
+    const latestWorldbooks = readWorldbookWorldsForSelect();
+    setWorldbooks(latestWorldbooks);
+    if (!latestWorldbooks.length) {
       window.alert("请先在世界书 APP 中创建一个世界。");
       return;
     }
@@ -3153,7 +3180,10 @@ function WorkAppScreen({ onClose }) {
   };
 
   return (
-    <section className="full-page app-page work-page">
+    <section
+      className="full-page app-page work-page"
+      style={{ "--work-map-image": `url("${workMapAsset(theme.asset)}")` }}
+    >
       <header className="work-header">
         <button className="work-back" onClick={onClose} aria-label="返回">
           <ChevronLeft size={22} />
@@ -5018,6 +5048,7 @@ function WorldbookAppScreen({ onClose }) {
       workMapTheme: draftWorld.workMapTheme === "auto"
         ? inferWorkMapTheme({ genre, tone })
         : draftWorld.workMapTheme,
+      workMapThemeMode: draftWorld.workMapTheme === "auto" ? "auto" : "manual",
       updated: `${now.getMonth() + 1}月${now.getDate()}日`,
       tint: "custom",
       stats: { main: 0, support: 0, links: 0, memories: 0 },
