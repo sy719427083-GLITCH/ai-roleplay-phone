@@ -133,9 +133,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.82`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.82`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.82`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.83`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.83`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.83`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2484,7 +2484,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.82</p>
+      <p className="version-label">Ccat OS V0.2.83</p>
     </section>
   );
 }
@@ -3104,6 +3104,7 @@ function WorkAppScreen({ onClose }) {
   const displayMappedJob = displayJob
     ? mappedJobs.find((job) => job.key === displayJob.key) || displayJob
     : null;
+  const isDisplayingActiveJob = Boolean(displayJob && activeJob && displayJob.key === activeJob.key);
 
   useEffect(() => {
     if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
@@ -3113,7 +3114,6 @@ function WorkAppScreen({ onClose }) {
   }, [themeId, hasPendingWork]);
 
   const selectJob = (id) => {
-    if (hasPendingWork && id !== activeJob?.key) return;
     setSelectedId(id);
   };
 
@@ -3189,10 +3189,11 @@ function WorkAppScreen({ onClose }) {
   };
 
   const handlePrimaryWorkAction = () => {
-    if (hasCompletedWork) {
+    if (hasCompletedWork && isDisplayingActiveJob) {
       claimWork();
       return;
     }
+    if (hasPendingWork) return;
     startWork();
   };
 
@@ -3236,6 +3237,15 @@ function WorkAppScreen({ onClose }) {
             <em>¥{displayMappedJob.reward.toLocaleString("en-US")}</em>
             <small>等级 {levelMarks[displayMappedJob.level - 1]} · 时薪 ¥{displayMappedJob.hourlyRate}</small>
           </span>
+          {isDisplayingActiveJob && (
+            <span className="work-detail-progress">
+              <span>
+                <strong>{hasCompletedWork ? "工作完成" : "工作倒计时"}</strong>
+                <em>{hasCompletedWork ? "可领取" : formatWorkTime(activeRemainingMs)}</em>
+              </span>
+              <i aria-hidden="true"><b style={{ width: `${progress}%` }} /></i>
+            </span>
+          )}
         </section>
       )}
 
@@ -3246,11 +3256,11 @@ function WorkAppScreen({ onClose }) {
             <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}` : `¥${WORK_PAID_REFRESH_COST}`}</strong>
           </span>
         </button>
-        <button className={hasCompletedWork ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={hasRunningWork || loadingJobs}>
+        <button className={hasCompletedWork && isDisplayingActiveJob ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={loadingJobs || hasRunningWork || (hasCompletedWork && !isDisplayingActiveJob)}>
           <Play size={17} fill="currentColor" />
           <span>
-            <strong>{hasCompletedWork ? "点击领取" : hasRunningWork ? "进行中" : "开始"}</strong>
-            <em>{hasCompletedWork ? "Claim Reward" : hasRunningWork ? "Working" : "Start"}</em>
+            <strong>{hasCompletedWork && isDisplayingActiveJob ? "点击领取" : hasRunningWork && isDisplayingActiveJob ? "进行中" : hasPendingWork ? "不可开始" : "开始"}</strong>
+            <em>{hasCompletedWork && isDisplayingActiveJob ? "Claim Reward" : hasRunningWork && isDisplayingActiveJob ? "Working" : hasPendingWork ? "Unavailable" : "Start"}</em>
           </span>
         </button>
         <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
