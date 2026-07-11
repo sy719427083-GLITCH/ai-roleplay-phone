@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.79");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.80");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9202,7 +9202,7 @@ select {
 
 .work-header {
   min-height: calc(60px + env(safe-area-inset-top, 0px));
-  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: end;
   gap: 8px;
   padding: max(8px, env(safe-area-inset-top, 0px)) 12px 7px;
@@ -9212,13 +9212,27 @@ select {
   -webkit-backdrop-filter: none;
 }
 
+.work-back {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(5px) saturate(120%);
+  -webkit-backdrop-filter: blur(5px) saturate(120%);
+}
+
 .work-world-compact {
   min-height: 36px;
   margin: 0;
   border-radius: 12px;
-  background: rgba(247, 252, 253, 0.16);
-  backdrop-filter: blur(9px) saturate(140%);
-  -webkit-backdrop-filter: blur(9px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(247, 252, 253, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  backdrop-filter: blur(5px) saturate(125%);
+  -webkit-backdrop-filter: blur(5px) saturate(125%);
 }
 
 .work-world-compact button {
@@ -9237,21 +9251,21 @@ select {
 }
 
 .work-header-spacer {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
 }
 
 .work-building-label {
   position: relative;
   z-index: 2;
   display: none;
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.44);
   border-radius: 10px;
-  background: rgba(248, 253, 255, 0.44);
+  background: rgba(248, 253, 255, 0.09);
   padding: 4px 9px;
   box-shadow: 0 5px 16px rgba(29, 70, 95, 0.12);
-  backdrop-filter: blur(8px) saturate(145%);
-  -webkit-backdrop-filter: blur(8px) saturate(145%);
+  backdrop-filter: blur(5px) saturate(125%);
+  -webkit-backdrop-filter: blur(5px) saturate(125%);
 }
 
 .work-building-hotspot.active .work-building-label {
@@ -9275,13 +9289,13 @@ select {
   grid-template-columns: 36px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 18px;
-  background: rgba(246, 252, 253, 0.15);
+  background: rgba(246, 252, 253, 0.07);
   padding: 8px 10px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 16px 36px rgba(28, 70, 94, 0.15);
-  backdrop-filter: blur(8px) saturate(145%);
-  -webkit-backdrop-filter: blur(8px) saturate(145%);
+  backdrop-filter: blur(5px) saturate(125%);
+  -webkit-backdrop-filter: blur(5px) saturate(125%);
   animation: workDetailIn 180ms ease-out;
 }
 
@@ -9292,7 +9306,7 @@ select {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.09);
   color: #3978a2;
 }
 
@@ -9354,7 +9368,7 @@ select {
   bottom: calc(7px + env(safe-area-inset-bottom, 0px));
   left: 14px;
   width: auto;
-  grid-template-columns: 1.65fr 1fr 1fr;
+  grid-template-columns: 1fr 1.65fr 1fr;
   gap: 6px;
   margin: 0;
   border: 0;
@@ -9375,14 +9389,14 @@ select {
 .work-actions .work-start,
 .work-actions .work-refresh-button,
 .work-actions .work-stop-button {
-  border-color: rgba(255, 255, 255, 0.74);
-  background: rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(9px) saturate(145%);
-  -webkit-backdrop-filter: blur(9px) saturate(145%);
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(5px) saturate(125%);
+  -webkit-backdrop-filter: blur(5px) saturate(125%);
 }
 
 .work-actions .work-start {
-  background: rgba(91, 167, 211, 0.22);
+  background: rgba(91, 167, 211, 0.09);
 }
 
 .work-actions .work-refresh-button {

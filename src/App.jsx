@@ -133,9 +133,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.79`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.79`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.79`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.80`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.80`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.80`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2484,7 +2484,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.79</p>
+      <p className="version-label">Ccat OS V0.2.80</p>
     </section>
   );
 }
@@ -3210,7 +3210,7 @@ function WorkAppScreen({ onClose }) {
             <strong>现实</strong>
           </button>
           <button className={workSource === "worldbook" ? "active" : ""} onClick={openWorldPicker} disabled={hasPendingWork}>
-            <strong>{workSource === "worldbook" && selectedWorld ? selectedWorld.name : "当前世界书"}</strong>
+            <strong>异世</strong>
           </button>
         </div>
         <span className="work-header-spacer" aria-hidden="true"></span>
@@ -3240,17 +3240,17 @@ function WorkAppScreen({ onClose }) {
       )}
 
       {displayJob && <div className="work-actions">
+        <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
+          <RefreshCw size={15} />
+          <span>
+            <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}` : `¥${WORK_PAID_REFRESH_COST}`}</strong>
+          </span>
+        </button>
         <button className={hasCompletedWork ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={hasRunningWork || loadingJobs}>
           <Play size={17} fill="currentColor" />
           <span>
             <strong>{hasCompletedWork ? "点击领取" : hasRunningWork ? "进行中" : "开始"}</strong>
             <em>{hasCompletedWork ? "Claim Reward" : hasRunningWork ? "Working" : "Start"}</em>
-          </span>
-        </button>
-        <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
-          <RefreshCw size={15} />
-          <span>
-            <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}` : `¥${WORK_PAID_REFRESH_COST}`}</strong>
           </span>
         </button>
         <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
