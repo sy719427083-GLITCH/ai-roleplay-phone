@@ -132,8 +132,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.77`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.77`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.78`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.78`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.78`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2482,7 +2483,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.77</p>
+      <p className="version-label">Ccat OS V0.2.78</p>
     </section>
   );
 }
@@ -2924,9 +2925,18 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect }) {
+function WorkMap({ jobs, selectedId, onSelect, themeId }) {
+  const selectedBuilding = jobs.find((job) => job.key === selectedId);
   return (
     <section className="work-map-panel" aria-label="工作地图">
+      {selectedBuilding && (
+        <img
+          className="work-building-pixel-outline"
+          src={workOutlineAsset(themeId, selectedBuilding.placeType)}
+          alt=""
+          aria-hidden="true"
+        />
+      )}
       {jobs.map((job) => {
         const active = job.key === selectedId;
         const hitArea = job.hitArea || { ...job.pin, width: 24, height: 14 };
@@ -3208,7 +3218,7 @@ function WorkAppScreen({ onClose }) {
         </button>
       </div>
 
-      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} />
+      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} themeId={themeId} />
 
       {displayMappedJob && (
         <section className="work-detail-card" aria-live="polite">

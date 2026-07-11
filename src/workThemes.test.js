@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   WORK_MAP_THEMES,
   buildWorkGenerationPrompt,
@@ -55,6 +56,8 @@ test("each illustrated map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.height >= 8);
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
+      const outlineUrl = new URL(`../public/work-map-outlines/${theme.id}-${place.type}.png`, import.meta.url);
+      assert.equal(existsSync(outlineUrl), true);
     }
   }
 });

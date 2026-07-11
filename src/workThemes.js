@@ -3,7 +3,7 @@ const area = (x, y, width = 26, height = 14) => ({ x, y, width, height });
 const themeHitAreas = {
   modern: [area(22, 26, 40, 18), area(78, 26, 40, 18), area(78, 47, 34, 18), area(78, 69, 38, 20), area(22, 68, 40, 20)],
   ancient_cn: [area(22, 26, 40, 18), area(78, 26, 40, 18), area(77, 47, 36, 18), area(77, 68, 38, 20), area(22, 68, 40, 20)],
-  xuanhuan: [area(22, 25, 40, 19), area(78, 25, 40, 19), area(77, 47, 36, 18), area(78, 68, 40, 20), area(22, 68, 40, 20)],
+  xuanhuan: [area(26, 27, 52, 24), area(77, 27, 42, 22), area(77, 48, 40, 20), area(76, 69, 42, 22), area(24, 69, 44, 23)],
   western_fantasy: [area(22, 25, 40, 19), area(78, 25, 40, 19), area(77, 46, 36, 18), area(78, 69, 40, 20), area(22, 68, 40, 20)],
   scifi: [area(22, 25, 40, 19), area(78, 25, 40, 19), area(77, 46, 36, 18), area(78, 69, 40, 20), area(22, 68, 40, 20)],
   wasteland: [area(22, 26, 40, 19), area(78, 26, 40, 19), area(77, 48, 36, 18), area(78, 70, 36, 20), area(22, 68, 40, 20)],

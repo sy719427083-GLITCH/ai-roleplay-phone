@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.77");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.78");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9162,8 +9162,8 @@ select {
   z-index: 2;
   display: grid;
   place-items: end center;
-  border: 2px solid transparent;
-  border-radius: 28px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   color: #143d5b;
   padding: 0 8px 7px;
@@ -9171,24 +9171,34 @@ select {
   opacity: 0.01;
   pointer-events: auto;
   touch-action: manipulation;
-  transition: transform 130ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  transition: transform 130ms ease, opacity 160ms ease;
 }
 
 .work-building-hotspot:active {
   transform: translate(-50%, -50%) scale(0.96);
-  border-color: rgba(255, 255, 255, 0.95);
-  background: rgba(255, 255, 255, 0.08);
   opacity: 1;
 }
 
 .work-building-hotspot.active {
-  border-color: rgba(255, 255, 255, 0.96);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(119, 185, 219, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.18), 0 10px 30px rgba(25, 72, 101, 0.16);
   opacity: 1;
 }
 
+.work-building-pixel-outline {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  pointer-events: none;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.82)) drop-shadow(0 5px 9px rgba(28, 73, 101, 0.18));
+  animation: workPixelOutlineIn 170ms ease-out;
+}
+
 .work-building-label {
+  position: relative;
+  z-index: 2;
   display: none;
   border: 1px solid rgba(255, 255, 255, 0.82);
   border-radius: 10px;
@@ -9335,6 +9345,15 @@ select {
   }
   to {
     transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes workPixelOutlineIn {
+  from {
+    opacity: 0;
+  }
+  to {
     opacity: 1;
   }
 }
