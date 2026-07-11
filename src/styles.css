@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.76");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook.png?v=0.2.77");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9147,4 +9147,194 @@ select {
 .work-actions .work-stop-button {
   background: rgba(255, 247, 246, 0.28);
   color: #b64f4c;
+}
+
+/* Building-first work map: the illustration stays clear until a place is chosen. */
+.work-map-panel {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.work-building-hotspot {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: end center;
+  border: 2px solid transparent;
+  border-radius: 28px;
+  background: transparent;
+  color: #143d5b;
+  padding: 0 8px 7px;
+  transform: translate(-50%, -50%);
+  opacity: 0.01;
+  pointer-events: auto;
+  touch-action: manipulation;
+  transition: transform 130ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.work-building-hotspot:active {
+  transform: translate(-50%, -50%) scale(0.96);
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 1;
+}
+
+.work-building-hotspot.active {
+  border-color: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(119, 185, 219, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.18), 0 10px 30px rgba(25, 72, 101, 0.16);
+  opacity: 1;
+}
+
+.work-building-label {
+  display: none;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 10px;
+  background: rgba(248, 253, 255, 0.44);
+  padding: 4px 9px;
+  box-shadow: 0 5px 16px rgba(29, 70, 95, 0.12);
+  backdrop-filter: blur(8px) saturate(145%);
+  -webkit-backdrop-filter: blur(8px) saturate(145%);
+}
+
+.work-building-hotspot.active .work-building-label {
+  display: block;
+}
+
+.work-building-label strong {
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.work-detail-card {
+  position: absolute;
+  z-index: 7;
+  right: 14px;
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  left: 14px;
+  display: grid;
+  min-height: 104px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 18px;
+  background: rgba(246, 252, 253, 0.26);
+  padding: 12px 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 16px 36px rgba(28, 70, 94, 0.15);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  animation: workDetailIn 180ms ease-out;
+}
+
+.work-detail-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.28);
+  color: #3978a2;
+}
+
+.work-detail-copy,
+.work-detail-meta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.work-detail-copy em,
+.work-detail-meta em,
+.work-detail-copy small,
+.work-detail-meta small {
+  font-style: normal;
+}
+
+.work-detail-copy em {
+  color: #5e8199;
+  font-size: 11px;
+}
+
+.work-detail-copy strong {
+  color: #153e5d;
+  font-size: 16px;
+}
+
+.work-detail-copy small {
+  overflow: hidden;
+  color: #52748b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-detail-meta {
+  justify-items: end;
+  color: #315f7d;
+}
+
+.work-detail-meta strong {
+  font-size: 13px;
+}
+
+.work-detail-meta em {
+  color: #d48a13;
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.work-detail-meta small {
+  color: #6b8799;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.work-actions {
+  right: 14px;
+  bottom: calc(7px + env(safe-area-inset-bottom, 0px));
+  left: auto;
+  width: 218px;
+  gap: 7px;
+  margin: 0;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.work-actions button {
+  min-height: 45px;
+  border-radius: 14px;
+  padding: 0 10px;
+}
+
+.work-actions button span {
+  display: block;
+}
+
+.work-actions button strong {
+  font-size: 13px;
+}
+
+.work-actions button em {
+  display: none;
+}
+
+@keyframes workDetailIn {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }

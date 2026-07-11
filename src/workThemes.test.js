@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  WORK_MAP_THEMES,
   buildWorkGenerationPrompt,
   getWorkTheme,
   inferWorkMapTheme,
@@ -44,6 +45,18 @@ test("switching worldbooks resolves a new theme and image immediately", () => {
   assert.equal(cultivation.themeId, "xuanhuan");
   assert.notEqual(city.theme.asset, cultivation.theme.asset);
   assert.equal(cultivation.selectedWorld.id, "cultivation");
+});
+
+test("each illustrated map defines building-sized hit areas", () => {
+  for (const theme of Object.values(WORK_MAP_THEMES)) {
+    assert.equal(theme.places.length, 5);
+    for (const place of theme.places) {
+      assert.ok(place.hitArea.width >= 14);
+      assert.ok(place.hitArea.height >= 8);
+      assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
+      assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
+    }
+  }
 });
 
 test("replaces work that does not belong to the selected theme", () => {

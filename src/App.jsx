@@ -132,8 +132,8 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.76`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.76`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.77`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.77`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2482,7 +2482,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.76</p>
+      <p className="version-label">Ccat OS V0.2.77</p>
     </section>
   );
 }
@@ -2924,23 +2924,27 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect, theme }) {
+function WorkMap({ jobs, selectedId, onSelect }) {
   return (
     <section className="work-map-panel" aria-label="工作地图">
-      {jobs.map((job, index) => {
+      {jobs.map((job) => {
         const active = job.key === selectedId;
+        const hitArea = job.hitArea || { ...job.pin, width: 24, height: 14 };
         return (
           <button
-            className={`work-pin ${active ? "active" : ""}`}
+            className={`work-building-hotspot ${active ? "active" : ""}`}
             key={job.key}
-            style={{ left: `${job.pin.x}%`, top: `${job.pin.y}%` }}
+            style={{
+              left: `${hitArea.x}%`,
+              top: `${hitArea.y}%`,
+              width: `${hitArea.width}%`,
+              height: `${hitArea.height}%`,
+            }}
             onClick={() => onSelect(job.key)}
-            aria-label={job.title}
+            aria-label={`${job.placeName}：${job.title}`}
           >
-            <span className={`work-pin-number ${job.color || "blue"}`}>{index + 1}</span>
-            <span className="work-pin-label">
-              <strong>{job.placeName || job.cn}</strong>
-              <em>{job.title}</em>
+            <span className="work-building-label">
+              <strong>{job.placeName}</strong>
             </span>
           </button>
         );
@@ -2968,13 +2972,7 @@ function WorkAppScreen({ onClose }) {
   const { selectedWorld, themeId, theme } = resolveWorkMapView(worldbooks, selectedWorldId, workSource);
   const mapImageUrl = `${workMapAsset(theme.asset)}&theme=${themeId}&world=${encodeURIComponent(selectedWorld?.id || "reality")}`;
   const [jobs, setJobs] = useState(() => loadStoredWorkJobs(themeId));
-  const [selectedId, setSelectedId] = useState(() => {
-    try {
-      return window.localStorage.getItem(WORK_SELECTED_STORAGE_KEY) || "";
-    } catch {
-      return "";
-    }
-  });
+  const [selectedId, setSelectedId] = useState("");
   const [refreshLeft, setRefreshLeft] = useState(5);
   const [activeWork, setActiveWork] = useState(() => loadStoredActiveWork());
   const [now, setNow] = useState(Date.now());
@@ -3006,10 +3004,6 @@ function WorkAppScreen({ onClose }) {
     window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, workSource);
     if (selectedWorldId) window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, selectedWorldId);
   }, [selectedWorldId, workSource]);
-
-  useEffect(() => {
-    if (selectedId) window.localStorage.setItem(WORK_SELECTED_STORAGE_KEY, selectedId);
-  }, [selectedId]);
 
   useEffect(() => {
     if (activeWork) {
@@ -3071,18 +3065,19 @@ function WorkAppScreen({ onClose }) {
     }
     if (!nextJobs) nextJobs = buildLocalThemeJobs(targetThemeId);
     setJobs(nextJobs);
-    setSelectedId(nextJobs[0]?.key || "");
+    setSelectedId("");
     setLoadingJobs(false);
     setMapStatus("地图同步完成");
     window.setTimeout(() => setMapStatus(""), 1800);
   };
 
-  const selectedJob = jobs.find((job) => job.key === selectedId) || jobs[0];
-  const selectedKey = selectedJob?.key || "";
+  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
   const hasRunningWork = activeWork?.endAt > now;
   const hasCompletedWork = Boolean(activeWork && activeWork.endAt <= now);
   const hasPendingWork = hasRunningWork || hasCompletedWork;
   const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
+  const displayJob = selectedJob || activeJob;
+  const selectedKey = displayJob?.key || "";
   const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : 0;
   const progress = hasCompletedWork ? 100 : hasRunningWork
     ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
@@ -3092,12 +3087,15 @@ function WorkAppScreen({ onClose }) {
     remainingLabel: job.key === activeJob?.key ? formatWorkTime(activeRemainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
     remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
   }));
+  const displayMappedJob = displayJob
+    ? mappedJobs.find((job) => job.key === displayJob.key) || displayJob
+    : null;
 
   useEffect(() => {
     if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
     const nextJobs = loadStoredWorkJobs(themeId);
     setJobs(nextJobs);
-    setSelectedId(nextJobs[0]?.key || "");
+    setSelectedId("");
   }, [themeId, hasPendingWork]);
 
   const selectJob = (id) => {
@@ -3135,7 +3133,7 @@ function WorkAppScreen({ onClose }) {
   };
 
   const startWork = () => {
-    if (hasPendingWork) return;
+    if (hasPendingWork || !selectedJob) return;
     const startAt = Date.now();
     setActiveWork({
       jobKey: selectedJob.key,
@@ -3210,55 +3208,45 @@ function WorkAppScreen({ onClose }) {
         </button>
       </div>
 
-      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} theme={theme} />
+      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} />
 
-      <section className="work-choice-panel" aria-label="工作预选">
-        {mappedJobs.map((job, index) => (
-          <button className={job.key === selectedKey ? "active" : ""} key={job.key} onClick={() => selectJob(job.key)}>
-            <span className={`work-choice-number ${job.color || "blue"}`}>{index + 1}</span>
-            <span className="work-choice-icon" aria-hidden="true">
-              {(() => {
-                const Icon = workIconMap[job.icon] || workIconMap[job.key] || FileText;
-                return <Icon size={21} strokeWidth={1.8} />;
-              })()}
-            </span>
-            <span className="work-choice-copy">
-              <strong>{job.title}</strong>
-              <em>{job.placeName}</em>
-              {job.key === selectedKey && <small>{job.content}</small>}
-            </span>
-            <span className="work-choice-meta">
-              <strong>{job.remainingLabel}</strong>
-              <em>¥{job.reward.toLocaleString("en-US")}</em>
-            </span>
-            <ChevronRight className="work-choice-chevron" size={17} />
-            {job.key === selectedKey && (
-              <span className="work-choice-expanded">
-                <span>等级 {levelMarks[job.level - 1]}</span>
-                <span>时薪 ¥{job.hourlyRate}</span>
-                <span className="work-choice-progress"><i style={{ width: `${job.key === activeJob?.key ? progress : 0}%` }}></i></span>
-              </span>
-            )}
-          </button>
-        ))}
-      </section>
+      {displayMappedJob && (
+        <section className="work-detail-card" aria-live="polite">
+          <span className="work-detail-icon" aria-hidden="true">
+            {(() => {
+              const Icon = workIconMap[displayMappedJob.icon] || FileText;
+              return <Icon size={22} strokeWidth={1.8} />;
+            })()}
+          </span>
+          <span className="work-detail-copy">
+            <em>{displayMappedJob.placeName}</em>
+            <strong>{displayMappedJob.title}</strong>
+            <small>{displayMappedJob.content}</small>
+          </span>
+          <span className="work-detail-meta">
+            <strong>{displayMappedJob.remainingLabel}</strong>
+            <em>¥{displayMappedJob.reward.toLocaleString("en-US")}</em>
+            <small>等级 {levelMarks[displayMappedJob.level - 1]} · 时薪 ¥{displayMappedJob.hourlyRate}</small>
+          </span>
+        </section>
+      )}
 
-      <div className="work-actions">
+      {displayJob && <div className="work-actions">
         <button className={hasCompletedWork ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={hasRunningWork || loadingJobs}>
-          <Play size={22} fill="currentColor" />
+          <Play size={17} fill="currentColor" />
           <span>
             <strong>{hasCompletedWork ? "点击领取" : hasRunningWork ? "进行中" : "开始"}</strong>
             <em>{hasCompletedWork ? "Claim Reward" : hasRunningWork ? "Working" : "Start"}</em>
           </span>
         </button>
         <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
-          <Square size={20} fill="currentColor" />
+          <Square size={15} fill="currentColor" />
           <span>
             <strong>停止</strong>
             <em>Stop & Settle</em>
           </span>
         </button>
-      </div>
+      </div>}
 
       {worldPickerOpen && (
         <div className="work-world-picker-backdrop" onClick={() => setWorldPickerOpen(false)}>
