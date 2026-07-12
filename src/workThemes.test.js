@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, statSync } from "node:fs";
 import * as workThemes from "./workThemes.js";
 
 const {
@@ -112,6 +113,20 @@ test("each work map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.height >= 8);
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
+    }
+  }
+});
+
+test("every work map and building outline asset exists", () => {
+  for (const theme of Object.values(WORK_MAP_THEMES)) {
+    const mapUrl = new URL(`../public/work-map-assets/${theme.asset}`, import.meta.url);
+    assert.ok(existsSync(mapUrl), `missing map asset: ${theme.asset}`);
+    assert.ok(statSync(mapUrl).size > 1000, `empty map asset: ${theme.asset}`);
+    for (const place of theme.places) {
+      const outlineName = `${theme.id}-${place.type}.png`;
+      const outlineUrl = new URL(`../public/work-map-outlines/${outlineName}`, import.meta.url);
+      assert.ok(existsSync(outlineUrl), `missing outline asset: ${outlineName}`);
+      assert.ok(statSync(outlineUrl).size > 100, `empty outline asset: ${outlineName}`);
     }
   }
 });
