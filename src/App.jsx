@@ -133,9 +133,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.83`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.83`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.83`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.84`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.84`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.84`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2484,7 +2484,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.83</p>
+      <p className="version-label">Ccat OS V0.2.84</p>
     </section>
   );
 }
@@ -4993,6 +4993,8 @@ function WorldbookAppScreen({ onClose }) {
   const [selectedWorldId, setSelectedWorldId] = useState("");
   const [view, setView] = useState("library");
   const [selectedCharacterId, setSelectedCharacterId] = useState("");
+  const [librarySearchOpen, setLibrarySearchOpen] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [draftWorld, setDraftWorld] = useState(() => ({
     name: "",
     genre: "",
@@ -5125,66 +5127,76 @@ function WorldbookAppScreen({ onClose }) {
     return { main, support, links, memories };
   };
 
+  const filteredLibraryWorlds = worlds.filter((world) => {
+    const keyword = libraryQuery.trim().toLowerCase();
+    return !keyword || `${world.name} ${world.genre}`.toLowerCase().includes(keyword);
+  });
+
+  const openFirstWorldSection = (nextView) => {
+    const firstWorld = worlds[0];
+    if (!firstWorld) return;
+    setSelectedWorldId(firstWorld.id);
+    setSelectedCharacterId("");
+    setView(nextView);
+  };
+
   const renderLibrary = () => (
-      <main className="worldbook-main worldbook-library">
+    <main className="worldbook-main worldbook-library worldbook-library-atlas">
+      <section className="worldbook-library-hero">
+        <img src={worldbookAsset("hero-worldbook-atlas.png")} alt="" />
         <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
-          <ChevronLeft size={24} />
+          <ChevronLeft size={27} strokeWidth={1.7} />
         </button>
-        <section className="worldbook-library-hero">
-          <img src={worldbookAsset("hero-worldbook.png")} alt="" />
-          <div className="worldbook-library-head">
-            <h1>世界书</h1>
-            <p>你的角色世界与生平档案</p>
-          </div>
-          <button className="worldbook-primary worldbook-hero-add" onClick={openAddWorld}>
-            <Plus size={21} strokeWidth={1.9} />
-            <span>世界因你而存在</span>
-          </button>
-        </section>
-        <section className="worldbook-search-row">
-          <button className="worldbook-search">
-            <Search size={17} />
-            <span>搜索世界 / 人物</span>
-          </button>
-          <button className="worldbook-filter" aria-label="筛选">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16l-6.4 7.2v4.4l-3.2 1.8v-6.2z" /></svg>
-          </button>
-        </section>
-        <section className="worldbook-world-list" aria-label="世界列表">
-          {worlds.map((world) => {
-            const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
-            const stats = worldStats(world);
-            return (
-              <article className="worldbook-world-card" key={world.id}>
-                <button className="worldbook-world-open" onClick={() => openWorld(world.id)}>
-                  {renderCover(cover, "card")}
-                  <span className="worldbook-world-copy">
-                    <strong>{world.name}</strong>
-                    <em>{world.genre}</em>
-                    <small className="worldbook-world-note">{world.tone || cover.note}</small>
-                    <small>人物数量　{stats.main + stats.support} 人</small>
-                    <small>最近更新　{world.updated}</small>
-                  </span>
-                  <ChevronRight size={21} strokeWidth={1.7} />
-                </button>
-                <button className="worldbook-delete-world" onClick={(event) => deleteWorld(event, world.id)}>删除</button>
-              </article>
-            );
-          })}
-          {worlds.length === 0 && (
-            <article className="worldbook-empty worldbook-library-empty">
-              <Sparkles size={22} />
-              <strong>还没有世界书</strong>
-              <p>点击添加世界，这里会归档人物背景、生平经历、关系网与共同记忆。</p>
+        <span className="worldbook-library-tools">
+          <button onClick={() => setLibrarySearchOpen((value) => !value)} aria-label="搜索世界"><Search size={25} strokeWidth={1.65} /></button>
+          <button onClick={openAddWorld} aria-label="新建世界"><Plus size={28} strokeWidth={1.55} /></button>
+        </span>
+        <div className="worldbook-library-head">
+          <h1>世界书</h1>
+          <span aria-hidden="true"><i></i><b>◇</b><i></i></span>
+          <p>世界因你而精彩</p>
+        </div>
+        {librarySearchOpen && (
+          <label className="worldbook-atlas-search">
+            <Search size={16} />
+            <input autoFocus value={libraryQuery} onChange={(event) => setLibraryQuery(event.target.value)} placeholder="搜索世界或标签" />
+            {libraryQuery && <button onClick={() => setLibraryQuery("")} aria-label="清空"><X size={15} /></button>}
+          </label>
+        )}
+      </section>
+      <section className="worldbook-world-list" aria-label="世界列表">
+        {filteredLibraryWorlds.map((world, index) => {
+          const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
+          const tags = String(world.genre || cover.tag).split(/[\/、·\s]+/).filter(Boolean).slice(0, 3);
+          return (
+            <article className={`worldbook-world-card ${index % 2 ? "image-right" : "image-left"}`} key={world.id}>
+              <button className="worldbook-world-open" onClick={() => openWorld(world.id)}>
+                {renderCover(cover, "card")}
+                <span className="worldbook-world-copy">
+                  <strong>{world.name}</strong>
+                  <span className="worldbook-world-rule" aria-hidden="true"><i></i><b>◇</b><i></i></span>
+                  <em>{tags.map((tag) => <span key={tag}>{tag}</span>)}</em>
+                </span>
+              </button>
+              <button className="worldbook-delete-world" onClick={(event) => deleteWorld(event, world.id)} aria-label={`删除${world.name}`}><X size={14} /></button>
             </article>
-          )}
-          <button className="worldbook-create-card" onClick={openAddWorld}>
-            <span><Plus size={22} /></span>
-            <strong>创建新世界</strong>
-            <em>快速开始你的角色世界</em>
-          </button>
-        </section>
-      </main>
+          );
+        })}
+        {filteredLibraryWorlds.length === 0 && (
+          <article className="worldbook-empty worldbook-library-empty">
+            <Sparkles size={22} />
+            <strong>{worlds.length ? "没有匹配的世界" : "还没有世界书"}</strong>
+            <p>{worlds.length ? "换个关键词试试。" : "点击右上角新建世界。"}</p>
+          </article>
+        )}
+      </section>
+      <nav className="worldbook-library-nav" aria-label="世界书导航">
+        <button className="active" onClick={() => setView("library")}><Globe2 size={22} /><span>世界库</span></button>
+        <button onClick={() => openFirstWorldSection("characters")} disabled={!worlds.length}><UserRound size={22} /><span>人物档案</span></button>
+        <button onClick={() => openFirstWorldSection("relations")} disabled={!worlds.length}><BookMarked size={22} /><span>记忆库</span></button>
+        <button onClick={() => setView("materials")}><Palette size={22} /><span>素材馆</span></button>
+      </nav>
+    </main>
   );
 
   const renderHeader = (title, action = null) => (
