@@ -142,9 +142,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.86`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.86`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.86`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.87`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.87`;
+const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.87`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2498,7 +2498,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.86</p>
+      <p className="version-label">Ccat OS V0.2.87</p>
     </section>
   );
 }
@@ -3135,6 +3135,11 @@ function WorkAppScreen({ onClose }) {
     ? mappedJobs.find((job) => job.key === displayJob.key) || displayJob
     : null;
   const isDisplayingActiveJob = Boolean(displayJob && activeJob && displayJob.key === activeJob.key);
+  const displayHitArea = displayMappedJob?.hitArea || { x: 50, y: 58, width: 24, height: 14 };
+  const workPanelAbove = displayHitArea.y > 54;
+  const workPanelAnchor = workPanelAbove
+    ? displayHitArea.y - displayHitArea.height / 2 - 2
+    : displayHitArea.y + displayHitArea.height / 2 + 2;
 
   useEffect(() => {
     if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
@@ -3269,6 +3274,10 @@ function WorkAppScreen({ onClose }) {
       <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} onClear={clearSelectedJob} themeId={themeId} />
 
       {displayMappedJob && (
+        <div
+          className={`work-floating-panel ${workPanelAbove ? "above" : "below"}`}
+          style={{ "--work-panel-anchor": `${workPanelAnchor}%` }}
+        >
         <section className="work-detail-card" aria-live="polite">
           <span className="work-detail-icon" aria-hidden="true">
             {(() => {
@@ -3296,9 +3305,8 @@ function WorkAppScreen({ onClose }) {
             </span>
           )}
         </section>
-      )}
 
-      {displayJob && <div className="work-actions">
+      <div className="work-actions">
         <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
           <RefreshCw size={15} />
           <span>
@@ -3319,7 +3327,9 @@ function WorkAppScreen({ onClose }) {
             <em>Stop & Settle</em>
           </span>
         </button>
-      </div>}
+      </div>
+        </div>
+      )}
 
       {worldPickerOpen && (
         <div className="work-world-picker-backdrop" onClick={() => setWorldPickerOpen(false)}>
