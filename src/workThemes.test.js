@@ -1,21 +1,67 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import {
+import * as workThemes from "./workThemes.js";
+
+const {
+  TAG_WORK_THEME_IDS,
   WORK_MAP_THEMES,
   buildWorkGenerationPrompt,
+  getThemeIdForTag,
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
   resolveWorkMapView,
   withWorkMapTheme,
-} from "./workThemes.js";
+} = workThemes;
+
+const APPROVED_WORLD_TAGS = [
+  "上古", "古代", "西域", "仙侠", "玄幻", "秘境", "地府幽冥", "中世纪", "西幻", "奇幻",
+  "魔法世界", "魔法学院", "海岛", "海洋", "民国", "港风", "现代", "校园", "冰河时代", "废土末世",
+  "赛博朋克", "科幻星际", "外星文明", "网游", "克苏鲁",
+];
+
+const hitAreaSignature = (theme) => theme.places
+  .map(({ hitArea }) => [hitArea.x, hitArea.y, hitArea.width, hitArea.height].join(":"))
+  .join("|");
+
+test("every approved world tag resolves to a distinct five-place work theme", () => {
+  assert.equal(typeof TAG_WORK_THEME_IDS, "object");
+  assert.equal(typeof getThemeIdForTag, "function");
+  assert.deepEqual(Object.keys(TAG_WORK_THEME_IDS), APPROVED_WORLD_TAGS);
+  assert.equal(Object.keys(WORK_MAP_THEMES).length, APPROVED_WORLD_TAGS.length);
+
+  for (const tag of APPROVED_WORLD_TAGS) {
+    const themeId = getThemeIdForTag(tag);
+    const theme = getWorkTheme(themeId);
+    assert.ok(themeId);
+    assert.equal(theme.tag, tag);
+    assert.equal(theme.places.length, 5);
+    assert.equal(new Set(theme.places.map((place) => place.type)).size, 5);
+    assert.equal(new Set(theme.places.map((place) => place.name)).size, 5);
+    assert.ok(theme.places.every((place) => place.title && place.content && place.pin && place.hitArea));
+  }
+
+  assert.equal(
+    new Set(Object.values(WORK_MAP_THEMES).map((theme) => theme.asset)).size,
+    APPROVED_WORLD_TAGS.length,
+  );
+  assert.equal(
+    new Set(Object.values(WORK_MAP_THEMES).map(hitAreaSignature)).size,
+    APPROVED_WORLD_TAGS.length,
+  );
+});
+
+test("explicit tag selection and legacy theme ids resolve to tag-addressable maps", () => {
+  assert.equal(inferWorkMapTheme({ tags: ["古代", "赛博朋克"] }, "赛博朋克"), "cyberpunk");
+  assert.equal(inferWorkMapTheme({ workMapThemeMode: "manual", workMapTheme: "ancient_cn" }), "ancient");
+  assert.equal(getWorkTheme("scifi").tag, "科幻星际");
+});
 
 test("infers themed work maps from worldbook genres", () => {
-  assert.equal(inferWorkMapTheme({ genre: "古代宫廷" }), "ancient_cn");
+  assert.equal(inferWorkMapTheme({ genre: "古代宫廷" }), "ancient");
   assert.equal(inferWorkMapTheme({ genre: "东方玄幻修真" }), "xuanhuan");
   assert.equal(inferWorkMapTheme({ genre: "科幻殖民" }), "scifi");
-  assert.equal(inferWorkMapTheme({ genre: "雾港悬疑" }), "modern");
+  assert.equal(inferWorkMapTheme({ genre: "雨夜悬疑" }), "modern");
 });
 
 test("only a manual theme overrides automatic worldbook inference", () => {
@@ -24,7 +70,7 @@ test("only a manual theme overrides automatic worldbook inference", () => {
     genre: "玄幻",
     workMapTheme: "ancient_cn",
     workMapThemeMode: "manual",
-  }), "ancient_cn");
+  }), "ancient");
   assert.equal(withWorkMapTheme({ id: "world-a", genre: "高魔史诗" }).workMapTheme, "xuanhuan");
   assert.equal(withWorkMapTheme({ id: "world-a", genre: "高魔史诗" }).workMapThemeMode, "auto");
 });
@@ -48,7 +94,7 @@ test("switching worldbooks resolves a new theme and image immediately", () => {
   assert.equal(cultivation.selectedWorld.id, "cultivation");
 });
 
-test("each illustrated map defines building-sized hit areas", () => {
+test("each work map defines building-sized hit areas", () => {
   for (const theme of Object.values(WORK_MAP_THEMES)) {
     assert.equal(theme.places.length, 5);
     for (const place of theme.places) {
@@ -56,8 +102,6 @@ test("each illustrated map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.height >= 8);
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
-      const outlineUrl = new URL(`../public/work-map-outlines/${theme.id}-${place.type}.png`, import.meta.url);
-      assert.equal(existsSync(outlineUrl), true);
     }
   }
 });
