@@ -11,6 +11,7 @@ const {
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
+  resolveDisplayedWorkJob,
   resolveWorkMapView,
   withWorkMapTheme,
 } = workThemes;
@@ -155,4 +156,11 @@ test("xuanhuan API prompt lists only xuanhuan locations", () => {
   assert.match(prompt, /炼丹阁/);
   assert.match(prompt, /云澜界/);
   assert.doesNotMatch(prompt, /咖啡馆/);
+});
+
+test("completed work remains displayable after browsing another tag map", () => {
+  const completedJob = { key: "old-job", title: "已完成工作" };
+  const currentJobs = [{ key: "new-job", title: "新地图工作" }];
+  assert.equal(resolveDisplayedWorkJob(currentJobs, "", { jobKey: "old-job", job: completedJob }, true), completedJob);
+  assert.equal(resolveDisplayedWorkJob(currentJobs, "new-job", { jobKey: "old-job", job: completedJob }, true), currentJobs[0]);
 });

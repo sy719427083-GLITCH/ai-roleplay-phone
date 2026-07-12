@@ -54,6 +54,11 @@ export const normalizeWorldTags = (world = {}) => {
 
 export const serializeWorldGenre = (tags) => orderWorldTags(tags).join("/");
 
+export const resolveWorldTagSelection = (world = {}, preferredTag = "") => {
+  const tags = normalizeWorldTags(world);
+  return tags.includes(preferredTag) ? preferredTag : tags[0];
+};
+
 export const toggleWorldTag = (tags, tag, limit = WORLD_TAG_LIMIT) => {
   const selected = orderWorldTags(tags, limit);
   if (!WORLD_TAGS.includes(tag)) return selected;

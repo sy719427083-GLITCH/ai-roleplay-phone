@@ -411,6 +411,11 @@ export const buildLocalThemeJobs = (themeId) => {
   }, workTheme, index));
 };
 
+export const resolveDisplayedWorkJob = (jobs = [], selectedId = "", activeWork = null, hasCompletedWork = false) => (
+  jobs.find((job) => job.key === selectedId)
+  || (hasCompletedWork ? activeWork?.job || null : null)
+);
+
 export const buildWorkGenerationPrompt = ({ world = null, themeId = "modern" } = {}) => {
   const workTheme = getWorkTheme(themeId);
   const worldLine = world

@@ -93,12 +93,14 @@ import {
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
+  resolveDisplayedWorkJob,
   resolveWorkMapView,
   withWorkMapTheme,
 } from "./workThemes.js";
 import {
   WORLD_TAGS,
   normalizeWorldTags,
+  resolveWorldTagSelection,
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
@@ -3113,12 +3115,12 @@ function WorkAppScreen({ onClose }) {
     window.setTimeout(() => setMapStatus(""), 1800);
   };
 
-  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
   const hasRunningWork = activeWork?.endAt > now;
   const hasCompletedWork = Boolean(activeWork && activeWork.endAt <= now);
   const hasPendingWork = hasRunningWork || hasCompletedWork;
+  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
   const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
-  const displayJob = selectedJob;
+  const displayJob = resolveDisplayedWorkJob(jobs, selectedId, activeWork, hasCompletedWork);
   const selectedKey = selectedJob?.key || "";
   const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : 0;
   const progress = hasCompletedWork ? 100 : hasRunningWork
@@ -3167,10 +3169,10 @@ function WorkAppScreen({ onClose }) {
   };
 
   const chooseWorldbook = async (world) => {
-    const firstTag = normalizeWorldTags(world)[0];
-    const nextThemeId = inferWorkMapTheme(world, firstTag);
+    const nextTag = resolveWorldTagSelection(world, selectedTagByWorld[world.id]);
+    const nextThemeId = inferWorkMapTheme(world, nextTag);
     setSelectedWorldId(world.id);
-    setSelectedTagByWorld((current) => ({ ...current, [world.id]: firstTag }));
+    setSelectedTagByWorld((current) => ({ ...current, [world.id]: nextTag }));
     setWorkSource("worldbook");
     window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, world.id);
     window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "worldbook");

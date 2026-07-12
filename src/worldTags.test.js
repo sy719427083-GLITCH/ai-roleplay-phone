@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   WORLD_TAGS,
   normalizeWorldTags,
+  resolveWorldTagSelection,
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
@@ -49,4 +50,10 @@ test("toggles only valid tags and never selects more than three", () => {
   assert.deepEqual(toggleWorldTag(tags, "科幻星际", 3), tags);
   assert.deepEqual(toggleWorldTag(tags, "玄幻", 3), ["古代", "校园"]);
   assert.deepEqual(toggleWorldTag(["古代"], "不存在", 3), ["古代"]);
+});
+
+test("restores a persisted tag when it still belongs to the selected world", () => {
+  const world = { tags: ["玄幻", "现代", "校园"] };
+  assert.equal(resolveWorldTagSelection(world, "校园"), "校园");
+  assert.equal(resolveWorldTagSelection(world, "赛博朋克"), "玄幻");
 });
