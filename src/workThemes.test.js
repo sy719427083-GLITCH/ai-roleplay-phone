@@ -118,6 +118,13 @@ test("each work map defines building-sized hit areas", () => {
   }
 });
 
+test("audited work points target the visible buildings in generated maps", () => {
+  assert.deepEqual(getWorkTheme("modern").places.find((place) => place.type === "cafe").pin, { x: 22, y: 82 });
+  assert.deepEqual(getWorkTheme("modern").places.find((place) => place.type === "parcel_station").pin, { x: 79, y: 82 });
+  assert.deepEqual(getWorkTheme("campus").places.find((place) => place.type === "campus_lab").pin, { x: 52, y: 40 });
+  assert.deepEqual(getWorkTheme("alien_civilization").places.find((place) => place.type === "bio_dome").pin, { x: 50, y: 31 });
+});
+
 test("every work map and building outline asset exists", () => {
   for (const theme of Object.values(WORK_MAP_THEMES)) {
     const mapUrl = new URL(`../public/work-map-assets/${theme.asset}`, import.meta.url);

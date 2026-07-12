@@ -286,6 +286,33 @@ export const WORK_MAP_THEMES = {
   ]),
 };
 
+const AUDITED_PLACE_CENTERS = Object.freeze({
+  hong_kong: {
+    cha_chaan_teng: [20, 19], victoria_pier: [82, 18], record_shop: [81, 49], neon_arcade: [80, 75], rooftop_laundry: [20, 79],
+  },
+  modern: { parcel_station: [79, 82], cafe: [22, 82] },
+  campus: {
+    campus_library: [21, 22], campus_cafeteria: [80, 24], campus_lab: [52, 40], campus_gym: [22, 72], campus_mailroom: [80, 74],
+  },
+  ice_age: { glacier_camp: [45, 19], mammoth_corral: [80, 31], ice_cave: [78, 74] },
+  cyberpunk: { grid_terminal: [70, 85] },
+  scifi: { research_lab: [50, 17], navigation_station: [28, 66] },
+  alien_civilization: {
+    bio_dome: [50, 31], translator_hall: [81, 37], crystal_forge: [74, 76], signal_spire: [15, 39],
+  },
+  online_game: { quest_guild: [24, 26], player_market: [74, 29], crafting_station: [80, 46], ranking_tower: [50, 77] },
+  cthulhu: { fog_lighthouse: [50, 24], hill_observatory: [13, 43] },
+});
+
+for (const [themeId, centers] of Object.entries(AUDITED_PLACE_CENTERS)) {
+  for (const [placeType, [x, y]] of Object.entries(centers)) {
+    const placeMeta = WORK_MAP_THEMES[themeId]?.places.find((entry) => entry.type === placeType);
+    if (!placeMeta) continue;
+    placeMeta.hitArea = { ...placeMeta.hitArea, x, y };
+    placeMeta.pin = { x, y };
+  }
+}
+
 export const getThemeIdForTag = (tag) => TAG_WORK_THEME_IDS[String(tag || "").trim()] || "";
 
 const normalizeThemeId = (themeId) => {
