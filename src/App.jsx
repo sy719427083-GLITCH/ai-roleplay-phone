@@ -89,12 +89,19 @@ import {
   WORK_MAP_THEMES,
   buildLocalThemeJobs,
   buildWorkGenerationPrompt,
+  getThemeIdForTag,
   getWorkTheme,
   inferWorkMapTheme,
   normalizeThemeJobs,
   resolveWorkMapView,
   withWorkMapTheme,
 } from "./workThemes.js";
+import {
+  WORLD_TAGS,
+  normalizeWorldTags,
+  serializeWorldGenre,
+  toggleWorldTag,
+} from "./worldTags.js";
 
 const MESSAGE_APP_TITLE = "微聊";
 
@@ -512,6 +519,7 @@ const WORK_ACTIVE_STORAGE_KEY = "ccatActiveWork";
 const WORK_SELECTED_STORAGE_KEY = "ccatSelectedWork";
 const WORK_SOURCE_STORAGE_KEY = "ccatWorkSource";
 const WORK_WORLDBOOK_STORAGE_KEY = "ccatWorkWorldbookId";
+const WORK_TAG_STORAGE_KEY = "ccatWorkTagByWorld";
 const WORK_PAID_REFRESH_COST = 20;
 const highValueWorkKeys = new Set(["review", "night", "device", "event", "survey"]);
 
@@ -934,11 +942,14 @@ const readProactiveMessageSettings = () => {
   }
 };
 
-const normalizeWorldbookWorld = (world = {}) => withWorkMapTheme({
+const normalizeWorldbookWorld = (world = {}) => {
+  const tags = normalizeWorldTags(world);
+  return withWorkMapTheme({
   id: String(world.id || world.name || `world-${Date.now()}`),
   coverId: world.coverId || worldbookCoverMaterials[0].id,
   name: world.name || "未命名世界",
-  genre: world.genre || "自定义",
+  genre: serializeWorldGenre(tags),
+  tags,
   tone: world.tone || world.note || "",
   updated: world.updated || "刚刚",
   tint: world.tint || "custom",
@@ -948,7 +959,8 @@ const normalizeWorldbookWorld = (world = {}) => withWorkMapTheme({
   custom: Boolean(world.custom),
   workMapTheme: world.workMapTheme,
   workMapThemeMode: world.workMapThemeMode,
-});
+  });
+};
 
 const readStoredWorldbookWorlds = () => {
   try {
@@ -2983,7 +2995,19 @@ function WorkAppScreen({ onClose }) {
       return "";
     }
   });
-  const { selectedWorld, themeId, theme } = resolveWorkMapView(worldbooks, selectedWorldId, workSource);
+  const [selectedTagByWorld, setSelectedTagByWorld] = useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(WORK_TAG_STORAGE_KEY) || "{}") || {};
+    } catch {
+      return {};
+    }
+  });
+  const selectedWorldForTags = worldbooks.find((world) => world.id === selectedWorldId) || worldbooks[0] || null;
+  const availableWorkTags = workSource === "worldbook" && selectedWorldForTags ? normalizeWorldTags(selectedWorldForTags) : [];
+  const selectedWorkTag = availableWorkTags.includes(selectedTagByWorld[selectedWorldForTags?.id])
+    ? selectedTagByWorld[selectedWorldForTags.id]
+    : availableWorkTags[0] || "";
+  const { selectedWorld, themeId, theme } = resolveWorkMapView(worldbooks, selectedWorldId, workSource, selectedWorkTag);
   const mapImageUrl = `${workMapAsset(theme.asset)}&theme=${themeId}&world=${encodeURIComponent(selectedWorld?.id || "reality")}`;
   const [jobs, setJobs] = useState(() => loadStoredWorkJobs(themeId));
   const [selectedId, setSelectedId] = useState("");
@@ -3018,6 +3042,10 @@ function WorkAppScreen({ onClose }) {
     window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, workSource);
     if (selectedWorldId) window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, selectedWorldId);
   }, [selectedWorldId, workSource]);
+
+  useEffect(() => {
+    window.localStorage.setItem(WORK_TAG_STORAGE_KEY, JSON.stringify(selectedTagByWorld));
+  }, [selectedTagByWorld]);
 
   useEffect(() => {
     if (activeWork) {
@@ -3139,13 +3167,22 @@ function WorkAppScreen({ onClose }) {
   };
 
   const chooseWorldbook = async (world) => {
-    const nextThemeId = inferWorkMapTheme(world);
+    const firstTag = normalizeWorldTags(world)[0];
+    const nextThemeId = inferWorkMapTheme(world, firstTag);
     setSelectedWorldId(world.id);
+    setSelectedTagByWorld((current) => ({ ...current, [world.id]: firstTag }));
     setWorkSource("worldbook");
     window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, world.id);
     window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "worldbook");
     setWorldPickerOpen(false);
     await generateWorkRound(nextThemeId, world);
+  };
+
+  const chooseWorkTag = async (tag) => {
+    if (!selectedWorld || tag === selectedWorkTag || !getThemeIdForTag(tag) || loadingJobs) return;
+    const nextThemeId = inferWorkMapTheme(selectedWorld, tag);
+    setSelectedTagByWorld((current) => ({ ...current, [selectedWorld.id]: tag }));
+    await generateWorkRound(nextThemeId, selectedWorld);
   };
 
   const startWork = () => {
@@ -3217,6 +3254,16 @@ function WorkAppScreen({ onClose }) {
         <span className="work-header-spacer" aria-hidden="true"></span>
       </header>
 
+      {workSource === "worldbook" && availableWorkTags.length > 0 && (
+        <nav className="work-tag-switcher" aria-label="选择世界地图">
+          {availableWorkTags.map((tag) => (
+            <button className={tag === selectedWorkTag ? "active" : ""} key={tag} onClick={() => chooseWorkTag(tag)} disabled={loadingJobs}>
+              {tag}
+            </button>
+          ))}
+        </nav>
+      )}
+
       <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} onClear={clearSelectedJob} themeId={themeId} />
 
       {displayMappedJob && (
@@ -3281,12 +3328,13 @@ function WorkAppScreen({ onClose }) {
             </header>
             <div>
               {worldbooks.map((world) => {
-                const worldTheme = getWorkTheme(inferWorkMapTheme(world));
+                const worldTags = normalizeWorldTags(world);
+                const worldTheme = getWorkTheme(inferWorkMapTheme(world, worldTags[0]));
                 return (
                   <button key={world.id} onClick={() => chooseWorldbook(world)}>
                     <span>
                       <strong>{world.name}</strong>
-                      <em>{world.genre}</em>
+                      <em>{worldTags.join(" · ")}</em>
                     </span>
                     <small>{worldTheme.name}</small>
                     <ChevronRight size={17} />
@@ -4997,7 +5045,7 @@ function WorldbookAppScreen({ onClose }) {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [draftWorld, setDraftWorld] = useState(() => ({
     name: "",
-    genre: "",
+    tags: [],
     tone: "",
     coverId: worldbookCoverMaterials[0].id,
     workMapTheme: "auto",
@@ -5040,7 +5088,7 @@ function WorldbookAppScreen({ onClose }) {
 
   const openAddWorld = () => {
     const nextCover = worldbookCoverMaterials[savedWorlds.length % worldbookCoverMaterials.length];
-    setDraftWorld({ name: "", genre: "", tone: "", coverId: nextCover.id, workMapTheme: "auto" });
+    setDraftWorld({ name: "", tags: [], tone: "", coverId: nextCover.id, workMapTheme: "auto" });
     setView("add");
   };
 
@@ -5051,8 +5099,10 @@ function WorldbookAppScreen({ onClose }) {
   };
 
   const saveWorld = () => {
+    if (!draftWorld.tags.length) return;
     const name = draftWorld.name.trim() || "未命名世界";
-    const genre = draftWorld.genre.trim() || draftCover.tag;
+    const tags = normalizeWorldTags({ tags: draftWorld.tags });
+    const genre = serializeWorldGenre(tags);
     const tone = draftWorld.tone.trim() || draftCover.note;
     const now = new Date();
     const createdWorld = {
@@ -5061,11 +5111,10 @@ function WorldbookAppScreen({ onClose }) {
       coverId: draftWorld.coverId,
       name,
       genre,
+      tags,
       tone,
-      workMapTheme: draftWorld.workMapTheme === "auto"
-        ? inferWorkMapTheme({ genre, tone })
-        : draftWorld.workMapTheme,
-      workMapThemeMode: draftWorld.workMapTheme === "auto" ? "auto" : "manual",
+      workMapTheme: inferWorkMapTheme({ tags, genre, tone }),
+      workMapThemeMode: "auto",
       updated: `${now.getMonth() + 1}月${now.getDate()}日`,
       tint: "custom",
       stats: { main: 0, support: 0, links: 0, memories: 0 },
@@ -5129,7 +5178,7 @@ function WorldbookAppScreen({ onClose }) {
 
   const filteredLibraryWorlds = worlds.filter((world) => {
     const keyword = libraryQuery.trim().toLowerCase();
-    return !keyword || `${world.name} ${world.genre}`.toLowerCase().includes(keyword);
+    return !keyword || `${world.name} ${world.tags.join(" ")}`.toLowerCase().includes(keyword);
   });
 
   const openFirstWorldSection = (nextView) => {
@@ -5143,7 +5192,6 @@ function WorldbookAppScreen({ onClose }) {
   const renderLibrary = () => (
     <main className="worldbook-main worldbook-library worldbook-library-atlas">
       <section className="worldbook-library-hero">
-        <img src={worldbookAsset("hero-worldbook-atlas.png")} alt="" />
         <button className="worldbook-library-back" onClick={onClose} aria-label="返回">
           <ChevronLeft size={27} strokeWidth={1.7} />
         </button>
@@ -5167,7 +5215,7 @@ function WorldbookAppScreen({ onClose }) {
       <section className="worldbook-world-list" aria-label="世界列表">
         {filteredLibraryWorlds.map((world, index) => {
           const cover = worldbookCoverMaterials.find((item) => item.id === world.coverId) || worldbookCoverMaterials[0];
-          const tags = String(world.genre || cover.tag).split(/[\/、·\s]+/).filter(Boolean).slice(0, 3);
+          const tags = normalizeWorldTags(world);
           return (
             <article className={`worldbook-world-card ${index % 2 ? "image-right" : "image-left"}`} key={world.id}>
               <button className="worldbook-world-open" onClick={() => openWorld(world.id)}>
@@ -5383,35 +5431,35 @@ function WorldbookAppScreen({ onClose }) {
             </label>
             <label>
               <span>类型标签 *</span>
-              <button className="worldbook-select-field" onClick={() => setView("materials")}>
-                <em>{draftWorld.genre || "选择或输入标签（最多 3 个）"}</em>
-                <ChevronRight size={18} />
-              </button>
+              <span className="worldbook-tag-picker" aria-label="选择世界标签">
+                {WORLD_TAGS.map((tag) => {
+                  const selectedIndex = draftWorld.tags.indexOf(tag);
+                  return (
+                    <button
+                      type="button"
+                      className={selectedIndex >= 0 ? "active" : ""}
+                      key={tag}
+                      onClick={() => setDraftWorld((current) => ({ ...current, tags: toggleWorldTag(current.tags, tag, 3) }))}
+                    >
+                      {tag}
+                      {selectedIndex >= 0 && <i>{selectedIndex + 1}</i>}
+                    </button>
+                  );
+                })}
+              </span>
+              <em className="worldbook-tag-hint">按时代顺序排列，最多选择 3 个</em>
             </label>
             <label>
               <span>世界简介</span>
               <textarea value={draftWorld.tone} maxLength={200} onChange={(event) => setDraftWorld((current) => ({ ...current, tone: event.target.value }))} placeholder="介绍这个世界的背景、设定与核心冲突..."></textarea>
               <small>{draftWorld.tone.length}/200</small>
             </label>
-            <label>
-              <span>工作地图风格</span>
-              <select
-                className="worldbook-theme-select"
-                value={draftWorld.workMapTheme}
-                onChange={(event) => setDraftWorld((current) => ({ ...current, workMapTheme: event.target.value }))}
-              >
-                <option value="auto">自动匹配 · {getWorkTheme(inferWorkMapTheme(draftWorld)).name}</option>
-                {Object.values(WORK_MAP_THEMES).map((theme) => (
-                  <option value={theme.id} key={theme.id}>{theme.name}</option>
-                ))}
-              </select>
-            </label>
           </div>
           <label className="worldbook-toggle-row">
             <span>保存后进入人物档案</span>
             <input type="checkbox" defaultChecked />
           </label>
-          <button className="worldbook-primary worldbook-save-button" onClick={saveWorld}>保存世界</button>
+          <button className="worldbook-primary worldbook-save-button" onClick={saveWorld} disabled={!draftWorld.tags.length}>保存世界</button>
           <button className="worldbook-secondary" onClick={rotateDraftCover}>
             <Clock3 size={17} />
             <span>换一张素材</span>
@@ -5432,7 +5480,7 @@ function WorldbookAppScreen({ onClose }) {
           {worldbookCoverMaterials.map((cover) => {
             const isSelected = cover.id === draftWorld.coverId;
             return (
-              <button className={isSelected ? "active" : ""} key={cover.id} onClick={() => setDraftWorld((current) => ({ ...current, coverId: cover.id, genre: cover.tag }))}>
+              <button className={isSelected ? "active" : ""} key={cover.id} onClick={() => setDraftWorld((current) => ({ ...current, coverId: cover.id }))}>
                 {renderCover(cover, "material", isSelected)}
                 <strong>{cover.name}</strong>
               </button>

@@ -6173,11 +6173,11 @@ select {
   --wb-line: #d9e8f4;
   --wb-card: rgba(255, 255, 255, 0.94);
   position: fixed;
-  inset: calc(-1 * var(--wb-safe-top)) 0 auto 0;
+  inset: 0;
   overflow: hidden;
   width: 100vw;
   height: 100vh;
-  height: calc(100dvh + var(--wb-safe-top));
+  height: 100dvh;
   padding: 0;
   background: var(--wb-page-bg);
   color: var(--wb-ink);
@@ -6833,6 +6833,56 @@ select {
   color: #8ea1b2;
   font-style: normal;
   font-weight: 500;
+}
+
+.worldbook-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.worldbook-tag-picker button {
+  position: relative;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d6e4ef;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #6e8297;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.worldbook-tag-picker button.active {
+  border-color: #80b6dc;
+  background: #e8f4fc;
+  color: #1d659b;
+}
+
+.worldbook-tag-picker button i {
+  position: absolute;
+  top: -6px;
+  right: -5px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: #5ca6d8;
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.worldbook-tag-hint {
+  color: #8ea1b2;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.worldbook-save-button:disabled {
+  opacity: 0.45;
 }
 
 .worldbook-toggle-row {
@@ -9256,6 +9306,42 @@ select {
   height: 36px;
 }
 
+.work-tag-switcher {
+  position: absolute;
+  top: calc(max(58px, env(safe-area-inset-top, 0px) + 18px) + 48px);
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  max-width: calc(100% - 40px);
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-50%);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.work-tag-switcher button {
+  min-width: 52px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: rgba(25, 40, 54, 0.68);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.work-tag-switcher button.active {
+  background: rgba(255, 255, 255, 0.7);
+  color: #17334b;
+  box-shadow: 0 3px 12px rgba(28, 55, 77, 0.1);
+}
+
 .work-building-label {
   position: relative;
   z-index: 2;
@@ -9487,7 +9573,7 @@ select {
   --atlas-ink: #253b58;
   --atlas-muted: #6e7887;
   --atlas-gold: #c9a86a;
-  height: calc(100dvh + var(--wb-safe-top));
+  height: 100dvh;
   padding: 0 0 calc(74px + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
   background: #fbfcfd;
@@ -9498,9 +9584,13 @@ select {
   position: relative;
   width: 100vw;
   height: calc(284px + var(--wb-safe-top));
-  margin: calc(-1 * var(--wb-safe-top)) 0 0;
+  margin: 0;
   overflow: hidden;
-  background: #f4f7f9;
+  background-color: #f4f7f9;
+  background-image: var(--wb-hero-image);
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .worldbook-library-atlas .worldbook-library-hero::after {
