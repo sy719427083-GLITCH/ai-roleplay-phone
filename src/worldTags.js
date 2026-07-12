@@ -45,7 +45,8 @@ const parseLegacyGenre = (genre) => String(genre || "")
   .flatMap((part) => WORLD_TAGS.filter((tag) => part.includes(tag)));
 
 export const normalizeWorldTags = (world = {}) => {
-  if (Array.isArray(world.tags)) return orderWorldTags(world.tags);
+  const selected = orderWorldTags(world.tags);
+  if (selected.length) return selected;
 
   const migrated = orderWorldTags(parseLegacyGenre(world.genre));
   return migrated.length ? migrated : [DEFAULT_WORLD_TAG];

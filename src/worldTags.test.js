@@ -24,15 +24,20 @@ test("migrates legacy genres split by supported separators and matches concrete 
   assert.deepEqual(normalizeWorldTags({ genre: "高魔史诗" }), ["现代"]);
 });
 
-test("uses tags as authoritative, removes duplicates, and serializes selected tags", () => {
+test("uses valid tags as authoritative, removes duplicates, and serializes selected tags", () => {
   const tags = normalizeWorldTags({
     tags: ["校园", "古代", "校园", "科幻星际", "玄幻"],
     genre: "海洋",
   });
 
   assert.deepEqual(tags, ["古代", "玄幻", "校园"]);
-  assert.deepEqual(normalizeWorldTags({ tags: [], genre: "古代" }), []);
   assert.equal(serializeWorldGenre(tags), "古代/玄幻/校园");
+});
+
+test("recovers empty or invalid stored tags from legacy genre or the default tag", () => {
+  assert.deepEqual(normalizeWorldTags({ tags: [], genre: "古代" }), ["古代"]);
+  assert.deepEqual(normalizeWorldTags({ tags: ["不存在"], genre: "玄幻" }), ["玄幻"]);
+  assert.deepEqual(normalizeWorldTags({ tags: [], genre: "高魔史诗" }), ["现代"]);
 });
 
 test("toggles only valid tags and never selects more than three", () => {
