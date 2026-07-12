@@ -295,21 +295,21 @@ const normalizeThemeId = (themeId) => {
 
 export const getWorkTheme = (themeId) => WORK_MAP_THEMES[normalizeThemeId(themeId)] || WORK_MAP_THEMES.modern;
 
-const inferTagTheme = (world, selectedTag) => {
-  const explicitTag = getThemeIdForTag(selectedTag || world.workMapTag || world.selectedWorkTag);
-  if (explicitTag) return explicitTag;
+const inferTagTheme = (world) => {
   return (Array.isArray(world.tags) ? world.tags : [])
     .map(getThemeIdForTag)
     .find(Boolean) || "";
 };
 
 export const inferWorkMapTheme = (world = {}, selectedTag = "") => {
-  const tagTheme = inferTagTheme(world, selectedTag);
-  if (tagTheme) return tagTheme;
+  const explicitTagTheme = getThemeIdForTag(selectedTag);
+  if (explicitTagTheme) return explicitTagTheme;
   if (world.workMapThemeMode === "manual") {
     const manualTheme = normalizeThemeId(world.workMapTheme);
     if (manualTheme) return manualTheme;
   }
+  const tagTheme = inferTagTheme(world);
+  if (tagTheme) return tagTheme;
   const source = `${world.genre || ""} ${world.tone || ""}`;
   if (/上古|史前|洪荒/.test(source)) return "prehistoric";
   if (/西域|丝路|大漠/.test(source)) return "western_regions";

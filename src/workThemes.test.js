@@ -57,6 +57,16 @@ test("explicit tag selection and legacy theme ids resolve to tag-addressable map
   assert.equal(getWorkTheme("scifi").tag, "科幻星际");
 });
 
+test("manual legacy themes outrank stored tags unless an explicit tag is selected", () => {
+  const world = {
+    tags: ["赛博朋克", "科幻星际"],
+    workMapThemeMode: "manual",
+    workMapTheme: "ancient_cn",
+  };
+  assert.equal(inferWorkMapTheme(world), "ancient");
+  assert.equal(inferWorkMapTheme(world, "赛博朋克"), "cyberpunk");
+});
+
 test("infers themed work maps from worldbook genres", () => {
   assert.equal(inferWorkMapTheme({ genre: "古代宫廷" }), "ancient");
   assert.equal(inferWorkMapTheme({ genre: "东方玄幻修真" }), "xuanhuan");
