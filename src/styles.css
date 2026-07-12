@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.84");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.85");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9497,7 +9497,7 @@ select {
 .worldbook-library-atlas .worldbook-library-hero {
   position: relative;
   width: 100vw;
-  height: calc(270px + var(--wb-safe-top));
+  height: calc(284px + var(--wb-safe-top));
   margin: calc(-1 * var(--wb-safe-top)) 0 0;
   overflow: hidden;
   background: #f4f7f9;
@@ -9518,7 +9518,7 @@ select {
 
 .worldbook-library-atlas .worldbook-library-back,
 .worldbook-library-tools {
-  top: calc(var(--wb-safe-top) + 17px);
+  top: calc(var(--wb-safe-top) + 31px);
 }
 
 .worldbook-library-atlas .worldbook-library-back {
@@ -9555,7 +9555,7 @@ select {
 }
 
 .worldbook-library-atlas .worldbook-library-head {
-  top: calc(var(--wb-safe-top) + 75px);
+  top: calc(var(--wb-safe-top) + 89px);
   gap: 5px;
 }
 
