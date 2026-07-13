@@ -98,3 +98,8 @@ test("batch C map assets exist as exact 9:16 portrait PNGs", async () => {
     assert.equal(dimensions.width * 16, dimensions.height * 9, `${asset} must be exact 9:16`);
   }
 });
+
+test("reviewed batch C routes terminate at the painted arena gate and lighthouse door", () => {
+  assert.deepEqual(WORK_ROUTE_BATCH_C.magic_academy.routes.dueling_arena.pin, { x: 75.2, y: 56.6 });
+  assert.deepEqual(WORK_ROUTE_BATCH_C.island.routes.island_lighthouse.pin, { x: 66.5, y: 13.3 });
+});

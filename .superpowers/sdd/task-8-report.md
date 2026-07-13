@@ -52,11 +52,18 @@ Calibration corrections after first contact-sheet review:
 - Re-curved `magic_world.portal_plaza` along the lower bridge/path approach.
 - Removed a duplicate island coconut-grove endpoint sample.
 
+Independent review follow-up:
+
+- Recalibrated `magic_academy/dueling_arena` from the arena interior/wall at `(74, 52.2)` to the visible lower barred gate at `(75.2, 56.6)`. The revised 14-sample trace follows the lower perimeter road and gate approach without crossing the arena wall; distance updated from 450 m to 470 m.
+- Recalibrated `island/island_lighthouse` from the short endpoint at `(68.5, 20.8)` to the visible lighthouse door at `(66.5, 13.3)`. The revised 17-sample trace follows the painted island loop and climbs the visible lighthouse steps; distance updated from 620 m to 690 m.
+- Regenerated the route-derived `visibleSegments`, keeping each route's samples, path, pin, and distance consistent.
+
 ## Visual QA
 
 - Generated contact sheet: `docs/superpowers/qa/routes-batch-c-contact-sheet.png`
 - Contact sheet layout: 5 columns by 5 rows, one panel per route, final map underneath, dashed route, home marker, and destination marker.
 - Inspected all 25 panels after regeneration.
+- Re-inspected all 25 panels after the independent review corrections; the two corrected panels now reach their visible entrances and the remaining 23 retain their prior alignment.
 - Verified:
   - Redrawn maps show exactly six prominent buildings.
   - `magic_academy` has exactly six prominent buildings, not seven.
@@ -68,9 +75,9 @@ Calibration corrections after first contact-sheet review:
 ## Tests
 
 - `node --test src/workRouteBatchC.test.js`
-  - Result: pass, 3/3 tests.
+  - Result: pass, 4/4 tests.
 - `npm test`
-  - Result: pass, 94/94 tests.
+  - Result: pass, 95/95 tests.
 
 ## Files
 
@@ -89,7 +96,8 @@ Changed or added owned files only:
 ## Commit
 
 - Commit message: `Calibrate magic coastal and republican routes`
-- Final commit SHA is returned in the task response; this report is included in that commit.
+- Follow-up commit message: `Fix reviewed batch C route endpoints`
+- Final follow-up commit SHA is returned in the task response; this report is included in that commit.
 
 ## Concerns
 
