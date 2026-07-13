@@ -110,6 +110,28 @@ Constraints: exactly six prominent buildings total, all six entrances visible, n
 - Visual QA pass 1 found the first contact-sheet render had missing map backgrounds; regenerated it with embedded PNG data URLs.
 - Visual QA pass 2 found overly direct paths around modern's roundabout and wasteland's watch post; adjusted those samples to follow road/boardwalk centers and regenerated the contact sheet.
 
+## Independent Review Follow-Up
+
+- Moved the modern clinic pin and final samples from the road below the building to the visible glass-door threshold.
+- Moved the campus library, lab, gym, and mailroom pins to their visible door, stair, and loading-bay thresholds.
+- Routed campus library and lab approaches around the paved edges of the central planted circle.
+- Replaced the campus gym's landscaping shortcut with the connected lower junction and east branch path.
+- Moved the ice-age glacier camp and mammoth corral pins to the tent doorway and corral gate threshold.
+- Routed the hot-spring approach around the rock island at the packed-snow fork before joining the east branch.
+- Moved the wasteland medical-camp pin from the tent's left wall to its open entrance threshold.
+- Recalibrated the Hong Kong record-shop route through the lower bend and upper road so it no longer crosses the rooftop-laundry building.
+- Updated route distances where the corrected road detours materially lengthened the trip.
+- Added focused regression expectations for reviewed entrance pins and required road-network waypoints.
+
+Follow-up TDD red states:
+
+```bash
+node --test src/workRouteBatchD.test.js
+```
+
+- First red: expected the modern clinic entrance pin at `18.5,38.8`, received the old road endpoint `18.5,43.2`.
+- Second red after enlarged visual QA: the campus library route lacked the paved-loop waypoint `60,46`.
+
 ## Tests
 
 TDD red state:
@@ -128,13 +150,17 @@ node --test src/workRouteBatchD.test.js
 
 Result: 5 tests passed, 0 failed.
 
+Follow-up focused result: 6 tests passed, 0 failed.
+
 Full suite:
 
 ```bash
 npm test
 ```
 
-Result: 96 tests passed, 0 failed.
+Original result: 96 tests passed, 0 failed.
+
+Follow-up result: 97 tests passed, 0 failed.
 
 ## Visual Checks
 
@@ -144,6 +170,10 @@ Result: 96 tests passed, 0 failed.
 - Reviewed all 25 panels after the final regeneration.
 - Modern cafe route ends at the cafe building entrance on the lower-left cafe, not at the flower shop or its flower display.
 - Upper-right selector clearance is scenery-only on all five redrawn maps.
+- Follow-up overview inspection checked all 25 regenerated panels at 1600px sheet width.
+- Follow-up enlarged inspection checked the ten affected panels individually, including all nine review groups and the separately adjusted campus gym entrance.
+- The enlarged pass found and corrected residual campus library/lab landscaping clips and the hot-spring fork's rock-island clip before the final contact sheet was generated.
+- No map redraws were required for the independent review follow-up.
 
 ## Files
 
@@ -161,8 +191,8 @@ Result: 96 tests passed, 0 failed.
 
 ## Commit
 
-- Intended commit message: `Calibrate modern campus and survival routes`.
-- Commit SHA: recorded in the final task response after commit creation.
+- Original commit: `7090ee5212897741372b256219850384e8e0f08b` (`Calibrate modern campus and survival routes`).
+- Follow-up commit SHA: recorded in the final follow-up response after commit creation.
 
 ## Concerns
 

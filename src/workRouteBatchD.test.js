@@ -85,6 +85,38 @@ const readPngSize = (assetPath) => {
 
 const serializeSamples = (samples) => JSON.stringify(samples.map(({ x, y }) => [x, y]));
 
+const REVIEWED_ROUTE_CALIBRATIONS = Object.freeze({
+  modern: {
+    clinic: { pin: { x: 18.5, y: 38.8 } },
+  },
+  campus: {
+    campus_library: {
+      pin: { x: 31.5, y: 18.8 },
+      waypoints: [{ x: 60, y: 46 }, { x: 52, y: 37.5 }],
+    },
+    campus_lab: {
+      pin: { x: 29.5, y: 36.3 },
+      waypoints: [{ x: 47, y: 52 }, { x: 39, y: 41 }],
+    },
+    campus_mailroom: { pin: { x: 18, y: 49.8 } },
+    campus_gym: {
+      pin: { x: 72, y: 45.2 },
+      waypoints: [{ x: 56, y: 53 }, { x: 63, y: 48 }],
+    },
+  },
+  ice_age: {
+    glacier_camp: { pin: { x: 29.5, y: 20.8 } },
+    mammoth_corral: { pin: { x: 61.5, y: 24.5 } },
+    hot_spring: { waypoints: [{ x: 54, y: 48 }, { x: 62, y: 45 }] },
+  },
+  wasteland: {
+    medical_camp: { pin: { x: 29.5, y: 38.5 } },
+  },
+  hong_kong: {
+    record_shop: { waypoints: [{ x: 47, y: 62 }, { x: 39, y: 52 }, { x: 48, y: 40 }] },
+  },
+});
+
 test("batch D exports exactly five calibrated route themes and twenty-five routes", () => {
   assert.deepEqual(Object.keys(WORK_ROUTE_BATCH_D), BATCH_D_THEME_IDS);
 
@@ -127,6 +159,23 @@ test("batch D routes use unique sample arrays", () => {
   ));
 
   assert.equal(new Set(sampleLists).size, sampleLists.length);
+});
+
+test("independently reviewed routes retain entrance pins and road-network detours", () => {
+  for (const [themeId, routeExpectations] of Object.entries(REVIEWED_ROUTE_CALIBRATIONS)) {
+    for (const [placeType, expectation] of Object.entries(routeExpectations)) {
+      const routeData = WORK_ROUTE_BATCH_D[themeId].routes[placeType];
+      if (expectation.pin) {
+        assert.deepEqual(routeData.pin, expectation.pin, `${themeId}:${placeType} entrance pin`);
+      }
+      for (const waypoint of expectation.waypoints ?? []) {
+        assert.ok(
+          routeData.samples.some((sample) => samePoint(sample, waypoint)),
+          `${themeId}:${placeType} includes reviewed road waypoint ${waypoint.x},${waypoint.y}`,
+        );
+      }
+    }
+  }
 });
 
 test("batch D map assets exist and are exact 9:16 portrait PNGs", () => {
