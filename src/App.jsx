@@ -103,6 +103,7 @@ import {
 } from "./workThemes.js";
 import {
   WORK_TRAVELER_GROUPS,
+  formatWorkDuration,
   getWorkTraveler,
   getWorkTravelerFallbackAsset,
   persistWorkTravelerId,
@@ -621,13 +622,6 @@ const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
   const openIcon = Object.keys(workIconMap).find((icon) => !usedIcons.has(icon)) || preferred;
   usedIcons.add(openIcon);
   return openIcon;
-};
-
-const formatWorkTime = (milliseconds) => {
-  const totalMinutes = Math.max(0, Math.ceil(milliseconds / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return [hours, minutes].map((part) => String(part).padStart(2, "0")).join(":");
 };
 
 const buildWorkJobs = () => {
@@ -2959,19 +2953,23 @@ function GenericSettingPage({ item, onBack }) {
 
 function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessionState, traveler }) {
   const selectedJob = jobs.find((job) => job.key === selectedId) || null;
-  const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
+  const activeJob = activeWork?.job || jobs.find((job) => job.key === activeWork?.jobKey) || null;
   const navigationJob = activeJob || selectedJob;
-  const route = navigationJob?.route || theme.places.find((placeMeta) => placeMeta.type === navigationJob?.placeType)?.route || [];
+  const navigationPlace = theme.places.find((placeMeta) => placeMeta.type === navigationJob?.placeType);
+  const routeSamples = navigationJob?.routeSamples || navigationJob?.route || navigationPlace?.routeSamples || navigationPlace?.route || [];
+  const routeSegments = navigationJob?.routeSegments || navigationPlace?.routeSegments || [];
   const travelerPosition = activeWork && sessionState.phase === "travel"
-    ? interpolateWorkRoute(route, sessionState.progress)
+    ? interpolateWorkRoute(routeSamples, sessionState.progress)
     : activeWork && (sessionState.phase === "work" || sessionState.phase === "complete")
-      ? route.at(-1) || theme.home
-      : theme.home;
+      ? routeSamples.at(-1) || theme.home
+      : routeSamples[0] || theme.home;
   return (
     <section className="work-map-panel" aria-label="工作地图" onClick={onClear}>
-      {navigationJob && route.length > 1 && (
+      {navigationJob && routeSegments.length > 0 && (
         <svg className="work-road-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <polyline points={route.map((point) => `${point.x},${point.y}`).join(" ")} />
+          {routeSegments.map((segment, index) => (
+            <path key={`${navigationJob.key}-route-${index}`} d={segment} />
+          ))}
         </svg>
       )}
       <span className="work-home-marker" style={{ left: `${theme.home.x}%`, top: `${theme.home.y}%` }} aria-label="主角住宅">
@@ -3059,8 +3057,16 @@ function WorkAppScreen({ onClose }) {
   const workTraveler = getWorkTraveler(workTravelerId);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    let intervalId;
+    const tick = () => setNow(Date.now());
+    const timeoutId = window.setTimeout(() => {
+      tick();
+      intervalId = window.setInterval(tick, 1000);
+    }, 1000 - (Date.now() % 1000));
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId) window.clearInterval(intervalId);
+    };
   }, []);
 
   useEffect(() => {
@@ -3198,7 +3204,7 @@ function WorkAppScreen({ onClose }) {
   const hasCompletedWork = workSessionState.phase === "complete";
   const hasPendingWork = hasRunningWork || hasCompletedWork;
   const selectedJob = jobs.find((job) => job.key === selectedId) || null;
-  const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
+  const activeJob = activeWork?.job || jobs.find((job) => job.key === activeWork?.jobKey) || null;
   const displayJob = resolveDisplayedWorkJob(jobs, selectedId, activeWork, hasCompletedWork);
   const selectedKey = selectedJob?.key || "";
   const activeRemainingMs = hasRunningWork ? workSessionState.remainingMs : 0;
@@ -3207,9 +3213,9 @@ function WorkAppScreen({ onClose }) {
     ...job,
     remainingLabel: job.key === activeJob?.key
       ? workSessionState.phase === "travel"
-        ? `前往 ${formatWorkTime(activeRemainingMs)}`
-        : formatWorkTime(activeRemainingMs)
-      : formatWorkTime(job.durationMinutes * 60 * 1000),
+        ? `前往 ${formatWorkDuration(activeRemainingMs)}`
+        : formatWorkDuration(activeRemainingMs)
+      : formatWorkDuration(job.durationMinutes * 60 * 1000),
     remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
   }));
   const isDisplayingActiveJob = Boolean(displayJob && activeJob && displayJob.key === activeJob.key);
@@ -3278,7 +3284,10 @@ function WorkAppScreen({ onClose }) {
     const startAt = Date.now();
     const distanceKm = Number.parseFloat(selectedJob.distance) || 1;
     const travelMs = Math.min(150_000, Math.max(35_000, 35_000 + distanceKm * 25_000));
-    setActiveWork(createWorkSession(selectedJob, startAt, travelMs));
+    setActiveWork({
+      ...createWorkSession(selectedJob, startAt, travelMs),
+      travelerId: workTravelerId,
+    });
   };
 
   const refreshJobs = async () => {
@@ -3375,7 +3384,7 @@ function WorkAppScreen({ onClose }) {
         theme={theme}
         activeWork={activeWork}
         sessionState={workSessionState}
-        traveler={workTraveler}
+        traveler={activeWork ? getWorkTraveler(activeWork.travelerId || workTravelerId) : workTraveler}
       />
 
       <section className="work-job-dock" aria-label="全部工作">

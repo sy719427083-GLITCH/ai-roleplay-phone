@@ -9810,7 +9810,7 @@ select {
   pointer-events: none;
 }
 
-.work-road-route polyline {
+.work-road-route path {
   fill: none;
   stroke: rgba(255, 255, 255, 0.92);
   stroke-width: 0.55;
@@ -9873,6 +9873,7 @@ select {
 .work-job-dock {
   position: absolute;
   z-index: 8;
+  top: 62%;
   right: 10px;
   bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   left: 10px;
@@ -9885,13 +9886,15 @@ select {
 
 .work-job-list {
   display: grid;
+  min-height: 0;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
   gap: 4px;
 }
 
 .work-job-row {
   position: relative;
   display: grid;
-  min-height: 46px;
+  min-height: 42px;
   grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
