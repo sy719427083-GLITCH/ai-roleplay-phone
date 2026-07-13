@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 import * as workTravelers from "./workTravelers.js";
 
 const {
@@ -18,6 +22,102 @@ const flattenTravelers = () => WORK_TRAVELER_GROUPS.flatMap((group) => group.tra
   ...traveler,
   groupId: group.id,
 })));
+
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+const parseRgbaPng = (filePath) => {
+  const data = readFileSync(filePath);
+  assert.equal(data.toString("ascii", 1, 4), "PNG", `${filePath} must be a PNG`);
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const idatChunks = [];
+
+  while (offset < data.length) {
+    const length = data.readUInt32BE(offset);
+    const type = data.toString("ascii", offset + 4, offset + 8);
+    const chunk = data.subarray(offset + 8, offset + 8 + length);
+
+    if (type === "IHDR") {
+      width = chunk.readUInt32BE(0);
+      height = chunk.readUInt32BE(4);
+      assert.equal(chunk[8], 8, `${filePath} must use 8-bit channels`);
+      colorType = chunk[9];
+      assert.equal(chunk[10], 0, `${filePath} must use deflate compression`);
+      assert.equal(chunk[11], 0, `${filePath} must use standard PNG filter method`);
+      assert.equal(chunk[12], 0, `${filePath} must be non-interlaced`);
+    }
+
+    if (type === "IDAT") {
+      idatChunks.push(chunk);
+    }
+
+    offset += length + 12;
+  }
+
+  assert.equal(colorType, 6, `${filePath} must be RGBA color type 6`);
+  assert.ok(width > 0 && height > 0, `${filePath} must declare dimensions`);
+
+  const bytesPerPixel = 4;
+  const scanlineLength = width * bytesPerPixel;
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const pixels = Buffer.alloc(width * height * bytesPerPixel);
+  let sourceOffset = 0;
+  let targetOffset = 0;
+  let previousLine = Buffer.alloc(scanlineLength);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[sourceOffset];
+    sourceOffset += 1;
+    const line = Buffer.from(inflated.subarray(sourceOffset, sourceOffset + scanlineLength));
+    sourceOffset += scanlineLength;
+
+    for (let x = 0; x < scanlineLength; x += 1) {
+      const left = x >= bytesPerPixel ? line[x - bytesPerPixel] : 0;
+      const up = previousLine[x] || 0;
+      const upLeft = x >= bytesPerPixel ? previousLine[x - bytesPerPixel] : 0;
+
+      if (filter === 1) {
+        line[x] = (line[x] + left) & 255;
+      } else if (filter === 2) {
+        line[x] = (line[x] + up) & 255;
+      } else if (filter === 3) {
+        line[x] = (line[x] + Math.floor((left + up) / 2)) & 255;
+      } else if (filter === 4) {
+        const p = left + up - upLeft;
+        const pa = Math.abs(p - left);
+        const pb = Math.abs(p - up);
+        const pc = Math.abs(p - upLeft);
+        const predictor = pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
+        line[x] = (line[x] + predictor) & 255;
+      } else {
+        assert.equal(filter, 0, `${filePath} must use a valid PNG filter`);
+      }
+    }
+
+    line.copy(pixels, targetOffset);
+    targetOffset += scanlineLength;
+    previousLine = line;
+  }
+
+  return { width, height, pixels };
+};
+
+const alphaAt = ({ width, pixels }, x, y) => pixels[((y * width + x) * 4) + 3];
+
+const getOpaqueCoverage = ({ pixels }) => {
+  let opaquePixels = 0;
+
+  for (let offset = 3; offset < pixels.length; offset += 4) {
+    if (pixels[offset] > 220) {
+      opaquePixels += 1;
+    }
+  }
+
+  return opaquePixels / (pixels.length / 4);
+};
 
 test("defines four traveler groups with two distinct travelers each", () => {
   assert.deepEqual(
@@ -110,6 +210,29 @@ test("keeps detailed traveler assets primary and maps old generic images only as
   assert.equal(getWorkTravelerFallbackAsset("campus-female"), "work-map-assets/traveler-female.png");
   assert.equal(getWorkTravelerFallbackAsset("trend-male"), "work-map-assets/traveler-male.png");
   assert.equal(getWorkTravelerFallbackAsset("missing-traveler"), "work-map-assets/traveler-female.png");
+});
+
+test("ships eight detailed transparent 256px traveler PNG assets and removes old generic sprites", () => {
+  const travelers = flattenTravelers();
+
+  for (const traveler of travelers) {
+    const assetPath = join(projectRoot, "public", traveler.asset);
+    assert.ok(existsSync(assetPath), `${traveler.id} asset must exist at ${traveler.asset}`);
+    assert.ok(statSync(assetPath).size > 18_000, `${traveler.id} asset must retain non-trivial detail`);
+
+    const image = parseRgbaPng(assetPath);
+    assert.equal(image.width, 256, `${traveler.id} asset width`);
+    assert.equal(image.height, 256, `${traveler.id} asset height`);
+    assert.equal(alphaAt(image, 0, 0), 0, `${traveler.id} top-left corner must be transparent`);
+    assert.equal(alphaAt(image, image.width - 1, 0), 0, `${traveler.id} top-right corner must be transparent`);
+    assert.equal(alphaAt(image, 0, image.height - 1), 0, `${traveler.id} bottom-left corner must be transparent`);
+    assert.equal(alphaAt(image, image.width - 1, image.height - 1), 0, `${traveler.id} bottom-right corner must be transparent`);
+    assert.ok(getOpaqueCoverage(image) > 0.1, `${traveler.id} must have meaningful opaque subject coverage`);
+    assert.ok(getOpaqueCoverage(image) < 0.68, `${traveler.id} must preserve transparent padding`);
+  }
+
+  assert.equal(existsSync(join(projectRoot, "public/work-map-assets/traveler-female.png")), false);
+  assert.equal(existsSync(join(projectRoot, "public/work-map-assets/traveler-male.png")), false);
 });
 
 test("formats work durations with second accuracy", () => {
