@@ -3,6 +3,7 @@ import { getWorkRouteTheme } from "../src/workRouteData.js";
 
 const POINT_PRECISION = 2;
 const HOME_ROUTE_KEY = "home";
+const MIN_ROUTE_SAMPLES = 12;
 
 const roundNumber = (value, precision = POINT_PRECISION) => {
   const factor = 10 ** precision;
@@ -49,6 +50,7 @@ const validateBreakIndicesInternal = (samples = [], breakIndices = []) => {
 };
 
 export const validateCalibrationRoute = ({
+  authored = true,
   home,
   pin,
   distanceMeters,
@@ -56,6 +58,10 @@ export const validateCalibrationRoute = ({
   breakIndices = [],
 }) => {
   const issues = [];
+
+  if (!authored) {
+    issues.push("route is unauthored; add road-center samples before export");
+  }
 
   if (!isBoundedCoordinate(home?.x) || !isBoundedCoordinate(home?.y)) {
     issues.push("home must stay within normalized 0..100 bounds");
@@ -69,8 +75,9 @@ export const validateCalibrationRoute = ({
     issues.push("distanceMeters must be a positive number");
   }
 
-  if (!Array.isArray(samples) || samples.length < 2) {
-    issues.push("samples must contain at least home and pin");
+  if (!Array.isArray(samples) || samples.length < MIN_ROUTE_SAMPLES) {
+    const sampleCount = Array.isArray(samples) ? samples.length : 0;
+    issues.push(`samples must contain at least ${MIN_ROUTE_SAMPLES} points; currently ${sampleCount}; add ${MIN_ROUTE_SAMPLES - sampleCount} more`);
   } else {
     samples.forEach((point, index) => {
       if (!isBoundedCoordinate(point?.x) || !isBoundedCoordinate(point?.y)) {
@@ -112,17 +119,31 @@ export const buildVisibleSegments = (samples = [], breakIndices = []) => {
 };
 
 export const serializeRouteRecord = ({
+  authored = true,
   home,
   pin,
   distanceMeters,
   samples = [],
   breakIndices = [],
 }) => {
+  const rawIssues = validateCalibrationRoute({
+    authored,
+    home,
+    pin,
+    distanceMeters,
+    samples,
+    breakIndices,
+  });
+  if (rawIssues.length > 0) {
+    throw new Error(rawIssues.join("; "));
+  }
+
   const normalizedHome = normalizePoint(home);
   const normalizedPin = normalizePoint(pin);
   const normalizedSamples = samples.map(normalizePoint);
   const normalizedBreaks = [...normalizeBreakIndices(breakIndices)].sort((left, right) => left - right);
   const issues = validateCalibrationRoute({
+    authored,
     home: normalizedHome,
     pin: normalizedPin,
     distanceMeters,
@@ -170,15 +191,12 @@ const buildDefaultSamples = (home, pin, samples = []) => {
   return [normalizePoint(home), ...interior, normalizePoint(pin)];
 };
 
-const buildRouteDraft = (themeHome, placeMeta, routeRecord) => {
+export const buildRouteDraft = (themeHome, placeMeta, routeRecord) => {
   const pin = normalizePoint(routeRecord?.pin || placeMeta.pin);
-  const fallbackSamples = Array.isArray(routeRecord?.samples) && routeRecord.samples.length >= 2
-    ? routeRecord.samples
-    : Array.isArray(placeMeta.route) && placeMeta.route.length >= 2
-      ? placeMeta.route
-      : [themeHome, pin];
-  const samples = buildDefaultSamples(themeHome, pin, fallbackSamples);
+  const authored = Boolean(routeRecord);
+  const samples = authored ? buildDefaultSamples(themeHome, pin, routeRecord.samples) : [];
   return {
+    authored,
     pin,
     distanceMeters: Number(routeRecord?.distanceMeters || placeMeta.distanceMeters || 400),
     samples,
@@ -196,7 +214,7 @@ const buildThemeDraft = (themeId) => {
   )));
 
   for (const route of Object.values(routes)) {
-    route.samples[0] = normalizePoint(home);
+    if (route.samples.length > 0) route.samples[0] = normalizePoint(home);
   }
 
   return {
@@ -224,24 +242,54 @@ const removeSampleAtIndex = (route, sampleIndex) => {
     .map((value) => (value > sampleIndex ? value - 1 : value));
 };
 
+export const clearRouteDraft = (route) => {
+  route.authored = false;
+  route.samples = [];
+  route.breakIndices = [];
+};
+
 const updateSharedHome = (themeDraft, home) => {
   themeDraft.home = normalizePoint(home);
   Object.values(themeDraft.routes).forEach((route) => {
-    route.samples[0] = normalizePoint(home);
+    if (route.samples.length > 0) route.samples[0] = normalizePoint(home);
   });
 };
 
 const setRoutePin = (route, pin) => {
   route.pin = normalizePoint(pin);
-  route.samples[route.samples.length - 1] = normalizePoint(pin);
+  if (route.samples.length > 0) route.samples[route.samples.length - 1] = normalizePoint(pin);
 };
 
-const createThemeExport = (themeId, themeDraft) => {
+const getRouteDraftIssues = (home, route) => validateCalibrationRoute({
+  authored: route.authored,
+  home,
+  pin: route.pin,
+  distanceMeters: route.distanceMeters,
+  samples: route.samples,
+  breakIndices: route.breakIndices,
+});
+
+export const getThemeDraftIssues = (themeId, themeDraft) => {
   const theme = getWorkTheme(themeId);
+  return theme.places.flatMap((placeMeta) => (
+    getRouteDraftIssues(themeDraft.home, themeDraft.routes[placeMeta.type])
+      .map((issue) => `${themeId}:${placeMeta.type} ${issue}`)
+  ));
+};
+
+export const createThemeExport = (themeId, themeDraft) => {
+  const theme = getWorkTheme(themeId);
+  const issues = getThemeDraftIssues(themeId, themeDraft);
+
+  if (issues.length > 0) {
+    throw new Error(`Theme export blocked:\n${issues.join("\n")}`);
+  }
+
   const routes = Object.fromEntries(theme.places.map((placeMeta) => [
     placeMeta.type,
     serializeRouteRecord({
       home: themeDraft.home,
+      authored: themeDraft.routes[placeMeta.type].authored,
       pin: themeDraft.routes[placeMeta.type].pin,
       distanceMeters: themeDraft.routes[placeMeta.type].distanceMeters,
       samples: themeDraft.routes[placeMeta.type].samples,
@@ -253,6 +301,12 @@ const createThemeExport = (themeId, themeDraft) => {
     home: normalizePoint(themeDraft.home),
     routes,
   };
+};
+
+export const isEditableTarget = (target) => {
+  const tagName = String(target?.tagName || "").toLowerCase();
+  if (["input", "textarea", "select"].includes(tagName) || target?.isContentEditable) return true;
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable]:not([contenteditable='false'])"));
 };
 
 const copyText = async (text) => {
@@ -342,12 +396,23 @@ const installCalibrator = () => {
 
   const updateSelectionsForTheme = () => {
     const theme = getTheme();
+    const themeDraft = getThemeDraft();
     if (!theme.places.some((placeMeta) => placeMeta.type === state.routeKey) && state.routeKey !== HOME_ROUTE_KEY) {
       state.routeKey = theme.places[0].type;
     }
     elements.routeSelect.innerHTML = [
       `<option value="${HOME_ROUTE_KEY}">home</option>`,
-      ...theme.places.map((placeMeta) => `<option value="${placeMeta.type}">${placeMeta.type}</option>`),
+      ...theme.places.map((placeMeta) => {
+        const route = themeDraft.routes[placeMeta.type];
+        const status = getRouteDraftIssues(themeDraft.home, route).length === 0
+          ? "ready"
+          : !route.authored
+            ? "unauthored"
+            : route.samples.length < MIN_ROUTE_SAMPLES
+            ? `incomplete ${route.samples.length}/${MIN_ROUTE_SAMPLES}`
+              : "invalid";
+        return `<option value="${placeMeta.type}">${placeMeta.type} (${status})</option>`;
+      }),
     ].join("");
     elements.routeSelect.value = state.routeKey;
     elements.themeSelect.value = state.themeId;
@@ -359,13 +424,8 @@ const installCalibrator = () => {
     const activeRoute = getActiveRoute();
     const activePlaceMeta = getActivePlaceMeta();
     const stageAssetUrl = `/work-map-assets/${theme.asset}`;
-    const issues = activeRoute ? validateCalibrationRoute({
-      home: themeDraft.home,
-      pin: activeRoute.pin,
-      distanceMeters: activeRoute.distanceMeters,
-      samples: activeRoute.samples,
-      breakIndices: activeRoute.breakIndices,
-    }) : [];
+    const issues = activeRoute ? getRouteDraftIssues(themeDraft.home, activeRoute) : [];
+    const themeIssues = getThemeDraftIssues(state.themeId, themeDraft);
     const selectedSample = activeRoute && Number.isInteger(state.selectedSampleIndex)
       ? activeRoute.samples[state.selectedSampleIndex] || null
       : null;
@@ -378,6 +438,8 @@ const installCalibrator = () => {
     elements.undoButton.disabled = !activeRoute || activeRoute.samples.length <= 2;
     elements.clearButton.disabled = !activeRoute;
     elements.breakModeButton.disabled = !activeRoute;
+    elements.copyRouteButton.disabled = !activeRoute || issues.length > 0;
+    elements.copyThemeButton.disabled = themeIssues.length > 0;
     elements.sampleModeButton.classList.toggle("active", state.interactionMode === "samples");
     elements.breakModeButton.classList.toggle("active", state.interactionMode === "breaks");
 
@@ -389,21 +451,25 @@ const installCalibrator = () => {
       : selectedSample
         ? `sample[${state.selectedSampleIndex}] · ${formatNumber(selectedSample.x)}, ${formatNumber(selectedSample.y)}`
         : activePlaceMeta
-          ? `${activePlaceMeta.type} · pin ${formatNumber(activeRoute.pin.x)}, ${formatNumber(activeRoute.pin.y)}`
+          ? `${activePlaceMeta.type} · ${activeRoute.authored ? `${activeRoute.samples.length}/${MIN_ROUTE_SAMPLES} samples` : "unauthored"} · pin ${formatNumber(activeRoute.pin.x)}, ${formatNumber(activeRoute.pin.y)}`
           : "none";
     elements.copyStatus.textContent = state.copyStatus;
 
     elements.issueList.innerHTML = issues.length > 0
       ? issues.map((issue) => `<li>${issue}</li>`).join("")
-      : "<li>Ready for deterministic export.</li>";
+      : activeRoute
+        ? "<li>Ready for deterministic export.</li>"
+        : "<li>Select a place route to inspect calibration status.</li>";
 
     elements.sampleList.innerHTML = activeRoute
-      ? activeRoute.samples.map((sample, index) => `
+      ? activeRoute.samples.length > 0
+        ? activeRoute.samples.map((sample, index) => `
           <button class="sample-chip${index === state.selectedSampleIndex ? " active" : ""}" data-sample-chip="${index}">
             <strong>${index === 0 ? "home" : index === activeRoute.samples.length - 1 ? "pin" : `p${index}`}</strong>
             <span>${formatNumber(sample.x)}, ${formatNumber(sample.y)}</span>
           </button>
         `).join("")
+        : '<p class="empty-text">Unauthored route. Click the map to add the first road-center sample.</p>'
       : '<p class="empty-text">Select a place route to edit samples.</p>';
 
     elements.breakList.innerHTML = activeRoute
@@ -418,6 +484,7 @@ const installCalibrator = () => {
     if (activeRoute) {
       try {
         elements.routeExport.textContent = JSON.stringify(serializeRouteRecord({
+          authored: activeRoute.authored,
           home: themeDraft.home,
           pin: activeRoute.pin,
           distanceMeters: activeRoute.distanceMeters,
@@ -428,7 +495,7 @@ const installCalibrator = () => {
         elements.routeExport.textContent = `// ${error.message}`;
       }
     } else {
-      elements.routeExport.textContent = JSON.stringify({ home: themeDraft.home }, null, 2);
+      elements.routeExport.textContent = "// Select an authored, valid place route to export.";
     }
 
     try {
@@ -527,6 +594,11 @@ const installCalibrator = () => {
     } else if (state.dragTarget?.type === "pin") {
       setRoutePin(activeRoute, coordinate);
     } else if (!state.dragTarget && state.interactionMode === "samples") {
+      if (!activeRoute.authored) {
+        activeRoute.authored = true;
+        activeRoute.samples = [normalizePoint(themeDraft.home), normalizePoint(activeRoute.pin)];
+        activeRoute.breakIndices = [];
+      }
       activeRoute.samples.splice(activeRoute.samples.length - 1, 0, normalizePoint(coordinate));
       state.selectedSampleIndex = activeRoute.samples.length - 2;
     }
@@ -647,8 +719,7 @@ const installCalibrator = () => {
   elements.clearButton.addEventListener("click", () => {
     const activeRoute = getActiveRoute();
     if (!activeRoute) return;
-    activeRoute.samples = [normalizePoint(getThemeDraft().home), normalizePoint(activeRoute.pin)];
-    activeRoute.breakIndices = [];
+    clearRouteDraft(activeRoute);
     state.selectedSampleIndex = null;
     render();
   });
@@ -679,6 +750,7 @@ const installCalibrator = () => {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event.target)) return;
     if ((event.key === "Delete" || event.key === "Backspace") && getActiveRoute()) {
       elements.deleteButton.click();
     }

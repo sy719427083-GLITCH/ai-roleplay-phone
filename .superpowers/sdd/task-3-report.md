@@ -163,3 +163,115 @@ No verifier or dev-server process remained after the bounded smoke and full test
 
 - The calibrator exports deterministic `M/L` segment chains from the current sample list. That is stable and schema-compatible, but it does not try to preserve hand-simplified sparse path authoring if future calibrations want more compact `visibleSegments`.
 - Full `25 x 5` screenshot mode still correctly fails until Tasks 6-10 populate the remaining route registry entries; that is now explicit behavior rather than silent fallback.
+
+## Review Fixes (2026-07-13)
+
+### Changes
+
+- Enforced the Task 2 minimum of 12 normalized samples in calibrator validation and serialization. Two-point and cleared routes now fail with a count and the number of samples still needed.
+- Added explicit `authored` draft state. Only route records loaded from `WORK_ROUTE_DATA` start authored; `placeMeta.route` and synthesized `[home, pin]` data are no longer imported as calibration samples.
+- Changed Clear to reset the active route to `authored: false`, `samples: []`, and `breakIndices: []` while retaining its marker pin and distance metadata.
+- Made theme export aggregate and reject every unauthored or invalid route with `theme:place` labels. The UI disables route/theme copy buttons until their respective exports are valid.
+- Marked every route selector option as `ready`, `unauthored`, `incomplete N/12`, or `invalid`; the active route also shows actionable validation text and an unauthored empty state.
+- Added an editable-target keyboard guard for `input`, `textarea`, `select`, inherited/direct contenteditable targets, so Delete/Backspace and Undo shortcuts do not alter calibration while editing controls.
+- Validated raw coordinates before normalization so export cannot clamp an out-of-bounds input into an apparently valid record.
+
+### RED Evidence
+
+Command:
+
+```bash
+node --test scripts/work-route-tools.test.mjs
+```
+
+Initial output:
+
+```text
+SyntaxError: The requested module './work-route-calibrator.js' does not provide an export named 'buildRouteDraft'
+1..1
+# tests 1
+# pass 0
+# fail 1
+```
+
+Clear-transition RED output:
+
+```text
+SyntaxError: The requested module './work-route-calibrator.js' does not provide an export named 'clearRouteDraft'
+1..1
+# tests 1
+# pass 0
+# fail 1
+```
+
+### Focused GREEN
+
+Command:
+
+```bash
+node --test scripts/work-route-tools.test.mjs
+```
+
+Output:
+
+```text
+1..12
+# tests 12
+# pass 12
+# fail 0
+```
+
+The focused tests prove two-point and actual cleared drafts reject export, legacy route metadata stays unauthored, theme export reports all invalid routes, complete 12-sample routes export, and editable targets are recognized.
+
+### Full Suite
+
+Command:
+
+```bash
+npm test
+```
+
+Output:
+
+```text
+1..85
+# tests 85
+# pass 85
+# fail 0
+```
+
+### Bounded Smoke And Cleanup
+
+Command:
+
+```bash
+node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
+```
+
+Output:
+
+```text
+Verified 1 route screenshot(s) via http://127.0.0.1:4173
+artifacts/work-routes/modern/bookstore.png
+```
+
+Cleanup commands:
+
+```bash
+lsof -nP -iTCP:4173 -sTCP:LISTEN
+lsof -nP -iTCP:4174 -sTCP:LISTEN
+ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|[v]ite .*--port 417[34]'
+```
+
+Exact result: all three commands exited `1` with no output. No verifier, Vite process, or listener remained.
+
+### Review Self-Check
+
+- Scope remained limited to `scripts/work-route-calibrator.js`, `scripts/work-route-tools.test.mjs`, and this report.
+- No `src` production module, asset, version, deployment file, or `designs/` content was changed.
+- Exported schema remains exactly `pin`, `distanceMeters`, `samples`, and `visibleSegments`; draft-only `authored` state is never serialized.
+
+### Remaining Concerns
+
+- Full `25 x 5` mode remains intentionally unavailable until later tasks add the missing calibrated route themes.
+- Deterministic calibrator segment output remains point-for-point `M/L` geometry rather than preserving hand-simplified paths from an imported calibrated record after editing.
