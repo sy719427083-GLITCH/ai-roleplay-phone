@@ -154,6 +154,21 @@ test("work sessions travel first and only then consume work time", () => {
   assert.equal(resolveWorkSessionState(session, 3_631_000).phase, "complete");
 });
 
+test("work sessions preserve second-level remaining time around arrival", () => {
+  const job = { key: "job-b", durationMinutes: 60 };
+  const session = createWorkSession(job, 1_000, 35_500);
+  assert.equal(session.arriveAt, 36_500);
+  assert.equal(session.workStartAt, 36_500);
+  assert.equal(session.endAt, 3_636_500);
+  assert.equal(resolveWorkSessionState(session, 35_500).phase, "travel");
+  assert.equal(resolveWorkSessionState(session, 35_500).remainingMs, 1_000);
+  assert.equal(resolveWorkSessionState(session, 36_499).phase, "travel");
+  assert.equal(resolveWorkSessionState(session, 36_499).remainingMs, 1);
+  assert.equal(resolveWorkSessionState(session, 36_500).phase, "work");
+  assert.equal(resolveWorkSessionState(session, 36_500).remainingMs, 3_600_000);
+  assert.equal(resolveWorkSessionState(session, 36_501).remainingMs, 3_599_999);
+});
+
 test("route interpolation follows every road turn instead of drawing a straight shortcut", () => {
   const route = [{ x: 10, y: 40 }, { x: 10, y: 20 }, { x: 70, y: 20 }];
   assert.deepEqual(interpolateWorkRoute(route, 0.25), { x: 10, y: 20 });
