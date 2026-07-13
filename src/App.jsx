@@ -3053,6 +3053,9 @@ function WorkAppScreen({ onClose }) {
   const [travelerPickerOpen, setTravelerPickerOpen] = useState(false);
   const [workTravelerId, setWorkTravelerId] = useState(() => readStoredWorkTravelerId());
   const [mapStatus, setMapStatus] = useState("");
+  const travelerPickerOpenerRef = useRef(null);
+  const travelerPickerDialogRef = useRef(null);
+  const selectedTravelerOptionRef = useRef(null);
   const workTraveler = getWorkTraveler(workTravelerId);
 
   useEffect(() => {
@@ -3063,12 +3066,41 @@ function WorkAppScreen({ onClose }) {
   useEffect(() => {
     if (!travelerPickerOpen) return undefined;
 
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setTravelerPickerOpen(false);
+    const dialog = travelerPickerDialogRef.current;
+    const initialFocusTarget = selectedTravelerOptionRef.current || dialog?.querySelector("button:not([disabled])");
+    initialFocusTarget?.focus();
+
+    const manageDialogKeyboard = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setTravelerPickerOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialog) return;
+      const focusableControls = Array.from(
+        dialog.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((control) => control.tabIndex >= 0);
+      if (focusableControls.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const activeControlIndex = focusableControls.indexOf(document.activeElement);
+      const nextControlIndex = activeControlIndex < 0
+        ? (event.shiftKey ? focusableControls.length - 1 : 0)
+        : (activeControlIndex + (event.shiftKey ? -1 : 1) + focusableControls.length) % focusableControls.length;
+      event.preventDefault();
+      focusableControls[nextControlIndex].focus();
     };
 
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", manageDialogKeyboard);
+    return () => {
+      window.removeEventListener("keydown", manageDialogKeyboard);
+      travelerPickerOpenerRef.current?.focus();
+    };
   }, [travelerPickerOpen]);
 
   useEffect(() => {
@@ -3195,10 +3227,12 @@ function WorkAppScreen({ onClose }) {
 
   const clearSelectedJob = () => setSelectedId("");
 
+  const closeTravelerPicker = () => setTravelerPickerOpen(false);
+
   const selectWorkTraveler = (travelerId) => {
     const normalizedTravelerId = persistWorkTravelerId(travelerId);
     setWorkTravelerId(normalizedTravelerId);
-    setTravelerPickerOpen(false);
+    closeTravelerPicker();
   };
 
   const chooseReality = async () => {
@@ -3304,6 +3338,7 @@ function WorkAppScreen({ onClose }) {
           </button>
         </div>
         <button
+          ref={travelerPickerOpenerRef}
           className="work-traveler-button"
           type="button"
           onClick={(event) => {
@@ -3430,8 +3465,9 @@ function WorkAppScreen({ onClose }) {
       )}
 
       {travelerPickerOpen && (
-        <div className="work-traveler-picker-backdrop" onClick={() => setTravelerPickerOpen(false)}>
+        <div className="work-traveler-picker-backdrop" onClick={closeTravelerPicker}>
           <section
+            ref={travelerPickerDialogRef}
             className="work-traveler-picker"
             role="dialog"
             aria-modal="true"
@@ -3440,7 +3476,7 @@ function WorkAppScreen({ onClose }) {
           >
             <header>
               <strong id="work-traveler-picker-title">选择工作主角</strong>
-              <button type="button" onClick={() => setTravelerPickerOpen(false)} aria-label="关闭工作主角选择">
+              <button type="button" onClick={closeTravelerPicker} aria-label="关闭工作主角选择">
                 <X size={19} />
               </button>
             </header>
@@ -3453,6 +3489,7 @@ function WorkAppScreen({ onClose }) {
                       const selected = traveler.id === workTravelerId;
                       return (
                         <button
+                          ref={selected ? selectedTravelerOptionRef : null}
                           key={traveler.id}
                           className={`work-traveler-option ${selected ? "selected" : ""}`}
                           type="button"
