@@ -3374,6 +3374,7 @@ select {
 }
 
 .work-back,
+.work-traveler-button,
 .work-refresh-link,
 .work-world button,
 .work-pin,
@@ -9252,7 +9253,7 @@ select {
 
 .work-header {
   min-height: calc(60px + env(safe-area-inset-top, 0px));
-  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
   align-items: end;
   gap: 8px;
   padding: max(8px, env(safe-area-inset-top, 0px)) 12px 7px;
@@ -9304,6 +9305,151 @@ select {
 .work-header-spacer {
   width: 36px;
   height: 36px;
+}
+
+.work-traveler-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.work-traveler-button img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(16, 34, 45, 0.28));
+  pointer-events: none;
+}
+
+.work-back:focus-visible,
+.work-traveler-button:focus-visible,
+.work-world-picker > header button:focus-visible,
+.work-world-picker > div > button:focus-visible,
+.work-traveler-picker > header button:focus-visible,
+.work-traveler-option:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.96);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(34, 110, 154, 0.34);
+}
+
+.work-traveler-picker-backdrop {
+  position: fixed;
+  z-index: 96;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(21, 36, 51, 0.46);
+  padding: max(20px, env(safe-area-inset-top, 0px)) 20px max(20px, env(safe-area-inset-bottom, 0px));
+}
+
+.work-traveler-picker {
+  width: min(100%, 330px);
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 22px 60px rgba(17, 46, 70, 0.22);
+}
+
+.work-traveler-picker > header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #edf2f5;
+  padding: 0 10px 0 18px;
+}
+
+.work-traveler-picker > header strong {
+  color: #173559;
+  font-size: 17px;
+}
+
+.work-traveler-picker > header button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #57748d;
+  padding: 0;
+}
+
+.work-traveler-list {
+  display: grid;
+  gap: 0;
+}
+
+.work-traveler-row {
+  display: grid;
+  min-height: 72px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #edf2f5;
+  padding: 10px 18px;
+}
+
+.work-traveler-row:last-child {
+  border-bottom: 0;
+}
+
+.work-traveler-row-label {
+  color: #173559;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.work-traveler-options {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.work-traveler-option {
+  position: relative;
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid rgba(91, 116, 139, 0.2);
+  border-radius: 50%;
+  background: transparent;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+.work-traveler-option img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(16, 34, 45, 0.18));
+  pointer-events: none;
+}
+
+.work-traveler-option.selected {
+  border-color: rgba(24, 111, 166, 0.78);
+  box-shadow: 0 0 0 4px rgba(42, 145, 205, 0.16);
+}
+
+.work-traveler-option.selected::after {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #1d82bd;
+  content: "";
 }
 
 .work-tag-switcher {

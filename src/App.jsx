@@ -102,6 +102,13 @@ import {
   withWorkMapTheme,
 } from "./workThemes.js";
 import {
+  WORK_TRAVELER_GROUPS,
+  getWorkTraveler,
+  getWorkTravelerFallbackAsset,
+  persistWorkTravelerId,
+  readStoredWorkTravelerId,
+} from "./workTravelers.js";
+import {
   WORLD_TAGS,
   normalizeWorldTags,
   resolveWorldTagSelection,
@@ -148,6 +155,13 @@ const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
 const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.90`;
 const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.90`;
+const workTravelerAsset = (asset) => `${import.meta.env.BASE_URL}${asset}?v=0.2.90`;
+
+const handleWorkTravelerImageError = (event, travelerId) => {
+  if (event.currentTarget.dataset.fallbackApplied === "true") return;
+  event.currentTarget.dataset.fallbackApplied = "true";
+  event.currentTarget.src = workTravelerAsset(getWorkTravelerFallbackAsset(travelerId));
+};
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2943,7 +2957,7 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessionState, travelerGender }) {
+function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessionState, traveler }) {
   const selectedJob = jobs.find((job) => job.key === selectedId) || null;
   const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
   const navigationJob = activeJob || selectedJob;
@@ -2987,10 +3001,12 @@ function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessi
       })}
       {travelerPosition && (
         <img
+          key={traveler.id}
           className={`work-map-traveler ${sessionState.phase === "travel" ? "walking" : ""}`}
-          src={`${import.meta.env.BASE_URL}work-map-assets/traveler-${travelerGender}.png?v=0.2.90`}
+          src={workTravelerAsset(traveler.asset)}
           style={{ left: `${travelerPosition.x}%`, top: `${travelerPosition.y}%` }}
-          alt={travelerGender === "male" ? "男生主角" : "女生主角"}
+          alt={`${traveler.name}工作地图位置`}
+          onError={(event) => handleWorkTravelerImageError(event, traveler.id)}
         />
       )}
     </section>
@@ -3034,24 +3050,26 @@ function WorkAppScreen({ onClose }) {
   const [now, setNow] = useState(Date.now());
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [worldPickerOpen, setWorldPickerOpen] = useState(false);
+  const [travelerPickerOpen, setTravelerPickerOpen] = useState(false);
+  const [workTravelerId, setWorkTravelerId] = useState(() => readStoredWorkTravelerId());
   const [mapStatus, setMapStatus] = useState("");
-  const travelerGender = useMemo(() => {
-    try {
-      const profiles = JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
-      const selectedProfileId = window.localStorage.getItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY) || "";
-      const profile = profiles[selectedProfileId] || Object.values(profiles)[0] || {};
-      return /(^|\s)(男|男性)|先生|少年|公子/.test(`${profile.gender || ""} ${profile.identity || ""} ${profile.role || ""}`)
-        ? "male"
-        : "female";
-    } catch {
-      return "female";
-    }
-  }, []);
+  const workTraveler = getWorkTraveler(workTravelerId);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!travelerPickerOpen) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setTravelerPickerOpen(false);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [travelerPickerOpen]);
 
   useEffect(() => {
     const refreshWorldbooks = () => setWorldbooks(readWorldbookWorldsForSelect());
@@ -3177,6 +3195,12 @@ function WorkAppScreen({ onClose }) {
 
   const clearSelectedJob = () => setSelectedId("");
 
+  const selectWorkTraveler = (travelerId) => {
+    const normalizedTravelerId = persistWorkTravelerId(travelerId);
+    setWorkTravelerId(normalizedTravelerId);
+    setTravelerPickerOpen(false);
+  };
+
   const chooseReality = async () => {
     if (hasPendingWork || loadingJobs || workSource === "reality") return;
     setWorkSource("reality");
@@ -3279,7 +3303,23 @@ function WorkAppScreen({ onClose }) {
             <strong>异世</strong>
           </button>
         </div>
-        <span className="work-header-spacer" aria-hidden="true"></span>
+        <button
+          className="work-traveler-button"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setTravelerPickerOpen(true);
+          }}
+          aria-label={`选择工作主角，当前：${workTraveler.name}`}
+        >
+          <img
+            key={workTraveler.id}
+            src={workTravelerAsset(workTraveler.asset)}
+            alt=""
+            aria-hidden="true"
+            onError={(event) => handleWorkTravelerImageError(event, workTraveler.id)}
+          />
+        </button>
       </header>
 
       {workSource === "worldbook" && availableWorkTags.length > 0 && (
@@ -3300,7 +3340,7 @@ function WorkAppScreen({ onClose }) {
         theme={theme}
         activeWork={activeWork}
         sessionState={workSessionState}
-        travelerGender={travelerGender}
+        traveler={workTraveler}
       />
 
       <section className="work-job-dock" aria-label="全部工作">
@@ -3384,6 +3424,57 @@ function WorkAppScreen({ onClose }) {
                   </button>
                 );
               })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {travelerPickerOpen && (
+        <div className="work-traveler-picker-backdrop" onClick={() => setTravelerPickerOpen(false)}>
+          <section
+            className="work-traveler-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="work-traveler-picker-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <strong id="work-traveler-picker-title">选择工作主角</strong>
+              <button type="button" onClick={() => setTravelerPickerOpen(false)} aria-label="关闭工作主角选择">
+                <X size={19} />
+              </button>
+            </header>
+            <div className="work-traveler-list">
+              {WORK_TRAVELER_GROUPS.map((group) => (
+                <div className="work-traveler-row" key={group.id}>
+                  <span className="work-traveler-row-label">{group.label}</span>
+                  <div className="work-traveler-options">
+                    {group.travelers.map((traveler) => {
+                      const selected = traveler.id === workTravelerId;
+                      return (
+                        <button
+                          key={traveler.id}
+                          className={`work-traveler-option ${selected ? "selected" : ""}`}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            selectWorkTraveler(traveler.id);
+                          }}
+                          aria-label={`选择${group.label}${traveler.gender === "male" ? "男生" : "女生"}主角：${traveler.name}`}
+                          aria-pressed={selected}
+                        >
+                          <img
+                            src={workTravelerAsset(traveler.asset)}
+                            alt=""
+                            aria-hidden="true"
+                            onError={(event) => handleWorkTravelerImageError(event, traveler.id)}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         </div>

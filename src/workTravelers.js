@@ -156,6 +156,7 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
 ]);
 
 export const DEFAULT_WORK_TRAVELER_ID = "campus-female";
+export const WORK_TRAVELER_STORAGE_KEY = "ccat-work-traveler";
 
 const WORK_TRAVELERS_BY_ID = Object.freeze(
   WORK_TRAVELER_GROUPS.flatMap((group) => group.travelers).reduce((lookup, traveler) => ({
@@ -170,6 +171,34 @@ export const normalizeWorkTravelerId = (travelerId) => {
 };
 
 export const getWorkTraveler = (travelerId) => WORK_TRAVELERS_BY_ID[normalizeWorkTravelerId(travelerId)];
+
+export const getWorkTravelerFallbackAsset = (travelerId) => (
+  getWorkTraveler(travelerId).gender === "male"
+    ? "work-map-assets/traveler-male.png"
+    : "work-map-assets/traveler-female.png"
+);
+
+const getStorage = (storage) => storage || globalThis.localStorage;
+
+export const readStoredWorkTravelerId = (storage) => {
+  try {
+    return normalizeWorkTravelerId(getStorage(storage).getItem(WORK_TRAVELER_STORAGE_KEY));
+  } catch {
+    return DEFAULT_WORK_TRAVELER_ID;
+  }
+};
+
+export const persistWorkTravelerId = (travelerId, storage) => {
+  const normalized = normalizeWorkTravelerId(travelerId);
+
+  try {
+    getStorage(storage).setItem(WORK_TRAVELER_STORAGE_KEY, normalized);
+  } catch {
+    // Keep in-memory state usable if storage is unavailable.
+  }
+
+  return normalized;
+};
 
 const formatSegment = (value) => String(value).padStart(2, "0");
 

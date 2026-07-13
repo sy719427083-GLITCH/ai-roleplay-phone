@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
+import * as workTravelers from "./workTravelers.js";
+
+const {
   DEFAULT_WORK_TRAVELER_ID,
   WORK_TRAVELER_GROUPS,
+  WORK_TRAVELER_STORAGE_KEY,
   formatWorkDuration,
   getWorkTraveler,
+  getWorkTravelerFallbackAsset,
   normalizeWorkTravelerId,
-} from "./workTravelers.js";
+  persistWorkTravelerId,
+  readStoredWorkTravelerId,
+} = workTravelers;
 
 const flattenTravelers = () => WORK_TRAVELER_GROUPS.flatMap((group) => group.travelers.map((traveler) => ({
   ...traveler,
@@ -73,6 +79,37 @@ test("normalizes invalid traveler ids back to the default traveler", () => {
   assert.equal(normalizeWorkTravelerId(""), DEFAULT_WORK_TRAVELER_ID);
   assert.equal(getWorkTraveler("literary-male").name, "言舟");
   assert.equal(getWorkTraveler("missing-traveler").id, DEFAULT_WORK_TRAVELER_ID);
+});
+
+test("persists a dedicated work traveler id with invalid saved ids falling back", () => {
+  assert.equal(typeof readStoredWorkTravelerId, "function");
+  assert.equal(typeof persistWorkTravelerId, "function");
+
+  const savedValues = new Map();
+  const storage = {
+    getItem: (key) => savedValues.get(key) || null,
+    setItem: (key, value) => savedValues.set(key, value),
+  };
+
+  storage.setItem(WORK_TRAVELER_STORAGE_KEY, "ghost-traveler");
+  assert.equal(readStoredWorkTravelerId(storage), DEFAULT_WORK_TRAVELER_ID);
+
+  assert.equal(persistWorkTravelerId("luxe-male", storage), "luxe-male");
+  assert.equal(storage.getItem(WORK_TRAVELER_STORAGE_KEY), "luxe-male");
+  assert.equal(readStoredWorkTravelerId(storage), "luxe-male");
+});
+
+test("keeps detailed traveler assets primary and maps old generic images only as fallbacks", () => {
+  assert.equal(typeof getWorkTravelerFallbackAsset, "function");
+
+  const travelers = flattenTravelers();
+  assert.ok(travelers.every((traveler) => /traveler-.+-(female|male)\.png$/.test(traveler.asset)));
+  assert.ok(travelers.every((traveler) => traveler.asset !== "work-map-assets/traveler-female.png"));
+  assert.ok(travelers.every((traveler) => traveler.asset !== "work-map-assets/traveler-male.png"));
+
+  assert.equal(getWorkTravelerFallbackAsset("campus-female"), "work-map-assets/traveler-female.png");
+  assert.equal(getWorkTravelerFallbackAsset("trend-male"), "work-map-assets/traveler-male.png");
+  assert.equal(getWorkTravelerFallbackAsset("missing-traveler"), "work-map-assets/traveler-female.png");
 });
 
 test("formats work durations with second accuracy", () => {
