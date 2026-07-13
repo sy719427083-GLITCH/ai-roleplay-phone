@@ -403,3 +403,135 @@ Exact result: every command exited `1` with no output. No verifier, Vite server,
 ### Remaining Concern
 
 - The CLI exit guard is a final backstop for external handles after bounded cleanup. Under normal success and the tested timeout paths, resources close and Node exits naturally before that guard fires.
+
+## Natural Exit Follow-Up (2026-07-13)
+
+### Changes
+
+- Removed `scheduleForcedExit`, its timer, and every `process.exit()` call. Direct execution now sets only `process.exitCode = 1` on failure and otherwise lets Node terminate naturally.
+- Extended lifecycle-owned acquisition with an independent `timeoutMs`. The timeout wrapper remains attached to the underlying acquisition, so a resource resolving after timeout is still registered and immediately receives bounded cleanup.
+- Passed `options.timeoutMs` to Playwright's native `chromium.launch({ timeout })` option and to lifecycle acquisition for both browser and context creation.
+- Preserved abort-aware, idempotent cleanup and per-resource close bounds without masking persistent event-loop handles.
+- Replaced the prior hard-exit concern: there is now no in-process CLI exit guard.
+
+### RED Evidence
+
+Command:
+
+```bash
+node --test scripts/work-route-tools.test.mjs
+```
+
+Output before acquisition timeout support:
+
+```text
+not ok 13 - resources acquired after cleanup are boundedly closed after acquisition timeout
+failureType: 'cancelledByParent'
+error: 'Promise resolution is still pending but the event loop has already resolved'
+1..15
+# pass 12
+# cancelled 3
+```
+
+This proved `lifecycle.acquire(..., { timeoutMs: 20 })` still awaited its raw acquisition indefinitely. The same run could not reach the direct-execution source assertion because the pending test cancelled its successors.
+
+### Focused Tests
+
+Command:
+
+```bash
+node --test scripts/work-route-tools.test.mjs
+```
+
+Output:
+
+```text
+1..15
+# tests 15
+# pass 15
+# fail 0
+# cancelled 0
+# duration_ms 411.868792
+```
+
+Relevant results:
+
+```text
+ok 13 - resources acquired after cleanup are boundedly closed after acquisition timeout
+# duration_ms 48.031334
+ok 14 - direct verifier execution never schedules or calls process.exit
+# duration_ms 0.91875
+```
+
+The late-resource test times out acquisition, completes an initial `cleanupAll()`, then resolves the resource and proves its never-resolving close was attempted exactly once and bounded by the lifecycle.
+
+### Full Suite
+
+Command:
+
+```bash
+npm test
+```
+
+Output:
+
+```text
+1..88
+# tests 88
+# pass 88
+# fail 0
+# cancelled 0
+# duration_ms 425.302041
+```
+
+### Externally Bounded Smoke
+
+Command:
+
+```bash
+perl -e 'alarm shift; exec @ARGV' 40 node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
+```
+
+Output:
+
+```text
+Verified 1 route screenshot(s) via http://127.0.0.1:4173
+artifacts/work-routes/modern/bookstore.png
+```
+
+Exact result: exit code `0` after `4.044878375s`, before the external 40-second alarm. With no `process.exit()` call or hard-exit timer in the verifier, this confirms natural CLI termination on the real success path.
+
+Timeout-path command:
+
+```bash
+perl -e 'alarm shift; exec @ARGV' 10 node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 1000
+```
+
+Output:
+
+```text
+route verification timed out after 1000ms
+```
+
+Exact result: exit code `1` after `1.084820959s`, before the external 10-second alarm. This confirms natural CLI termination on the real timeout path as well.
+
+### Process And Listener Checks
+
+Commands:
+
+```bash
+lsof -nP -iTCP:4173 -sTCP:LISTEN
+lsof -nP -iTCP:4174 -sTCP:LISTEN
+ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|node_modules/.bin/[v]ite|[c]hrome-headless-shell.*playwright|[C]hromium.*playwright'
+```
+
+Exact result after both the success and timeout invocations: all three commands exited `1` with no output. No verifier, Vite, Playwright, or listener remained.
+
+### Scope Review
+
+- Modified only `scripts/verify-work-routes.mjs`, `scripts/work-route-tools.test.mjs`, and this report.
+- Did not modify `src` modules, assets, package version, deployment files, or `designs/`.
+
+### Remaining Concern
+
+- Playwright exposes a native launch timeout but not an equivalent context-creation timeout option; context creation is therefore bounded by lifecycle acquisition plus the overall verifier deadline.

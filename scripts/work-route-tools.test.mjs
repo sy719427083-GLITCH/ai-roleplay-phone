@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 
 import {
@@ -343,30 +344,42 @@ test("withTimeout rejects without awaiting a never-resolving cleanup hook", { ti
   assert.ok(Date.now() - startedAt < 150);
 });
 
-test("resources acquired after timeout are immediately given bounded cleanup", { timeout: 300 }, async () => {
+test("resources acquired after cleanup are boundedly closed after acquisition timeout", { timeout: 300 }, async () => {
   const lifecycle = createResourceLifecycle({ cleanupTimeoutMs: 25 });
   let releaseResource = null;
   let cleanupCalls = 0;
   const acquisition = new Promise((resolve) => {
     releaseResource = resolve;
   });
-  const operation = lifecycle.acquire("late-browser", acquisition, () => {
-    cleanupCalls += 1;
-    return new Promise(() => {});
-  });
+  const operation = lifecycle.acquire(
+    "late-browser",
+    acquisition,
+    () => {
+      cleanupCalls += 1;
+      return new Promise(() => {});
+    },
+    { timeoutMs: 20 },
+  );
   const startedAt = Date.now();
 
   await assert.rejects(
-    withTimeout(operation, 20, "late acquisition", () => lifecycle.abort()),
-    /late acquisition timed out after 20ms/,
+    operation,
+    /late-browser acquisition timed out after 20ms/,
   );
   await lifecycle.cleanupAll();
   releaseResource({ id: "browser" });
-  await operation;
+  await delay(0);
   await lifecycle.cleanupAll();
 
   assert.equal(cleanupCalls, 1);
   assert.ok(Date.now() - startedAt < 150);
+});
+
+test("direct verifier execution never schedules or calls process.exit", async () => {
+  const source = await readFile(new URL("./verify-work-routes.mjs", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /scheduleForcedExit/);
+  assert.doesNotMatch(source, /process\.exit\s*\(/);
 });
 
 test("stopProcessGroup terminates a detached child and its spawned descendant", async () => {

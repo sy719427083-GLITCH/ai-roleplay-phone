@@ -153,9 +153,16 @@ export const createResourceLifecycle = ({ cleanupTimeoutMs = DEFAULT_CLEANUP_TIM
   };
 
   return {
-    async acquire(name, acquisition, cleanup) {
-      const resource = await acquisition;
-      return register(name, resource, cleanup);
+    acquire(name, acquisition, cleanup, { timeoutMs = 0 } = {}) {
+      const registeredAcquisition = Promise.resolve(acquisition)
+        .then((resource) => register(name, resource, cleanup));
+      if (!timeoutMs) return registeredAcquisition;
+      return withTimeout(
+        registeredAcquisition,
+        timeoutMs,
+        `${name} acquisition`,
+        abort,
+      );
     },
     get aborted() {
       return abortController.signal.aborted;
@@ -414,8 +421,9 @@ const runVerification = async (options) => {
 
     const browser = await lifecycle.acquire(
       "Playwright browser",
-      chromium.launch({ headless: options.headless }),
+      chromium.launch({ headless: options.headless, timeout: options.timeoutMs }),
       (resource) => resource.close(),
+      { timeoutMs: options.timeoutMs },
     );
     lifecycle.throwIfAborted("browser launch");
 
@@ -423,6 +431,7 @@ const runVerification = async (options) => {
       "Playwright context",
       browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 }),
       (resource) => resource.close(),
+      { timeoutMs: options.timeoutMs },
     );
     lifecycle.throwIfAborted("browser context creation");
 
@@ -453,21 +462,9 @@ const main = async () => {
   screenshots.forEach((entry) => console.log(entry));
 };
 
-const scheduleForcedExit = (exitCode) => {
-  process.exitCode = exitCode;
-  const timerId = setTimeout(
-    () => process.exit(exitCode),
-    (DEFAULT_CLEANUP_TIMEOUT_MS * 2) + 500,
-  );
-  timerId.unref();
-};
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().then(
-    () => scheduleForcedExit(0),
-    (error) => {
-      console.error(error.message);
-      scheduleForcedExit(1);
-    },
-  );
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
 }
