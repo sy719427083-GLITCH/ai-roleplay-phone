@@ -149,6 +149,52 @@ test("batch A routes are independently authored and not reused templates", () =>
   assert.equal(new Set(themePatternSignatures).size, themePatternSignatures.length);
 });
 
+test("review recalibrations pass through visible junctions and end at real entrances", () => {
+  const expectedCalibrations = [
+    {
+      themeId: "prehistoric",
+      placeType: "riverbank",
+      pin: { x: 30.4, y: 29.2 },
+      via: [{ x: 43.7, y: 38.2 }, { x: 38.2, y: 34.1 }, { x: 33.8, y: 30.7 }],
+    },
+    {
+      themeId: "xianxia",
+      placeType: "sword_peak",
+      pin: { x: 25.2, y: 35.7 },
+      via: [{ x: 58.4, y: 40.1 }, { x: 43.3, y: 42.8 }, { x: 32.2, y: 39.7 }],
+    },
+    {
+      themeId: "xianxia",
+      placeType: "talisman_hall",
+      pin: { x: 52.2, y: 13.4 },
+      via: [{ x: 62.8, y: 35.8 }, { x: 63.2, y: 29.6 }, { x: 53.4, y: 24 }],
+    },
+    {
+      themeId: "xianxia",
+      placeType: "spirit_beast_garden",
+      pin: { x: 67, y: 22.3 },
+      via: [{ x: 62.8, y: 35.8 }, { x: 63.2, y: 29.6 }, { x: 53.4, y: 24 }],
+    },
+    {
+      themeId: "xianxia",
+      placeType: "scripture_pavilion",
+      pin: { x: 22.1, y: 17.4 },
+      via: [{ x: 62.8, y: 35.8 }, { x: 53.4, y: 24 }, { x: 34.4, y: 20.7 }],
+    },
+  ];
+
+  for (const { themeId, placeType, pin, via } of expectedCalibrations) {
+    const routeRecord = WORK_ROUTE_BATCH_A[themeId].routes[placeType];
+    assert.deepEqual(routeRecord.pin, pin, `${themeId}:${placeType} entrance pin`);
+    for (const requiredSample of via) {
+      assert.ok(
+        routeRecord.samples.some((sample) => samePoint(sample, requiredSample)),
+        `${themeId}:${placeType} must pass through ${requiredSample.x},${requiredSample.y}`,
+      );
+    }
+  }
+});
+
 test("batch A map assets exist as exact 9:16 portrait PNGs", () => {
   for (const themeId of BATCH_A_THEME_IDS) {
     const assetName = WORK_MAP_THEMES[themeId].asset;

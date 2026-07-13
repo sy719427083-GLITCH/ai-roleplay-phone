@@ -4,6 +4,14 @@
 
 Implemented batch A as a standalone route export in `src/workRouteBatches/batch-a.js`, with batch-local tests in `src/workRouteBatchA.test.js` and a 25-panel QA contact sheet at `docs/superpowers/qa/routes-batch-a-contact-sheet.png`.
 
+## Independent Review Follow-up
+
+- Recalibrated `xianxia/sword_peak` through the lower-left road fork, bridge, and destination stairs instead of cutting across the bamboo and cliff edge.
+- Recalibrated `xianxia/talisman_hall`, `xianxia/spirit_beast_garden`, and `xianxia/scripture_pavilion` along the shared curved road east of the home to the upper junction, then along each destination's visible bridge or stair branch.
+- Moved the four xianxia pins from building or scenery centers to their visible entrance, gate, or stair landing and regenerated their `visibleSegments` from the corrected samples.
+- Reassigned the exact `prehistoric/riverbank` job key to the previously unused animal enclosure, ending at its visible southeast gate rather than on the lower scenic road. No map art was redrawn in this follow-up.
+- Added a regression test for the five corrected entrance pins and critical road-center waypoints.
+
 ## Map Audit
 
 | Theme | Result | Action |
@@ -61,13 +69,14 @@ No CLI image-generation fallback was used. Temporary copied sources under `tmp/`
 - Authored every route as 12 or more road-center samples, following the visible road network through curves, forks, bridges, steps, and central rings.
 - Added `visibleSegments` via explicit uppercase `M/L` path strings generated from the authored samples; break indices split routes near bridge rails, central crystals, trees, fences, or other foreground areas where a future layered renderer can occlude route strokes.
 - Corrected two xuanhuan routes after the contact-sheet pass because they branched toward `herb_garden` and `forge` too early; both now travel up the shared central bridge/ring before branching.
+- During the independent review follow-up, recalibrated four xianxia routes around the home loop and through the upper or lower visible forks, and moved prehistoric `riverbank` to the animal-enclosure gate.
 
 ## QA Contact Sheet
 
 - Generated: `docs/superpowers/qa/routes-batch-a-contact-sheet.png`
 - Dimensions: `1480x2540`
 - Layout: 5 columns x 5 rows, one panel per route, final map underneath, cyan home marker, pink destination marker, yellow dashed route with dark outline.
-- Visual inspection: all 25 panels were reviewed after generation. The final pass showed the routes sitting on visible paths or entrance approaches, with xuanhuan central-ring routes corrected.
+- Visual inspection: all 25 panels were reviewed after regeneration. The five review-targeted panels were also inspected in enlarged crops; the xianxia overlays remain on roads, forks, bridges, and stairs, and prehistoric `riverbank` reaches the enclosure gate.
 
 ## Tests
 
@@ -121,6 +130,38 @@ Result:
 # fail 0
 ```
 
+### Independent Review Follow-up
+
+Focused command:
+
+```bash
+node --test src/workRouteBatchA.test.js
+```
+
+Result:
+
+```text
+1..5
+# tests 5
+# pass 5
+# fail 0
+```
+
+Full command:
+
+```bash
+npm test
+```
+
+Result:
+
+```text
+1..96
+# tests 96
+# pass 96
+# fail 0
+```
+
 ## Files
 
 - Created `src/workRouteBatches/batch-a.js`
@@ -135,7 +176,9 @@ Result:
 
 ## Commit
 
-Commit message: `Calibrate ancient and eastern work routes`.
+Initial commit message: `Calibrate ancient and eastern work routes`.
+
+Follow-up commit message: `Fix reviewed batch A route calibration`.
 
 The final commit SHA is reported in the task response.
 
