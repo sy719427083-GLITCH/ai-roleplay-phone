@@ -1,4 +1,4 @@
-const createTraveler = (id, gender, name, asset, hair, headwear, bag, outfit, accent) => ({
+const createTraveler = (
   id,
   gender,
   name,
@@ -8,6 +8,20 @@ const createTraveler = (id, gender, name, asset, hair, headwear, bag, outfit, ac
   bag,
   outfit,
   accent,
+  shoes,
+  silhouette,
+) => ({
+  id,
+  gender,
+  name,
+  asset,
+  hair,
+  headwear,
+  bag,
+  outfit,
+  accent,
+  shoes,
+  silhouette,
 });
 
 export const WORK_TRAVELER_GROUPS = Object.freeze([
@@ -25,6 +39,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "canvas-tote",
         "pleated-uniform",
         "green-notebook",
+        "canvas-sneakers",
+        "fitted-top-pleated-skirt",
       ),
       createTraveler(
         "campus-male",
@@ -36,6 +52,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "messenger-bag",
         "hoodie-layer",
         "campus-pass",
+        "high-top-trainers",
+        "relaxed-hoodie-straight-leg",
       ),
     ]),
   },
@@ -53,6 +71,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "chain-crossbody",
         "cropped-jacket",
         "neon-earcuff",
+        "platform-boots",
+        "cropped-top-wide-leg",
       ),
       createTraveler(
         "trend-male",
@@ -64,6 +84,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "sling-pack",
         "oversized-streetwear",
         "silver-choker",
+        "chunky-sneakers",
+        "boxy-layered-cargo",
       ),
     ]),
   },
@@ -81,6 +103,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "book-tote",
         "cardigan-skirt",
         "poetry-book",
+        "mary-jane-flats",
+        "soft-cardigan-a-line",
       ),
       createTraveler(
         "literary-male",
@@ -92,6 +116,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "leather-satchel",
         "knit-shirt",
         "fountain-pen",
+        "leather-loafers",
+        "slim-knit-tapered-trouser",
       ),
     ]),
   },
@@ -109,6 +135,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "quilted-handbag",
         "silk-dress",
         "gold-watch",
+        "pointed-heels",
+        "cinched-waist-column",
       ),
       createTraveler(
         "luxe-male",
@@ -120,6 +148,8 @@ export const WORK_TRAVELER_GROUPS = Object.freeze([
         "leather-briefcase",
         "tailored-coat",
         "signet-ring",
+        "oxford-shoes",
+        "structured-coat-tailored-trouser",
       ),
     ]),
   },

@@ -102,3 +102,26 @@ npm test
 
 - The new traveler asset paths referenced by `src/workTravelers.js` are registry entries only in this task; the corresponding image files are not part of this change and will need to land in the later asset task before UI wiring can use them.
 - The current UI still uses the older generic traveler assets and minute-style formatter in `src/App.jsx`; Task 1 only establishes the shared data/helper layer and test coverage.
+
+## Fix Review
+
+### Files
+
+- Modified `src/workTravelers.js` to add non-empty, unique `shoes` and `silhouette` metadata for all eight travelers.
+- Modified `src/workTravelers.test.js` to require both fields and verify each field is unique across all eight travelers.
+
+### Command
+
+```bash
+node --test src/workTravelers.test.js src/workThemes.test.js
+```
+
+### Exact Pass Summary
+
+```text
+1..20
+# tests 20
+# pass 20
+# fail 0
+# duration_ms 52.729208
+```

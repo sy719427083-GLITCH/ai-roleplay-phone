@@ -42,6 +42,8 @@ test("stores detailed metadata so travelers are not simple recolors", () => {
     traveler.bag,
     traveler.outfit,
     traveler.accent,
+    traveler.shoes,
+    traveler.silhouette,
   ].join("|");
 
   assert.equal(femaleTravelers.length, 4);
@@ -52,7 +54,11 @@ test("stores detailed metadata so travelers are not simple recolors", () => {
     && traveler.bag
     && traveler.outfit
     && traveler.accent
+    && traveler.shoes
+    && traveler.silhouette
   )));
+  assert.equal(new Set(travelers.map((traveler) => traveler.shoes)).size, travelers.length);
+  assert.equal(new Set(travelers.map((traveler) => traveler.silhouette)).size, travelers.length);
   assert.equal(new Set(travelers.map(metadataSignature)).size, travelers.length);
   assert.ok(WORK_TRAVELER_GROUPS.every((group) => {
     const signatures = group.travelers.map(metadataSignature);
