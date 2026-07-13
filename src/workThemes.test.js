@@ -1,18 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import * as workThemes from "./workThemes.js";
 
 const {
   TAG_WORK_THEME_IDS,
   WORK_MAP_THEMES,
   buildWorkGenerationPrompt,
+  createWorkSession,
   getThemeIdForTag,
   getWorkTheme,
   inferWorkMapTheme,
+  interpolateWorkRoute,
   normalizeThemeJobs,
   resolveDisplayedWorkJob,
   resolveWorkMapView,
+  resolveWorkSessionState,
   withWorkMapTheme,
 } = workThemes;
 
@@ -114,29 +118,46 @@ test("each work map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.height >= 8);
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
+      assert.ok(place.pin.y <= 48, `${theme.id}:${place.type} must stay above the work list`);
+      assert.ok(Array.isArray(place.route) && place.route.length >= 3);
+      assert.deepEqual(place.route[0], theme.home);
+      assert.deepEqual(place.route.at(-1), place.pin);
     }
   }
 });
 
-test("audited work points target the visible buildings in generated maps", () => {
-  assert.deepEqual(getWorkTheme("modern").places.find((place) => place.type === "cafe").pin, { x: 22, y: 82 });
-  assert.deepEqual(getWorkTheme("modern").places.find((place) => place.type === "parcel_station").pin, { x: 79, y: 82 });
-  assert.deepEqual(getWorkTheme("campus").places.find((place) => place.type === "campus_lab").pin, { x: 52, y: 40 });
-  assert.deepEqual(getWorkTheme("alien_civilization").places.find((place) => place.type === "bio_dome").pin, { x: 50, y: 31 });
-});
-
-test("every work map and building outline asset exists", () => {
+test("every work map is a real portrait 9:16 asset and outlines are no longer required", () => {
   for (const theme of Object.values(WORK_MAP_THEMES)) {
     const mapUrl = new URL(`../public/work-map-assets/${theme.asset}`, import.meta.url);
     assert.ok(existsSync(mapUrl), `missing map asset: ${theme.asset}`);
     assert.ok(statSync(mapUrl).size > 1000, `empty map asset: ${theme.asset}`);
-    for (const place of theme.places) {
-      const outlineName = `${theme.id}-${place.type}.png`;
-      const outlineUrl = new URL(`../public/work-map-outlines/${outlineName}`, import.meta.url);
-      assert.ok(existsSync(outlineUrl), `missing outline asset: ${outlineName}`);
-      assert.ok(statSync(outlineUrl).size > 100, `empty outline asset: ${outlineName}`);
-    }
+    const png = readFileSync(mapUrl);
+    const width = png.readUInt32BE(16);
+    const height = png.readUInt32BE(20);
+    assert.ok(height > width, `${theme.asset} must be portrait`);
+    assert.ok(Math.abs(width / height - 9 / 16) < 0.08, `${theme.asset} must be close to 9:16`);
   }
+});
+
+test("work sessions travel first and only then consume work time", () => {
+  const job = { key: "job-a", durationMinutes: 60 };
+  const session = createWorkSession(job, 1_000, 30_000);
+  assert.equal(session.arriveAt, 31_000);
+  assert.equal(session.endAt, 3_631_000);
+  assert.deepEqual(resolveWorkSessionState(session, 16_000), {
+    phase: "travel",
+    progress: 0.5,
+    remainingMs: 15_000,
+  });
+  assert.equal(resolveWorkSessionState(session, 31_000).phase, "work");
+  assert.equal(resolveWorkSessionState(session, 31_000).remainingMs, 3_600_000);
+  assert.equal(resolveWorkSessionState(session, 3_631_000).phase, "complete");
+});
+
+test("route interpolation follows every road turn instead of drawing a straight shortcut", () => {
+  const route = [{ x: 10, y: 40 }, { x: 10, y: 20 }, { x: 70, y: 20 }];
+  assert.deepEqual(interpolateWorkRoute(route, 0.25), { x: 10, y: 20 });
+  assert.deepEqual(interpolateWorkRoute(route, 0.5), { x: 30, y: 20 });
 });
 
 test("replaces work that does not belong to the selected theme", () => {

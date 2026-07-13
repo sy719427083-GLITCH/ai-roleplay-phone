@@ -286,32 +286,162 @@ export const WORK_MAP_THEMES = {
   ]),
 };
 
-const AUDITED_PLACE_CENTERS = Object.freeze({
-  hong_kong: {
-    cha_chaan_teng: [20, 19], victoria_pier: [82, 18], record_shop: [81, 49], neon_arcade: [80, 75], rooftop_laundry: [20, 79],
-  },
-  modern: { parcel_station: [79, 82], cafe: [22, 82] },
-  campus: {
-    campus_library: [21, 22], campus_cafeteria: [80, 24], campus_lab: [52, 40], campus_gym: [22, 72], campus_mailroom: [80, 74],
-  },
-  ice_age: { glacier_camp: [45, 19], mammoth_corral: [80, 31], ice_cave: [78, 74] },
-  cyberpunk: { grid_terminal: [70, 85] },
-  scifi: { research_lab: [50, 17], navigation_station: [28, 66] },
-  alien_civilization: {
-    bio_dome: [50, 31], translator_hall: [81, 37], crystal_forge: [74, 76], signal_spire: [15, 39],
-  },
-  online_game: { quest_guild: [24, 26], player_market: [74, 29], crafting_station: [80, 46], ranking_tower: [50, 77] },
-  cthulhu: { fog_lighthouse: [50, 24], hill_observatory: [13, 43] },
+const MAP_PLACE_LAYOUTS = [
+  [[18, 17], [48, 13], [79, 19], [32, 36], [70, 39]],
+  [[15, 27], [36, 14], [67, 13], [84, 31], [54, 41]],
+  [[23, 13], [53, 20], [82, 14], [72, 39], [34, 40]],
+  [[14, 17], [41, 31], [55, 12], [84, 22], [74, 43]],
+  [[18, 38], [27, 17], [52, 12], [77, 18], [82, 39]],
+];
+
+// Generated maps reserve their upper half for six structures: five workplaces and one home.
+Object.values(WORK_MAP_THEMES).forEach((workTheme, themeIndex) => {
+  const sourceLayout = MAP_PLACE_LAYOUTS[themeIndex % MAP_PLACE_LAYOUTS.length];
+  const xNudge = (themeIndex % 5) - 2;
+  const yNudge = Math.floor(themeIndex / 5) - 2;
+  workTheme.home = {
+    x: 10 + ((themeIndex * 7) % 16),
+    y: 44 - (themeIndex % 3),
+  };
+  workTheme.places.forEach((placeMeta, placeIndex) => {
+    const [baseX, baseY] = sourceLayout[(placeIndex + themeIndex) % sourceLayout.length];
+    const pin = {
+      x: Math.max(10, Math.min(90, baseX + xNudge)),
+      y: Math.max(10, Math.min(47, baseY + yNudge)),
+    };
+    const bendY = Math.min(47, Math.max(workTheme.home.y, pin.y) + 3);
+    const hubX = 43 + ((themeIndex * 5 + placeIndex * 3) % 15);
+    placeMeta.hitArea = { x: pin.x, y: pin.y, width: 18, height: 12 };
+    placeMeta.pin = pin;
+    placeMeta.route = [
+      { ...workTheme.home },
+      { x: workTheme.home.x + 5, y: bendY },
+      { x: hubX, y: bendY - 2 },
+      { x: pin.x, y: Math.min(47, pin.y + 4) },
+      { ...pin },
+    ];
+  });
 });
 
-for (const [themeId, centers] of Object.entries(AUDITED_PLACE_CENTERS)) {
-  for (const [placeType, [x, y]] of Object.entries(centers)) {
-    const placeMeta = WORK_MAP_THEMES[themeId]?.places.find((entry) => entry.type === placeType);
-    if (!placeMeta) continue;
-    placeMeta.hitArea = { ...placeMeta.hitArea, x, y };
+const GENERATED_MAP_COORDINATES = Object.freeze({
+  prehistoric: { home: [50, 31], pins: [[31, 11], [18, 25], [76, 22], [23, 43], [78, 42]] },
+  ancient: { home: [51, 43], pins: [[24, 12], [70, 12], [72, 29], [24, 34], [51, 28]] },
+  western_regions: { home: [50, 47], pins: [[20, 28], [49, 31], [82, 34], [20, 46], [75, 10]] },
+  xianxia: { home: [50, 40], pins: [[15, 13], [50, 13], [84, 14], [18, 41], [83, 42]] },
+  xuanhuan: { home: [50, 39], pins: [[15, 14], [50, 11], [85, 15], [15, 42], [84, 42]] },
+  mystic_realm: { home: [50, 36], pins: [[15, 15], [50, 12], [82, 15], [17, 43], [84, 43]] },
+  underworld: { home: [18, 21], pins: [[49, 8], [78, 22], [15, 47], [52, 39], [84, 47]] },
+  medieval: { home: [55, 39], pins: [[18, 21], [55, 14], [79, 25], [17, 47], [83, 46]] },
+  western_fantasy: { home: [50, 39], pins: [[50, 7], [15, 21], [84, 22], [18, 44], [82, 44]] },
+  fantasy: { home: [70, 34], pins: [[22, 11], [55, 14], [81, 10], [30, 31], [50, 47]] },
+  magic_world: { home: [50, 43], pins: [[15, 16], [50, 14], [85, 17], [14, 46], [86, 46]] },
+  magic_academy: { home: [50, 40], pins: [[14, 22], [50, 14], [84, 22], [16, 46], [84, 46]] },
+  island: { home: [15, 36], pins: [[27, 18], [74, 14], [48, 32], [75, 42], [26, 47]] },
+  ocean: { home: [84, 19], pins: [[16, 16], [50, 15], [14, 46], [52, 42], [85, 46]] },
+  republican: { home: [80, 35], pins: [[18, 12], [47, 11], [77, 13], [20, 34], [49, 34]] },
+  hong_kong: { home: [80, 39], pins: [[27, 16], [54, 16], [77, 17], [25, 36], [54, 35]] },
+  modern: {
+    home: [50, 10],
+    pins: [[18, 19], [80, 19], [16, 41], [84, 41], [50, 47]],
+    routes: [
+      [[50, 10], [50, 17], [38, 17], [28, 19], [18, 19]],
+      [[50, 10], [50, 17], [62, 17], [72, 19], [80, 19]],
+      [[50, 10], [50, 18], [36, 26], [24, 34], [16, 41]],
+      [[50, 10], [50, 18], [64, 26], [76, 34], [84, 41]],
+      [[50, 10], [50, 19], [50, 29], [50, 39], [50, 47]],
+    ],
+  },
+  campus: { home: [86, 9], pins: [[50, 9], [24, 19], [74, 20], [25, 38], [74, 37]] },
+  ice_age: { home: [50, 22], pins: [[22, 19], [79, 13], [25, 43], [70, 42], [50, 47]] },
+  wasteland: { home: [20, 39], pins: [[20, 15], [50, 12], [80, 18], [50, 36], [82, 42]] },
+  cyberpunk: { home: [82, 39], pins: [[20, 12], [50, 9], [82, 14], [20, 34], [52, 31]] },
+  scifi: { home: [50, 32], pins: [[20, 18], [50, 11], [80, 17], [18, 44], [82, 44]] },
+  alien_civilization: { home: [50, 41], pins: [[15, 22], [50, 20], [83, 22], [15, 42], [81, 43]] },
+  online_game: { home: [50, 47], pins: [[16, 16], [50, 11], [84, 16], [16, 39], [84, 40]] },
+  cthulhu: { home: [22, 35], pins: [[15, 15], [70, 18], [78, 41], [58, 47], [28, 47]] },
+});
+
+const buildGeneratedRoadRoute = (home, pin, placeIndex) => {
+  const hub = { x: 50 + (placeIndex % 2 ? 3 : -3), y: 29 + (placeIndex % 3) * 3 };
+  return [
+    { ...home },
+    { x: home.x, y: Math.min(47, home.y + (home.y < hub.y ? 4 : -4)) },
+    hub,
+    { x: pin.x, y: Math.min(47, pin.y + (pin.y < hub.y ? 5 : -5)) },
+    { ...pin },
+  ];
+};
+
+for (const [themeId, coordinates] of Object.entries(GENERATED_MAP_COORDINATES)) {
+  const workTheme = WORK_MAP_THEMES[themeId];
+  if (!workTheme) continue;
+  workTheme.home = { x: coordinates.home[0], y: coordinates.home[1] };
+  workTheme.places.forEach((placeMeta, placeIndex) => {
+    const [x, y] = coordinates.pins[placeIndex];
     placeMeta.pin = { x, y };
-  }
+    placeMeta.hitArea = { x, y, width: 14, height: 10 };
+    placeMeta.route = coordinates.routes?.[placeIndex]?.map(([routeX, routeY]) => ({ x: routeX, y: routeY }))
+      || buildGeneratedRoadRoute(workTheme.home, placeMeta.pin, placeIndex);
+  });
 }
+
+export const createWorkSession = (job, startAt = Date.now(), travelMs = 60_000) => {
+  const safeTravelMs = Math.max(1_000, Number(travelMs) || 60_000);
+  const workMs = Math.max(60_000, Number(job?.durationMinutes || 60) * 60_000);
+  return {
+    jobKey: job?.key,
+    job,
+    startAt,
+    arriveAt: startAt + safeTravelMs,
+    workStartAt: startAt + safeTravelMs,
+    endAt: startAt + safeTravelMs + workMs,
+  };
+};
+
+export const resolveWorkSessionState = (session, now = Date.now()) => {
+  if (!session) return { phase: "idle", progress: 0, remainingMs: 0 };
+  const arriveAt = Number(session.arriveAt || session.startAt);
+  if (now < arriveAt) {
+    const total = Math.max(1, arriveAt - session.startAt);
+    return {
+      phase: "travel",
+      progress: Math.min(1, Math.max(0, (now - session.startAt) / total)),
+      remainingMs: Math.max(0, arriveAt - now),
+    };
+  }
+  if (now < session.endAt) {
+    const workStartAt = Number(session.workStartAt || arriveAt);
+    const total = Math.max(1, session.endAt - workStartAt);
+    return {
+      phase: "work",
+      progress: Math.min(1, Math.max(0, (now - workStartAt) / total)),
+      remainingMs: Math.max(0, session.endAt - now),
+    };
+  }
+  return { phase: "complete", progress: 1, remainingMs: 0 };
+};
+
+export const interpolateWorkRoute = (route = [], progress = 0) => {
+  if (!route.length) return { x: 0, y: 0 };
+  if (route.length === 1) return { ...route[0] };
+  const segments = route.slice(1).map((point, index) => {
+    const previous = route[index];
+    return { previous, point, length: Math.hypot(point.x - previous.x, point.y - previous.y) };
+  });
+  const total = segments.reduce((sum, segment) => sum + segment.length, 0) || 1;
+  let target = Math.min(1, Math.max(0, progress)) * total;
+  for (const segment of segments) {
+    if (target <= segment.length) {
+      const ratio = segment.length ? target / segment.length : 0;
+      return {
+        x: Math.round((segment.previous.x + (segment.point.x - segment.previous.x) * ratio) * 100) / 100,
+        y: Math.round((segment.previous.y + (segment.point.y - segment.previous.y) * ratio) * 100) / 100,
+      };
+    }
+    target -= segment.length;
+  }
+  return { ...route.at(-1) };
+};
 
 export const getThemeIdForTag = (tag) => TAG_WORK_THEME_IDS[String(tag || "").trim()] || "";
 
@@ -412,6 +542,7 @@ const normalizeJob = (item, workTheme, index) => {
     distance: item.distance || `${(0.4 + index * 0.5).toFixed(1)} km`,
     pin: placeMeta.pin,
     hitArea: placeMeta.hitArea,
+    route: placeMeta.route,
     color: placeMeta.color,
   };
 };

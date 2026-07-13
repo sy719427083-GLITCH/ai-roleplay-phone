@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.89");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.90");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9644,6 +9644,230 @@ select {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* 9:16 route map: six structures stay above the complete five-job dock. */
+.work-building-hotspot,
+.work-building-pixel-outline,
+.work-building-label,
+.work-floating-panel {
+  display: none !important;
+}
+
+.work-road-route {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.work-road-route polyline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 0.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1.1 1.3;
+  filter: drop-shadow(0 1px 1px rgba(25, 52, 68, 0.34));
+  vector-effect: non-scaling-stroke;
+}
+
+.work-home-marker,
+.work-map-job-marker {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  background: rgba(28, 50, 64, 0.48);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(14, 31, 43, 0.16);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.work-map-job-marker {
+  padding: 0;
+  transition: none;
+}
+
+.work-map-job-marker.active {
+  background: rgba(255, 255, 255, 0.82);
+  color: #2d6e96;
+}
+
+.work-map-job-marker.running {
+  border-color: rgba(255, 240, 182, 0.96);
+  background: rgba(30, 55, 68, 0.68);
+}
+
+.work-map-traveler {
+  position: absolute;
+  z-index: 6;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  transform: translate(-50%, -76%);
+  filter: drop-shadow(0 3px 4px rgba(16, 34, 45, 0.25));
+  transition: left 850ms linear, top 850ms linear;
+  pointer-events: none;
+}
+
+.work-map-traveler.walking {
+  animation: workTravelerStep 650ms ease-in-out infinite alternate;
+}
+
+.work-job-dock {
+  position: absolute;
+  z-index: 8;
+  right: 10px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  left: 10px;
+  display: grid;
+  gap: 6px;
+  padding-top: 24px;
+  background: linear-gradient(to bottom, transparent, rgba(17, 34, 45, 0.08) 22%, rgba(17, 34, 45, 0.13));
+  pointer-events: none;
+}
+
+.work-job-list {
+  display: grid;
+  gap: 4px;
+}
+
+.work-job-row {
+  position: relative;
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(17, 34, 45, 0.3);
+  color: #fff;
+  padding: 6px 8px;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(7px) saturate(115%);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+  pointer-events: auto;
+}
+
+.work-job-row.active {
+  border-color: rgba(255, 255, 255, 0.65);
+  background: rgba(21, 45, 59, 0.44);
+}
+
+.work-job-row-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.work-job-row-copy,
+.work-job-row-meta {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.work-job-row-copy strong {
+  font-size: 12px;
+}
+
+.work-job-row-copy small {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.work-job-row-copy em {
+  color: rgba(211, 238, 255, 0.9);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.work-job-row-meta {
+  justify-items: end;
+}
+
+.work-job-row-meta strong {
+  font-size: 10px;
+}
+
+.work-job-row-meta em {
+  color: #ffe19a;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.work-job-row-progress {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.work-job-row-progress i {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.work-job-row-progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #fff;
+  transition: width 500ms linear;
+}
+
+.work-job-row-progress small {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 9px;
+}
+
+.work-job-dock .work-actions {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  display: grid;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.work-job-dock .work-actions button,
+.work-job-dock .work-actions .work-start,
+.work-job-dock .work-actions .work-refresh-button,
+.work-job-dock .work-actions .work-stop-button {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(17, 34, 45, 0.36);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(8, 22, 31, 0.54);
+  backdrop-filter: blur(7px) saturate(115%);
+  -webkit-backdrop-filter: blur(7px) saturate(115%);
+}
+
+@keyframes workTravelerStep {
+  from { margin-top: 0; }
+  to { margin-top: -2px; }
 }
 
 @keyframes workPixelOutlineIn {

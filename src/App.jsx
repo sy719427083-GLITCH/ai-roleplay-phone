@@ -16,6 +16,7 @@ import {
   Gamepad2,
   Globe2,
   Heart,
+  House,
   Image,
   Infinity,
   KeyRound,
@@ -89,12 +90,15 @@ import {
   WORK_MAP_THEMES,
   buildLocalThemeJobs,
   buildWorkGenerationPrompt,
+  createWorkSession,
   getThemeIdForTag,
   getWorkTheme,
   inferWorkMapTheme,
+  interpolateWorkRoute,
   normalizeThemeJobs,
   resolveDisplayedWorkJob,
   resolveWorkMapView,
+  resolveWorkSessionState,
   withWorkMapTheme,
 } from "./workThemes.js";
 import {
@@ -142,9 +146,8 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.89`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.89`;
-const workOutlineAsset = (themeId, placeType) => `${import.meta.env.BASE_URL}work-map-outlines/${themeId}-${placeType}.png?v=0.2.89`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.90`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.90`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2498,7 +2501,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.89</p>
+      <p className="version-label">Ccat OS V0.2.90</p>
     </section>
   );
 }
@@ -2940,30 +2943,37 @@ function GenericSettingPage({ item, onBack }) {
   );
 }
 
-function WorkMap({ jobs, selectedId, onSelect, onClear, themeId }) {
-  const selectedBuilding = jobs.find((job) => job.key === selectedId);
+function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessionState, travelerGender }) {
+  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
+  const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
+  const navigationJob = activeJob || selectedJob;
+  const route = navigationJob?.route || theme.places.find((placeMeta) => placeMeta.type === navigationJob?.placeType)?.route || [];
+  const travelerPosition = activeWork && sessionState.phase === "travel"
+    ? interpolateWorkRoute(route, sessionState.progress)
+    : activeWork && (sessionState.phase === "work" || sessionState.phase === "complete")
+      ? route.at(-1) || theme.home
+      : theme.home;
   return (
     <section className="work-map-panel" aria-label="工作地图" onClick={onClear}>
-      {selectedBuilding && (
-        <img
-          className="work-building-pixel-outline"
-          src={workOutlineAsset(themeId, selectedBuilding.placeType)}
-          alt=""
-          aria-hidden="true"
-        />
+      {navigationJob && route.length > 1 && (
+        <svg className="work-road-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={route.map((point) => `${point.x},${point.y}`).join(" ")} />
+        </svg>
       )}
+      <span className="work-home-marker" style={{ left: `${theme.home.x}%`, top: `${theme.home.y}%` }} aria-label="主角住宅">
+        <House size={13} strokeWidth={2.2} />
+      </span>
       {jobs.map((job) => {
         const active = job.key === selectedId;
-        const hitArea = job.hitArea || { ...job.pin, width: 24, height: 14 };
+        const running = job.key === activeJob?.key;
+        const Icon = workIconMap[job.icon] || MapPin;
         return (
           <button
-            className={`work-building-hotspot ${active ? "active" : ""}`}
+            className={`work-map-job-marker ${active ? "active" : ""} ${running ? "running" : ""}`}
             key={job.key}
             style={{
-              left: `${hitArea.x}%`,
-              top: `${hitArea.y}%`,
-              width: `${hitArea.width}%`,
-              height: `${hitArea.height}%`,
+              left: `${job.pin.x}%`,
+              top: `${job.pin.y}%`,
             }}
             onClick={(event) => {
               event.stopPropagation();
@@ -2971,12 +2981,18 @@ function WorkMap({ jobs, selectedId, onSelect, onClear, themeId }) {
             }}
             aria-label={`${job.placeName}：${job.title}`}
           >
-            <span className="work-building-label">
-              <strong>{job.placeName}</strong>
-            </span>
+            <Icon size={13} strokeWidth={2.2} />
           </button>
         );
       })}
+      {travelerPosition && (
+        <img
+          className={`work-map-traveler ${sessionState.phase === "travel" ? "walking" : ""}`}
+          src={`${import.meta.env.BASE_URL}work-map-assets/traveler-${travelerGender}.png?v=0.2.90`}
+          style={{ left: `${travelerPosition.x}%`, top: `${travelerPosition.y}%` }}
+          alt={travelerGender === "male" ? "男生主角" : "女生主角"}
+        />
+      )}
     </section>
   );
 }
@@ -3019,6 +3035,18 @@ function WorkAppScreen({ onClose }) {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [worldPickerOpen, setWorldPickerOpen] = useState(false);
   const [mapStatus, setMapStatus] = useState("");
+  const travelerGender = useMemo(() => {
+    try {
+      const profiles = JSON.parse(window.localStorage.getItem(ME_PROFILE_STORAGE_KEY)) || {};
+      const selectedProfileId = window.localStorage.getItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY) || "";
+      const profile = profiles[selectedProfileId] || Object.values(profiles)[0] || {};
+      return /(^|\s)(男|男性)|先生|少年|公子/.test(`${profile.gender || ""} ${profile.identity || ""} ${profile.role || ""}`)
+        ? "male"
+        : "female";
+    } catch {
+      return "female";
+    }
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -3115,31 +3143,26 @@ function WorkAppScreen({ onClose }) {
     window.setTimeout(() => setMapStatus(""), 1800);
   };
 
-  const hasRunningWork = activeWork?.endAt > now;
-  const hasCompletedWork = Boolean(activeWork && activeWork.endAt <= now);
+  const workSessionState = resolveWorkSessionState(activeWork, now);
+  const hasRunningWork = workSessionState.phase === "travel" || workSessionState.phase === "work";
+  const hasCompletedWork = workSessionState.phase === "complete";
   const hasPendingWork = hasRunningWork || hasCompletedWork;
   const selectedJob = jobs.find((job) => job.key === selectedId) || null;
   const activeJob = activeWork ? jobs.find((job) => job.key === activeWork.jobKey) || activeWork.job : null;
   const displayJob = resolveDisplayedWorkJob(jobs, selectedId, activeWork, hasCompletedWork);
   const selectedKey = selectedJob?.key || "";
-  const activeRemainingMs = hasRunningWork ? activeWork.endAt - now : 0;
-  const progress = hasCompletedWork ? 100 : hasRunningWork
-    ? Math.min(100, Math.max(0, ((now - activeWork.startAt) / (activeWork.endAt - activeWork.startAt)) * 100))
-    : 0;
+  const activeRemainingMs = hasRunningWork ? workSessionState.remainingMs : 0;
+  const progress = hasCompletedWork ? 100 : hasRunningWork ? workSessionState.progress * 100 : 0;
   const mappedJobs = jobs.map((job) => ({
     ...job,
-    remainingLabel: job.key === activeJob?.key ? formatWorkTime(activeRemainingMs) : formatWorkTime(job.durationMinutes * 60 * 1000),
+    remainingLabel: job.key === activeJob?.key
+      ? workSessionState.phase === "travel"
+        ? `前往 ${formatWorkTime(activeRemainingMs)}`
+        : formatWorkTime(activeRemainingMs)
+      : formatWorkTime(job.durationMinutes * 60 * 1000),
     remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
   }));
-  const displayMappedJob = displayJob
-    ? mappedJobs.find((job) => job.key === displayJob.key) || displayJob
-    : null;
   const isDisplayingActiveJob = Boolean(displayJob && activeJob && displayJob.key === activeJob.key);
-  const displayHitArea = displayMappedJob?.hitArea || { x: 50, y: 58, width: 24, height: 14 };
-  const workPanelAbove = displayHitArea.y > 54;
-  const workPanelAnchor = workPanelAbove
-    ? displayHitArea.y - displayHitArea.height / 2 - 2
-    : displayHitArea.y + displayHitArea.height / 2 + 2;
 
   useEffect(() => {
     if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
@@ -3195,12 +3218,9 @@ function WorkAppScreen({ onClose }) {
   const startWork = () => {
     if (hasPendingWork || !selectedJob) return;
     const startAt = Date.now();
-    setActiveWork({
-      jobKey: selectedJob.key,
-      job: selectedJob,
-      startAt,
-      endAt: startAt + selectedJob.durationMinutes * 60 * 1000,
-    });
+    const distanceKm = Number.parseFloat(selectedJob.distance) || 1;
+    const travelMs = Math.min(150_000, Math.max(35_000, 35_000 + distanceKm * 25_000));
+    setActiveWork(createWorkSession(selectedJob, startAt, travelMs));
   };
 
   const refreshJobs = async () => {
@@ -3215,8 +3235,9 @@ function WorkAppScreen({ onClose }) {
 
   const stopWork = () => {
     if (!hasRunningWork || !activeWork || !activeJob) return;
-    const elapsed = Math.max(0, Date.now() - activeWork.startAt);
-    const total = Math.max(1, activeWork.endAt - activeWork.startAt);
+    const workStartAt = activeWork.workStartAt || activeWork.arriveAt || activeWork.startAt;
+    const elapsed = workSessionState.phase === "work" ? Math.max(0, Date.now() - workStartAt) : 0;
+    const total = Math.max(1, activeWork.endAt - workStartAt);
     const rawAmount = Math.floor(activeJob.reward * Math.min(1, elapsed / total));
     const amount = Math.min(activeJob.reward, elapsed > 0 ? Math.max(1, rawAmount) : 0);
     creditWalletFromWork(activeJob, amount);
@@ -3271,42 +3292,53 @@ function WorkAppScreen({ onClose }) {
         </nav>
       )}
 
-      <WorkMap jobs={mappedJobs} selectedId={selectedKey} onSelect={selectJob} onClear={clearSelectedJob} themeId={themeId} />
+      <WorkMap
+        jobs={mappedJobs}
+        selectedId={selectedKey}
+        onSelect={selectJob}
+        onClear={clearSelectedJob}
+        theme={theme}
+        activeWork={activeWork}
+        sessionState={workSessionState}
+        travelerGender={travelerGender}
+      />
 
-      {displayMappedJob && (
-        <div
-          className={`work-floating-panel ${workPanelAbove ? "above" : "below"}`}
-          style={{ "--work-panel-anchor": `${workPanelAnchor}%` }}
-        >
-        <section className="work-detail-card" aria-live="polite">
-          <span className="work-detail-icon" aria-hidden="true">
-            {(() => {
-              const Icon = workIconMap[displayMappedJob.icon] || FileText;
-              return <Icon size={22} strokeWidth={1.8} />;
-            })()}
-          </span>
-          <span className="work-detail-copy">
-            <em>{displayMappedJob.placeName}</em>
-            <strong>{displayMappedJob.title}</strong>
-            <small>{displayMappedJob.content}</small>
-          </span>
-          <span className="work-detail-meta">
-            <strong>{displayMappedJob.remainingLabel}</strong>
-            <em>¥{displayMappedJob.reward.toLocaleString("en-US")}</em>
-            <small>等级 {levelMarks[displayMappedJob.level - 1]} · 时薪 ¥{displayMappedJob.hourlyRate}</small>
-          </span>
-          {isDisplayingActiveJob && (
-            <span className="work-detail-progress">
-              <span>
-                <strong>{hasCompletedWork ? "工作完成" : "工作倒计时"}</strong>
-                <em>{hasCompletedWork ? "可领取" : formatWorkTime(activeRemainingMs)}</em>
-              </span>
-              <i aria-hidden="true"><b style={{ width: `${progress}%` }} /></i>
-            </span>
-          )}
-        </section>
+      <section className="work-job-dock" aria-label="全部工作">
+        <div className="work-job-list">
+          {mappedJobs.map((job) => {
+            const Icon = workIconMap[job.icon] || FileText;
+            const selected = job.key === selectedKey;
+            const running = job.key === activeJob?.key;
+            return (
+              <button
+                key={job.key}
+                className={`work-job-row ${selected ? "active" : ""} ${running ? "running" : ""}`}
+                onClick={() => selectJob(job.key)}
+              >
+                <span className="work-job-row-icon"><Icon size={16} strokeWidth={1.9} /></span>
+                <span className="work-job-row-copy">
+                  <strong>{job.title}</strong>
+                  <small>{job.content}</small>
+                  {selected && <em>主角房 → {job.placeName} · {job.distance}</em>}
+                </span>
+                <span className="work-job-row-meta">
+                  <strong>{job.remainingLabel}</strong>
+                  <em>¥{job.reward.toLocaleString("en-US")}</em>
+                </span>
+                {running && (
+                  <span className="work-job-row-progress">
+                    <i><b style={{ width: `${progress}%` }} /></i>
+                    <small>
+                      {hasCompletedWork ? "工作完成" : workSessionState.phase === "travel" ? "前往中" : "剩余工作时间"}
+                    </small>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="work-actions">
+        <div className="work-actions">
         <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
           <RefreshCw size={15} />
           <span>
@@ -3327,9 +3359,8 @@ function WorkAppScreen({ onClose }) {
             <em>Stop & Settle</em>
           </span>
         </button>
-      </div>
         </div>
-      )}
+      </section>
 
       {worldPickerOpen && (
         <div className="work-world-picker-backdrop" onClick={() => setWorldPickerOpen(false)}>
