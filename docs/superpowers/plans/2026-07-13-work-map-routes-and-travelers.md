@@ -117,11 +117,11 @@ export const validateWorkRouteTheme = (themeId, theme, routeTheme) => string[];
 export const interpolateWorkRoute = (samples, progress) => ({ x, y });
 ```
 
-- [ ] **Step 1: Write failing route-contract tests** requiring exactly 25 theme ids, five route keys matching each theme's five place types, finite normalized coordinates, at least 12 motion samples per route, valid `M`-prefixed SVG segments, positive distance, matching home start and matching pin end.
+- [ ] **Step 1: Write failing route-contract tests** against a complete theme fixture, requiring five route keys matching that theme's five place types, finite normalized coordinates, at least 12 motion samples per route, valid `M`-prefixed SVG segments, positive distance, matching home start and matching pin end.
 - [ ] **Step 2: Add uniqueness tests** proving no two routes share the same serialized sample list and no theme uses one five-route pattern translated to different pins.
 - [ ] **Step 3: Run `node --test src/workRouteData.test.js`** and verify the missing module failure.
-- [ ] **Step 4: Implement the registry and validators** with the current `modern` route data migrated first; use complete values rather than fallbacks for every migrated entry.
-- [ ] **Step 5: Update `workThemes.js`** to merge `home`, `pin`, `distanceMeters`, `routeSamples`, and `routeSegments` from `WORK_ROUTE_DATA`; delete `MAP_PLACE_LAYOUTS`, `GENERATED_MAP_COORDINATES`, and `buildGeneratedRoadRoute` once all 25 themes are calibrated.
+- [ ] **Step 4: Implement the registry and validators** with the current `modern` route data migrated first; use complete values rather than fallbacks for every migrated entry, and let an uncalibrated theme return no route record until its batch task supplies one.
+- [ ] **Step 5: Update `workThemes.js`** to merge `home`, `pin`, `distanceMeters`, `routeSamples`, and `routeSegments` only for calibrated themes; retain the old data path temporarily for uncalibrated themes and delete it in Task 10 after all 25 themes are present.
 - [ ] **Step 6: Update interpolation** to consume dense samples and weight movement by segment length so speed remains constant through bends.
 - [ ] **Step 7: Run focused route/theme tests** and commit with message `Define calibrated work route schema`.
 
@@ -294,7 +294,8 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - [ ] **Step 2: Keep the five themes compositionally distinct**, with different road topology and building silhouettes rather than repeated left-center-right layouts.
 - [ ] **Step 3: Calibrate all 25 routes and marker entrances**, including visible-segment breaks for foreground structures.
 - [ ] **Step 4: Inspect all 25 screenshots** and correct all mismatches.
-- [ ] **Step 5: Run tests and commit** with message `Calibrate future game and cthulhu routes`.
+- [ ] **Step 5: Add the final completeness test** requiring exactly 25 route themes and 125 routes, then delete `MAP_PLACE_LAYOUTS`, `GENERATED_MAP_COORDINATES`, and `buildGeneratedRoadRoute` so no generic route fallback remains.
+- [ ] **Step 6: Run tests and commit** with message `Calibrate future game and cthulhu routes`.
 
 ### Task 11: Work Map Rendering, Travel Motion, and Exact Countdown
 
