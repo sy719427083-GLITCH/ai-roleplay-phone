@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Work Route Calibrator</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --panel: rgba(17, 24, 39, 0.92);
+        --panel-border: rgba(148, 163, 184, 0.22);
+        --ink: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --accent-soft: rgba(56, 189, 248, 0.2);
+        --danger: #f87171;
+        --stage-shadow: 0 24px 80px rgba(15, 23, 42, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 28%),
+          linear-gradient(180deg, #020617, #0f172a 48%, #111827);
+        color: var(--ink);
+        font: 14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .calibrator-shell {
+        display: grid;
+        min-height: 100vh;
+        grid-template-columns: minmax(360px, 1.2fr) minmax(360px, 420px);
+      }
+
+      .panel {
+        border-left: 1px solid var(--panel-border);
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+      }
+
+      .map-panel {
+        padding: 20px;
+      }
+
+      .panel-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px 16px;
+        margin-bottom: 14px;
+      }
+
+      .panel-header h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      .hint {
+        color: var(--muted);
+      }
+
+      .control-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 14px;
+      }
+
+      .control {
+        display: grid;
+        gap: 6px;
+      }
+
+      .control label,
+      .section-title {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      select,
+      input,
+      button,
+      textarea,
+      pre {
+        font: inherit;
+      }
+
+      select,
+      input {
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.7);
+        color: var(--ink);
+        padding: 10px 12px;
+      }
+
+      button {
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.76);
+        color: var(--ink);
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+
+      button.active {
+        border-color: rgba(56, 189, 248, 0.72);
+        background: var(--accent-soft);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .button-row,
+      .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .button-row {
+        margin-bottom: 14px;
+      }
+
+      .button-row button {
+        min-width: 92px;
+      }
+
+      .status-row {
+        margin-bottom: 14px;
+        color: var(--muted);
+      }
+
+      .stage-frame {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 16px;
+        box-shadow: var(--stage-shadow);
+        background: #020617;
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 9 / 16;
+        overflow: hidden;
+      }
+
+      .stage img,
+      .stage svg,
+      .stage .marker-layer,
+      .stage .stage-grid {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .stage img {
+        object-fit: cover;
+      }
+
+      .stage-grid {
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+        background-size: 10% 10%;
+      }
+
+      .stage svg {
+        pointer-events: none;
+        overflow: visible;
+      }
+
+      .stage path {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.96);
+        stroke-width: 0.6;
+        stroke-dasharray: 1.25 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.6));
+      }
+
+      .stage .route-guide {
+        fill: none;
+        stroke: rgba(56, 189, 248, 0.42);
+        stroke-width: 0.35;
+        stroke-dasharray: none;
+      }
+
+      .marker-layer {
+        position: absolute;
+        inset: 0;
+      }
+
+      .marker,
+      .sample-point,
+      .break-toggle {
+        position: absolute;
+        transform: translate(-50%, -50%);
+      }
+
+      .marker {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.85);
+        box-shadow: 0 8px 24px rgba(2, 6, 23, 0.48);
+      }
+
+      .marker.active {
+        border-color: rgba(56, 189, 248, 0.9);
+        background: rgba(8, 47, 73, 0.92);
+      }
+
+      .marker-home {
+        background: rgba(30, 41, 59, 0.92);
+      }
+
+      .sample-point {
+        display: grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(248, 250, 252, 0.92);
+        color: #020617;
+        padding: 0;
+        font-size: 10px;
+      }
+
+      .sample-point.active {
+        border-color: rgba(56, 189, 248, 0.95);
+        outline: 2px solid rgba(56, 189, 248, 0.8);
+      }
+
+      .sample-point.locked {
+        background: rgba(251, 191, 36, 0.92);
+      }
+
+      .break-toggle {
+        margin-top: -20px;
+        min-width: 26px;
+        padding: 3px 6px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.82);
+        color: var(--muted);
+      }
+
+      .break-toggle.active {
+        color: var(--ink);
+        border-color: rgba(251, 191, 36, 0.9);
+        background: rgba(120, 53, 15, 0.92);
+      }
+
+      .side-panel {
+        display: grid;
+        grid-template-rows: auto auto auto 1fr;
+        gap: 16px;
+        padding: 20px;
+      }
+
+      .card {
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.54);
+        padding: 14px;
+      }
+
+      .sample-list,
+      .break-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .sample-chip,
+      .break-chip {
+        display: grid;
+        gap: 2px;
+        min-width: 88px;
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: rgba(15, 23, 42, 0.76);
+        color: var(--ink);
+        text-align: left;
+      }
+
+      .sample-chip.active {
+        border-color: rgba(56, 189, 248, 0.9);
+        background: rgba(8, 47, 73, 0.84);
+      }
+
+      .sample-chip strong,
+      .break-chip {
+        font-size: 12px;
+      }
+
+      .sample-chip span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .empty-text,
+      .empty-inline {
+        color: var(--muted);
+      }
+
+      .issues {
+        margin: 0;
+        padding-left: 18px;
+        color: #fda4af;
+      }
+
+      .issues li + li {
+        margin-top: 6px;
+      }
+
+      .export-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      pre {
+        margin: 0;
+        max-height: 260px;
+        overflow: auto;
+        border-radius: 12px;
+        background: rgba(2, 6, 23, 0.84);
+        padding: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .copy-status {
+        min-height: 20px;
+        color: var(--accent);
+      }
+
+      @media (max-width: 1180px) {
+        .calibrator-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .panel {
+          border-left: 0;
+          border-top: 1px solid var(--panel-border);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="calibrator-shell" data-work-route-calibrator>
+      <section class="map-panel">
+        <div class="panel-header">
+          <div>
+            <h1>Work Route Calibrator</h1>
+            <div class="hint">Click to add samples. Drag markers or interior samples. Delete removes the selected interior sample.</div>
+          </div>
+          <div class="hint">Cmd/Ctrl+Z = Undo</div>
+        </div>
+
+        <div class="control-grid">
+          <div class="control">
+            <label for="theme-select">Theme</label>
+            <select id="theme-select" data-theme-select></select>
+          </div>
+          <div class="control">
+            <label for="route-select">Route</label>
+            <select id="route-select" data-route-select></select>
+          </div>
+          <div class="control">
+            <label for="distance-input">Distance Meters</label>
+            <input id="distance-input" data-distance-input type="number" min="1" step="1" />
+          </div>
+          <div class="control">
+            <div class="section-title">Mode</div>
+            <div class="button-row">
+              <button type="button" data-mode-samples>Samples</button>
+              <button type="button" data-mode-breaks>Breaks</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button type="button" data-delete>Delete</button>
+          <button type="button" data-undo>Undo</button>
+          <button type="button" data-clear>Clear</button>
+        </div>
+
+        <div class="status-row">
+          <span>Pointer: <strong data-pointer>--, --</strong></span>
+          <span>Selection: <strong data-selection>none</strong></span>
+        </div>
+
+        <div class="stage-frame">
+          <div class="stage" data-stage>
+            <img alt="Selected work map" data-stage-image />
+            <div class="stage-grid" data-stage-grid></div>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" data-route-overlay></svg>
+            <div class="marker-layer" data-markers-layer></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel side-panel">
+        <section class="card">
+          <div class="section-title">Samples</div>
+          <div class="sample-list" data-sample-list></div>
+        </section>
+
+        <section class="card">
+          <div class="section-title">Visible-Segment Breaks</div>
+          <div class="break-list" data-break-list></div>
+          <div class="section-title" style="margin-top: 12px;">SVG Segments</div>
+          <pre data-visible-segments></pre>
+        </section>
+
+        <section class="card">
+          <div class="section-title">Validation</div>
+          <ul class="issues" data-issues></ul>
+        </section>
+
+        <section class="card">
+          <div class="export-header">
+            <span class="section-title">Active Export</span>
+            <button type="button" data-copy-route>Copy Route</button>
+          </div>
+          <pre data-route-export></pre>
+          <div class="export-header" style="margin-top: 14px;">
+            <span class="section-title">Theme Export</span>
+            <button type="button" data-copy-theme>Copy Theme</button>
+          </div>
+          <pre data-theme-export></pre>
+          <div class="copy-status" data-copy-status></div>
+        </section>
+      </aside>
+    </main>
+
+    <script type="module" src="./work-route-calibrator.js"></script>
+  </body>
+</html>
