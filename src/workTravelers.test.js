@@ -199,17 +199,35 @@ test("persists a dedicated work traveler id with invalid saved ids falling back"
   assert.equal(readStoredWorkTravelerId(storage), "luxe-male");
 });
 
-test("keeps detailed traveler assets primary and maps old generic images only as fallbacks", () => {
+test("maps every traveler to a distinct same-gender fallback from the detailed registry", () => {
   assert.equal(typeof getWorkTravelerFallbackAsset, "function");
 
   const travelers = flattenTravelers();
+  const registryAssets = new Set(travelers.map((traveler) => traveler.asset));
+  const travelerSource = readFileSync(fileURLToPath(new URL("./workTravelers.js", import.meta.url)), "utf8");
   assert.ok(travelers.every((traveler) => /traveler-.+-(female|male)\.png$/.test(traveler.asset)));
   assert.ok(travelers.every((traveler) => traveler.asset !== "work-map-assets/traveler-female.png"));
   assert.ok(travelers.every((traveler) => traveler.asset !== "work-map-assets/traveler-male.png"));
+  assert.equal(travelerSource.includes("traveler-female.png"), false);
+  assert.equal(travelerSource.includes("traveler-male.png"), false);
 
-  assert.equal(getWorkTravelerFallbackAsset("campus-female"), "work-map-assets/traveler-female.png");
-  assert.equal(getWorkTravelerFallbackAsset("trend-male"), "work-map-assets/traveler-male.png");
-  assert.equal(getWorkTravelerFallbackAsset("missing-traveler"), "work-map-assets/traveler-female.png");
+  for (const traveler of travelers) {
+    const fallbackAsset = getWorkTravelerFallbackAsset(traveler.id);
+    const fallbackTraveler = travelers.find((candidate) => candidate.asset === fallbackAsset);
+    const expectedFallbackId = traveler.groupId === "campus"
+      ? `trend-${traveler.gender}`
+      : `campus-${traveler.gender}`;
+
+    assert.ok(registryAssets.has(fallbackAsset), `${traveler.id} fallback must use a registry asset`);
+    assert.ok(existsSync(join(projectRoot, "public", fallbackAsset)), `${traveler.id} fallback must exist`);
+    assert.equal(fallbackTraveler.gender, traveler.gender, `${traveler.id} fallback must preserve gender`);
+    assert.equal(fallbackTraveler.id, expectedFallbackId, `${traveler.id} must use the required fallback traveler`);
+    assert.notEqual(fallbackAsset, traveler.asset, `${traveler.id} fallback must differ from its primary asset`);
+    assert.notEqual(fallbackAsset, "work-map-assets/traveler-female.png");
+    assert.notEqual(fallbackAsset, "work-map-assets/traveler-male.png");
+  }
+
+  assert.equal(getWorkTravelerFallbackAsset("missing-traveler"), getWorkTravelerFallbackAsset(DEFAULT_WORK_TRAVELER_ID));
 });
 
 test("ships eight detailed transparent 256px traveler PNG assets and removes old generic sprites", () => {

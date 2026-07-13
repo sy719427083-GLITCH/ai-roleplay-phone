@@ -199,3 +199,17 @@ NODE
 
 - The built-in image tool produced near-flat green backgrounds sampled around `#03f805` to `#07f709` rather than mathematically exact `#00ff00`; the mandated border auto-key helper handled this cleanly.
 - The source generations are polished anime/Q-style full-body sprites rather than extremely simplified super-deformed icons. They are cohesive and detailed, but the smallest map display naturally emphasizes silhouette over tiny accessory detail.
+
+## Stale Fallback Fix Evidence
+
+Date: 2026-07-13 (Asia/Shanghai)
+
+- Root cause: `getWorkTravelerFallbackAsset` still returned the deleted `work-map-assets/traveler-female.png` and `work-map-assets/traveler-male.png` files after the eight detailed registry assets replaced them.
+- Fix: fallback selection now resolves through `WORK_TRAVELERS_BY_ID`. `campus-female` and `campus-male` use `trend-female` and `trend-male`; every trend, literary, and luxe traveler uses the same-gender campus traveler. Invalid IDs normalize to `campus-female`, whose fallback is `trend-female`.
+- Regression assertions: all eight fallback paths exist, belong to the eight-asset registry, preserve gender, differ from their requested primary asset, follow the required campus/non-campus routing, and the production traveler module contains neither deleted generic filename.
+- TDD RED evidence: `node --test src/workTravelers.test.js` failed 1 of 7 tests with `campus-female fallback must use a registry asset` before the implementation change.
+- Focused GREEN evidence: `node --test src/workTravelers.test.js` passed 7 of 7 tests with exit code 0.
+- Full test evidence: `npm test` passed 91 of 91 tests with exit code 0.
+- Build evidence: `npm run build` transformed 1787 modules and completed in 957ms with exit code 0.
+- Build concern: Vite retained the existing warning that `/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.90` did not resolve at build time and will be resolved at runtime; it did not fail the build and is outside this fix's scope.
+- Files changed by this fix: `src/workTravelers.js`, `src/workTravelers.test.js`, and `.superpowers/sdd/task-5-report.md` only.

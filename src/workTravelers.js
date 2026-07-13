@@ -172,11 +172,11 @@ export const normalizeWorkTravelerId = (travelerId) => {
 
 export const getWorkTraveler = (travelerId) => WORK_TRAVELERS_BY_ID[normalizeWorkTravelerId(travelerId)];
 
-export const getWorkTravelerFallbackAsset = (travelerId) => (
-  getWorkTraveler(travelerId).gender === "male"
-    ? "work-map-assets/traveler-male.png"
-    : "work-map-assets/traveler-female.png"
-);
+export const getWorkTravelerFallbackAsset = (travelerId) => {
+  const traveler = getWorkTraveler(travelerId);
+  const fallbackGroupId = traveler.id.startsWith("campus-") ? "trend" : "campus";
+  return WORK_TRAVELERS_BY_ID[`${fallbackGroupId}-${traveler.gender}`].asset;
+};
 
 const getStorage = (storage) => storage || globalThis.localStorage;
 
