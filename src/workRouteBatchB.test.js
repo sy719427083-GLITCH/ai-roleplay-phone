@@ -17,6 +17,12 @@ const BATCH_B_THEME_IDS = Object.freeze([
   "fantasy",
 ]);
 
+const REVIEWED_HOME_DOORS = Object.freeze({
+  medieval: { x: 24, y: 32 },
+  western_fantasy: { x: 78, y: 42 },
+  fantasy: { x: 71, y: 64 },
+});
+
 const SVG_COMMAND_ARITY = Object.freeze({ M: 2, L: 2, C: 6 });
 const SVG_TOKEN_PATTERN = /[MLC]|[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?/g;
 const SVG_COMMANDS = new Set(Object.keys(SVG_COMMAND_ARITY));
@@ -99,6 +105,12 @@ test("batch B route keys match the five place types for each theme", () => {
     const expectedPlaceTypes = theme.places.map((place) => place.type);
 
     assert.deepEqual(Object.keys(routeTheme.routes), expectedPlaceTypes, themeId);
+  }
+});
+
+test("reviewed batch B homes are anchored to their visible doors", () => {
+  for (const [themeId, homeDoor] of Object.entries(REVIEWED_HOME_DOORS)) {
+    assert.deepEqual(WORK_ROUTE_BATCH_B[themeId].home, homeDoor, themeId);
   }
 });
 

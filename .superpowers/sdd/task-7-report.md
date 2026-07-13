@@ -5,6 +5,7 @@
 - Implemented `WORK_ROUTE_BATCH_B` for exactly five themes: `mystic_realm`, `underworld`, `medieval`, `western_fantasy`, and `fantasy`.
 - Calibrated 25 routes with authored `home`, `pin`, `distanceMeters`, 12+ normalized road-center `samples`, and uppercase `M`/`L` visible SVG segments.
 - Generated `docs/superpowers/qa/routes-batch-b-contact-sheet.png` as a 5x5 route QA sheet with home markers, destination markers, and dashed paths.
+- Applied the independent-review follow-up: corrected three home-door origins, recalibrated four reviewed routes, and cleared the fantasy upper-right selector area.
 - Final commit SHA is reported in the task response. Embedding the SHA in this committed report would change the SHA.
 
 ## Redraw Decisions
@@ -19,6 +20,22 @@
 - Did not use SVG, Canvas, manual illustration, or CLI fallback for redraws.
 - Copied selected generated outputs from `/Users/mypc/.codex/generated_images/019f5b67-da15-71f1-9d88-290eefed3075/` into `public/work-map-assets/`.
 - Resampled with `sips -z 1680 945` to preserve the full image without cropping while making the ratio exact.
+
+## Follow-up Image Edit
+
+- Edited `fantasy` with built-in `image_gen` to remove the moon, bright star points, and distant floating-island focal object from the upper-right selector-clearance area.
+- Copied the selected edit from `/Users/mypc/.codex/generated_images/019f5b67-da15-71f1-9d88-290eefed3075/exec-27f37bc1-95f3-4339-966d-e131ada02bdd.png`.
+- Normalized the selected edit to the required exact 945x1680 output.
+
+```text
+Use case: precise-object-edit
+Asset type: 9:16 mobile game work-route map background
+Input image: Image 1 is the edit target.
+Primary request: Edit only the upper-right approximately 12% width by 12% height selector-clearance area. Remove the bright moon, bright star points, and any small floating-island focal object from that clearance area. Replace them with quiet low-contrast blue sky and soft diffuse cloud texture that matches the surrounding illustration.
+Invariants: Preserve the exact portrait composition, dimensions, style, colors, lighting, all six buildings, every visible door, all roads, bridges, islands, crystals, waterfalls, flowers, and all content outside the upper-right clearance area. Do not move, redraw, crop, resize, or restyle any map destination or route surface.
+Constraints: The upper-right 12% x 12% must contain scenery-only quiet sky/clouds with no bright moon, focal object, building, door, destination, marker, route junction, or high-contrast isolated light. No text, labels, UI, markers, route overlays, characters, creatures, logos, or watermark.
+Avoid: changing any route geometry; altering building entrances; adding objects; destructive cropping; changing the 9:16 framing.
+```
 
 ## Redraw Prompts
 
@@ -70,13 +87,15 @@ Constraints: exactly six prominent buildings/structures, all six doors visible, 
 - Re-inspected the final 945x1680 assets before route calibration.
 - Authored route samples in normalized percentage coordinates over the final PNGs.
 - Used actual visible doors or road-mouth entrances for `home` and each route `pin`, then traced the visible road center through curves, bridges, stairs, loops, and shared road portions.
+- Follow-up home-door anchors are `medieval (24,32)`, `western_fantasy (78,42)`, and `fantasy (71,64)`.
+- Recalibrated `medieval/watchtower` through the central plaza branch and recalibrated `western_fantasy` guild, magic academy, and potion shop around buildings and walls on visible roads.
 - Added split `visibleSegments` where bridge, ledge, gate, or foreground occlusion should interrupt the route overlay.
 - Did not copy legacy/generated `placeMeta.route` arrays.
 
 ## Tests
 
-- `node --test src/workRouteBatchB.test.js`: 4 tests passed.
-- `npm test`: 95 tests passed.
+- `node --test src/workRouteBatchB.test.js`: 5 tests passed.
+- `npm test`: 96 tests passed.
 
 ## Visual QA
 
@@ -84,6 +103,8 @@ Constraints: exactly six prominent buildings/structures, all six doors visible, 
 - Inspected all 25 panels.
 - Corrected underworld dock/registry/pavilion routes to follow the bridge and lantern-roundabout road network.
 - Corrected the medieval stable route to travel through the plaza/gate road instead of cutting across the wall area.
+- Re-inspected all 25 regenerated panels after the follow-up and corrected the reviewed medieval and western paths.
+- Confirmed the fantasy upper-right approximately 12% x 12% contains only quiet sky/cloud scenery.
 
 ## Files
 
@@ -101,5 +122,4 @@ Constraints: exactly six prominent buildings/structures, all six doors visible, 
 ## Concerns
 
 - `WORK_ROUTE_BATCH_B` is standalone by design because this task forbids edits to `workRouteData.js`.
-- `fantasy` keeps a moon in the upper-right selector-clearance area; it is scenery only, with no building, door, route junction, or destination marker.
 - `medieval` retains non-human stable animals from the pre-existing passing map; there are no baked UI elements or human characters.
