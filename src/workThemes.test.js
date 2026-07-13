@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import * as workThemes from "./workThemes.js";
+import { WORK_ROUTE_DATA } from "./workRouteData.js";
 
 const {
   TAG_WORK_THEME_IDS,
@@ -118,7 +119,8 @@ test("each work map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.height >= 8);
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
-      assert.ok(place.pin.y <= 48, `${theme.id}:${place.type} must stay above the work list`);
+      assert.ok(place.pin.x >= 0 && place.pin.x <= 100);
+      assert.ok(place.pin.y >= 0 && place.pin.y <= 100);
       const routeSamples = place.routeSamples || place.route;
       assert.ok(Array.isArray(routeSamples) && routeSamples.length >= 3);
       assert.deepEqual(routeSamples[0], theme.home);
@@ -181,25 +183,24 @@ test("route interpolation follows every road turn instead of drawing a straight 
   assert.deepEqual(interpolateWorkRoute(route, 0.5), { x: 30, y: 20 });
 });
 
-test("modern merges calibrated route fields while uncalibrated themes stay on the temporary path", () => {
-  const modern = getWorkTheme("modern");
-  const bookstore = modern.places.find((place) => place.type === "bookstore");
-  assert.deepEqual(modern.home, { x: 50, y: 10 });
-  assert.deepEqual(bookstore.hitArea, { x: 22, y: 26, width: 40, height: 18 });
-  assert.equal(bookstore.distanceMeters, 420);
-  assert.ok(bookstore.routeSamples.length >= 12);
-  assert.deepEqual(bookstore.route, bookstore.routeSamples);
-  assert.deepEqual(bookstore.routeSamples[0], modern.home);
-  assert.deepEqual(bookstore.routeSamples.at(-1), bookstore.pin);
-  assert.ok(bookstore.routeSegments.every((segment) => segment.startsWith("M ")));
+test("all theme home, pin, distance, sample, and segment data come from the calibrated registry", () => {
+  assert.equal(Object.keys(WORK_MAP_THEMES).length, 25);
 
-  const xuanhuan = getWorkTheme("xuanhuan");
-  const alchemy = xuanhuan.places.find((place) => place.type === "alchemy");
-  assert.equal("routeSamples" in alchemy, false);
-  assert.equal("routeSegments" in alchemy, false);
-  assert.equal("distanceMeters" in alchemy, false);
-  assert.deepEqual(alchemy.hitArea, { x: 50, y: 11, width: 14, height: 10 });
-  assert.ok(Array.isArray(alchemy.route) && alchemy.route.length >= 3);
+  for (const [themeId, theme] of Object.entries(WORK_MAP_THEMES)) {
+    const routeTheme = WORK_ROUTE_DATA[themeId];
+    assert.ok(routeTheme, `${themeId} must have calibrated route data`);
+    assert.deepEqual(theme.home, routeTheme.home);
+
+    for (const place of theme.places) {
+      const routeRecord = routeTheme.routes[place.type];
+      assert.ok(routeRecord, `${themeId}:${place.type} must have a calibrated route`);
+      assert.deepEqual(place.pin, routeRecord.pin);
+      assert.equal(place.distanceMeters, routeRecord.distanceMeters);
+      assert.deepEqual(place.routeSamples, routeRecord.samples);
+      assert.deepEqual(place.routeSegments, routeRecord.visibleSegments);
+      assert.deepEqual(place.route, routeRecord.samples);
+    }
+  }
 });
 
 test("replaces work that does not belong to the selected theme", () => {

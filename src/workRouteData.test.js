@@ -1,22 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   WORK_ROUTE_DATA,
   getWorkRouteTheme,
   interpolateWorkRoute,
   validateWorkRouteTheme,
 } from "./workRouteData.js";
-
-const MODERN_THEME_FIXTURE = Object.freeze({
-  id: "modern",
-  places: [
-    { type: "bookstore", pin: { x: 18, y: 19 } },
-    { type: "flower_shop", pin: { x: 80, y: 19 } },
-    { type: "clinic", pin: { x: 16, y: 41 } },
-    { type: "parcel_station", pin: { x: 84, y: 41 } },
-    { type: "cafe", pin: { x: 50, y: 47 } },
-  ],
-});
+import { WORK_MAP_THEMES } from "./workThemes.js";
 
 const serializeSamples = (samples) => JSON.stringify(samples.map(({ x, y }) => [x, y]));
 
@@ -32,20 +23,33 @@ const buildThemePatternSignature = (routeTheme) => JSON.stringify(
 const validateBookstoreRoute = (mutateRoute) => {
   const routeTheme = structuredClone(getWorkRouteTheme("modern"));
   mutateRoute(routeTheme.routes.bookstore);
-  return validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, routeTheme);
+  return validateWorkRouteTheme("modern", WORK_MAP_THEMES.modern, routeTheme);
 };
 
-test("only modern is calibrated and its route theme matches the exact contract", () => {
-  assert.deepEqual(Object.keys(WORK_ROUTE_DATA), ["modern"]);
-  assert.deepEqual(validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, getWorkRouteTheme("modern")), []);
-  assert.equal(getWorkRouteTheme("xuanhuan"), null);
+test("registers exactly 25 calibrated themes and 125 validated routes", () => {
+  assert.equal(Object.keys(WORK_ROUTE_DATA).length, 25);
+  assert.equal(
+    Object.values(WORK_ROUTE_DATA).reduce((count, routeTheme) => (
+      count + Object.keys(routeTheme.routes).length
+    ), 0),
+    125,
+  );
+  assert.deepEqual(Object.keys(WORK_ROUTE_DATA).sort(), Object.keys(WORK_MAP_THEMES).sort());
+
+  for (const [themeId, theme] of Object.entries(WORK_MAP_THEMES)) {
+    assert.deepEqual(
+      validateWorkRouteTheme(themeId, theme, getWorkRouteTheme(themeId)),
+      [],
+      `${themeId} route data must validate`,
+    );
+  }
 });
 
 test("route validation independently requires exactly five theme places and route keys", () => {
   const routeTheme = getWorkRouteTheme("modern");
   const fourPlaceTheme = {
-    ...MODERN_THEME_FIXTURE,
-    places: MODERN_THEME_FIXTURE.places.slice(0, 4),
+    ...WORK_MAP_THEMES.modern,
+    places: WORK_MAP_THEMES.modern.places.slice(0, 4),
   };
   const fourRouteTheme = {
     ...routeTheme,
@@ -57,9 +61,23 @@ test("route validation independently requires exactly five theme places and rout
       .includes("modern: expected exactly 5 theme places, received 4"),
   );
   assert.ok(
-    validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, fourRouteTheme)
+    validateWorkRouteTheme("modern", WORK_MAP_THEMES.modern, fourRouteTheme)
       .includes("modern: expected exactly 5 route keys, received 4"),
   );
+});
+
+test("legacy generic route fallback identifiers are absent from route integration sources", () => {
+  const sources = ["workRouteData.js", "workThemes.js"]
+    .map((fileName) => readFileSync(new URL(fileName, import.meta.url), "utf8"))
+    .join("\n");
+
+  for (const identifier of [
+    "MAP_PLACE_LAYOUTS",
+    "GENERATED_MAP_COORDINATES",
+    "buildGeneratedRoadRoute",
+  ]) {
+    assert.doesNotMatch(sources, new RegExp(`\\b${identifier}\\b`));
+  }
 });
 
 test("route validation accepts explicit M, L, and C command syntax", () => {

@@ -1,122 +1,15 @@
-const point = (x, y) => ({ x, y });
-
-const route = (pin, distanceMeters, samples, visibleSegments) => ({
-  pin,
-  distanceMeters,
-  samples,
-  visibleSegments,
-});
-
-const MODERN_HOME = point(50, 10);
+import { WORK_ROUTE_BATCH_A } from "./workRouteBatches/batch-a.js";
+import { WORK_ROUTE_BATCH_B } from "./workRouteBatches/batch-b.js";
+import { WORK_ROUTE_BATCH_C } from "./workRouteBatches/batch-c.js";
+import { WORK_ROUTE_BATCH_D } from "./workRouteBatches/batch-d.js";
+import { WORK_ROUTE_BATCH_E } from "./workRouteBatches/batch-e.js";
 
 export const WORK_ROUTE_DATA = Object.freeze({
-  modern: Object.freeze({
-    home: MODERN_HOME,
-    routes: Object.freeze({
-      bookstore: route(
-        point(18, 19),
-        420,
-        [
-          point(50, 10),
-          point(50, 12),
-          point(50, 14),
-          point(50, 16),
-          point(48, 17),
-          point(44, 17),
-          point(40, 17),
-          point(36, 17),
-          point(32, 18),
-          point(28, 19),
-          point(24, 19),
-          point(21, 19),
-          point(18, 19),
-        ],
-        ["M 50 10 L 50 17 L 38 17 L 28 19 L 18 19"],
-      ),
-      flower_shop: route(
-        point(80, 19),
-        420,
-        [
-          point(50, 10),
-          point(50, 12),
-          point(50, 14),
-          point(50, 16),
-          point(52, 17),
-          point(56, 17),
-          point(60, 17),
-          point(64, 17),
-          point(68, 18),
-          point(72, 19),
-          point(76, 19),
-          point(78, 19),
-          point(80, 19),
-        ],
-        ["M 50 10 L 50 17 L 62 17 L 72 19 L 80 19"],
-      ),
-      clinic: route(
-        point(16, 41),
-        470,
-        [
-          point(50, 10),
-          point(50, 12),
-          point(50, 14),
-          point(50, 16),
-          point(50, 18),
-          point(46, 20),
-          point(42, 22),
-          point(38, 24),
-          point(34, 27),
-          point(30, 30),
-          point(26, 33),
-          point(22, 36),
-          point(19, 38.5),
-          point(16, 41),
-        ],
-        ["M 50 10 L 50 18 L 36 26 L 24 34 L 16 41"],
-      ),
-      parcel_station: route(
-        point(84, 41),
-        470,
-        [
-          point(50, 10),
-          point(50, 12),
-          point(50, 14),
-          point(50, 16),
-          point(50, 18),
-          point(54, 20),
-          point(58, 22),
-          point(62, 24),
-          point(66, 27),
-          point(70, 30),
-          point(74, 33),
-          point(78, 36),
-          point(81, 38.5),
-          point(84, 41),
-        ],
-        ["M 50 10 L 50 18 L 64 26 L 76 34 L 84 41"],
-      ),
-      cafe: route(
-        point(50, 47),
-        370,
-        [
-          point(50, 10),
-          point(50, 13),
-          point(50, 16),
-          point(50, 19),
-          point(50, 22),
-          point(50, 25),
-          point(50, 28),
-          point(50, 31),
-          point(50, 34),
-          point(50, 37),
-          point(50, 40),
-          point(50, 43),
-          point(50, 47),
-        ],
-        ["M 50 10 L 50 19 L 50 29 L 50 39 L 50 47"],
-      ),
-    }),
-  }),
+  ...WORK_ROUTE_BATCH_A,
+  ...WORK_ROUTE_BATCH_B,
+  ...WORK_ROUTE_BATCH_C,
+  ...WORK_ROUTE_BATCH_D,
+  ...WORK_ROUTE_BATCH_E,
 });
 
 const LEGACY_THEME_ID_MIGRATIONS = Object.freeze({
