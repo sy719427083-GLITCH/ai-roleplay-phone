@@ -1,3 +1,7 @@
+import { getWorkRouteTheme } from "./workRouteData.js";
+
+export { interpolateWorkRoute } from "./workRouteData.js";
+
 const area = (x, y, width = 26, height = 14) => ({ x, y, width, height });
 
 const place = (type, name, icon, title, content, hitArea, color) => ({
@@ -385,6 +389,28 @@ for (const [themeId, coordinates] of Object.entries(GENERATED_MAP_COORDINATES)) 
   });
 }
 
+const clonePoint = ({ x, y }) => ({ x, y });
+
+const applyCalibratedRouteTheme = (workTheme, routeTheme) => {
+  if (!workTheme || !routeTheme) return;
+  workTheme.home = clonePoint(routeTheme.home);
+  workTheme.places.forEach((placeMeta) => {
+    const routeRecord = routeTheme.routes[placeMeta.type];
+    if (!routeRecord) return;
+    placeMeta.pin = clonePoint(routeRecord.pin);
+    placeMeta.distanceMeters = routeRecord.distanceMeters;
+    placeMeta.routeSamples = routeRecord.samples.map(clonePoint);
+    placeMeta.routeSegments = [...routeRecord.visibleSegments];
+    placeMeta.route = placeMeta.routeSamples;
+  });
+};
+
+for (const workTheme of Object.values(WORK_MAP_THEMES)) {
+  const routeTheme = getWorkRouteTheme(workTheme.id);
+  if (!routeTheme) continue;
+  applyCalibratedRouteTheme(workTheme, routeTheme);
+}
+
 export const createWorkSession = (job, startAt = Date.now(), travelMs = 60_000) => {
   const safeTravelMs = Math.max(1_000, Number(travelMs) || 60_000);
   const workMs = Math.max(60_000, Number(job?.durationMinutes || 60) * 60_000);
@@ -419,28 +445,6 @@ export const resolveWorkSessionState = (session, now = Date.now()) => {
     };
   }
   return { phase: "complete", progress: 1, remainingMs: 0 };
-};
-
-export const interpolateWorkRoute = (route = [], progress = 0) => {
-  if (!route.length) return { x: 0, y: 0 };
-  if (route.length === 1) return { ...route[0] };
-  const segments = route.slice(1).map((point, index) => {
-    const previous = route[index];
-    return { previous, point, length: Math.hypot(point.x - previous.x, point.y - previous.y) };
-  });
-  const total = segments.reduce((sum, segment) => sum + segment.length, 0) || 1;
-  let target = Math.min(1, Math.max(0, progress)) * total;
-  for (const segment of segments) {
-    if (target <= segment.length) {
-      const ratio = segment.length ? target / segment.length : 0;
-      return {
-        x: Math.round((segment.previous.x + (segment.point.x - segment.previous.x) * ratio) * 100) / 100,
-        y: Math.round((segment.previous.y + (segment.point.y - segment.previous.y) * ratio) * 100) / 100,
-      };
-    }
-    target -= segment.length;
-  }
-  return { ...route.at(-1) };
 };
 
 export const getThemeIdForTag = (tag) => TAG_WORK_THEME_IDS[String(tag || "").trim()] || "";
@@ -539,9 +543,16 @@ const normalizeJob = (item, workTheme, index) => {
     hourlyRate,
     reward,
     level,
-    distance: item.distance || `${(0.4 + index * 0.5).toFixed(1)} km`,
+    distance: item.distance || (
+      placeMeta.distanceMeters
+        ? `${(placeMeta.distanceMeters / 1000).toFixed(1)} km`
+        : `${(0.4 + index * 0.5).toFixed(1)} km`
+    ),
+    distanceMeters: placeMeta.distanceMeters,
     pin: placeMeta.pin,
     hitArea: placeMeta.hitArea,
+    routeSamples: placeMeta.routeSamples,
+    routeSegments: placeMeta.routeSegments,
     route: placeMeta.route,
     color: placeMeta.color,
   };

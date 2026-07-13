@@ -119,9 +119,15 @@ test("each work map defines building-sized hit areas", () => {
       assert.ok(place.hitArea.x >= 0 && place.hitArea.x <= 100);
       assert.ok(place.hitArea.y >= 0 && place.hitArea.y <= 100);
       assert.ok(place.pin.y <= 48, `${theme.id}:${place.type} must stay above the work list`);
-      assert.ok(Array.isArray(place.route) && place.route.length >= 3);
-      assert.deepEqual(place.route[0], theme.home);
-      assert.deepEqual(place.route.at(-1), place.pin);
+      const routeSamples = place.routeSamples || place.route;
+      assert.ok(Array.isArray(routeSamples) && routeSamples.length >= 3);
+      assert.deepEqual(routeSamples[0], theme.home);
+      assert.deepEqual(routeSamples.at(-1), place.pin);
+      if (place.routeSegments) {
+        assert.ok(place.distanceMeters > 0);
+        assert.ok(place.routeSamples.length >= 12);
+        assert.ok(place.routeSegments.every((segment) => segment.startsWith("M ")));
+      }
     }
   }
 });
@@ -173,6 +179,25 @@ test("route interpolation follows every road turn instead of drawing a straight 
   const route = [{ x: 10, y: 40 }, { x: 10, y: 20 }, { x: 70, y: 20 }];
   assert.deepEqual(interpolateWorkRoute(route, 0.25), { x: 10, y: 20 });
   assert.deepEqual(interpolateWorkRoute(route, 0.5), { x: 30, y: 20 });
+});
+
+test("modern merges calibrated route fields while uncalibrated themes stay on the temporary path", () => {
+  const modern = getWorkTheme("modern");
+  const bookstore = modern.places.find((place) => place.type === "bookstore");
+  assert.deepEqual(modern.home, { x: 50, y: 10 });
+  assert.equal(bookstore.distanceMeters, 420);
+  assert.ok(bookstore.routeSamples.length >= 12);
+  assert.deepEqual(bookstore.route, bookstore.routeSamples);
+  assert.deepEqual(bookstore.routeSamples[0], modern.home);
+  assert.deepEqual(bookstore.routeSamples.at(-1), bookstore.pin);
+  assert.ok(bookstore.routeSegments.every((segment) => segment.startsWith("M ")));
+
+  const xuanhuan = getWorkTheme("xuanhuan");
+  const alchemy = xuanhuan.places.find((place) => place.type === "alchemy");
+  assert.equal("routeSamples" in alchemy, false);
+  assert.equal("routeSegments" in alchemy, false);
+  assert.equal("distanceMeters" in alchemy, false);
+  assert.ok(Array.isArray(alchemy.route) && alchemy.route.length >= 3);
 });
 
 test("replaces work that does not belong to the selected theme", () => {
