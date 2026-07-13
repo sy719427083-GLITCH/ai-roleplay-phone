@@ -185,6 +185,7 @@ test("modern merges calibrated route fields while uncalibrated themes stay on th
   const modern = getWorkTheme("modern");
   const bookstore = modern.places.find((place) => place.type === "bookstore");
   assert.deepEqual(modern.home, { x: 50, y: 10 });
+  assert.deepEqual(bookstore.hitArea, { x: 22, y: 26, width: 40, height: 18 });
   assert.equal(bookstore.distanceMeters, 420);
   assert.ok(bookstore.routeSamples.length >= 12);
   assert.deepEqual(bookstore.route, bookstore.routeSamples);
@@ -197,6 +198,7 @@ test("modern merges calibrated route fields while uncalibrated themes stay on th
   assert.equal("routeSamples" in alchemy, false);
   assert.equal("routeSegments" in alchemy, false);
   assert.equal("distanceMeters" in alchemy, false);
+  assert.deepEqual(alchemy.hitArea, { x: 50, y: 11, width: 14, height: 10 });
   assert.ok(Array.isArray(alchemy.route) && alchemy.route.length >= 3);
 });
 

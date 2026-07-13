@@ -300,6 +300,7 @@ const MAP_PLACE_LAYOUTS = [
 
 // Generated maps reserve their upper half for six structures: five workplaces and one home.
 Object.values(WORK_MAP_THEMES).forEach((workTheme, themeIndex) => {
+  if (getWorkRouteTheme(workTheme.id)) return;
   const sourceLayout = MAP_PLACE_LAYOUTS[themeIndex % MAP_PLACE_LAYOUTS.length];
   const xNudge = (themeIndex % 5) - 2;
   const yNudge = Math.floor(themeIndex / 5) - 2;
@@ -344,17 +345,6 @@ const GENERATED_MAP_COORDINATES = Object.freeze({
   ocean: { home: [84, 19], pins: [[16, 16], [50, 15], [14, 46], [52, 42], [85, 46]] },
   republican: { home: [80, 35], pins: [[18, 12], [47, 11], [77, 13], [20, 34], [49, 34]] },
   hong_kong: { home: [80, 39], pins: [[27, 16], [54, 16], [77, 17], [25, 36], [54, 35]] },
-  modern: {
-    home: [50, 10],
-    pins: [[18, 19], [80, 19], [16, 41], [84, 41], [50, 47]],
-    routes: [
-      [[50, 10], [50, 17], [38, 17], [28, 19], [18, 19]],
-      [[50, 10], [50, 17], [62, 17], [72, 19], [80, 19]],
-      [[50, 10], [50, 18], [36, 26], [24, 34], [16, 41]],
-      [[50, 10], [50, 18], [64, 26], [76, 34], [84, 41]],
-      [[50, 10], [50, 19], [50, 29], [50, 39], [50, 47]],
-    ],
-  },
   campus: { home: [86, 9], pins: [[50, 9], [24, 19], [74, 20], [25, 38], [74, 37]] },
   ice_age: { home: [50, 22], pins: [[22, 19], [79, 13], [25, 43], [70, 42], [50, 47]] },
   wasteland: { home: [20, 39], pins: [[20, 15], [50, 12], [80, 18], [50, 36], [82, 42]] },
@@ -378,7 +368,7 @@ const buildGeneratedRoadRoute = (home, pin, placeIndex) => {
 
 for (const [themeId, coordinates] of Object.entries(GENERATED_MAP_COORDINATES)) {
   const workTheme = WORK_MAP_THEMES[themeId];
-  if (!workTheme) continue;
+  if (!workTheme || getWorkRouteTheme(themeId)) continue;
   workTheme.home = { x: coordinates.home[0], y: coordinates.home[1] };
   workTheme.places.forEach((placeMeta, placeIndex) => {
     const [x, y] = coordinates.pins[placeIndex];

@@ -35,6 +35,27 @@ test("only modern is calibrated and its route theme matches the exact contract",
   assert.equal(getWorkRouteTheme("xuanhuan"), null);
 });
 
+test("route validation independently requires exactly five theme places and route keys", () => {
+  const routeTheme = getWorkRouteTheme("modern");
+  const fourPlaceTheme = {
+    ...MODERN_THEME_FIXTURE,
+    places: MODERN_THEME_FIXTURE.places.slice(0, 4),
+  };
+  const fourRouteTheme = {
+    ...routeTheme,
+    routes: Object.fromEntries(Object.entries(routeTheme.routes).slice(0, 4)),
+  };
+
+  assert.ok(
+    validateWorkRouteTheme("modern", fourPlaceTheme, routeTheme)
+      .includes("modern: expected exactly 5 theme places, received 4"),
+  );
+  assert.ok(
+    validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, fourRouteTheme)
+      .includes("modern: expected exactly 5 route keys, received 4"),
+  );
+});
+
 test("no calibrated route reuses another route sample list or translated five-route pattern", () => {
   const routeThemes = Object.values(WORK_ROUTE_DATA);
   const routeSignatures = routeThemes.flatMap((routeTheme) => Object.values(routeTheme.routes).map(({ samples }) => (

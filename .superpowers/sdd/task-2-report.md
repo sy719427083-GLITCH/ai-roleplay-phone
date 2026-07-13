@@ -108,3 +108,68 @@ npm test
 ## Concerns
 
 - The modern calibrated samples are a dense migration of the current temporary modern geometry, not the later screenshot-audited calibration that Tasks 3 and 9 will refine. The schema is now strict, but the art-to-road alignment still depends on those later audit tasks.
+
+## Review Fix: Legacy Bypass and Exact Cardinality
+
+### Fixes
+
+- Guarded both legacy initialization paths in `src/workThemes.js` with `getWorkRouteTheme(...)`, so every theme present in `WORK_ROUTE_DATA` bypasses the generic layout mutation and the explicit coordinate/route generator.
+- Removed the duplicated `modern` entry, including its five explicit legacy route arrays, from `GENERATED_MAP_COORDINATES`.
+- Kept both legacy generators active for uncalibrated themes.
+- Updated `validateWorkRouteTheme` to report independently when the theme does not contain exactly five places or the route registry does not contain exactly five keys.
+- Added regressions proving calibrated `modern` retains its declared building hit area, uncalibrated `xuanhuan` still receives generated geometry, and four-place/four-route inputs fail the fixed cardinality contract independently.
+
+### Review-Fix RED
+
+Command:
+
+```bash
+node --test src/workRouteData.test.js src/workThemes.test.js
+```
+
+Evidence before the production fix:
+
+```text
+not ok 2 - route validation independently requires exactly five theme places and route keys
+error: 'false == true'
+not ok 17 - modern merges calibrated route fields while uncalibrated themes stay on the temporary path
+expected: { x: 22, y: 26, width: 40, height: 18 }
+actual:   { x: 18, y: 19, width: 14, height: 10 }
+1..21
+# tests 21
+# pass 19
+# fail 2
+```
+
+Both failures matched the review findings: arbitrary matching counts were accepted, and modern had already been mutated by legacy coordinate generation.
+
+The first post-fix run passed both new production regressions but exposed an incorrect control expectation in the test: `alchemy` is xuanhuan's second place and its generated pin is `{ x: 50, y: 11 }`. After correcting that test-only expectation, the exact focused command was rerun.
+
+### Review-Fix GREEN
+
+Command:
+
+```bash
+node --test src/workRouteData.test.js src/workThemes.test.js
+```
+
+Evidence:
+
+```text
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 52.126334
+```
+
+### Review-Fix Self-Review
+
+- Diff is limited to the four Task 2-owned source/test files and this report.
+- `modern` no longer appears in `GENERATED_MAP_COORDINATES`.
+- No version, deployment, `App.jsx`, asset, traveler, or `designs/` files were changed.
+- The pre-existing untracked `designs/` directory remains untouched.

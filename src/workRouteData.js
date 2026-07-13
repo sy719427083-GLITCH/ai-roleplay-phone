@@ -156,6 +156,12 @@ export const validateWorkRouteTheme = (themeId, theme, routeTheme) => {
 
   const expectedPlaceTypes = (Array.isArray(theme?.places) ? theme.places : []).map((place) => place.type);
   const actualPlaceTypes = Object.keys(routeTheme.routes || {});
+  if (expectedPlaceTypes.length !== 5) {
+    issues.push(`${themeId}: expected exactly 5 theme places, received ${expectedPlaceTypes.length}`);
+  }
+  if (actualPlaceTypes.length !== 5) {
+    issues.push(`${themeId}: expected exactly 5 route keys, received ${actualPlaceTypes.length}`);
+  }
   for (const placeType of expectedPlaceTypes) {
     if (!actualPlaceTypes.includes(placeType)) {
       issues.push(`${themeId}:${placeType} missing route`);
