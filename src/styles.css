@@ -9862,11 +9862,11 @@ select {
   object-fit: contain;
   transform: translate(-50%, -76%);
   filter: drop-shadow(0 3px 4px rgba(16, 34, 45, 0.25));
-  transition: left 850ms linear, top 850ms linear;
   pointer-events: none;
 }
 
 .work-map-traveler.walking {
+  transition: left 850ms linear, top 850ms linear;
   animation: workTravelerStep 650ms ease-in-out infinite alternate;
 }
 

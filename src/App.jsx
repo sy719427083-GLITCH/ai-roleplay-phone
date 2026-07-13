@@ -3273,7 +3273,7 @@ function WorkAppScreen({ onClose }) {
   };
 
   const chooseWorkTag = async (tag) => {
-    if (!selectedWorld || tag === selectedWorkTag || !getThemeIdForTag(tag) || loadingJobs) return;
+    if (hasPendingWork || !selectedWorld || tag === selectedWorkTag || !getThemeIdForTag(tag) || loadingJobs) return;
     const nextThemeId = inferWorkMapTheme(selectedWorld, tag);
     setSelectedTagByWorld((current) => ({ ...current, [selectedWorld.id]: tag }));
     await generateWorkRound(nextThemeId, selectedWorld);
@@ -3369,7 +3369,7 @@ function WorkAppScreen({ onClose }) {
       {workSource === "worldbook" && availableWorkTags.length > 0 && (
         <nav className="work-tag-switcher" aria-label="选择世界地图">
           {availableWorkTags.map((tag) => (
-            <button className={tag === selectedWorkTag ? "active" : ""} key={tag} onClick={() => chooseWorkTag(tag)} disabled={loadingJobs}>
+            <button className={tag === selectedWorkTag ? "active" : ""} key={tag} onClick={() => chooseWorkTag(tag)} disabled={loadingJobs || hasPendingWork}>
               {tag}
             </button>
           ))}

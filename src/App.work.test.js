@@ -22,3 +22,9 @@ test("work travel and work labels use the shared second-accurate formatter", () 
   assert.match(appSource, /formatWorkDuration\(job\.durationMinutes \* 60 \* 1000\)/);
 });
 
+test("active work locks world tags and removes arrival transition after travel", () => {
+  assert.match(appSource, /if \(hasPendingWork \|\| !selectedWorld \|\| tag === selectedWorkTag/);
+  assert.match(appSource, /disabled=\{loadingJobs \|\| hasPendingWork\}/);
+  assert.doesNotMatch(stylesSource, /\.work-map-traveler\s*\{[^}]*transition:/s);
+  assert.match(stylesSource, /\.work-map-traveler\.walking\s*\{[^}]*transition:/s);
+});
