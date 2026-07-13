@@ -15,6 +15,7 @@ import {
 } from "./work-route-calibrator.js";
 import {
   buildScreenshotPath,
+  createResourceLifecycle,
   isProcessAlive,
   resolveVerificationPlan,
   stopProcessGroup,
@@ -319,6 +320,53 @@ test("withTimeout rejects bounded work and runs the timeout cleanup hook", async
   );
 
   assert.equal(cleanupCalls, 1);
+});
+
+test("withTimeout rejects without awaiting a never-resolving cleanup hook", { timeout: 250 }, async () => {
+  let cleanupCalls = 0;
+  const startedAt = Date.now();
+
+  await assert.rejects(
+    withTimeout(
+      new Promise(() => {}),
+      20,
+      "hung cleanup",
+      () => {
+        cleanupCalls += 1;
+        return new Promise(() => {});
+      },
+    ),
+    /hung cleanup timed out after 20ms/,
+  );
+
+  assert.equal(cleanupCalls, 1);
+  assert.ok(Date.now() - startedAt < 150);
+});
+
+test("resources acquired after timeout are immediately given bounded cleanup", { timeout: 300 }, async () => {
+  const lifecycle = createResourceLifecycle({ cleanupTimeoutMs: 25 });
+  let releaseResource = null;
+  let cleanupCalls = 0;
+  const acquisition = new Promise((resolve) => {
+    releaseResource = resolve;
+  });
+  const operation = lifecycle.acquire("late-browser", acquisition, () => {
+    cleanupCalls += 1;
+    return new Promise(() => {});
+  });
+  const startedAt = Date.now();
+
+  await assert.rejects(
+    withTimeout(operation, 20, "late acquisition", () => lifecycle.abort()),
+    /late acquisition timed out after 20ms/,
+  );
+  await lifecycle.cleanupAll();
+  releaseResource({ id: "browser" });
+  await operation;
+  await lifecycle.cleanupAll();
+
+  assert.equal(cleanupCalls, 1);
+  assert.ok(Date.now() - startedAt < 150);
 });
 
 test("stopProcessGroup terminates a detached child and its spawned descendant", async () => {

@@ -14,6 +14,7 @@ import { WORK_MAP_THEMES, buildLocalThemeJobs, getWorkTheme } from "../src/workT
 const DEFAULT_OUTPUT_ROOT = "artifacts/work-routes";
 const VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_CLEANUP_TIMEOUT_MS = 2_000;
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const WORK_JOBS_STORAGE_KEY = "ccatWorkJobs";
@@ -87,9 +88,10 @@ export const withTimeout = async (operation, timeoutMs, label, onTimeout = async
     timerId = setTimeout(() => {
       if (settled) return;
       settled = true;
-      Promise.resolve(onTimeout())
-        .catch(() => {})
-        .finally(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)));
+      Promise.resolve()
+        .then(onTimeout)
+        .catch(() => {});
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
     Promise.resolve(operation)
@@ -106,6 +108,71 @@ export const withTimeout = async (operation, timeoutMs, label, onTimeout = async
         reject(error);
       });
   });
+};
+
+export const runBoundedCleanup = (cleanup, timeoutMs, label = "resource cleanup") => {
+  let timerId = null;
+  const cleanupResult = Promise.resolve()
+    .then(cleanup)
+    .then(
+      () => ({ label, status: "fulfilled" }),
+      (error) => ({ error, label, status: "rejected" }),
+    );
+  const timeoutResult = new Promise((resolve) => {
+    timerId = setTimeout(() => resolve({ label, status: "timed_out" }), timeoutMs);
+  });
+
+  return Promise.race([cleanupResult, timeoutResult])
+    .finally(() => clearTimeout(timerId));
+};
+
+export const createResourceLifecycle = ({ cleanupTimeoutMs = DEFAULT_CLEANUP_TIMEOUT_MS } = {}) => {
+  const abortController = new AbortController();
+  const records = [];
+
+  const scheduleCleanup = (record) => {
+    if (record.cleanupTask) return record.cleanupTask;
+    record.cleanupTask = runBoundedCleanup(
+      () => record.cleanup(record.resource),
+      cleanupTimeoutMs,
+      `${record.name} cleanup`,
+    );
+    return record.cleanupTask;
+  };
+
+  const abort = () => {
+    if (!abortController.signal.aborted) abortController.abort();
+    records.forEach(scheduleCleanup);
+  };
+
+  const register = (name, resource, cleanup) => {
+    const record = { cleanup, cleanupTask: null, name, resource };
+    records.push(record);
+    if (abortController.signal.aborted) scheduleCleanup(record);
+    return resource;
+  };
+
+  return {
+    async acquire(name, acquisition, cleanup) {
+      const resource = await acquisition;
+      return register(name, resource, cleanup);
+    },
+    get aborted() {
+      return abortController.signal.aborted;
+    },
+    abort,
+    async cleanupAll() {
+      abort();
+      await Promise.allSettled(records.map(scheduleCleanup));
+    },
+    register,
+    signal: abortController.signal,
+    throwIfAborted(label = "route verification") {
+      if (abortController.signal.aborted) {
+        throw new Error(`${label} aborted after timeout`);
+      }
+    },
+  };
 };
 
 export const resolveVerificationPlan = ({
@@ -278,21 +345,23 @@ const findAvailablePort = async (startPort = 4173) => {
   throw new Error("Unable to find an open local port for Vite");
 };
 
-const waitForServer = async (baseUrl) => {
+const waitForServer = async (baseUrl, signal) => {
   let lastError = null;
   for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (signal?.aborted) throw new Error(`Server startup aborted for ${baseUrl}`);
     try {
-      const response = await fetch(baseUrl);
+      const response = await fetch(baseUrl, { signal });
       if (response.ok) return;
     } catch (error) {
+      if (signal?.aborted) throw new Error(`Server startup aborted for ${baseUrl}`);
       lastError = error;
     }
-    await delay(250);
+    await delay(250, undefined, signal ? { signal } : undefined);
   }
   throw new Error(`Timed out waiting for ${baseUrl}${lastError ? `: ${lastError.message}` : ""}`);
 };
 
-const startViteServer = async () => {
+const startViteServer = async (lifecycle) => {
   const port = await findAvailablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn("npm", ["run", "dev", "--", "--port", String(port)], {
@@ -302,18 +371,21 @@ const startViteServer = async () => {
   });
   child.unref();
 
+  const server = {
+    baseUrl,
+    child,
+    stop: async () => stopProcessGroup(child, { gracefulTimeoutMs: 250, forceTimeoutMs: 1_000 }),
+  };
+  lifecycle.register("Vite server", server, (resource) => resource.stop());
+
   try {
-    await waitForServer(baseUrl);
+    await waitForServer(baseUrl, lifecycle.signal);
   } catch (error) {
-    await stopProcessGroup(child).catch(() => {});
+    lifecycle.abort();
     throw error;
   }
 
-  return {
-    baseUrl,
-    child,
-    stop: async () => stopProcessGroup(child),
-  };
+  return server;
 };
 
 const runVerification = async (options) => {
@@ -334,39 +406,43 @@ const runVerification = async (options) => {
     return groups;
   }, {});
 
-  let server = null;
-  let browser = null;
-  let context = null;
-  try {
-    return await withTimeout((async () => {
-      server = options.baseUrl ? null : await startViteServer();
-      const baseUrl = options.baseUrl || server.baseUrl;
-      browser = await chromium.launch({ headless: options.headless });
-      context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 });
-      const page = await context.newPage();
-      const screenshots = [];
+  const lifecycle = createResourceLifecycle();
+  const operation = (async () => {
+    const server = options.baseUrl ? null : await startViteServer(lifecycle);
+    lifecycle.throwIfAborted("server startup");
+    const baseUrl = options.baseUrl || server.baseUrl;
 
-      for (const themeId of Object.keys(groupedTargets)) {
-        await preparePageState(page, baseUrl, themeId);
-        await openWorkApp(page);
-        for (const placeType of groupedTargets[themeId]) {
-          screenshots.push(await captureThemePlace(page, themeId, placeType, options.outputRoot));
-        }
+    const browser = await lifecycle.acquire(
+      "Playwright browser",
+      chromium.launch({ headless: options.headless }),
+      (resource) => resource.close(),
+    );
+    lifecycle.throwIfAborted("browser launch");
+
+    const context = await lifecycle.acquire(
+      "Playwright context",
+      browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 }),
+      (resource) => resource.close(),
+    );
+    lifecycle.throwIfAborted("browser context creation");
+
+    const page = await context.newPage();
+    const screenshots = [];
+
+    for (const themeId of Object.keys(groupedTargets)) {
+      await preparePageState(page, baseUrl, themeId);
+      await openWorkApp(page);
+      for (const placeType of groupedTargets[themeId]) {
+        screenshots.push(await captureThemePlace(page, themeId, placeType, options.outputRoot));
       }
-      return { screenshots, baseUrl };
-    })(), options.timeoutMs, "route verification", async () => {
-      await Promise.allSettled([
-        context?.close?.(),
-        browser?.close?.(),
-        server?.stop?.(),
-      ]);
-    });
+    }
+    return { screenshots, baseUrl };
+  })();
+
+  try {
+    return await withTimeout(operation, options.timeoutMs, "route verification", () => lifecycle.abort());
   } finally {
-    await Promise.allSettled([
-      context?.close?.(),
-      browser?.close?.(),
-      server?.stop?.(),
-    ]);
+    await lifecycle.cleanupAll();
   }
 };
 
@@ -377,9 +453,21 @@ const main = async () => {
   screenshots.forEach((entry) => console.log(entry));
 };
 
+const scheduleForcedExit = (exitCode) => {
+  process.exitCode = exitCode;
+  const timerId = setTimeout(
+    () => process.exit(exitCode),
+    (DEFAULT_CLEANUP_TIMEOUT_MS * 2) + 500,
+  );
+  timerId.unref();
+};
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  });
+  main().then(
+    () => scheduleForcedExit(0),
+    (error) => {
+      console.error(error.message);
+      scheduleForcedExit(1);
+    },
+  );
 }

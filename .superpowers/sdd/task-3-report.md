@@ -275,3 +275,131 @@ Exact result: all three commands exited `1` with no output. No verifier, Vite pr
 
 - Full `25 x 5` mode remains intentionally unavailable until later tasks add the missing calibrated route themes.
 - Deterministic calibrator segment output remains point-for-point `M/L` geometry rather than preserving hand-simplified paths from an imported calibrated record after editing.
+
+## Reliable Termination Follow-Up (2026-07-13)
+
+### Root Cause
+
+- `withTimeout` set its timed-out state but waited for `onTimeout()` to settle before rejecting, so a never-resolving cleanup hook prevented timeout delivery.
+- `runVerification` awaited raw `context.close()` and `browser.close()` promises in `finally`, so either close could keep the verifier alive indefinitely.
+- Server, browser, and context variables were assigned only after acquisition promises resolved. Timeout cleanup could observe `null`, finish, and miss a resource that appeared later.
+
+### Fix
+
+- Timeout rejection now occurs immediately at the deadline while the cleanup callback runs in a detached, rejection-handled chain.
+- Added an abort-aware resource lifecycle registry. It records server/browser/context acquisition, schedules cleanup exactly once, and retains aborted state so resources acquired after timeout or after an initial `cleanupAll()` are immediately cleaned.
+- Added a per-resource `2,000ms` cleanup bound. Playwright context and browser close operations each receive their own bound.
+- Registered the Vite server immediately after spawn, before readiness polling, and aborts its fetch/delay readiness loop. Timeout cleanup signals the process group with `SIGTERM` immediately, then uses bounded `SIGKILL` escalation.
+- Added a `4,500ms` unreferenced CLI exit guard after completion/error so lingering external handles cannot keep the verifier process alive after bounded cleanup.
+- Continuing timed-out operations and all detached/background cleanup promises retain rejection handlers to prevent unhandled rejections.
+
+### RED Evidence
+
+Never-resolving timeout cleanup test:
+
+```text
+not ok 12 - withTimeout rejects without awaiting a never-resolving cleanup hook
+failureType: 'cancelledByParent'
+error: 'Promise resolution is still pending but the event loop has already resolved'
+1..13
+# pass 11
+# cancelled 2
+```
+
+Late-resource lifecycle test before the registry existed:
+
+```text
+SyntaxError: The requested module './verify-work-routes.mjs' does not provide an export named 'createResourceLifecycle'
+1..1
+# tests 1
+# pass 0
+# fail 1
+```
+
+Strengthened acquisition test before lifecycle-owned acquisition existed:
+
+```text
+not ok 13 - resources acquired after timeout are immediately given bounded cleanup
+error: 'lifecycle.acquire is not a function'
+1..14
+# pass 13
+# fail 1
+```
+
+### Focused Tests
+
+Command:
+
+```bash
+node --test scripts/work-route-tools.test.mjs
+```
+
+Output:
+
+```text
+1..14
+# tests 14
+# pass 14
+# fail 0
+# cancelled 0
+# duration_ms 404.524459
+```
+
+The never-resolving cleanup test completed in `21.469834ms`. The late-acquisition test, including a never-resolving resource close and two idempotent final cleanup calls, completed in `47.812833ms`.
+
+### Full Suite
+
+Command:
+
+```bash
+npm test
+```
+
+Output:
+
+```text
+1..87
+# tests 87
+# pass 87
+# fail 0
+# cancelled 0
+# duration_ms 444.43225
+```
+
+### Bounded Smoke
+
+Command:
+
+```bash
+node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
+```
+
+Output:
+
+```text
+Verified 1 route screenshot(s) via http://127.0.0.1:4173
+artifacts/work-routes/modern/bookstore.png
+```
+
+The command exited normally in `4.4s`.
+
+### Final Process Checks
+
+Commands:
+
+```bash
+lsof -nP -iTCP:4173 -sTCP:LISTEN
+lsof -nP -iTCP:4174 -sTCP:LISTEN
+ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|[v]ite .*--port 417[34]|[c]hrome-headless-shell.*playwright'
+```
+
+Exact result: every command exited `1` with no output. No verifier, Vite server, Playwright browser process, or listener remained.
+
+### Scope Review
+
+- Modified only `scripts/verify-work-routes.mjs`, `scripts/work-route-tools.test.mjs`, and this report.
+- Did not modify `src` modules, assets, package version, deployment files, or `designs/`.
+
+### Remaining Concern
+
+- The CLI exit guard is a final backstop for external handles after bounded cleanup. Under normal success and the tested timeout paths, resources close and Node exits naturally before that guard fires.
