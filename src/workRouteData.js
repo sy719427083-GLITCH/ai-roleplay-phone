@@ -143,7 +143,59 @@ const isPoint = (value) => Boolean(
 
 const samePoint = (left, right) => left?.x === right?.x && left?.y === right?.y;
 
-const SVG_COMMAND_PATTERN = /^[MLCQAZ0-9,.\-\s]+$/i;
+const SVG_COMMAND_ARITY = Object.freeze({ M: 2, L: 2, C: 6 });
+const SVG_TOKEN_PATTERN = /[MLC]|[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?/g;
+const SVG_COMMANDS = new Set(Object.keys(SVG_COMMAND_ARITY));
+
+const tokenizeSvgRoutePath = (path) => {
+  if (typeof path !== "string") return null;
+
+  const tokens = [];
+  let previousEnd = 0;
+  for (const match of path.matchAll(SVG_TOKEN_PATTERN)) {
+    const separator = path.slice(previousEnd, match.index);
+    const previousToken = tokens.at(-1);
+    const currentToken = match[0];
+    const separatesNumbers = previousToken
+      && !SVG_COMMANDS.has(previousToken)
+      && !SVG_COMMANDS.has(currentToken);
+    const validSeparator = /^\s*$/.test(separator)
+      || (separatesNumbers && /^\s*,\s*$/.test(separator));
+    if (!validSeparator) return null;
+
+    tokens.push(currentToken);
+    previousEnd = match.index + currentToken.length;
+  }
+
+  if (!/^\s*$/.test(path.slice(previousEnd))) return null;
+  return tokens;
+};
+
+const isValidSvgRoutePath = (path) => {
+  const tokens = tokenizeSvgRoutePath(path);
+  if (!tokens?.length || tokens[0] !== "M") return false;
+
+  let tokenIndex = 0;
+  let hasDrawCommand = false;
+  while (tokenIndex < tokens.length) {
+    const command = tokens[tokenIndex];
+    const arity = SVG_COMMAND_ARITY[command];
+    if (!arity || (tokenIndex > 0 && command === "M")) return false;
+    hasDrawCommand ||= command === "L" || command === "C";
+    tokenIndex += 1;
+
+    for (let coordinateIndex = 0; coordinateIndex < arity; coordinateIndex += 1) {
+      const coordinateToken = tokens[tokenIndex];
+      if (coordinateToken === undefined || SVG_COMMANDS.has(coordinateToken)) return false;
+      if (!isFiniteCoordinate(Number(coordinateToken))) return false;
+      tokenIndex += 1;
+    }
+
+    if (tokenIndex < tokens.length && !SVG_COMMANDS.has(tokens[tokenIndex])) return false;
+  }
+
+  return hasDrawCommand;
+};
 
 export const getWorkRouteTheme = (themeId) => WORK_ROUTE_DATA[normalizeThemeId(themeId)] || null;
 
@@ -205,11 +257,7 @@ export const validateWorkRouteTheme = (themeId, theme, routeTheme) => {
     }
     if (!Array.isArray(routeRecord.visibleSegments) || routeRecord.visibleSegments.length < 1) {
       issues.push(`${themeId}:${place.type} needs visible segments`);
-    } else if (!routeRecord.visibleSegments.every((segment) => (
-      typeof segment === "string"
-      && segment.startsWith("M ")
-      && SVG_COMMAND_PATTERN.test(segment)
-    ))) {
+    } else if (!routeRecord.visibleSegments.every(isValidSvgRoutePath)) {
       issues.push(`${themeId}:${place.type} has invalid SVG segments`);
     }
   }

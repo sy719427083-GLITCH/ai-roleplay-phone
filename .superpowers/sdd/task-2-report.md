@@ -173,3 +173,70 @@ Evidence:
 - `modern` no longer appears in `GENERATED_MAP_COORDINATES`.
 - No version, deployment, `App.jsx`, asset, traveler, or `designs/` files were changed.
 - The pre-existing untracked `designs/` directory remains untouched.
+
+## Review Fix: Structural SVG Route Validation
+
+### Fixes
+
+- Replaced the case-insensitive SVG character whitelist with a dependency-free tokenizer and parser for the feature's explicit uppercase `M`, `L`, and `C` grammar.
+- Required paths to begin with one `M` command, contain at least one `L` or `C` drawing command, and provide exactly two numeric coordinates for `M`/`L` or six for `C`.
+- Restricted separators to whitespace or a single comma between numeric tokens and rejected unsupported commands or unparsed text.
+- Reused normalized coordinate validation so every parsed SVG number must be finite and within `0..100`.
+- Added a positive cubic-path contract test and negative tests for malformed command arity, unsupported commands, non-finite/out-of-range SVG and sample coordinates, nonpositive distance, start/home mismatch, and end/pin mismatch.
+
+### Structural-Parser RED
+
+Command:
+
+```bash
+node --test src/workRouteData.test.js src/workThemes.test.js
+```
+
+Evidence before replacing the whitelist:
+
+```text
+not ok 4 - route validation rejects malformed SVG commands and numeric arity
+error: 'M '
+not ok 5 - route validation rejects invalid and out-of-range normalized coordinates
+error: 'M 50 10 L 101 20'
+1..27
+# tests 27
+# suites 0
+# pass 25
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 52.401084
+```
+
+The malformed SVG and SVG coordinate tests failed for the intended reason. The new distance, sample-coordinate, route-start, and route-end tests confirmed those existing contract checks already rejected invalid records.
+
+### Structural-Parser GREEN
+
+Command:
+
+```bash
+node --test src/workRouteData.test.js src/workThemes.test.js
+```
+
+Evidence after implementing the parser:
+
+```text
+1..27
+# tests 27
+# suites 0
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 49.528541
+```
+
+### Structural-Parser Self-Review
+
+- The parser is private to `src/workRouteData.js` and adds no dependency or public API.
+- The supported grammar is deliberately limited to explicit commands used by calibrated route data; implicit repeated coordinate groups and lowercase/unsupported SVG commands are rejected.
+- Changes remain limited to `src/workRouteData.js`, `src/workRouteData.test.js`, and this Task 2 report.
+- No version, deployment, app, asset, traveler, or `designs/` files were changed.

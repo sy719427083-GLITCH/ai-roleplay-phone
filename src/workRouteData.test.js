@@ -29,6 +29,12 @@ const buildThemePatternSignature = (routeTheme) => JSON.stringify(
     .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
 );
 
+const validateBookstoreRoute = (mutateRoute) => {
+  const routeTheme = structuredClone(getWorkRouteTheme("modern"));
+  mutateRoute(routeTheme.routes.bookstore);
+  return validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, routeTheme);
+};
+
 test("only modern is calibrated and its route theme matches the exact contract", () => {
   assert.deepEqual(Object.keys(WORK_ROUTE_DATA), ["modern"]);
   assert.deepEqual(validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, getWorkRouteTheme("modern")), []);
@@ -54,6 +60,62 @@ test("route validation independently requires exactly five theme places and rout
     validateWorkRouteTheme("modern", MODERN_THEME_FIXTURE, fourRouteTheme)
       .includes("modern: expected exactly 5 route keys, received 4"),
   );
+});
+
+test("route validation accepts explicit M, L, and C command syntax", () => {
+  const issues = validateBookstoreRoute((bookstore) => {
+    bookstore.visibleSegments = ["M 50 10 C 50 14, 46 17, 38 17 L 18 19"];
+  });
+
+  assert.deepEqual(issues, []);
+});
+
+test("route validation rejects malformed SVG commands and numeric arity", () => {
+  for (const segment of ["M ", "M 10", "M 10 20 L", "M 10 20 C 1 2 3 4 5", "M 10 20 Q 30 40"]) {
+    const issues = validateBookstoreRoute((bookstore) => {
+      bookstore.visibleSegments = [segment];
+    });
+    assert.ok(issues.includes("modern:bookstore has invalid SVG segments"), segment);
+  }
+});
+
+test("route validation rejects invalid and out-of-range normalized coordinates", () => {
+  for (const segment of ["M 50 10 L 101 20", "M 50 10 C 10 10 20 20 1e309 30"]) {
+    const issues = validateBookstoreRoute((bookstore) => {
+      bookstore.visibleSegments = [segment];
+    });
+    assert.ok(issues.includes("modern:bookstore has invalid SVG segments"), segment);
+  }
+
+  const sampleIssues = validateBookstoreRoute((bookstore) => {
+    bookstore.samples[1] = { x: Number.POSITIVE_INFINITY, y: 12 };
+    bookstore.samples[2] = { x: 50, y: -1 };
+  });
+  assert.ok(sampleIssues.includes("modern:bookstore has invalid sample coordinates"));
+});
+
+test("route validation rejects nonpositive distance", () => {
+  const issues = validateBookstoreRoute((bookstore) => {
+    bookstore.distanceMeters = 0;
+  });
+
+  assert.ok(issues.includes("modern:bookstore invalid distance"));
+});
+
+test("route validation rejects a route start that does not match home", () => {
+  const issues = validateBookstoreRoute((bookstore) => {
+    bookstore.samples[0] = { x: 49, y: 10 };
+  });
+
+  assert.ok(issues.includes("modern:bookstore must start at home"));
+});
+
+test("route validation rejects a route end that does not match its pin", () => {
+  const issues = validateBookstoreRoute((bookstore) => {
+    bookstore.samples[bookstore.samples.length - 1] = { x: 19, y: 19 };
+  });
+
+  assert.ok(issues.includes("modern:bookstore must end at pin"));
 });
 
 test("no calibrated route reuses another route sample list or translated five-route pattern", () => {
