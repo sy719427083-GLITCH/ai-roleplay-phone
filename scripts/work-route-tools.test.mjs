@@ -19,6 +19,7 @@ import {
   createResourceLifecycle,
   isProcessAlive,
   resolveVerificationPlan,
+  resolveVerificationTimeoutMs,
   stopProcessGroup,
   withTimeout,
 } from "./verify-work-routes.mjs";
@@ -303,6 +304,16 @@ test("resolveVerificationPlan supports focused verification now and reports inco
     targets: MODERN_THEME_FIXTURE.places.map((place) => ({ themeId: "modern", placeType: place.type })),
     missingThemes: ["xuanhuan"],
   });
+});
+
+test("full route verification scales its default timeout with screenshot count", () => {
+  assert.equal(resolveVerificationTimeoutMs({ targetCount: 5 }), 45_000);
+  assert.equal(resolveVerificationTimeoutMs({ targetCount: 125 }), 202_500);
+  assert.equal(resolveVerificationTimeoutMs({
+    targetCount: 125,
+    requestedTimeoutMs: 2_000,
+    timeoutWasProvided: true,
+  }), 2_000);
 });
 
 test("withTimeout rejects bounded work and runs the timeout cleanup hook", async () => {

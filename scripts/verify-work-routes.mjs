@@ -14,6 +14,8 @@ import { WORK_MAP_THEMES, buildLocalThemeJobs, getWorkTheme } from "../src/workT
 const DEFAULT_OUTPUT_ROOT = "artifacts/work-routes";
 const VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_TIMEOUT_PER_SCREENSHOT_MS = 1_500;
+const DEFAULT_TIMEOUT_OVERHEAD_MS = 15_000;
 const DEFAULT_CLEANUP_TIMEOUT_MS = 2_000;
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
@@ -244,6 +246,7 @@ const parseArgs = (argv) => {
     outputRoot: DEFAULT_OUTPUT_ROOT,
     headless: true,
     timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutWasProvided: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -256,12 +259,27 @@ const parseArgs = (argv) => {
     if (token === "--base-url") index += 1;
     if (token === "--output-dir") options.outputRoot = argv[index + 1] || DEFAULT_OUTPUT_ROOT;
     if (token === "--output-dir") index += 1;
-    if (token === "--timeout-ms") options.timeoutMs = Math.max(1_000, Number(argv[index + 1]) || DEFAULT_TIMEOUT_MS);
+    if (token === "--timeout-ms") {
+      options.timeoutMs = Math.max(1_000, Number(argv[index + 1]) || DEFAULT_TIMEOUT_MS);
+      options.timeoutWasProvided = true;
+    }
     if (token === "--timeout-ms") index += 1;
     if (token === "--headed") options.headless = false;
   }
 
   return options;
+};
+
+export const resolveVerificationTimeoutMs = ({
+  targetCount = 0,
+  requestedTimeoutMs = DEFAULT_TIMEOUT_MS,
+  timeoutWasProvided = false,
+} = {}) => {
+  if (timeoutWasProvided) return requestedTimeoutMs;
+  return Math.max(
+    requestedTimeoutMs,
+    DEFAULT_TIMEOUT_OVERHEAD_MS + Math.max(0, targetCount) * DEFAULT_TIMEOUT_PER_SCREENSHOT_MS,
+  );
 };
 
 const ensureRouteThemeIsValid = (themeId) => {
@@ -414,6 +432,11 @@ const runVerification = async (options) => {
   }, {});
 
   const lifecycle = createResourceLifecycle();
+  const operationTimeoutMs = resolveVerificationTimeoutMs({
+    targetCount: plan.targets.length,
+    requestedTimeoutMs: options.timeoutMs,
+    timeoutWasProvided: options.timeoutWasProvided,
+  });
   const operation = (async () => {
     const server = options.baseUrl ? null : await startViteServer(lifecycle);
     lifecycle.throwIfAborted("server startup");
@@ -449,7 +472,7 @@ const runVerification = async (options) => {
   })();
 
   try {
-    return await withTimeout(operation, options.timeoutMs, "route verification", () => lifecycle.abort());
+    return await withTimeout(operation, operationTimeoutMs, "route verification", () => lifecycle.abort());
   } finally {
     await lifecycle.cleanupAll();
   }
