@@ -4,7 +4,7 @@
 
 **Goal:** Add eight selectable, detailed Q-style travelers and rebuild all work-map route data so every traveler follows a real visible road from the protagonist home to each of five correctly marked work buildings, with second-accurate travel and work timing.
 
-**Architecture:** Keep theme and job metadata in `workThemes.js`, move the 125 calibrated route records into a dedicated `workRouteData.js` registry, and put traveler metadata and persistence normalization in `workTravelers.js`. Each route stores a full sampled motion path plus one or more SVG display segments so the traveler can move continuously while the dashed route can disappear behind foreground objects. `App.jsx` owns selection and session orchestration; static generated maps and transparent traveler sprites live in `public/work-map-assets/`.
+**Architecture:** Keep theme and job metadata in `workThemes.js`, store the 125 calibrated route records in five independently authored modules under `workRouteBatches/`, aggregate them through the public `workRouteData.js` registry, and put traveler metadata and persistence normalization in `workTravelers.js`. Each route stores a full sampled motion path plus one or more SVG display segments so the traveler can move continuously while the dashed route can disappear behind foreground objects. `App.jsx` owns selection and session orchestration; static generated maps and transparent traveler sprites live in `public/work-map-assets/`.
 
 **Tech Stack:** React 19, Vite 6, CSS, Node test runner, Playwright, localStorage, generated PNG assets, SVG paths, GitHub Pages.
 
@@ -215,7 +215,8 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - Modify or replace: `public/work-map-assets/map-western-regions.png`
 - Modify or replace: `public/work-map-assets/map-xianxia.png`
 - Modify or replace: `public/work-map-assets/map-xuanhuan.png`
-- Modify: `src/workRouteData.js`
+- Create: `src/workRouteBatches/batch-a.js`
+- Create: `src/workRouteBatchA.test.js`
 
 - [ ] **Step 1: Audit each map** for six distinct buildings, six visible entrances, five complete road connections from home, thematic specificity, 9:16 framing, and upper-right selector clearance.
 - [ ] **Step 2: Redraw every failing map** with the same clean illustrated style; place all six buildings in the upper area and reserve the lower area for scenery and the five-job dock.
@@ -234,7 +235,8 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - Modify or replace: `public/work-map-assets/map-medieval.png`
 - Modify or replace: `public/work-map-assets/map-western-fantasy.png`
 - Modify or replace: `public/work-map-assets/map-fantasy.png`
-- Modify: `src/workRouteData.js`
+- Create: `src/workRouteBatches/batch-b.js`
+- Create: `src/workRouteBatchB.test.js`
 
 - [ ] **Step 1: Apply the six-building, entrance, road-completeness, 9:16, and selector-clearance audit** to all five themes.
 - [ ] **Step 2: Redraw failing maps** so mystic, underworld, medieval, western-fantasy, and fantasy compositions are visually distinct and not palette-swapped copies.
@@ -252,7 +254,8 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - Modify or replace: `public/work-map-assets/map-island.png`
 - Modify or replace: `public/work-map-assets/map-ocean.png`
 - Modify or replace: `public/work-map-assets/map-republican.png`
-- Modify: `src/workRouteData.js`
+- Create: `src/workRouteBatches/batch-c.js`
+- Create: `src/workRouteBatchC.test.js`
 
 - [ ] **Step 1: Audit and redraw as required**, ensuring island/ocean routes use visible boardwalks, bridges, piers, or paths rather than crossing water.
 - [ ] **Step 2: Keep magic world and magic academy architecturally distinct**, and keep republican-era structures, streets, and props historically legible.
@@ -270,7 +273,8 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - Modify or replace: `public/work-map-assets/map-campus.png`
 - Modify or replace: `public/work-map-assets/map-ice-age.png`
 - Modify or replace: `public/work-map-assets/map-wasteland.png`
-- Modify: `src/workRouteData.js`
+- Create: `src/workRouteBatches/batch-d.js`
+- Create: `src/workRouteBatchD.test.js`
 
 - [ ] **Step 1: Re-audit modern cafe alignment** and correct the known case where the marker/path identifies a flower bed instead of the cafe entrance.
 - [ ] **Step 2: Redraw failing maps** so Hong Kong, modern city, campus, ice-age settlement, and wasteland have distinct street/path networks and a clear home.
@@ -288,13 +292,17 @@ const [workTravelerId, setWorkTravelerId] = useState(() =>
 - Modify or replace: `public/work-map-assets/map-alien-civilization.png`
 - Modify or replace: `public/work-map-assets/map-online-game.png`
 - Modify or replace: `public/work-map-assets/map-cthulhu.png`
-- Modify: `src/workRouteData.js`
+- Create: `src/workRouteBatches/batch-e.js`
+- Create: `src/workRouteBatchE.test.js`
+- Modify after all five batches land: `src/workRouteData.js`
+- Modify after all five batches land: `src/workRouteData.test.js`
+- Modify after all five batches land: `src/workThemes.js`
 
 - [ ] **Step 1: Audit and redraw as required**, using visible neon streets, station corridors, alien causeways, game-world paths, or occult port roads rather than implied straight travel.
 - [ ] **Step 2: Keep the five themes compositionally distinct**, with different road topology and building silhouettes rather than repeated left-center-right layouts.
 - [ ] **Step 3: Calibrate all 25 routes and marker entrances**, including visible-segment breaks for foreground structures.
 - [ ] **Step 4: Inspect all 25 screenshots** and correct all mismatches.
-- [ ] **Step 5: Add the final completeness test** requiring exactly 25 route themes and 125 routes, then delete `MAP_PLACE_LAYOUTS`, `GENERATED_MAP_COORDINATES`, and `buildGeneratedRoadRoute` so no generic route fallback remains.
+- [ ] **Step 5: Import all five batch modules into `workRouteData.js`**, add the final completeness test requiring exactly 25 route themes and 125 routes, then delete `MAP_PLACE_LAYOUTS`, `GENERATED_MAP_COORDINATES`, and `buildGeneratedRoadRoute` so no generic route fallback remains.
 - [ ] **Step 6: Run tests and commit** with message `Calibrate future game and cthulhu routes`.
 
 ### Task 11: Work Map Rendering, Travel Motion, and Exact Countdown
