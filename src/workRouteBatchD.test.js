@@ -87,7 +87,11 @@ const serializeSamples = (samples) => JSON.stringify(samples.map(({ x, y }) => [
 
 const REVIEWED_ROUTE_CALIBRATIONS = Object.freeze({
   modern: {
-    clinic: { pin: { x: 18.5, y: 38.8 } },
+    bookstore: { waypoints: [{ x: 50, y: 63 }, { x: 45, y: 45 }, { x: 50, y: 29 }] },
+    flower_shop: { waypoints: [{ x: 50, y: 63 }, { x: 45, y: 45 }, { x: 50, y: 29 }] },
+    clinic: { pin: { x: 18.5, y: 38.8 }, waypoints: [{ x: 50, y: 63 }, { x: 45, y: 45 }] },
+    parcel_station: { waypoints: [{ x: 50, y: 63 }, { x: 45, y: 45 }, { x: 64, y: 44 }] },
+    cafe: { waypoints: [{ x: 50, y: 63 }, { x: 38, y: 61 }, { x: 29, y: 59 }] },
   },
   campus: {
     campus_library: {
@@ -143,7 +147,7 @@ test("batch D routes have normalized endpoints, dense samples, distances, and SV
       assert.ok(isPoint(route.pin), `${themeId}:${placeType} valid pin`);
       assert.ok(Number.isFinite(route.distanceMeters) && route.distanceMeters > 0, `${themeId}:${placeType} distance`);
       assert.ok(Array.isArray(route.samples), `${themeId}:${placeType} samples array`);
-      assert.ok(route.samples.length >= 12, `${themeId}:${placeType} has at least 12 samples`);
+      assert.ok(route.samples.length >= 16, `${themeId}:${placeType} has at least 16 samples`);
       assert.ok(route.samples.every(isPoint), `${themeId}:${placeType} normalized finite samples`);
       assert.ok(samePoint(route.samples[0], routeTheme.home), `${themeId}:${placeType} starts at home`);
       assert.ok(samePoint(route.samples.at(-1), route.pin), `${themeId}:${placeType} ends at pin`);

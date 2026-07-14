@@ -119,7 +119,7 @@ test("batch B routes use finite endpoints, distances, samples, and SVG segments"
     const routeTheme = WORK_ROUTE_BATCH_B[themeId];
     for (const [placeType, route] of Object.entries(routeTheme.routes)) {
       assert.ok(Number.isFinite(route.distanceMeters) && route.distanceMeters > 0, `${themeId}:${placeType}`);
-      assert.ok(Array.isArray(route.samples) && route.samples.length >= 12, `${themeId}:${placeType}`);
+      assert.ok(Array.isArray(route.samples) && route.samples.length >= 16, `${themeId}:${placeType}`);
       assert.deepEqual(route.samples[0], routeTheme.home, `${themeId}:${placeType} starts at home`);
       assert.deepEqual(route.samples.at(-1), route.pin, `${themeId}:${placeType} ends at pin`);
       for (const point of [route.pin, ...route.samples]) {

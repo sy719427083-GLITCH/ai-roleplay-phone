@@ -1,11 +1,50 @@
 const point = (x, y) => ({ x, y });
 
-const route = (pin, distanceMeters, samples, visibleSegments) => ({
+const pathFromSamples = (samples) => samples
+  .map(({ x, y }, index) => `${index === 0 ? "M" : "L"} ${x} ${y}`)
+  .join(" ");
+
+const densifySamples = (sourceSamples, minimumCount = 16, maximumJump = 4) => {
+  const samples = sourceSamples.map(({ x, y }) => point(x, y));
+  const length = (left, right) => Math.hypot(right.x - left.x, right.y - left.y);
+  for (let index = samples.length - 2; index >= 0; index -= 1) {
+    const left = samples[index];
+    const right = samples[index + 1];
+    const parts = Math.ceil(length(left, right) / maximumJump);
+    for (let part = parts - 1; part >= 1; part -= 1) {
+      const ratio = part / parts;
+      samples.splice(index + 1, 0, point(
+        Number((left.x + ((right.x - left.x) * ratio)).toFixed(2)),
+        Number((left.y + ((right.y - left.y) * ratio)).toFixed(2)),
+      ));
+    }
+  }
+  while (samples.length < minimumCount) {
+    let longestIndex = 0;
+    for (let index = 1; index < samples.length - 1; index += 1) {
+      if (length(samples[index], samples[index + 1]) > length(samples[longestIndex], samples[longestIndex + 1])) {
+        longestIndex = index;
+      }
+    }
+    const left = samples[longestIndex];
+    const right = samples[longestIndex + 1];
+    samples.splice(longestIndex + 1, 0, point(
+      Number(((left.x + right.x) / 2).toFixed(2)),
+      Number(((left.y + right.y) / 2).toFixed(2)),
+    ));
+  }
+  return samples;
+};
+
+const route = (pin, distanceMeters, sourceSamples) => {
+  const samples = densifySamples(sourceSamples);
+  return ({
   pin,
   distanceMeters,
   samples,
-  visibleSegments,
-});
+  visibleSegments: [pathFromSamples(samples)],
+  });
+};
 
 export const WORK_ROUTE_BATCH_E = Object.freeze({
   cyberpunk: Object.freeze({

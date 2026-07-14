@@ -124,7 +124,7 @@ test("batch A route records contain real calibrated endpoints, distances, sample
       assert.ok(routeRecord.distanceMeters > 0, `${themeId}:${placeType} distance must be positive`);
 
       assert.ok(Array.isArray(routeRecord.samples), `${themeId}:${placeType} samples must be an array`);
-      assert.ok(routeRecord.samples.length >= 12, `${themeId}:${placeType} needs at least 12 samples`);
+      assert.ok(routeRecord.samples.length >= 16, `${themeId}:${placeType} needs at least 16 samples`);
       assert.ok(routeRecord.samples.every(isPoint), `${themeId}:${placeType} samples must be normalized finite points`);
       assert.ok(samePoint(routeRecord.samples[0], routeTheme.home), `${themeId}:${placeType} must start at home`);
       assert.ok(samePoint(routeRecord.samples.at(-1), routeRecord.pin), `${themeId}:${placeType} must end at pin`);

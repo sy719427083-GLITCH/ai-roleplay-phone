@@ -25,12 +25,47 @@ const buildVisibleSegments = (samples, breakIndices = []) => {
   return Object.freeze(segments);
 };
 
-const route = (pin, distanceMeters, samples, breakIndices = []) => Object.freeze({
+const densifySamples = (sourceSamples, minimumCount = 16, maximumJump = 4) => {
+  const samples = sourceSamples.map(({ x, y }) => point(x, y));
+  const length = (left, right) => Math.hypot(right.x - left.x, right.y - left.y);
+  for (let index = samples.length - 2; index >= 0; index -= 1) {
+    const left = samples[index];
+    const right = samples[index + 1];
+    const parts = Math.ceil(length(left, right) / maximumJump);
+    for (let part = parts - 1; part >= 1; part -= 1) {
+      const ratio = part / parts;
+      samples.splice(index + 1, 0, point(
+        Number((left.x + ((right.x - left.x) * ratio)).toFixed(2)),
+        Number((left.y + ((right.y - left.y) * ratio)).toFixed(2)),
+      ));
+    }
+  }
+  while (samples.length < minimumCount) {
+    let longestIndex = 0;
+    for (let index = 1; index < samples.length - 1; index += 1) {
+      if (length(samples[index], samples[index + 1]) > length(samples[longestIndex], samples[longestIndex + 1])) {
+        longestIndex = index;
+      }
+    }
+    const left = samples[longestIndex];
+    const right = samples[longestIndex + 1];
+    samples.splice(longestIndex + 1, 0, point(
+      Number(((left.x + right.x) / 2).toFixed(2)),
+      Number(((left.y + right.y) / 2).toFixed(2)),
+    ));
+  }
+  return samples;
+};
+
+const route = (pin, distanceMeters, sourceSamples) => {
+  const samples = densifySamples(sourceSamples);
+  return Object.freeze({
   pin,
   distanceMeters,
   samples: Object.freeze(samples),
-  visibleSegments: buildVisibleSegments(samples, breakIndices),
-});
+  visibleSegments: buildVisibleSegments(samples),
+  });
+};
 
 const theme = (home, routes) => Object.freeze({
   home,
@@ -353,72 +388,37 @@ export const WORK_ROUTE_BATCH_C = Object.freeze({
   republican: theme(REPUBLICAN_HOME, {
     newspaper_office: route(point(20.5, 22.5), 430, [
       REPUBLICAN_HOME,
-      point(47.2, 22.8),
-      point(44, 23.2),
-      point(40.5, 23.6),
-      point(36.8, 23.8),
-      point(33, 23.7),
-      point(29.2, 23.4),
-      point(26, 23),
-      point(23.6, 22.7),
-      point(21.8, 22.5),
-      point(20.9, 22.5),
+      point(48, 23), point(46, 24), point(43, 25), point(40, 26), point(37, 27),
+      point(34, 28), point(31, 29), point(28, 29), point(25, 28), point(23, 26),
+      point(21.5, 24),
       point(20.5, 22.5),
     ]),
     tea_house: route(point(28, 40.4), 480, [
       REPUBLICAN_HOME,
-      point(49.2, 24.5),
-      point(48, 27.5),
-      point(45.5, 30.4),
-      point(42, 32.8),
-      point(38.2, 34.8),
-      point(34.5, 36.8),
-      point(31.5, 38.5),
-      point(29.5, 39.6),
-      point(28.5, 40.1),
-      point(28.1, 40.3),
+      point(49, 23), point(48, 25), point(47, 27), point(45, 29), point(43, 31),
+      point(41, 33), point(38, 35), point(35, 37), point(32, 38.5), point(30, 39.5),
+      point(29, 40),
       point(28, 40.4),
     ]),
     tram_depot: route(point(72, 57), 780, [
       REPUBLICAN_HOME,
-      point(52, 23.4),
-      point(55, 26.8),
-      point(58.6, 30.8),
-      point(62.2, 35),
-      point(65.5, 39.3),
-      point(68.1, 43.8),
-      point(70.2, 48.2),
-      point(71.5, 52.4),
-      point(72.2, 55.5),
-      point(72.1, 56.5),
+      point(51, 23), point(53, 25), point(55, 27), point(57, 30), point(59, 33),
+      point(61, 36), point(63, 39), point(65, 42), point(67, 45), point(69, 48),
+      point(70, 51), point(71, 54), point(72, 56),
       point(72, 57),
-    ], [7]),
+    ]),
     film_studio: route(point(81.5, 39), 620, [
       REPUBLICAN_HOME,
-      point(51.8, 23.6),
-      point(55.2, 27.2),
-      point(59.3, 30.5),
-      point(64, 33.2),
-      point(68.8, 35.1),
-      point(73.4, 36.5),
-      point(77.2, 37.7),
-      point(79.7, 38.5),
-      point(80.8, 38.8),
-      point(81.3, 39),
+      point(51, 23), point(53, 25), point(56, 27), point(59, 29), point(62, 31),
+      point(65, 33), point(68, 34), point(71, 35), point(74, 36), point(77, 37),
+      point(79, 38), point(80.5, 38.7),
       point(81.5, 39),
     ]),
     tailor_shop: route(point(50, 42), 320, [
       REPUBLICAN_HOME,
-      point(49.6, 24.5),
-      point(49.5, 27.4),
-      point(49.5, 30.5),
-      point(49.7, 33.5),
-      point(49.9, 36),
-      point(50.1, 38.1),
-      point(50.2, 39.8),
-      point(50.2, 41),
-      point(50.1, 41.6),
-      point(50, 41.9),
+      point(49, 23), point(50, 25), point(51, 27), point(52, 29), point(53, 31),
+      point(54, 33), point(55, 35), point(56, 37), point(56, 39), point(54, 40),
+      point(52, 41),
       point(50, 42),
     ]),
   }),

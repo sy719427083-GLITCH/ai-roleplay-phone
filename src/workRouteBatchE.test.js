@@ -111,7 +111,7 @@ test("batch E routes have valid endpoints, samples, segments, and distances", ()
     for (const [placeType, route] of Object.entries(routeTheme.routes)) {
       assert.ok(isPoint(route.pin), `${themeId}:${placeType} needs a normalized pin`);
       assert.ok(Number.isFinite(route.distanceMeters) && route.distanceMeters > 0, `${themeId}:${placeType} distance`);
-      assert.ok(Array.isArray(route.samples) && route.samples.length >= 12, `${themeId}:${placeType} sample count`);
+      assert.ok(Array.isArray(route.samples) && route.samples.length >= 16, `${themeId}:${placeType} sample count`);
       assert.ok(route.samples.every(isPoint), `${themeId}:${placeType} normalized samples`);
       assert.ok(samePoint(route.samples[0], routeTheme.home), `${themeId}:${placeType} starts at home`);
       assert.ok(samePoint(route.samples.at(-1), route.pin), `${themeId}:${placeType} ends at pin`);

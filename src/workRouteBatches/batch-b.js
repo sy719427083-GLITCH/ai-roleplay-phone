@@ -4,12 +4,47 @@ const pathFromSamples = (samples) => samples
   .map(({ x, y }, index) => `${index === 0 ? "M" : "L"} ${x} ${y}`)
   .join(" ");
 
-const route = (pin, distanceMeters, samples, visibleSegments = [pathFromSamples(samples)]) => ({
+const densifySamples = (sourceSamples, minimumCount = 16, maximumJump = 4) => {
+  const samples = sourceSamples.map(({ x, y }) => point(x, y));
+  const length = (left, right) => Math.hypot(right.x - left.x, right.y - left.y);
+  for (let index = samples.length - 2; index >= 0; index -= 1) {
+    const left = samples[index];
+    const right = samples[index + 1];
+    const parts = Math.ceil(length(left, right) / maximumJump);
+    for (let part = parts - 1; part >= 1; part -= 1) {
+      const ratio = part / parts;
+      samples.splice(index + 1, 0, point(
+        Number((left.x + ((right.x - left.x) * ratio)).toFixed(2)),
+        Number((left.y + ((right.y - left.y) * ratio)).toFixed(2)),
+      ));
+    }
+  }
+  while (samples.length < minimumCount) {
+    let longestIndex = 0;
+    for (let index = 1; index < samples.length - 1; index += 1) {
+      if (length(samples[index], samples[index + 1]) > length(samples[longestIndex], samples[longestIndex + 1])) {
+        longestIndex = index;
+      }
+    }
+    const left = samples[longestIndex];
+    const right = samples[longestIndex + 1];
+    samples.splice(longestIndex + 1, 0, point(
+      Number(((left.x + right.x) / 2).toFixed(2)),
+      Number(((left.y + right.y) / 2).toFixed(2)),
+    ));
+  }
+  return samples;
+};
+
+const route = (pin, distanceMeters, sourceSamples) => {
+  const samples = densifySamples(sourceSamples);
+  return ({
   pin,
   distanceMeters,
   samples,
-  visibleSegments,
-});
+  visibleSegments: [pathFromSamples(samples)],
+  });
+};
 
 const theme = (home, routes) => Object.freeze({
   home,
@@ -93,86 +128,41 @@ export const WORK_ROUTE_BATCH_B = Object.freeze({
   underworld: theme(point(18, 19), {
     ghost_gate: route(point(50, 12), 540, [
       point(18, 19),
-      point(21, 21),
-      point(24, 24),
-      point(28, 26),
-      point(32, 28),
-      point(36, 29),
-      point(40, 29),
-      point(43, 27),
-      point(46, 24),
-      point(48, 20),
-      point(49, 16),
+      point(21, 21), point(24, 23), point(27, 25), point(30, 27), point(34, 29),
+      point(38, 30), point(40, 29), point(41, 26), point(42, 23), point(43, 20),
+      point(45, 17), point(47, 14),
       point(50, 12),
     ]),
     judgment_hall: route(point(78, 35), 700, [
       point(18, 19),
-      point(20, 22),
-      point(23, 25),
-      point(27, 29),
-      point(32, 32),
-      point(38, 34),
-      point(44, 35),
-      point(50, 36),
-      point(56, 37),
-      point(62, 39),
-      point(68, 39),
-      point(73, 37),
+      point(21, 21), point(24, 23), point(27, 25), point(30, 27), point(34, 29),
+      point(38, 30), point(40, 29), point(42, 31), point(45, 34), point(48, 36),
+      point(52, 38), point(56, 40), point(60, 42), point(64, 43), point(68, 42),
+      point(71, 40), point(74, 38),
       point(78, 35),
     ]),
     forgotten_river: route(point(15, 57), 520, [
       point(18, 19),
-      point(20, 23),
-      point(22, 27),
-      point(24, 31),
-      point(24, 35),
-      point(22, 39),
-      point(20, 43),
-      point(18, 47),
-      point(16, 51),
-      point(15, 54),
-      point(15, 56),
+      point(21, 21), point(24, 23), point(27, 25), point(30, 27), point(34, 29),
+      point(38, 30), point(40, 29), point(37, 31), point(34, 33), point(31, 35),
+      point(28, 38), point(25, 41), point(24, 45), point(23, 48), point(20, 51),
+      point(18, 54), point(16, 56),
       point(15, 57),
-    ], [
-      "M 18 19 L 20 23 L 22 27 L 24 31 L 24 35 L 22 39",
-      "M 20 43 L 18 47 L 16 51 L 15 54 L 15 56 L 15 57",
     ]),
     spirit_registry: route(point(52, 45), 610, [
       point(18, 19),
-      point(20, 23),
-      point(23, 27),
-      point(27, 31),
-      point(32, 35),
-      point(36, 40),
-      point(39, 45),
-      point(41, 50),
-      point(42, 55),
-      point(44, 59),
-      point(48, 54),
-      point(50, 49),
+      point(21, 21), point(24, 23), point(27, 25), point(30, 27), point(34, 29),
+      point(38, 30), point(40, 29), point(42, 32), point(45, 35), point(48, 38),
+      point(50, 40), point(51, 42), point(52, 44),
       point(52, 45),
     ]),
     mengpo_pavilion: route(point(84, 58), 790, [
       point(18, 19),
-      point(20, 23),
-      point(24, 28),
-      point(30, 33),
-      point(33, 36.5),
-      point(36, 40),
-      point(38, 44),
-      point(40, 48),
-      point(41.5, 52),
-      point(43, 56),
-      point(46, 61),
-      point(51, 65),
-      point(57, 66),
-      point(64, 65),
-      point(70, 62),
-      point(77, 59),
+      point(21, 21), point(24, 23), point(27, 25), point(30, 27), point(34, 29),
+      point(38, 30), point(40, 29), point(42, 32), point(45, 35), point(48, 38),
+      point(52, 40), point(56, 42), point(60, 43), point(64, 43), point(67, 45),
+      point(68, 49), point(70, 52), point(73, 54), point(77, 56), point(81, 57),
       point(84, 58),
-    ], [
-      "M 18 19 L 20 23 L 24 28 L 30 33 L 33 36.5 L 36 40 L 38 44 L 40 48 L 41.5 52 L 43 56",
-      "M 46 61 L 51 65 L 57 66 L 64 65 L 70 62 L 77 59 L 84 58",
     ]),
   }),
 

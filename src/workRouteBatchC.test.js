@@ -74,7 +74,7 @@ test("batch C routes have authored normalized samples, endpoints, distances, and
       assert.ok(route.distanceMeters > 0, `${themeId}:${place.type} distance must be positive`);
       assertValidPoint(route.pin, `${themeId}:${place.type}.pin`);
       assert.ok(Array.isArray(route.samples), `${themeId}:${place.type} samples must be an array`);
-      assert.ok(route.samples.length >= 12, `${themeId}:${place.type} needs at least 12 samples`);
+      assert.ok(route.samples.length >= 16, `${themeId}:${place.type} needs at least 16 samples`);
       assert.deepEqual(route.samples[0], routeTheme.home, `${themeId}:${place.type} must start at home`);
       assert.deepEqual(route.samples.at(-1), route.pin, `${themeId}:${place.type} must end at pin`);
       route.samples.forEach((sample, index) => assertValidPoint(sample, `${themeId}:${place.type}.samples[${index}]`));
