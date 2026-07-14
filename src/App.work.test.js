@@ -28,3 +28,12 @@ test("active work locks world tags and removes arrival transition after travel",
   assert.doesNotMatch(stylesSource, /\.work-map-traveler\s*\{[^}]*transition:/s);
   assert.match(stylesSource, /\.work-map-traveler\.walking\s*\{[^}]*transition:/s);
 });
+
+test("map travelers use a large responsive chibi scale", () => {
+  assert.match(
+    stylesSource,
+    /\.work-map-traveler\s*\{[^}]*width:\s*clamp\(54px,\s*15\.4vw,\s*60px\);[^}]*height:\s*clamp\(54px,\s*15\.4vw,\s*60px\);/s,
+  );
+  assert.match(stylesSource, /\.work-traveler-option\s*\{[^}]*width:\s*52px;[^}]*height:\s*52px;/s);
+  assert.match(stylesSource, /\.work-traveler-option img\s*\{[^}]*width:\s*40px;[^}]*height:\s*40px;/s);
+});
