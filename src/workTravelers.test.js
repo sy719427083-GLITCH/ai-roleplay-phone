@@ -230,23 +230,25 @@ test("maps every traveler to a distinct same-gender fallback from the detailed r
   assert.equal(getWorkTravelerFallbackAsset("missing-traveler"), getWorkTravelerFallbackAsset(DEFAULT_WORK_TRAVELER_ID));
 });
 
-test("ships eight detailed transparent 256px traveler PNG assets and removes old generic sprites", () => {
+test("ships eight detailed transparent 512px-or-larger traveler PNG assets for source and deploy", () => {
   const travelers = flattenTravelers();
 
   for (const traveler of travelers) {
-    const assetPath = join(projectRoot, "public", traveler.asset);
-    assert.ok(existsSync(assetPath), `${traveler.id} asset must exist at ${traveler.asset}`);
-    assert.ok(statSync(assetPath).size > 18_000, `${traveler.id} asset must retain non-trivial detail`);
+    for (const rootName of ["public", "docs"]) {
+      const assetPath = join(projectRoot, rootName, traveler.asset);
+      assert.ok(existsSync(assetPath), `${traveler.id} ${rootName} asset must exist at ${traveler.asset}`);
+      assert.ok(statSync(assetPath).size > 30_000, `${traveler.id} ${rootName} asset must retain non-trivial detail`);
 
-    const image = parseRgbaPng(assetPath);
-    assert.equal(image.width, 256, `${traveler.id} asset width`);
-    assert.equal(image.height, 256, `${traveler.id} asset height`);
-    assert.equal(alphaAt(image, 0, 0), 0, `${traveler.id} top-left corner must be transparent`);
-    assert.equal(alphaAt(image, image.width - 1, 0), 0, `${traveler.id} top-right corner must be transparent`);
-    assert.equal(alphaAt(image, 0, image.height - 1), 0, `${traveler.id} bottom-left corner must be transparent`);
-    assert.equal(alphaAt(image, image.width - 1, image.height - 1), 0, `${traveler.id} bottom-right corner must be transparent`);
-    assert.ok(getOpaqueCoverage(image) > 0.1, `${traveler.id} must have meaningful opaque subject coverage`);
-    assert.ok(getOpaqueCoverage(image) < 0.68, `${traveler.id} must preserve transparent padding`);
+      const image = parseRgbaPng(assetPath);
+      assert.ok(image.width >= 512, `${traveler.id} ${rootName} asset width`);
+      assert.ok(image.height >= 512, `${traveler.id} ${rootName} asset height`);
+      assert.equal(alphaAt(image, 0, 0), 0, `${traveler.id} ${rootName} top-left corner must be transparent`);
+      assert.equal(alphaAt(image, image.width - 1, 0), 0, `${traveler.id} ${rootName} top-right corner must be transparent`);
+      assert.equal(alphaAt(image, 0, image.height - 1), 0, `${traveler.id} ${rootName} bottom-left corner must be transparent`);
+      assert.equal(alphaAt(image, image.width - 1, image.height - 1), 0, `${traveler.id} ${rootName} bottom-right corner must be transparent`);
+      assert.ok(getOpaqueCoverage(image) > 0.1, `${traveler.id} ${rootName} must have meaningful opaque subject coverage`);
+      assert.ok(getOpaqueCoverage(image) < 0.68, `${traveler.id} ${rootName} must preserve transparent padding`);
+    }
   }
 
   assert.equal(existsSync(join(projectRoot, "public/work-map-assets/traveler-female.png")), false);
