@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.92");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.93");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -9868,6 +9868,28 @@ select {
 .work-map-traveler.walking {
   transition: left 850ms linear, top 850ms linear;
   animation: workTravelerStep 650ms ease-in-out infinite alternate;
+}
+
+/* Keep route coordinates on the same 9:16 canvas used by background-size: cover. */
+.work-map-panel {
+  top: 0;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: 9 / 16;
+  transform: translateX(-50%);
+}
+
+@media (min-aspect-ratio: 9 / 16) {
+  .work-map-panel {
+    top: 50%;
+    width: 100%;
+    height: auto;
+    transform: translate(-50%, -50%);
+  }
 }
 
 .work-job-dock {

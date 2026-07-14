@@ -37,3 +37,12 @@ test("map travelers use a large responsive chibi scale", () => {
   assert.match(stylesSource, /\.work-traveler-option\s*\{[^}]*width:\s*52px;[^}]*height:\s*52px;/s);
   assert.match(stylesSource, /\.work-traveler-option img\s*\{[^}]*width:\s*40px;[^}]*height:\s*40px;/s);
 });
+
+test("map markers and road routes use the same 9:16 cover geometry as the background", () => {
+  assert.match(stylesSource, /\.work-page\s*\{[^}]*background-size:\s*cover;/s);
+  assert.match(
+    stylesSource,
+    /\.work-map-panel\s*\{[^}]*top:\s*0;[^}]*left:\s*50%;[^}]*width:\s*auto;[^}]*height:\s*100%;[^}]*aspect-ratio:\s*9\s*\/\s*16;[^}]*transform:\s*translateX\(-50%\);/s,
+  );
+  assert.match(stylesSource, /@media\s*\(min-aspect-ratio:\s*9\s*\/\s*16\)\s*\{\s*\.work-map-panel\s*\{[^}]*top:\s*50%;[^}]*width:\s*100%;[^}]*height:\s*auto;[^}]*transform:\s*translate\(-50%,\s*-50%\);/s);
+});

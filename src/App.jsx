@@ -154,9 +154,9 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.92`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.92`;
-const workTravelerAsset = (asset) => `${import.meta.env.BASE_URL}${asset}?v=0.2.92`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.93`;
+const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.93`;
+const workTravelerAsset = (asset) => `${import.meta.env.BASE_URL}${asset}?v=0.2.93`;
 
 const handleWorkTravelerImageError = (event, travelerId) => {
   if (event.currentTarget.dataset.fallbackApplied === "true") return;
@@ -2509,7 +2509,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.92</p>
+      <p className="version-label">Ccat OS V0.2.93</p>
     </section>
   );
 }
