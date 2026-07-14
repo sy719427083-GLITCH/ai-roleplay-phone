@@ -224,6 +224,26 @@ test("validateCalibrationRoute rejects out-of-range coordinates and invalid brea
   ]);
 });
 
+test("validateCalibrationRoute blocks sample jumps that can cut across painted roads", () => {
+  const pin = MODERN_THEME_FIXTURE.places[0].pin;
+  const shortcut = { x: 78, y: 11 };
+  const samples = [MODERN_THEME_FIXTURE.home, shortcut, ...Array.from({ length: 10 }, (_, index) => {
+    const ratio = (index + 1) / 10;
+    return {
+      x: shortcut.x + ((pin.x - shortcut.x) * ratio),
+      y: shortcut.y + ((pin.y - shortcut.y) * ratio),
+    };
+  })];
+
+  assert.ok(validateCalibrationRoute({
+    home: MODERN_THEME_FIXTURE.home,
+    pin,
+    distanceMeters: 420,
+    samples,
+    breakIndices: [],
+  }).includes("maximum sample jump 28.02 exceeds 8; add road-center points"));
+});
+
 test("buildVisibleSegments shares the break point between adjoining segments", () => {
   assert.deepEqual(
     buildVisibleSegments(

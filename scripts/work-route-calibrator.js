@@ -1,5 +1,5 @@
 import { WORK_MAP_THEMES, getWorkTheme } from "../src/workThemes.js";
-import { getWorkRouteTheme } from "../src/workRouteData.js";
+import { getWorkRouteSampleMetrics, getWorkRouteTheme } from "../src/workRouteData.js";
 
 const POINT_PRECISION = 2;
 const HOME_ROUTE_KEY = "home";
@@ -89,6 +89,12 @@ export const validateCalibrationRoute = ({
     }
     if (issues.length === 0 && !samePoint(normalizePoint(samples.at(-1)), normalizePoint(pin))) {
       issues.push("samples[samples.length - 1] must equal pin");
+    }
+    if (issues.length === 0) {
+      const { maxSegmentLength } = getWorkRouteSampleMetrics(samples);
+      if (maxSegmentLength > 8) {
+        issues.push(`maximum sample jump ${maxSegmentLength} exceeds 8; add road-center points`);
+      }
     }
   }
 
@@ -367,6 +373,7 @@ const installCalibrator = () => {
     markersLayer: root.querySelector("[data-markers-layer]"),
     pointerReadout: root.querySelector("[data-pointer]"),
     selectionReadout: root.querySelector("[data-selection]"),
+    routeMetrics: root.querySelector("[data-route-metrics]"),
     sampleList: root.querySelector("[data-sample-list]"),
     breakList: root.querySelector("[data-break-list]"),
     visibleSegments: root.querySelector("[data-visible-segments]"),
@@ -453,6 +460,11 @@ const installCalibrator = () => {
         : activePlaceMeta
           ? `${activePlaceMeta.type} · ${activeRoute.authored ? `${activeRoute.samples.length}/${MIN_ROUTE_SAMPLES} samples` : "unauthored"} · pin ${formatNumber(activeRoute.pin.x)}, ${formatNumber(activeRoute.pin.y)}`
           : "none";
+    const routeMetrics = getWorkRouteSampleMetrics(activeRoute?.samples || []);
+    elements.routeMetrics.textContent = activeRoute
+      ? `${routeMetrics.sampleCount} points · max jump ${formatNumber(routeMetrics.maxSegmentLength)}`
+      : "--";
+    elements.routeMetrics.classList.toggle("invalid", routeMetrics.maxSegmentLength > 8);
     elements.copyStatus.textContent = state.copyStatus;
 
     elements.issueList.innerHTML = issues.length > 0

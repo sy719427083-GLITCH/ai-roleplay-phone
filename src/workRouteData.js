@@ -36,6 +36,18 @@ const isPoint = (value) => Boolean(
 
 const samePoint = (left, right) => left?.x === right?.x && left?.y === right?.y;
 
+export const getWorkRouteSampleMetrics = (samples = []) => {
+  const lengths = samples.slice(1).map((pointValue, index) => (
+    Math.hypot(pointValue.x - samples[index].x, pointValue.y - samples[index].y)
+  ));
+
+  return {
+    maxSegmentLength: Math.round(Math.max(0, ...lengths) * 100) / 100,
+    sampleCount: samples.length,
+    totalLength: Math.round(lengths.reduce((sum, length) => sum + length, 0) * 100) / 100,
+  };
+};
+
 const SVG_COMMAND_ARITY = Object.freeze({ M: 2, L: 2, C: 6 });
 const SVG_TOKEN_PATTERN = /[MLC]|[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?/g;
 const SVG_COMMANDS = new Set(Object.keys(SVG_COMMAND_ARITY));
@@ -146,6 +158,9 @@ export const validateWorkRouteTheme = (themeId, theme, routeTheme) => {
       }
       if (!samePoint(routeRecord.samples.at(-1), routeRecord.pin)) {
         issues.push(`${themeId}:${place.type} must end at pin`);
+      }
+      if (getWorkRouteSampleMetrics(routeRecord.samples).maxSegmentLength > 8) {
+        issues.push(`${themeId}:${place.type} segment jump exceeds 8`);
       }
     }
     if (!Array.isArray(routeRecord.visibleSegments) || routeRecord.visibleSegments.length < 1) {

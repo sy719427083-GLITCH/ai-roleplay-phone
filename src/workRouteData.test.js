@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   WORK_ROUTE_DATA,
+  getWorkRouteSampleMetrics,
   getWorkRouteTheme,
   interpolateWorkRoute,
   validateWorkRouteTheme,
@@ -25,6 +26,33 @@ const validateBookstoreRoute = (mutateRoute) => {
   mutateRoute(routeTheme.routes.bookstore);
   return validateWorkRouteTheme("modern", WORK_MAP_THEMES.modern, routeTheme);
 };
+
+test("getWorkRouteSampleMetrics reports total length and the longest jump", () => {
+  assert.deepEqual(
+    getWorkRouteSampleMetrics([
+      { x: 10, y: 10 },
+      { x: 13, y: 14 },
+      { x: 13, y: 20 },
+    ]),
+    { maxSegmentLength: 6, sampleCount: 3, totalLength: 11 },
+  );
+});
+
+test("route validation rejects sparse road shortcuts", () => {
+  const issues = validateBookstoreRoute((bookstore) => {
+    const start = bookstore.samples[0];
+    const shortcut = { x: start.x + 28, y: start.y + 1 };
+    bookstore.samples = [start, shortcut, ...Array.from({ length: 10 }, (_, index) => {
+      const ratio = (index + 1) / 10;
+      return {
+        x: shortcut.x + ((bookstore.pin.x - shortcut.x) * ratio),
+        y: shortcut.y + ((bookstore.pin.y - shortcut.y) * ratio),
+      };
+    })];
+  });
+
+  assert.ok(issues.includes("modern:bookstore segment jump exceeds 8"));
+});
 
 test("registers exactly 25 calibrated themes and 125 validated routes", () => {
   assert.equal(Object.keys(WORK_ROUTE_DATA).length, 25);
