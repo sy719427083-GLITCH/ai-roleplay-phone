@@ -184,6 +184,25 @@ test("rejects opening a conversation when any member is already busy in another 
   assert.equal(next.characters.employee3.conversationId, "");
 });
 
+test("opening a conversation preserves the anchor owner from the caller session", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const session = {
+    id: "a",
+    memberIds: ["employee1", "employee2"],
+    anchorId: "chat-1",
+    anchorOwnerId: "employee1",
+    transcript: [],
+  };
+
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session,
+  });
+  session.anchorOwnerId = "employee2";
+
+  assert.equal(state.conversations.a.anchorOwnerId, "employee1");
+});
+
 test("closing one concurrent session returns only that group and leaves the other session active", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
   state = officeReducer(state, {
@@ -213,6 +232,41 @@ test("closing one concurrent session returns only that group and leaves the othe
   assert.equal(state.characters.employee4.conversationId, "b");
 });
 
+test("closing one conversation releases only that session reservation owner match", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+      "chat-2": { anchorId: "chat-2", slotId: "employee3" },
+      "break-1": { anchorId: "break-1", slotId: "boss" },
+    },
+  };
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: { id: "a", memberIds: ["employee1", "employee2"], anchorId: "chat-1", anchorOwnerId: "employee1", transcript: [] },
+  });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: { id: "b", memberIds: ["employee3", "employee4"], anchorId: "chat-2", anchorOwnerId: "employee3", transcript: [] },
+  });
+
+  state = officeReducer(state, {
+    type: "CLOSE_CONVERSATION",
+    conversationId: "a",
+    returnRoutes: {
+      employee1: ["chat-1", "aisle", "employee1-home"],
+      employee2: ["chat-1", "aisle", "employee2-home"],
+    },
+  });
+
+  assert.deepEqual(state.reservations, {
+    "chat-2": { anchorId: "chat-2", slotId: "employee3" },
+    "break-1": { anchorId: "break-1", slotId: "boss" },
+  });
+  assert.deepEqual(Object.keys(state.conversations), ["b"]);
+});
+
 test("closing a conversation without supplied routes still starts a direct return trip", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
   state = officeReducer(state, {
@@ -238,6 +292,56 @@ test("closing a conversation without supplied routes still starts a direct retur
   assert.deepEqual(state.characters.employee1.route, ["chat-1", "employee1-home"]);
   assert.equal(state.characters.employee2.phase, "returning");
   assert.deepEqual(state.characters.employee2.route, ["chat-1-side", "employee2-home"]);
+});
+
+test("reset expired releases only the expired session reservation owner match", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+      "chat-2": { anchorId: "chat-2", slotId: "employee3" },
+      "break-1": { anchorId: "break-1", slotId: "boss" },
+    },
+  };
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "a",
+      memberIds: ["employee1", "employee2"],
+      anchorId: "chat-1",
+      anchorOwnerId: "employee1",
+      endsAt: 1000,
+      transcript: [],
+    },
+  });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "b",
+      memberIds: ["employee3", "employee4"],
+      anchorId: "chat-2",
+      anchorOwnerId: "employee3",
+      endsAt: 8000,
+      transcript: [],
+    },
+  });
+
+  state = officeReducer(state, {
+    type: "RESET_EXPIRED",
+    now: 5000,
+    returnRoutes: {
+      employee1: ["chat-1", "aisle", "employee1-home"],
+      employee2: ["chat-1", "aisle", "employee2-home"],
+    },
+  });
+
+  assert.deepEqual(state.reservations, {
+    "chat-2": { anchorId: "chat-2", slotId: "employee3" },
+    "break-1": { anchorId: "break-1", slotId: "boss" },
+  });
+  assert.deepEqual(Object.keys(state.conversations), ["b"]);
+  assert.equal(state.characters.employee3.phase, "chatting");
 });
 
 test("clones caller-owned payloads so later mutation cannot leak into reducer state", () => {

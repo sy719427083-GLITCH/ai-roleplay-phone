@@ -161,6 +161,7 @@ export function buildConversationSession({ memberIds, anchorId, now, random }) {
   if (typeof random !== "function") return null;
 
   const normalizedMemberIds = memberIds.map((memberId) => String(memberId));
+  const anchorOwnerId = normalizedMemberIds[0];
   const idSeed = Math.floor(clampRandom(random()) * 1_000_000);
   const topic = pickFromList(TOPICS, random) || TOPICS[0];
 
@@ -169,6 +170,7 @@ export function buildConversationSession({ memberIds, anchorId, now, random }) {
     memberIds: [...normalizedMemberIds],
     topic,
     anchorId,
+    anchorOwnerId,
     transcript: [],
     turnIndex: 0,
     requestSequence: 0,

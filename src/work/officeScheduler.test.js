@@ -213,6 +213,36 @@ test("conversation sessions create unique ids and isolated arrays", () => {
   assert.deepEqual(first.promptContext.members, ["employee1", "employee2", "employee3"]);
 });
 
+test("conversation sessions persist the anchor owner as the deterministic leader", () => {
+  const session = buildConversationSession({
+    memberIds: ["employee2", "employee3", "employee4"],
+    anchorId: "chat-3",
+    now: 3200,
+    random: createSequenceRandom([0.1, 0.2]),
+  });
+
+  assert.equal(session.anchorId, "chat-3");
+  assert.equal(session.anchorOwnerId, "employee2");
+});
+
+test("chat events return a session whose anchor owner matches the claimed reservation", () => {
+  const event = chooseOfficeEvent({
+    state: createState("free"),
+    profiles: createProfiles(),
+    random: createSequenceRandom([0.0, 0.95, 0.0, 0.51, 0.1, 0.2]),
+    now: 3300,
+  });
+
+  assert.equal(event.activity, "chatting");
+  assert.equal(event.anchorId, "chat-1");
+  assert.equal(event.session.anchorId, "chat-1");
+  assert.equal(event.session.anchorOwnerId, event.memberIds[0]);
+  assert.deepEqual(event.reservations["chat-1"], {
+    anchorId: "chat-1",
+    slotId: event.session.anchorOwnerId,
+  });
+});
+
 test("returns null when required anchors are unavailable", () => {
   const breakBlocked = chooseOfficeEvent({
     state: {

@@ -1,3 +1,5 @@
+import { releaseAnchor } from "./officeNavigation.js";
+
 const OFFICE_MODE = "free";
 const IDLE_STATUS = "空闲中";
 
@@ -69,6 +71,7 @@ const normalizeConversation = (session = {}, now = 0) => ({
   memberIds: Array.isArray(session.memberIds) ? [...session.memberIds] : [],
   topic: String(session.topic || ""),
   anchorId: String(session.anchorId || ""),
+  anchorOwnerId: String(session.anchorOwnerId || ""),
   transcript: Array.isArray(session.transcript) ? deepClone(session.transcript) : [],
   turnIndex: Number.isFinite(session.turnIndex) ? session.turnIndex : 0,
   requestSequence: Number.isFinite(session.requestSequence) ? session.requestSequence : 0,
@@ -163,6 +166,11 @@ const closeConversationMembers = (state, conversation, returnRoutes = {}) => {
   }
 
   return characters;
+};
+
+const releaseConversationReservation = (reservations, conversation) => {
+  if (!conversation?.anchorId || !conversation?.anchorOwnerId) return reservations;
+  return releaseAnchor(reservations, conversation.anchorId, conversation.anchorOwnerId);
 };
 
 const normalizeRestoredCharacters = (rawCharacters, assignments, now) => Object.fromEntries(
@@ -393,6 +401,7 @@ export function officeReducer(state, action) {
 
       return {
         ...state,
+        reservations: releaseConversationReservation(state.reservations, conversation),
         conversations,
         characters: closeConversationMembers(state, conversation, action.returnRoutes || {}),
       };
@@ -401,6 +410,7 @@ export function officeReducer(state, action) {
     case "RESET_EXPIRED": {
       const now = action.now ?? state.now;
       let characters = state.characters;
+      let reservations = state.reservations;
 
       for (const slotId of Object.keys(characters)) {
         const current = characters[slotId];
@@ -421,14 +431,16 @@ export function officeReducer(state, action) {
           action.returnRoutes || {},
         );
         characters = nextCharacters;
+        reservations = releaseConversationReservation(reservations, conversation);
         if (conversations === state.conversations) conversations = { ...state.conversations };
         delete conversations[conversationId];
       }
 
-      if (characters === state.characters && conversations === state.conversations) return state;
+      if (characters === state.characters && conversations === state.conversations && reservations === state.reservations) return state;
       return {
         ...state,
         now,
+        reservations,
         characters,
         conversations,
       };
