@@ -1,11 +1,12 @@
 {
   "name": "ai-roleplay-phone",
-  "version": "0.2.94",
+  "version": "0.2.95",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "deploy:pages": "npm run build && node scripts/sync-pages.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test src/*.test.js src/work/*.test.js",
     "verify:office": "node scripts/verify-office.mjs"
