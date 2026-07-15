@@ -29,6 +29,19 @@ const SCHEDULE_MIN_MS = 4_000;
 const SCHEDULE_MAX_MS = 8_000;
 const STATE_PERSIST_DEBOUNCE_MS = 1_000;
 const MODE_SCHEDULE_NUDGE_MS = 350;
+export const MAX_CUSTOM_IMAGE_BYTES = 1024 * 1024;
+
+const RADIO_PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
+const RADIO_NEXT_KEYS = new Set(["ArrowRight", "ArrowDown"]);
+const ASSIGNMENT_STORAGE_ERROR = "安排无法保存，请检查设备存储后重试";
+const CUSTOM_ASSET_STORAGE_ERROR = "图片无法保存，请使用更小图片或图片 URL";
+const CUSTOM_ASSET_LOAD_ERROR = "图片加载失败，已恢复内置形象";
+const DIALOG_FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "select:not([disabled])",
+  "input:not([disabled]):not([tabindex='-1'])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 const SLOT_DETAILS = [
   { id: "boss", label: "老板", kind: "boss", defaultChibiId: "boss-f-01" },
@@ -50,6 +63,80 @@ const SLACK_PROPS = ["phone", "comic", "handheld"];
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+export function getNextOfficeRadioIndex(currentIndex, key, itemCount) {
+  if (!Number.isInteger(itemCount) || itemCount <= 0) return -1;
+  const safeIndex = Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < itemCount
+    ? currentIndex
+    : 0;
+  if (RADIO_PREVIOUS_KEYS.has(key)) return (safeIndex - 1 + itemCount) % itemCount;
+  if (RADIO_NEXT_KEYS.has(key)) return (safeIndex + 1) % itemCount;
+  if (key === "Home") return 0;
+  if (key === "End") return itemCount - 1;
+  return -1;
+}
+
+export function getOfficeFocusTrapIndex(currentIndex, itemCount, shiftKey) {
+  if (!Number.isInteger(itemCount) || itemCount <= 0) return -1;
+  if (!Number.isInteger(currentIndex) || currentIndex < 0 || currentIndex >= itemCount) {
+    return shiftKey ? itemCount - 1 : 0;
+  }
+  if (shiftKey && currentIndex === 0) return itemCount - 1;
+  if (!shiftKey && currentIndex === itemCount - 1) return 0;
+  return null;
+}
+
+export function validateOfficeImageFile(file) {
+  if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
+    return { ok: false, reason: "invalid-type" };
+  }
+  if (!Number.isFinite(file.size) || file.size < 0 || file.size > MAX_CUSTOM_IMAGE_BYTES) {
+    return { ok: false, reason: "too-large" };
+  }
+  return { ok: true, reason: "" };
+}
+
+const abortReaderSafely = (reader) => {
+  try {
+    reader?.abort?.();
+  } catch {
+    // A completed reader may reject abort; it is stale either way.
+  }
+};
+
+export function createOfficeUploadReaderRegistry() {
+  const readers = new Map();
+
+  const abort = (slotId) => {
+    const reader = readers.get(slotId);
+    if (!reader) return false;
+    readers.delete(slotId);
+    abortReaderSafely(reader);
+    return true;
+  };
+
+  return {
+    abort,
+    start(slotId, reader) {
+      abort(slotId);
+      readers.set(slotId, reader);
+      return reader;
+    },
+    isCurrent(slotId, reader) {
+      return readers.get(slotId) === reader;
+    },
+    finish(slotId, reader) {
+      if (readers.get(slotId) !== reader) return false;
+      readers.delete(slotId);
+      return true;
+    },
+    abortAll() {
+      const activeReaders = [...readers.values()];
+      readers.clear();
+      for (const reader of activeReaders) abortReaderSafely(reader);
+    },
+  };
+}
+
 const getStorage = () => {
   try {
     return typeof window !== "undefined" ? window.localStorage : undefined;
@@ -68,7 +155,8 @@ const safeGetItem = (storage, key) => {
 
 const safeSetItem = (storage, key, value) => {
   try {
-    storage?.setItem?.(key, value);
+    if (typeof storage?.setItem !== "function") return false;
+    storage.setItem(key, value);
     return true;
   } catch {
     return false;
@@ -140,6 +228,14 @@ const serializeAssignments = (assignments) => JSON.stringify(Object.fromEntries(
     customAssetSrc: cleanText(assignments[slotId]?.customAssetSrc),
   }]),
 ));
+
+export function commitOfficeAssignments(storage, currentAssignments, nextAssignments) {
+  const ok = safeSetItem(storage, OFFICE_ASSIGNMENT_KEY, serializeAssignments(nextAssignments));
+  return {
+    ok,
+    assignments: ok ? nextAssignments : currentAssignments,
+  };
+}
 
 const createInitialContext = () => {
   const storage = getStorage();
@@ -215,9 +311,17 @@ const getGraphReturnRoute = (slotId, character) => findOfficeRoute(
   `${slotId}-home`,
 );
 
+const getDialogFocusableElements = (dialog) => (
+  dialog
+    ? [...dialog.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR)]
+        .filter((element) => element.tabIndex >= 0 && element.getAttribute("aria-hidden") !== "true")
+    : []
+);
+
 function AssignmentRow({
   assignment,
   customDraft,
+  errorMessage,
   occupiedProfiles,
   onChibiChange,
   onCustomDraftChange,
@@ -231,6 +335,20 @@ function AssignmentRow({
   const selectedProfileId = assignment.profile?.generated ? "" : assignment.profileId;
   const isInvalidDraft = !isAcceptedCustomAssetSource(customDraft);
   const errorId = `${slot.id}-asset-error`;
+  const selectedChibiIndex = compatibleChibis.findIndex((chibi) => chibi.id === assignment.chibiId);
+  const rovingChibiIndex = selectedChibiIndex >= 0 ? selectedChibiIndex : 0;
+  const visibleError = isInvalidDraft ? "地址格式不支持" : cleanText(errorMessage);
+
+  const handleChibiKeyDown = (event, index) => {
+    const nextIndex = getNextOfficeRadioIndex(index, event.key, compatibleChibis.length);
+    if (nextIndex < 0) return;
+    event.preventDefault();
+    onChibiChange(slot.id, compatibleChibis[nextIndex].id);
+    event.currentTarget.parentElement
+      ?.querySelectorAll("[role='radio']")
+      ?.[nextIndex]
+      ?.focus();
+  };
 
   return (
     <section className="office-assignment-row" aria-labelledby={`${slot.id}-assignment-title`}>
@@ -259,7 +377,7 @@ function AssignmentRow({
       </div>
 
       <div className="office-chibi-picker" role="radiogroup" aria-label={`${slot.label}形象`}>
-        {compatibleChibis.map((chibi) => (
+        {compatibleChibis.map((chibi, index) => (
           <button
             key={chibi.id}
             type="button"
@@ -268,8 +386,10 @@ function AssignmentRow({
             aria-checked={assignment.chibiId === chibi.id}
             aria-label={chibi.name}
             role="radio"
+            tabIndex={index === rovingChibiIndex ? 0 : -1}
             title={chibi.name}
             onClick={() => onChibiChange(slot.id, chibi.id)}
+            onKeyDown={(event) => handleChibiKeyDown(event, index)}
           >
             <span style={{ backgroundImage: `url(${chibi.src})` }}></span>
           </button>
@@ -277,13 +397,25 @@ function AssignmentRow({
       </div>
 
       <div className="office-custom-asset-controls">
-        <label className="office-upload-command" title="上传自定义形象">
+        <label
+          className="office-upload-command"
+          title="上传自定义形象"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.currentTarget.querySelector("input")?.click();
+          }}
+        >
           <Upload size={18} strokeWidth={1.8} aria-hidden="true" />
           <span>上传</span>
           <input
             type="file"
             accept="image/*"
             aria-label={`${slot.label}上传形象`}
+            aria-describedby={visibleError ? errorId : undefined}
+            tabIndex={-1}
             onChange={(event) => onUpload(slot.id, event)}
           />
         </label>
@@ -296,14 +428,14 @@ function AssignmentRow({
             value={customDraft}
             aria-label={`${slot.label}形象地址`}
             aria-invalid={isInvalidDraft || undefined}
-            aria-describedby={isInvalidDraft ? errorId : undefined}
+            aria-describedby={visibleError ? errorId : undefined}
             placeholder="图片 URL"
             onChange={(event) => onCustomDraftChange(slot.id, event.target.value)}
           />
         </label>
       </div>
-      {isInvalidDraft && (
-        <p className="office-field-error" id={errorId} role="alert">地址格式不支持</p>
+      {visibleError && (
+        <p className="office-field-error" id={errorId} role="alert">{visibleError}</p>
       )}
     </section>
   );
@@ -314,6 +446,7 @@ export default function WorkAppScreen({ onClose }) {
   const [state, reducerDispatch] = useReducer(officeReducer, initialContext.initialState);
   const [assignments, setAssignments] = useState(initialContext.assignments);
   const [assignmentPanelOpen, setAssignmentPanelOpen] = useState(false);
+  const [assignmentErrors, setAssignmentErrors] = useState({});
   const [customDrafts, setCustomDrafts] = useState(() => Object.fromEntries(
     OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customAssetSrc]),
   ));
@@ -328,6 +461,11 @@ export default function WorkAppScreen({ onClose }) {
   const returningMealPropsRef = useRef(new Map());
   const conversationControllersRef = useRef(new Map());
   const conversationRuntimeRef = useRef(new Map());
+  const assignmentDialogRef = useRef(null);
+  const assignmentOpenerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const uploadReadersRef = useRef(null);
+  if (!uploadReadersRef.current) uploadReadersRef.current = createOfficeUploadReaderRegistry();
 
   stateRef.current = state;
   assignmentsRef.current = assignments;
@@ -336,6 +474,64 @@ export default function WorkAppScreen({ onClose }) {
     stateRef.current = officeReducer(stateRef.current, action);
     reducerDispatch(action);
   }, []);
+
+  const setAssignmentError = useCallback((slotId, message) => {
+    if (!isMountedRef.current) return;
+    setAssignmentErrors((current) => {
+      if ((current[slotId] || "") === message) return current;
+      const next = { ...current };
+      if (message) next[slotId] = message;
+      else delete next[slotId];
+      return next;
+    });
+  }, []);
+
+  const openAssignmentPanel = useCallback(() => {
+    if (typeof document !== "undefined") assignmentOpenerRef.current = document.activeElement;
+    setAssignmentPanelOpen(true);
+  }, []);
+
+  const closeAssignmentPanel = useCallback(() => {
+    setAssignmentPanelOpen(false);
+  }, []);
+
+  const handleAssignmentDialogKeyDown = useCallback((event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAssignmentPanel();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const dialog = assignmentDialogRef.current;
+    const focusableElements = getDialogFocusableElements(dialog);
+    const currentIndex = focusableElements.indexOf(document.activeElement);
+    const nextIndex = getOfficeFocusTrapIndex(currentIndex, focusableElements.length, event.shiftKey);
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    if (nextIndex < 0) dialog?.focus();
+    else focusableElements[nextIndex]?.focus();
+  }, [closeAssignmentPanel]);
+
+  useEffect(() => {
+    if (!assignmentPanelOpen || !assignmentDialogRef.current || typeof window === "undefined") {
+      return undefined;
+    }
+    const dialog = assignmentDialogRef.current;
+    const opener = assignmentOpenerRef.current;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const initialTarget = dialog.querySelector("[data-office-dialog-close]")
+        || getDialogFocusableElements(dialog)[0]
+        || dialog;
+      initialTarget.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (opener?.isConnected && typeof opener.focus === "function") opener.focus();
+    };
+  }, [assignmentPanelOpen]);
 
   const getRemainingMs = useCallback((snapshot = stateRef.current, now = Date.now()) => (
     Math.max(0, snapshot.durationMs - Math.max(0, now - sessionStartedAtRef.current))
@@ -699,27 +895,22 @@ export default function WorkAppScreen({ onClose }) {
     stopConversationRuntime,
   ]);
 
-  useEffect(() => () => {
-    if (statePersistTimerRef.current) clearTimeout(statePersistTimerRef.current);
-    persistOfficeState();
-    for (const conversationId of [...conversationRuntimeRef.current.keys()]) {
-      stopConversationRuntime(conversationId);
-    }
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      uploadReadersRef.current.abortAll();
+      if (statePersistTimerRef.current) clearTimeout(statePersistTimerRef.current);
+      persistOfficeState();
+      for (const conversationId of [...conversationRuntimeRef.current.keys()]) {
+        stopConversationRuntime(conversationId);
+      }
+    };
   }, [persistOfficeState, stopConversationRuntime]);
 
-  const persistAssignments = useCallback((nextAssignments) => {
-    safeSetItem(
-      initialContext.storage,
-      OFFICE_ASSIGNMENT_KEY,
-      serializeAssignments(nextAssignments),
-    );
-  }, [initialContext.storage]);
-
-  const replaceAssignment = useCallback((slotId, nextAssignment) => {
-    const nextAssignments = {
-      ...assignmentsRef.current,
-      [slotId]: nextAssignment,
-    };
+  const applyAssignmentInMemory = useCallback((slotId, nextAssignments) => {
+    if (!isMountedRef.current) return false;
+    const nextAssignment = nextAssignments[slotId];
     assignmentsRef.current = nextAssignments;
     setAssignments(nextAssignments);
     dispatchOffice({
@@ -730,8 +921,29 @@ export default function WorkAppScreen({ onClose }) {
         profile: nextAssignment.profile,
       },
     });
-    persistAssignments(nextAssignments);
-  }, [dispatchOffice, persistAssignments]);
+    return true;
+  }, [dispatchOffice]);
+
+  const replaceAssignment = useCallback((slotId, nextAssignment, options = {}) => {
+    const currentAssignments = assignmentsRef.current;
+    const candidateAssignments = {
+      ...currentAssignments,
+      [slotId]: nextAssignment,
+    };
+    const committed = commitOfficeAssignments(
+      initialContext.storage,
+      currentAssignments,
+      candidateAssignments,
+    );
+    if (!committed.ok) {
+      setAssignmentError(slotId, options.failureMessage || ASSIGNMENT_STORAGE_ERROR);
+      return false;
+    }
+
+    applyAssignmentInMemory(slotId, committed.assignments);
+    setAssignmentError(slotId, options.successMessage || "");
+    return true;
+  }, [applyAssignmentInMemory, initialContext.storage, setAssignmentError]);
 
   const handleProfileChange = useCallback((slotId, profileId) => {
     if (profileId && OFFICE_SLOT_IDS.some((otherSlotId) => (
@@ -754,39 +966,94 @@ export default function WorkAppScreen({ onClose }) {
   }, [replaceAssignment]);
 
   const handleCustomDraftChange = useCallback((slotId, value) => {
+    if (!isMountedRef.current) return;
     setCustomDrafts((current) => ({ ...current, [slotId]: value }));
-    if (!isAcceptedCustomAssetSource(value)) return;
+    if (!isAcceptedCustomAssetSource(value)) {
+      setAssignmentError(slotId, "");
+      return;
+    }
     replaceAssignment(slotId, {
       ...assignmentsRef.current[slotId],
       customAssetSrc: cleanText(value),
+    }, {
+      failureMessage: CUSTOM_ASSET_STORAGE_ERROR,
     });
-  }, [replaceAssignment]);
+  }, [replaceAssignment, setAssignmentError]);
 
   const handleUpload = useCallback((slotId, event) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
     input.value = "";
-    if (!file || !file.type.startsWith("image/")) return;
+    const readers = uploadReadersRef.current;
+    readers.abort(slotId);
+    if (!file) return;
+
+    const validation = validateOfficeImageFile(file);
+    if (!validation.ok) {
+      setAssignmentError(
+        slotId,
+        validation.reason === "too-large"
+          ? "图片不能超过 1 MB，请使用更小图片或图片 URL"
+          : "请选择图片文件",
+      );
+      return;
+    }
 
     const reader = new FileReader();
     reader.addEventListener("load", () => {
+      if (!isMountedRef.current || !readers.isCurrent(slotId, reader)) return;
+      readers.finish(slotId, reader);
       const source = typeof reader.result === "string" ? reader.result : "";
-      if (!source.startsWith("data:image/") || !isAcceptedCustomAssetSource(source)) return;
-      setCustomDrafts((current) => ({ ...current, [slotId]: source }));
-      replaceAssignment(slotId, {
+      if (!source.startsWith("data:image/") || !isAcceptedCustomAssetSource(source)) {
+        setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+        return;
+      }
+      const saved = replaceAssignment(slotId, {
         ...assignmentsRef.current[slotId],
         customAssetSrc: source,
+      }, {
+        failureMessage: CUSTOM_ASSET_STORAGE_ERROR,
       });
+      if (saved && isMountedRef.current) {
+        setCustomDrafts((current) => ({ ...current, [slotId]: source }));
+      }
     }, { once: true });
-    reader.readAsDataURL(file);
-  }, [replaceAssignment]);
+    reader.addEventListener("error", () => {
+      if (!readers.finish(slotId, reader) || !isMountedRef.current) return;
+      setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+    }, { once: true });
+    reader.addEventListener("abort", () => {
+      readers.finish(slotId, reader);
+    }, { once: true });
+    readers.start(slotId, reader);
+    try {
+      reader.readAsDataURL(file);
+    } catch {
+      if (readers.finish(slotId, reader) && isMountedRef.current) {
+        setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+      }
+    }
+  }, [replaceAssignment, setAssignmentError]);
 
   const onAssetError = useCallback((slotId) => {
-    replaceAssignment(slotId, {
+    if (!isMountedRef.current) return;
+    setCustomDrafts((current) => ({ ...current, [slotId]: "" }));
+    const nextAssignment = {
       ...assignmentsRef.current[slotId],
       customAssetSrc: "",
+    };
+    const saved = replaceAssignment(slotId, nextAssignment, {
+      failureMessage: `${CUSTOM_ASSET_LOAD_ERROR}，但清理结果未保存`,
+      successMessage: CUSTOM_ASSET_LOAD_ERROR,
     });
-  }, [replaceAssignment]);
+    if (saved) return;
+
+    applyAssignmentInMemory(slotId, {
+      ...assignmentsRef.current,
+      [slotId]: nextAssignment,
+    });
+    setAssignmentError(slotId, `${CUSTOM_ASSET_LOAD_ERROR}，但清理结果未保存`);
+  }, [applyAssignmentInMemory, replaceAssignment, setAssignmentError]);
 
   const handleModeChange = useCallback((mode) => {
     dispatchOffice({ type: "SET_MODE", mode });
@@ -858,7 +1125,11 @@ export default function WorkAppScreen({ onClose }) {
 
   return (
     <main className="work-app-screen">
-      <header className="work-app-header">
+      <header
+        className="work-app-header"
+        aria-hidden={assignmentPanelOpen || undefined}
+        inert={assignmentPanelOpen}
+      >
         <button
           type="button"
           className="work-icon-button"
@@ -878,13 +1149,18 @@ export default function WorkAppScreen({ onClose }) {
           aria-label="员工安排"
           title="员工安排"
           aria-expanded={assignmentPanelOpen}
-          onClick={() => setAssignmentPanelOpen(true)}
+          onClick={openAssignmentPanel}
         >
           <Users size={21} strokeWidth={1.9} aria-hidden="true" />
         </button>
       </header>
 
-      <nav className="work-mode-control" aria-label="工作模式">
+      <nav
+        className="work-mode-control"
+        aria-label="工作模式"
+        aria-hidden={assignmentPanelOpen || undefined}
+        inert={assignmentPanelOpen}
+      >
         {MODE_OPTIONS.map((mode) => (
           <button
             key={mode.id}
@@ -908,11 +1184,15 @@ export default function WorkAppScreen({ onClose }) {
         </button>
       </nav>
 
-      <div className="work-office-surface">
+      <div
+        className="work-office-surface"
+        aria-hidden={assignmentPanelOpen || undefined}
+        inert={assignmentPanelOpen}
+      >
         <OfficeScene
           state={sceneState}
           assignments={assignments}
-          onSlotSelect={() => setAssignmentPanelOpen(true)}
+          onSlotSelect={openAssignmentPanel}
           onAssetError={onAssetError}
         />
       </div>
@@ -923,6 +1203,9 @@ export default function WorkAppScreen({ onClose }) {
           aria-label="员工安排"
           aria-modal="true"
           role="dialog"
+          tabIndex={-1}
+          ref={assignmentDialogRef}
+          onKeyDown={handleAssignmentDialogKeyDown}
         >
           <header className="office-assignment-header">
             <div>
@@ -934,7 +1217,8 @@ export default function WorkAppScreen({ onClose }) {
               className="work-icon-button"
               aria-label="关闭员工安排"
               title="关闭"
-              onClick={() => setAssignmentPanelOpen(false)}
+              data-office-dialog-close="true"
+              onClick={closeAssignmentPanel}
             >
               <X size={21} strokeWidth={1.9} aria-hidden="true" />
             </button>
@@ -946,6 +1230,7 @@ export default function WorkAppScreen({ onClose }) {
                 slot={slot}
                 assignment={assignments[slot.id]}
                 customDraft={customDrafts[slot.id]}
+                errorMessage={assignmentErrors[slot.id]}
                 profiles={initialContext.profiles}
                 occupiedProfiles={occupiedProfiles}
                 onProfileChange={handleProfileChange}

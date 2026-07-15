@@ -1,10 +1,24 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import test from "node:test";
+import { fileURLToPath } from "node:url";
+import test, { after } from "node:test";
+import { createServer } from "vite";
 
 const screenPath = new URL("./WorkAppScreen.jsx", import.meta.url);
 const screenExists = existsSync(screenPath);
 const source = screenExists ? readFileSync(screenPath, "utf8") : "";
+const vite = await createServer({
+  appType: "custom",
+  configFile: false,
+  logLevel: "silent",
+  root: fileURLToPath(new URL("../..", import.meta.url)),
+  server: { middlewareMode: true },
+});
+const screenModule = await vite.ssrLoadModule("/src/work/WorkAppScreen.jsx");
+
+after(async () => {
+  await vite.close();
+});
 
 test("ships the Work app screen with the required public controls", () => {
   assert.ok(screenExists, "WorkAppScreen.jsx must exist");
@@ -59,4 +73,98 @@ test("keeps routes, conversation requests, and custom assets isolated", () => {
   assert.match(source, /data:image\//);
   assert.match(source, /accept="image\/\*"/);
   assert.match(source, /customAssetSrc:\s*""/);
+});
+
+test("cycles chibi radios and wraps modal focus with pure keyboard helpers", () => {
+  const { getNextOfficeRadioIndex, getOfficeFocusTrapIndex } = screenModule;
+  assert.equal(typeof getNextOfficeRadioIndex, "function");
+  assert.equal(typeof getOfficeFocusTrapIndex, "function");
+
+  assert.equal(getNextOfficeRadioIndex(0, "ArrowLeft", 4), 3);
+  assert.equal(getNextOfficeRadioIndex(3, "ArrowRight", 4), 0);
+  assert.equal(getNextOfficeRadioIndex(2, "ArrowUp", 4), 1);
+  assert.equal(getNextOfficeRadioIndex(2, "ArrowDown", 4), 3);
+  assert.equal(getNextOfficeRadioIndex(2, "Home", 4), 0);
+  assert.equal(getNextOfficeRadioIndex(1, "End", 4), 3);
+  assert.equal(getNextOfficeRadioIndex(1, "Enter", 4), -1);
+
+  assert.equal(getOfficeFocusTrapIndex(0, 4, true), 3);
+  assert.equal(getOfficeFocusTrapIndex(3, 4, false), 0);
+  assert.equal(getOfficeFocusTrapIndex(-1, 4, false), 0);
+  assert.equal(getOfficeFocusTrapIndex(-1, 4, true), 3);
+  assert.equal(getOfficeFocusTrapIndex(1, 4, false), null);
+  assert.equal(getOfficeFocusTrapIndex(0, 0, false), -1);
+});
+
+test("rejects non-images and oversized files before FileReader work starts", () => {
+  const { MAX_CUSTOM_IMAGE_BYTES, validateOfficeImageFile } = screenModule;
+  assert.equal(MAX_CUSTOM_IMAGE_BYTES, 1024 * 1024);
+  assert.equal(typeof validateOfficeImageFile, "function");
+
+  assert.deepEqual(validateOfficeImageFile({ type: "image/png", size: MAX_CUSTOM_IMAGE_BYTES }), {
+    ok: true,
+    reason: "",
+  });
+  assert.deepEqual(validateOfficeImageFile({ type: "text/plain", size: 10 }), {
+    ok: false,
+    reason: "invalid-type",
+  });
+  assert.deepEqual(validateOfficeImageFile({ type: "image/jpeg", size: MAX_CUSTOM_IMAGE_BYTES + 1 }), {
+    ok: false,
+    reason: "too-large",
+  });
+});
+
+test("keeps the current assignment when localStorage persistence fails", () => {
+  const { commitOfficeAssignments } = screenModule;
+  assert.equal(typeof commitOfficeAssignments, "function");
+  const currentAssignments = { employee1: { profileId: "old", customAssetSrc: "" } };
+  const nextAssignments = { employee1: { profileId: "old", customAssetSrc: "data:image/png;base64,new" } };
+  const throwingStorage = { setItem: () => { throw new Error("quota"); } };
+
+  const failed = commitOfficeAssignments(throwingStorage, currentAssignments, nextAssignments);
+  assert.equal(failed.ok, false);
+  assert.strictEqual(failed.assignments, currentAssignments);
+
+  const unavailable = commitOfficeAssignments(undefined, currentAssignments, nextAssignments);
+  assert.equal(unavailable.ok, false);
+  assert.strictEqual(unavailable.assignments, currentAssignments);
+
+  let persistedKey = "";
+  let persistedValue = "";
+  const workingStorage = {
+    setItem: (key, value) => {
+      persistedKey = key;
+      persistedValue = value;
+    },
+  };
+  const saved = commitOfficeAssignments(workingStorage, currentAssignments, nextAssignments);
+  assert.equal(saved.ok, true);
+  assert.strictEqual(saved.assignments, nextAssignments);
+  assert.equal(persistedKey, "ccatOfficeAssignmentsV1");
+  assert.equal(JSON.parse(persistedValue).employee1.customAssetSrc, "data:image/png;base64,new");
+});
+
+test("owns one upload reader per slot and aborts stale or unmounted work", () => {
+  const { createOfficeUploadReaderRegistry } = screenModule;
+  assert.equal(typeof createOfficeUploadReaderRegistry, "function");
+  const registry = createOfficeUploadReaderRegistry();
+  const first = { abortCount: 0, abort() { this.abortCount += 1; } };
+  const second = { abortCount: 0, abort() { this.abortCount += 1; } };
+  const other = { abortCount: 0, abort() { this.abortCount += 1; } };
+
+  registry.start("employee1", first);
+  registry.start("employee1", second);
+  registry.start("employee2", other);
+
+  assert.equal(first.abortCount, 1);
+  assert.equal(registry.isCurrent("employee1", first), false);
+  assert.equal(registry.isCurrent("employee1", second), true);
+  assert.equal(registry.finish("employee1", first), false);
+  assert.equal(registry.isCurrent("employee1", second), true);
+
+  registry.abortAll();
+  assert.equal(second.abortCount, 1);
+  assert.equal(other.abortCount, 1);
+  assert.equal(registry.isCurrent("employee1", second), false);
 });
