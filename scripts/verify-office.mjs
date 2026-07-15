@@ -687,16 +687,23 @@ const signalProcessGroupByPid = (pid, signal) => {
   }
 };
 
-const teardownProcessGroup = async (pid) => {
-  if (!Number.isInteger(pid) || pid <= 0) return;
+const teardownProcessGroup = async (pid, stillOwnsGroup = () => true) => {
+  if (!Number.isInteger(pid) || pid <= 0 || !stillOwnsGroup() || !isProcessGroupRunning(pid)) return;
   signalProcessGroupByPid(pid, "SIGTERM");
   const termDeadline = Date.now() + 1_000;
-  while (Date.now() < termDeadline && isProcessGroupRunning(pid)) await delay(50);
-  if (!isProcessGroupRunning(pid)) return;
+  while (Date.now() < termDeadline) {
+    if (!stillOwnsGroup() || !isProcessGroupRunning(pid)) return;
+    await delay(50);
+  }
+  if (!stillOwnsGroup() || !isProcessGroupRunning(pid)) return;
 
   signalProcessGroupByPid(pid, "SIGKILL");
   const killDeadline = Date.now() + 2_000;
-  while (Date.now() < killDeadline && isProcessGroupRunning(pid)) await delay(50);
+  while (Date.now() < killDeadline) {
+    if (!stillOwnsGroup() || !isProcessGroupRunning(pid)) return;
+    await delay(50);
+  }
+  if (!stillOwnsGroup()) return;
   assert(!isProcessGroupRunning(pid), `Vite process group ${pid} survived bounded teardown`);
 };
 
@@ -739,6 +746,47 @@ const terminateAndReapProbeTarget = async (target) => {
   }
   assert(result, `signal probe target could not be reaped\n${target.getOutput()}`);
   return result;
+};
+
+const cleanupSignalProbeProcesses = async ({
+  target,
+  vitePid,
+  reapTarget = terminateAndReapProbeTarget,
+  teardownGroup = teardownProcessGroup,
+  groupIsRunning = isProcessGroupRunning,
+}) => {
+  const attempts = [
+    {
+      label: "target reaping",
+      run: () => reapTarget(target),
+    },
+    {
+      label: "Vite process-group teardown",
+      run: async () => {
+        const output = target.getOutput();
+        const ownsLiveGroup = vitePid > 0
+          && output.includes(`${SIGNAL_PROBE_VITE_STARTED} vitePid=${vitePid}`)
+          && !output.includes(SIGNAL_PROBE_VITE_STOPPED)
+          && groupIsRunning(vitePid);
+        if (!ownsLiveGroup || target.getOutput().includes(SIGNAL_PROBE_VITE_STOPPED)) return;
+        await teardownGroup(
+          vitePid,
+          () => !target.getOutput().includes(SIGNAL_PROBE_VITE_STOPPED),
+        );
+      },
+    },
+  ];
+  const results = await Promise.allSettled(attempts.map(({ run }) => Promise.resolve().then(run)));
+  const cleanupErrors = results.flatMap((result, index) => (
+    result.status === "rejected"
+      ? [new Error(`${attempts[index].label} failed: ${result.reason?.message || result.reason}`, {
+        cause: result.reason,
+      })]
+      : []
+  ));
+  if (cleanupErrors.length) {
+    throw new AggregateError(cleanupErrors, "signal probe process cleanup failed");
+  }
 };
 
 const captureProbeVitePid = async (target) => {
@@ -788,8 +836,7 @@ const runSingleSignalCleanupProbe = async (signal, expectedCode) => {
     assert(target.getOutput().includes(SIGNAL_PROBE_VITE_STOPPED),
       `signal probe did not confirm Vite cleanup\n${target.getOutput()}`);
   } finally {
-    await terminateAndReapProbeTarget(target);
-    await teardownProcessGroup(vitePid);
+    await cleanupSignalProbeProcesses({ target, vitePid });
   }
 
   await assertProbeResourcesGone(vitePid, `${signal} cleanup`);
@@ -818,19 +865,66 @@ const runPreBrowserFailureProbe = async () => {
     assert(!target.getOutput().includes(SIGNAL_PROBE_READY),
       `pre-browser failure probe unexpectedly reached Chromium readiness\n${target.getOutput()}`);
   } finally {
-    await terminateAndReapProbeTarget(target);
-    await teardownProcessGroup(vitePid);
+    await cleanupSignalProbeProcesses({ target, vitePid });
   }
 
   await assertProbeResourcesGone(vitePid, "pre-browser failure cleanup");
   console.log("[office signal probe] PASS: pre-browser failure left no Vite listener or process group");
 };
 
+const runSignalProbeContractTests = async () => {
+  const stoppedTarget = {
+    getOutput: () => `${SIGNAL_PROBE_VITE_STARTED} vitePid=123\n${SIGNAL_PROBE_VITE_STOPPED}`,
+  };
+  let normalTeardownCalls = 0;
+  await cleanupSignalProbeProcesses({
+    target: stoppedTarget,
+    vitePid: 123,
+    reapTarget: async () => {},
+    teardownGroup: async () => { normalTeardownCalls += 1; },
+    groupIsRunning: () => true,
+  });
+  assert(normalTeardownCalls === 0,
+    "normal probe cleanup invoked process-group teardown after the Vite-stopped marker");
+
+  let failedReapTeardownCalls = 0;
+  let cleanupFailure = null;
+  try {
+    await cleanupSignalProbeProcesses({
+      target: { getOutput: () => `${SIGNAL_PROBE_VITE_STARTED} vitePid=456` },
+      vitePid: 456,
+      reapTarget: async () => { throw new Error("simulated reap failure"); },
+      teardownGroup: async () => { failedReapTeardownCalls += 1; },
+      groupIsRunning: () => true,
+    });
+  } catch (error) {
+    cleanupFailure = error;
+  }
+  assert(cleanupFailure instanceof AggregateError,
+    "probe cleanup did not aggregate a simulated target-reaping failure");
+  assert(failedReapTeardownCalls === 1,
+    "probe cleanup skipped process-group teardown after target reaping failed");
+
+  assert(!shouldStallBeforeBrowser({ [SIGNAL_PROBE_MODE_ENV]: "stall-before-browser" }),
+    "an inherited probe mode can stall an ordinary verifier");
+  assert(shouldStallBeforeBrowser({
+    [SIGNAL_PROBE_TARGET_ENV]: "1",
+    [SIGNAL_PROBE_MODE_ENV]: "stall-before-browser",
+  }), "the pre-browser failure target no longer enters its requested stall mode");
+  console.log("[office signal probe] PASS: cleanup ownership contracts");
+};
+
 const runSignalCleanupProbe = async () => {
+  await runSignalProbeContractTests();
   await runPreBrowserFailureProbe();
   await runSingleSignalCleanupProbe("SIGTERM", 143);
   await runSingleSignalCleanupProbe("SIGINT", 130);
 };
+
+const shouldStallBeforeBrowser = (environment = process.env) => (
+  environment[SIGNAL_PROBE_TARGET_ENV] === "1"
+  && environment[SIGNAL_PROBE_MODE_ENV] === "stall-before-browser"
+);
 
 const runVerifier = async () => {
   let server = null;
@@ -900,7 +994,7 @@ const runVerifier = async () => {
       console.log(`${SIGNAL_PROBE_VITE_STARTED} vitePid=${server.child.pid}`);
     }
     await waitForVite(server);
-    if (process.env[SIGNAL_PROBE_MODE_ENV] === "stall-before-browser") {
+    if (shouldStallBeforeBrowser()) {
       console.log(SIGNAL_PROBE_PRE_BROWSER_STALL);
       await delay(60_000);
     }
