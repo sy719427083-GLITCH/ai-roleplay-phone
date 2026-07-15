@@ -53,6 +53,7 @@ const cloneReservations = (reservations = {}) => Object.fromEntries(
 );
 
 const getNode = (nodeId) => OFFICE_NODES[nodeId] || null;
+const hasReservationForSlot = (reservations, slotId) => Object.values(reservations || {}).some((reservation) => reservation?.slotId === slotId);
 
 export function findOfficeRoute(fromId, toId) {
   if (!getNode(fromId) || !getNode(toId)) return [];
@@ -90,7 +91,7 @@ export function findOfficeRoute(fromId, toId) {
 export function getFacing(fromId, toId) {
   const fromNode = getNode(fromId);
   const toNode = getNode(toId);
-  if (!fromNode || !toNode) return "right";
+  if (!fromNode || !toNode) return null;
 
   const dx = toNode.x - fromNode.x;
   const dy = toNode.y - fromNode.y;
@@ -102,13 +103,15 @@ export function getFacing(fromId, toId) {
 }
 
 export function claimAnchor(reservations, anchorId, ownerId) {
+  if (hasReservationForSlot(reservations, ownerId)) return null;
+
   const current = reservations?.[anchorId];
-  if (current && current.ownerId !== ownerId) return null;
+  if (current && current.slotId !== ownerId) return null;
 
   const next = cloneReservations(reservations);
   next[anchorId] = {
     anchorId,
-    ownerId,
+    slotId: ownerId,
   };
   return next;
 }
@@ -118,7 +121,7 @@ export function releaseAnchor(reservations, anchorId, ownerId) {
   const next = cloneReservations(reservations);
 
   if (!current) return next;
-  if (current.ownerId !== ownerId) return next;
+  if (current.slotId !== ownerId) return next;
 
   delete next[anchorId];
   return next;

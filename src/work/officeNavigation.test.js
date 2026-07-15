@@ -9,6 +9,14 @@ import {
 } from "./officeNavigation.js";
 
 test("defines the office graph with percentage coordinates and explicit neighbors", () => {
+  const ids = Object.keys(OFFICE_NODES);
+  assert.equal(ids.filter((id) => id.endsWith("-home")).length, 5);
+  assert.equal(ids.filter((id) => id.endsWith("-exit")).length, 5);
+  assert.equal(ids.filter((id) => id.startsWith("aisle-")).length, 2);
+  assert.equal(ids.filter((id) => id.startsWith("break-")).length, 2);
+  assert.equal(ids.filter((id) => id.startsWith("chat-")).length, 4);
+  assert.equal(ids.filter((id) => id === "meeting-1").length, 1);
+
   assert.deepEqual(OFFICE_NODES["employee1-home"], {
     id: "employee1-home",
     x: 12,
@@ -41,6 +49,17 @@ test("defines the office graph with percentage coordinates and explicit neighbor
   });
 });
 
+test("keeps every connected edge bidirectional", () => {
+  for (const [nodeId, node] of Object.entries(OFFICE_NODES)) {
+    for (const neighborId of node.neighbors) {
+      assert.ok(
+        OFFICE_NODES[neighborId]?.neighbors.includes(nodeId),
+        `${nodeId} should be reachable back from ${neighborId}`,
+      );
+    }
+  }
+});
+
 test("routes an employee through the aisle to the break area", () => {
   assert.deepEqual(findOfficeRoute("employee1-home", "break-1"), [
     "employee1-home",
@@ -60,6 +79,8 @@ test("returns an empty route for unknown or disconnected nodes", () => {
 test("faces the destination horizontally", () => {
   assert.equal(getFacing("employee1-exit", "aisle-upper"), "right");
   assert.equal(getFacing("employee2-exit", "aisle-upper"), "left");
+  assert.equal(getFacing("missing-home", "aisle-upper"), null);
+  assert.equal(getFacing("employee1-home", "missing-anchor"), null);
 });
 
 test("claims and releases anchors without mutating the source reservations", () => {
@@ -68,19 +89,22 @@ test("claims and releases anchors without mutating the source reservations", () 
 
   assert.deepEqual(empty, {});
   assert.deepEqual(claimed, {
-    "break-1": { anchorId: "break-1", ownerId: "employee1" },
+    "break-1": { anchorId: "break-1", slotId: "employee1" },
   });
+
+  assert.equal(claimAnchor(claimed, "break-2", "employee1"), null);
+  assert.equal(claimAnchor(claimed, "break-1", "employee2"), null);
 
   const wrongOwner = releaseAnchor(claimed, "break-1", "employee2");
   assert.deepEqual(wrongOwner, claimed);
   assert.notStrictEqual(wrongOwner, claimed);
   assert.deepEqual(claimed, {
-    "break-1": { anchorId: "break-1", ownerId: "employee1" },
+    "break-1": { anchorId: "break-1", slotId: "employee1" },
   });
 
   const released = releaseAnchor(claimed, "break-1", "employee1");
   assert.deepEqual(released, {});
   assert.deepEqual(claimed, {
-    "break-1": { anchorId: "break-1", ownerId: "employee1" },
+    "break-1": { anchorId: "break-1", slotId: "employee1" },
   });
 });
