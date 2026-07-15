@@ -10,8 +10,24 @@ const BASE_PATH = "/ai-roleplay-phone/";
 const APP_URL = `http://${HOST}:${PORT}${BASE_PATH}`;
 const READY_TIMEOUT_MS = 30_000;
 const MEAL_TIMEOUT_MS = 20_000;
+const BUBBLE_TIMEOUT_MS = 15_000;
 const GEOMETRY_TOLERANCE_PX = 1;
 const SCENE_SCREENSHOT_MIN_BYTES = 20_000;
+const ASSIGNMENT_STORAGE_KEY = "ccatOfficeAssignmentsV1";
+const SIGNAL_PROBE_FLAG = "--probe-signal-cleanup";
+const SIGNAL_PROBE_TARGET_ENV = "OFFICE_SIGNAL_PROBE_TARGET";
+const SIGNAL_PROBE_READY = "[office signal probe] browser and Vite ready";
+const SIGNAL_PROBE_BROWSER_CLOSED = "[office signal probe] browser closed";
+const SIGNAL_PROBE_VITE_STOPPED = "[office signal probe] Vite stopped";
+const TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const TINY_GIF_DATA_URL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+const BROKEN_IMAGE_DATA_URL = "data:image/png;base64,SGVsbG8=";
+const DIALOG_FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "select:not([disabled])",
+  "input:not([disabled]):not([tabindex='-1'])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 const VIEWPORTS = [
   { width: 375, height: 812, verifyShellRestoration: true },
   { width: 390, height: 844, verifyShellRestoration: false },
@@ -21,6 +37,7 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const viteCli = resolve(repositoryRoot, "node_modules/vite/bin/vite.js");
 const qaDirectory = resolve(repositoryRoot, "docs/superpowers/qa");
+const verifierPath = fileURLToPath(import.meta.url);
 
 const delay = (milliseconds) => new Promise((resolveDelay) => {
   setTimeout(resolveDelay, milliseconds);
@@ -196,6 +213,240 @@ const verifyWorkShellRoundTrip = async (page, viewport) => {
   await openWork(page);
 };
 
+const getStoredCustomAssetSource = (page, slotId) => page.evaluate(({ key, targetSlotId }) => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(key) || "{}");
+    return stored?.[targetSlotId]?.customAssetSrc || "";
+  } catch {
+    return "";
+  }
+}, { key: ASSIGNMENT_STORAGE_KEY, targetSlotId: slotId });
+
+const verifyAssignmentWorkflow = async (page) => {
+  const opener = page.getByRole("button", { name: "员工安排", exact: true });
+  await opener.click();
+
+  const dialog = page.getByRole("dialog", { name: "员工安排", exact: true });
+  const closeButton = page.getByRole("button", { name: "关闭员工安排", exact: true });
+  await dialog.waitFor({ state: "visible" });
+  await page.waitForFunction(() => document.activeElement?.matches("[data-office-dialog-close]"));
+  assert(await closeButton.evaluate((element) => document.activeElement === element),
+    "assignment dialog did not move focus to its close button");
+
+  const inertState = await page.evaluate(() => Object.fromEntries([
+    ["header", ".work-app-header"],
+    ["modes", ".work-mode-control"],
+    ["surface", ".work-office-surface"],
+  ].map(([name, selector]) => {
+    const element = document.querySelector(selector);
+    return [name, Boolean(element?.inert && element.getAttribute("aria-hidden") === "true")];
+  })));
+  for (const [region, isInert] of Object.entries(inertState)) {
+    assert(isInert, `assignment dialog left the Work ${region} interactive`);
+  }
+
+  await page.keyboard.press("Shift+Tab");
+  const wrappedBackward = await dialog.evaluate((element, selector) => {
+    const focusable = [...element.querySelectorAll(selector)]
+      .filter((candidate) => candidate.tabIndex >= 0 && candidate.getAttribute("aria-hidden") !== "true");
+    return focusable.length > 1 && document.activeElement === focusable.at(-1);
+  }, DIALOG_FOCUSABLE_SELECTOR);
+  assert(wrappedBackward, "Shift+Tab did not wrap from the first to the last dialog control");
+
+  await page.keyboard.press("Tab");
+  const wrappedForward = await dialog.evaluate((element, selector) => {
+    const focusable = [...element.querySelectorAll(selector)]
+      .filter((candidate) => candidate.tabIndex >= 0 && candidate.getAttribute("aria-hidden") !== "true");
+    return focusable.length > 1 && document.activeElement === focusable[0];
+  }, DIALOG_FOCUSABLE_SELECTOR);
+  assert(wrappedForward, "Tab did not wrap from the last to the first dialog control");
+
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "员工安排");
+  assert(await opener.evaluate((element) => document.activeElement === element),
+    "Escape did not restore focus to the assignment opener");
+
+  await opener.click();
+  await dialog.waitFor({ state: "visible" });
+  const bossRow = dialog.locator(".office-assignment-row").filter({ hasText: "老板" }).first();
+  const uploadInput = bossRow.getByLabel("老板上传形象", { exact: true });
+  const urlInput = bossRow.getByLabel("老板形象地址", { exact: true });
+  const bossAlert = bossRow.getByRole("alert");
+  const bossSprite = page.locator('.office-character[data-slot="boss"] .office-character-custom-sprite');
+  const tinyPng = {
+    name: "office-qa-1x1.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(TINY_PNG_BASE64, "base64"),
+  };
+
+  await uploadInput.setInputFiles({
+    name: "office-qa-too-large.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(1024 * 1024 + 1),
+  });
+  await bossAlert.waitFor({ state: "visible" });
+  assert((await bossAlert.innerText()).includes("图片不能超过 1 MB"),
+    "oversized upload did not show the visible 1 MB limit error");
+
+  await uploadInput.setInputFiles(tinyPng);
+  await page.waitForFunction(() => (
+    document.querySelector('input[aria-label="老板形象地址"]')?.value.startsWith("data:image/png;base64,")
+  ));
+  const uploadedSource = await urlInput.inputValue();
+  assert(uploadedSource.startsWith("data:image/png;base64,"),
+    "valid image upload did not populate a data:image controlled draft");
+  await page.waitForFunction(({ key, expected }) => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "{}")?.boss?.customAssetSrc === expected;
+    } catch {
+      return false;
+    }
+  }, { key: ASSIGNMENT_STORAGE_KEY, expected: uploadedSource });
+  await bossSprite.waitFor({ state: "visible" });
+
+  await urlInput.fill(BROKEN_IMAGE_DATA_URL);
+  await page.waitForFunction(() => (
+    document.querySelector('input[aria-label="老板形象地址"]')?.value === ""
+  ));
+  await bossAlert.waitFor({ state: "visible" });
+  assert((await bossAlert.innerText()).includes("图片加载失败，已恢复内置形象"),
+    "broken custom image did not show load-fallback feedback");
+  assert(await getStoredCustomAssetSource(page, "boss") === "",
+    "broken custom image did not clear persisted customAssetSrc");
+  await expectCount(bossSprite, 0, "custom boss sprites after image fallback");
+
+  await uploadInput.setInputFiles(tinyPng);
+  await page.waitForFunction(() => (
+    document.querySelector('input[aria-label="老板形象地址"]')?.value.startsWith("data:image/png;base64,")
+  ));
+  const priorAppliedSource = await urlInput.inputValue();
+  await page.waitForFunction(({ key, expected }) => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "{}")?.boss?.customAssetSrc === expected;
+    } catch {
+      return false;
+    }
+  }, { key: ASSIGNMENT_STORAGE_KEY, expected: priorAppliedSource });
+  await bossSprite.waitFor({ state: "visible" });
+  const priorSpriteSource = await bossSprite.getAttribute("src");
+  const priorStoredAssignments = await page.evaluate((key) => localStorage.getItem(key), ASSIGNMENT_STORAGE_KEY);
+
+  await page.evaluate((storageKey) => {
+    if (window.__officeQaOriginalStorageSetItem) throw new Error("storage failure probe already installed");
+    const originalSetItem = Storage.prototype.setItem;
+    window.__officeQaOriginalStorageSetItem = originalSetItem;
+    Storage.prototype.setItem = function setItemWithOfficeQuotaFailure(key, value) {
+      if (String(key) === storageKey) throw new DOMException("Quota exceeded", "QuotaExceededError");
+      return originalSetItem.call(this, key, value);
+    };
+  }, ASSIGNMENT_STORAGE_KEY);
+
+  try {
+    await urlInput.fill(TINY_GIF_DATA_URL);
+    await page.waitForFunction(() => (
+      [...document.querySelectorAll(".office-field-error")]
+        .some((element) => element.textContent?.includes("图片无法保存"))
+    ));
+  } finally {
+    await page.evaluate(() => {
+      const originalSetItem = window.__officeQaOriginalStorageSetItem;
+      if (originalSetItem) Storage.prototype.setItem = originalSetItem;
+      delete window.__officeQaOriginalStorageSetItem;
+    });
+  }
+
+  assert((await bossAlert.innerText()).includes("图片无法保存"),
+    "quota failure did not show the custom-source storage error");
+  assert(await page.evaluate((key) => localStorage.getItem(key), ASSIGNMENT_STORAGE_KEY) === priorStoredAssignments,
+    "quota failure changed the prior persisted assignment");
+  assert(await bossSprite.getAttribute("src") === priorSpriteSource,
+    "quota failure changed the prior applied assignment");
+  assert(await page.evaluate(() => !window.__officeQaOriginalStorageSetItem),
+    "Storage.prototype.setItem was not restored after the quota probe");
+
+  await urlInput.fill("");
+  await page.waitForFunction((key) => {
+    try {
+      return (JSON.parse(localStorage.getItem(key) || "{}")?.boss?.customAssetSrc || "") === "";
+    } catch {
+      return false;
+    }
+  }, ASSIGNMENT_STORAGE_KEY);
+  await expectCount(bossSprite, 0, "custom boss sprites after assignment cleanup");
+
+  await closeButton.click();
+  await dialog.waitFor({ state: "detached" });
+  return { oversized: true, upload: true, fallback: true, quotaRollback: true };
+};
+
+const observeRestJourney = async (page, initialTargets) => {
+  const deadline = Date.now() + MEAL_TIMEOUT_MS;
+  const routeNodes = new Set();
+  let trackedSlotId = "";
+  let previous = null;
+  let horizontalStep = null;
+  let positionChangedBeforeEating = false;
+
+  while (Date.now() < deadline) {
+    const sample = await page.evaluate((slotId) => {
+      const character = slotId
+        ? document.querySelector(`.office-character[data-slot="${CSS.escape(slotId)}"]`)
+        : document.querySelector('.office-character[data-phase="walkingToActivity"][data-activity="eating"]');
+      if (!character) return null;
+      const meal = character.querySelector(".office-meal");
+      const mealRect = meal?.getBoundingClientRect();
+      return {
+        slotId: character.getAttribute("data-slot") || "",
+        node: character.getAttribute("data-node") || "",
+        phase: character.getAttribute("data-phase") || "",
+        facing: character.getAttribute("data-facing") || "",
+        leftTarget: Number.parseFloat(character.style.left),
+        mealVisible: Boolean(mealRect && mealRect.width > 0 && mealRect.height > 0),
+      };
+    }, trackedSlotId);
+
+    if (sample) {
+      if (!trackedSlotId) trackedSlotId = sample.slotId;
+      if (sample.slotId === trackedSlotId) {
+        if (!previous && initialTargets[sample.slotId]) previous = initialTargets[sample.slotId];
+        routeNodes.add(`${sample.node}:${sample.leftTarget}`);
+        if (previous && sample.node !== previous.node) {
+          if (sample.phase === "walkingToActivity") positionChangedBeforeEating = true;
+          const deltaX = sample.leftTarget - previous.leftTarget;
+          if (Math.abs(deltaX) > 0.01 && !horizontalStep) {
+            const expectedFacing = deltaX > 0 ? "right" : "left";
+            assert(sample.facing === expectedFacing,
+              `${trackedSlotId} moved from ${previous.leftTarget}% to ${sample.leftTarget}% `
+              + `but faced ${sample.facing}, expected ${expectedFacing}`);
+            horizontalStep = {
+              from: previous.leftTarget,
+              to: sample.leftTarget,
+              facing: sample.facing,
+            };
+          }
+        }
+        previous = sample;
+
+        if (sample.mealVisible && horizontalStep && positionChangedBeforeEating && routeNodes.size >= 2) {
+          return {
+            slotId: trackedSlotId,
+            horizontalStep,
+            routePositions: routeNodes.size,
+          };
+        }
+      }
+    }
+
+    await delay(80);
+  }
+
+  throw new Error(
+    `meal journey did not prove walking direction and route movement within ${MEAL_TIMEOUT_MS}ms `
+    + `(slot=${trackedSlotId || "none"}, positions=${routeNodes.size}, horizontal=${Boolean(horizontalStep)})`,
+  );
+};
+
 const collectGeometry = (page) => page.evaluate(() => {
   const toRect = (element) => {
     const rect = element.getBoundingClientRect();
@@ -266,6 +517,8 @@ const verifyGeometry = (geometry, viewport) => {
   "office background image did not decode");
   assert(geometry.names.length === 5,
     `${viewport.width}x${viewport.height}: expected 5 visible names, received ${geometry.names.length}`);
+  assert(geometry.bubbles.length >= 1,
+    `${viewport.width}x${viewport.height}: expected at least 1 visible speech bubble`);
 
   for (const item of [...geometry.names, ...geometry.bubbles]) {
     assert(isInside(item.rect, geometry.scene),
@@ -283,6 +536,7 @@ const verifyViewport = async (browser, viewport) => {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
+    reducedMotion: "reduce",
   });
   await context.addInitScript(() => {
     Math.random = () => 0.35;
@@ -304,6 +558,10 @@ const verifyViewport = async (browser, viewport) => {
       await verifyWorkShellRoundTrip(page, viewport);
     }
 
+    const assignmentEvidence = viewport.verifyShellRestoration
+      ? await verifyAssignmentWorkflow(page)
+      : null;
+
     await expectCount(page.locator(".office-character:visible"), 5, `${viewportLabel} visible characters`);
     await expectCount(page.locator(".office-character-name:visible"), 5, `${viewportLabel} visible names`);
 
@@ -313,8 +571,15 @@ const verifyViewport = async (browser, viewport) => {
     assert(/^工作剩余 \d{2}:\d{2}:\d{2}$/.test(timerText),
       `${viewportLabel}: invalid timer text ${JSON.stringify(timerText)}`);
 
+    const initialRouteTargets = await page.locator(".office-character").evaluateAll((characters) => (
+      Object.fromEntries(characters.map((character) => [character.getAttribute("data-slot"), {
+        node: character.getAttribute("data-node") || "",
+        leftTarget: Number.parseFloat(character.style.left),
+      }]))
+    ));
     await page.getByRole("button", { name: "休息一下", exact: true }).click();
-    const meal = page.locator(".office-meal").first();
+    const journey = await observeRestJourney(page, initialRouteTargets);
+    const meal = page.locator(`.office-character[data-slot="${journey.slotId}"] .office-meal`);
     await meal.waitFor({ state: "visible", timeout: MEAL_TIMEOUT_MS });
     const mealState = await meal.evaluate((element) => {
       const character = element.closest(".office-character");
@@ -335,22 +600,36 @@ const verifyViewport = async (browser, viewport) => {
     assert(mealState.foodVisible && mealState.label?.includes("米饭"),
       `${viewportLabel}: concrete rice meal is not visibly rendered`);
 
+    const meeting = page.getByRole("button", { name: "开会", exact: true });
+    assert(await meeting.isEnabled(), `${viewportLabel}: meeting was not available after one member started eating`);
+    await meeting.click();
+    const visibleBubbles = page.locator(".office-speech-bubble:visible");
+    await visibleBubbles.first().waitFor({ state: "visible", timeout: BUBBLE_TIMEOUT_MS });
+    const bubbleCount = await visibleBubbles.count();
+    assert(bubbleCount >= 1, `${viewportLabel}: meeting produced no visible speech bubble`);
+    assert(await meal.isVisible(), `${viewportLabel}: meal disappeared before the meeting bubble became visible`);
+
     await page.locator(".office-scene-background").evaluate((image) => image.decode());
     const geometry = await collectGeometry(page);
     verifyGeometry(geometry, viewport);
 
-    const sceneBuffer = await page.locator(".office-scene").screenshot({ type: "png" });
+    const screenshotPath = resolve(qaDirectory, `office-${viewportLabel}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+
+    const sceneBuffer = await page.locator(".office-scene").screenshot({
+      type: "png",
+      animations: "disabled",
+    });
     assert(sceneBuffer.length > SCENE_SCREENSHOT_MIN_BYTES,
       `${viewportLabel}: office scene screenshot is blank or too small (${sceneBuffer.length} bytes)`);
-
-    const screenshotPath = resolve(qaDirectory, `office-${viewportLabel}.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true });
 
     assert(browserErrors.length === 0,
       `${viewportLabel}: browser errors:\n${browserErrors.join("\n")}`);
     console.log(
       `[office QA] ${viewportLabel}: 5 characters, 5 names, meal=${mealState.meal}, `
-      + `bubbles=${geometry.bubbles.length}, scene=${sceneBuffer.length} bytes`,
+      + `walk=${journey.horizontalStep.from}->${journey.horizontalStep.to}/${journey.horizontalStep.facing}, `
+      + `bubbles=${geometry.bubbles.length}, assignments=${assignmentEvidence ? "covered" : "n/a"}, `
+      + `scene=${sceneBuffer.length} bytes`,
     );
   } catch (error) {
     const browserErrorDetail = browserErrors.length
@@ -362,41 +641,198 @@ const verifyViewport = async (browser, viewport) => {
   }
 };
 
-let server = null;
-let browser = null;
-let failure = null;
-
-try {
-  await mkdir(qaDirectory, { recursive: true });
-  server = startVite();
-  await waitForVite(server);
-  browser = await chromium.launch();
-
-  for (const viewport of VIEWPORTS) {
-    await verifyViewport(browser, viewport);
+const isAppReachable = async () => {
+  try {
+    const response = await fetch(APP_URL, { signal: AbortSignal.timeout(750) });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
   }
-} catch (error) {
-  failure = error;
-  console.error(error.stack || error.message || error);
-  const viteOutput = server?.getOutput();
-  if (viteOutput) console.error(`\nVite output:\n${viteOutput}`);
-} finally {
-  if (browser) {
+};
+
+const waitForOutputMarker = async ({ child, getOutput, marker, timeoutMs }) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const output = getOutput();
+    if (output.includes(marker)) return output;
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(`signal probe target exited before ${JSON.stringify(marker)}\n${output}`);
+    }
+    await delay(50);
+  }
+  throw new Error(`timed out waiting for ${JSON.stringify(marker)}\n${getOutput()}`);
+};
+
+const forceKillProcessGroup = (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  try {
+    if (process.platform === "win32") process.kill(pid, "SIGKILL");
+    else process.kill(-pid, "SIGKILL");
+  } catch {
+    // The cleanup path may already have reaped the target.
+  }
+};
+
+const runSingleSignalCleanupProbe = async (signal, expectedCode) => {
+  assert(!(await isAppReachable()),
+    `cannot run signal cleanup probe because ${APP_URL} is already in use`);
+
+  const child = spawn(process.execPath, [verifierPath], {
+    cwd: repositoryRoot,
+    env: { ...process.env, [SIGNAL_PROBE_TARGET_ENV]: "1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  const appendOutput = (chunk) => {
+    output += chunk.toString();
+  };
+  child.stdout.on("data", appendOutput);
+  child.stderr.on("data", appendOutput);
+  const exit = new Promise((resolveExit) => {
+    child.once("error", (error) => resolveExit({ error, code: null, signal: null }));
+    child.once("exit", (code, signal) => resolveExit({ error: null, code, signal }));
+  });
+  let vitePid = 0;
+
+  try {
+    const readyOutput = await waitForOutputMarker({
+      child,
+      getOutput: () => output,
+      marker: SIGNAL_PROBE_READY,
+      timeoutMs: READY_TIMEOUT_MS,
+    });
+    vitePid = Number.parseInt(readyOutput.match(/vitePid=(\d+)/)?.[1] || "0", 10);
+    assert(vitePid > 0, `signal probe target did not report its Vite pid\n${readyOutput}`);
+    assert(child.kill(signal), `failed to send ${signal} to signal probe target`);
+    await delay(10);
+    if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+
+    const result = await Promise.race([
+      exit,
+      delay(10_000).then(() => null),
+    ]);
+    assert(result, `signal probe target did not exit within 10 seconds\n${output}`);
+    assert(!result.error, `signal probe target failed to launch: ${result.error?.message}`);
+    assert(result.code === expectedCode && result.signal === null,
+      `signal probe target exited with code=${result.code} signal=${result.signal || "none"}, `
+      + `expected code=${expectedCode}\n${output}`);
+    assert(output.includes(SIGNAL_PROBE_BROWSER_CLOSED),
+      `signal probe did not confirm browser cleanup\n${output}`);
+    assert(output.includes(SIGNAL_PROBE_VITE_STOPPED),
+      `signal probe did not confirm Vite cleanup\n${output}`);
+
+    const portDeadline = Date.now() + 5_000;
+    while (Date.now() < portDeadline && await isAppReachable()) await delay(100);
+    assert(!(await isAppReachable()), `Vite still responds at ${APP_URL} after ${signal} cleanup`);
+    console.log(`[office signal probe] PASS: ${signal} closed Chromium and the detached Vite process group`);
+  } finally {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    if (await isAppReachable()) forceKillProcessGroup(vitePid);
+  }
+};
+
+const runSignalCleanupProbe = async () => {
+  await runSingleSignalCleanupProbe("SIGTERM", 143);
+  await runSingleSignalCleanupProbe("SIGINT", 130);
+};
+
+const runVerifier = async () => {
+  let server = null;
+  let browser = null;
+  let failure = null;
+  let cleanupPromise = null;
+  let terminationSignal = "";
+
+  const cleanupResources = () => {
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      const cleanupErrors = [];
+      if (browser) {
+        const activeBrowser = browser;
+        browser = null;
+        try {
+          await activeBrowser.close();
+          if (process.env[SIGNAL_PROBE_TARGET_ENV] === "1") console.log(SIGNAL_PROBE_BROWSER_CLOSED);
+        } catch (error) {
+          cleanupErrors.push(new Error(`Failed to close Playwright browser: ${error.message}`, { cause: error }));
+        }
+      }
+      if (server) {
+        const activeServer = server;
+        server = null;
+        try {
+          await stopVite(activeServer);
+          if (process.env[SIGNAL_PROBE_TARGET_ENV] === "1") console.log(SIGNAL_PROBE_VITE_STOPPED);
+        } catch (error) {
+          cleanupErrors.push(new Error(`Failed to stop Vite: ${error.message}`, { cause: error }));
+        }
+      }
+      if (cleanupErrors.length) throw new AggregateError(cleanupErrors, "office verifier cleanup failed");
+    })();
+    return cleanupPromise;
+  };
+
+  const signalExitCodes = { SIGINT: 130, SIGTERM: 143 };
+  const removeSignalHandlers = () => {
+    process.off("SIGINT", onSigint);
+    process.off("SIGTERM", onSigterm);
+  };
+  const handleSignal = (signal) => {
+    if (terminationSignal) return;
+    terminationSignal = signal;
+    let exitCode = signalExitCodes[signal] || 1;
+    console.error(`[office QA] received ${signal}; closing browser and Vite before exit`);
+    void cleanupResources()
+      .catch((error) => {
+        exitCode = 1;
+        console.error(error.stack || error.message || error);
+      })
+      .finally(() => {
+        removeSignalHandlers();
+        process.exit(exitCode);
+      });
+  };
+  const onSigint = () => handleSignal("SIGINT");
+  const onSigterm = () => handleSignal("SIGTERM");
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
+
+  try {
+    await mkdir(qaDirectory, { recursive: true });
+    server = startVite();
+    await waitForVite(server);
+    browser = await chromium.launch({
+      handleSIGHUP: false,
+      handleSIGINT: false,
+      handleSIGTERM: false,
+    });
+    if (process.env[SIGNAL_PROBE_TARGET_ENV] === "1") {
+      console.log(`${SIGNAL_PROBE_READY} vitePid=${server.child.pid}`);
+    }
+
+    for (const viewport of VIEWPORTS) {
+      await verifyViewport(browser, viewport);
+    }
+  } catch (error) {
+    if (!terminationSignal) {
+      failure = error;
+      console.error(error.stack || error.message || error);
+      const viteOutput = server?.getOutput();
+      if (viteOutput) console.error(`\nVite output:\n${viteOutput}`);
+    }
+  } finally {
     try {
-      await browser.close();
+      await cleanupResources();
     } catch (error) {
       failure ||= error;
-      console.error(`Failed to close Playwright browser: ${error.message}`);
+      console.error(error.stack || error.message || error);
     }
+    removeSignalHandlers();
   }
-  if (server) {
-    try {
-      await stopVite(server);
-    } catch (error) {
-      failure ||= error;
-      console.error(`Failed to stop Vite: ${error.message}`);
-    }
-  }
-}
 
-if (failure) process.exitCode = 1;
+  if (failure) process.exitCode = 1;
+};
+
+if (process.argv.includes(SIGNAL_PROBE_FLAG)) await runSignalCleanupProbe();
+else await runVerifier();
