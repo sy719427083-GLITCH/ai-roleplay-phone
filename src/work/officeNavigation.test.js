@@ -18,11 +18,30 @@ const isInside = (node, rectangle) => (
   && node.y <= rectangle.maxY
 );
 
-const assertRouteMovesDown = (route) => {
+const assertRouteHasNoVerticalDetour = (route) => {
+  const startY = OFFICE_NODES[route[0]].y;
+  const destinationY = OFFICE_NODES[route.at(-1)].y;
+  const minY = Math.min(startY, destinationY);
+  const maxY = Math.max(startY, destinationY);
+  let direction = 0;
+
+  for (const nodeId of route) {
+    const node = OFFICE_NODES[nodeId];
+    assert.ok(node.y >= minY && node.y <= maxY, `${nodeId} should not overshoot the destination band`);
+  }
+
   for (let index = 1; index < route.length; index += 1) {
     const previous = OFFICE_NODES[route[index - 1]];
     const current = OFFICE_NODES[route[index]];
-    assert.ok(previous.y <= current.y, `${route[index - 1]} -> ${route[index]} should not backtrack upward`);
+    const nextDirection = Math.sign(current.y - previous.y);
+
+    if (nextDirection === 0) continue;
+    if (direction === 0) {
+      direction = nextDirection;
+      continue;
+    }
+
+    assert.equal(nextDirection, direction, `${route[index - 1]} -> ${route[index]} should not reverse vertically`);
   }
 };
 
@@ -51,8 +70,8 @@ test("moves employee desk routes horizontally from chair feet toward the central
   const desks = [
     { slotId: "employee1", side: "left", minY: 50, maxY: 54, aisleId: "aisle-upper" },
     { slotId: "employee2", side: "right", minY: 50, maxY: 54, aisleId: "aisle-upper" },
-    { slotId: "employee3", side: "left", minY: 69, maxY: 73, aisleId: "aisle-lower" },
-    { slotId: "employee4", side: "right", minY: 69, maxY: 73, aisleId: "aisle-lower" },
+    { slotId: "employee3", side: "left", minY: 69, maxY: 73, aisleId: "meeting-1" },
+    { slotId: "employee4", side: "right", minY: 69, maxY: 73, aisleId: "meeting-1" },
   ];
 
   for (const { slotId, side, minY, maxY, aisleId } of desks) {
@@ -108,16 +127,51 @@ test("keeps chat and meeting anchors separated inside the unobstructed central a
 test("routes through the meeting anchor without overshooting and reversing", () => {
   const meeting = OFFICE_NODES["meeting-1"];
 
+  assert.ok(meeting.y >= 69 && meeting.y <= 73, "meeting-1 should share the lower desk foot band");
   assert.ok(meeting.neighbors.includes("aisle-upper"));
   assert.ok(meeting.neighbors.includes("aisle-lower"));
 
   const inboundRoute = findOfficeRoute("employee1-home", "meeting-1");
   assert.deepEqual(inboundRoute, ["employee1-home", "employee1-exit", "aisle-upper", "meeting-1"]);
-  assertRouteMovesDown(inboundRoute);
+  assertRouteHasNoVerticalDetour(inboundRoute);
 
   const outboundRoute = findOfficeRoute("meeting-1", "break-1");
   assert.deepEqual(outboundRoute, ["meeting-1", "aisle-lower", "break-1"]);
-  assertRouteMovesDown(outboundRoute);
+  assertRouteHasNoVerticalDetour(outboundRoute);
+});
+
+test("routes lower employees through the meeting hub without vertical detours", () => {
+  for (const slotId of ["employee3", "employee4"]) {
+    const exit = OFFICE_NODES[`${slotId}-exit`];
+    assert.ok(exit.neighbors.includes("meeting-1"), `${slotId}-exit should enter the meeting hub`);
+    assert.ok(!exit.neighbors.includes("aisle-lower"), `${slotId}-exit should not overshoot to aisle-lower`);
+  }
+
+  for (const chatId of ["chat-1", "chat-2"]) {
+    assert.ok(OFFICE_NODES[chatId].neighbors.includes("aisle-upper"), `${chatId} should remain on aisle-upper`);
+  }
+
+  for (const chatId of ["chat-3", "chat-4"]) {
+    assert.ok(OFFICE_NODES[chatId].neighbors.includes("meeting-1"), `${chatId} should join the meeting hub`);
+    assert.ok(!OFFICE_NODES[chatId].neighbors.includes("aisle-lower"), `${chatId} should avoid aisle-lower detours`);
+  }
+
+  const routeCases = [
+    ["employee3-home", "meeting-1", ["employee3-home", "employee3-exit", "meeting-1"]],
+    ["employee4-home", "meeting-1", ["employee4-home", "employee4-exit", "meeting-1"]],
+    ["employee3-home", "chat-3", ["employee3-home", "employee3-exit", "meeting-1", "chat-3"]],
+    ["employee4-home", "chat-4", ["employee4-home", "employee4-exit", "meeting-1", "chat-4"]],
+    ["employee3-home", "chat-1", ["employee3-home", "employee3-exit", "meeting-1", "aisle-upper", "chat-1"]],
+    ["employee4-home", "chat-2", ["employee4-home", "employee4-exit", "meeting-1", "aisle-upper", "chat-2"]],
+    ["employee3-home", "break-1", ["employee3-home", "employee3-exit", "meeting-1", "aisle-lower", "break-1"]],
+    ["employee4-home", "break-2", ["employee4-home", "employee4-exit", "meeting-1", "aisle-lower", "break-2"]],
+  ];
+
+  for (const [fromId, toId, expectedRoute] of routeCases) {
+    const route = findOfficeRoute(fromId, toId);
+    assert.deepEqual(route, expectedRoute);
+    assertRouteHasNoVerticalDetour(route);
+  }
 });
 
 test("keeps every office node inside the safe frame", () => {
