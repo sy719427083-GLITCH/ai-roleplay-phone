@@ -16,7 +16,10 @@ const SCENE_SCREENSHOT_MIN_BYTES = 20_000;
 const ASSIGNMENT_STORAGE_KEY = "ccatOfficeAssignmentsV1";
 const SIGNAL_PROBE_FLAG = "--probe-signal-cleanup";
 const SIGNAL_PROBE_TARGET_ENV = "OFFICE_SIGNAL_PROBE_TARGET";
+const SIGNAL_PROBE_MODE_ENV = "OFFICE_SIGNAL_PROBE_MODE";
+const SIGNAL_PROBE_VITE_STARTED = "[office signal probe] Vite started";
 const SIGNAL_PROBE_READY = "[office signal probe] browser and Vite ready";
+const SIGNAL_PROBE_PRE_BROWSER_STALL = "[office signal probe] stalled before browser ready";
 const SIGNAL_PROBE_BROWSER_CLOSED = "[office signal probe] browser closed";
 const SIGNAL_PROBE_VITE_STOPPED = "[office signal probe] Vite stopped";
 const TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -664,23 +667,47 @@ const waitForOutputMarker = async ({ child, getOutput, marker, timeoutMs }) => {
   throw new Error(`timed out waiting for ${JSON.stringify(marker)}\n${getOutput()}`);
 };
 
-const forceKillProcessGroup = (pid) => {
-  if (!Number.isInteger(pid) || pid <= 0) return;
+const isProcessGroupRunning = (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
-    if (process.platform === "win32") process.kill(pid, "SIGKILL");
-    else process.kill(-pid, "SIGKILL");
-  } catch {
-    // The cleanup path may already have reaped the target.
+    process.kill(process.platform === "win32" ? pid : -pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === "ESRCH") return false;
+    throw error;
   }
 };
 
-const runSingleSignalCleanupProbe = async (signal, expectedCode) => {
-  assert(!(await isAppReachable()),
-    `cannot run signal cleanup probe because ${APP_URL} is already in use`);
+const signalProcessGroupByPid = (pid, signal) => {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  try {
+    process.kill(process.platform === "win32" ? pid : -pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+};
 
+const teardownProcessGroup = async (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  signalProcessGroupByPid(pid, "SIGTERM");
+  const termDeadline = Date.now() + 1_000;
+  while (Date.now() < termDeadline && isProcessGroupRunning(pid)) await delay(50);
+  if (!isProcessGroupRunning(pid)) return;
+
+  signalProcessGroupByPid(pid, "SIGKILL");
+  const killDeadline = Date.now() + 2_000;
+  while (Date.now() < killDeadline && isProcessGroupRunning(pid)) await delay(50);
+  assert(!isProcessGroupRunning(pid), `Vite process group ${pid} survived bounded teardown`);
+};
+
+const spawnSignalProbeTarget = (mode = "") => {
   const child = spawn(process.execPath, [verifierPath], {
     cwd: repositoryRoot,
-    env: { ...process.env, [SIGNAL_PROBE_TARGET_ENV]: "1" },
+    env: {
+      ...process.env,
+      [SIGNAL_PROBE_TARGET_ENV]: "1",
+      [SIGNAL_PROBE_MODE_ENV]: mode,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
@@ -693,46 +720,114 @@ const runSingleSignalCleanupProbe = async (signal, expectedCode) => {
     child.once("error", (error) => resolveExit({ error, code: null, signal: null }));
     child.once("exit", (code, signal) => resolveExit({ error: null, code, signal }));
   });
+  return { child, exit, getOutput: () => output };
+};
+
+const waitForProbeExit = (target, timeoutMs) => Promise.race([
+  target.exit,
+  delay(timeoutMs).then(() => null),
+]);
+
+const terminateAndReapProbeTarget = async (target) => {
+  if (target.child.exitCode === null && target.child.signalCode === null) {
+    target.child.kill("SIGTERM");
+  }
+  let result = await waitForProbeExit(target, 2_000);
+  if (!result) {
+    target.child.kill("SIGKILL");
+    result = await waitForProbeExit(target, 2_000);
+  }
+  assert(result, `signal probe target could not be reaped\n${target.getOutput()}`);
+  return result;
+};
+
+const captureProbeVitePid = async (target) => {
+  const startedOutput = await waitForOutputMarker({
+    child: target.child,
+    getOutput: target.getOutput,
+    marker: SIGNAL_PROBE_VITE_STARTED,
+    timeoutMs: READY_TIMEOUT_MS,
+  });
+  const vitePid = Number.parseInt(startedOutput.match(/vitePid=(\d+)/)?.[1] || "0", 10);
+  assert(vitePid > 0, `signal probe target did not report its Vite pid\n${startedOutput}`);
+  return vitePid;
+};
+
+const assertProbeResourcesGone = async (vitePid, label) => {
+  assert(!(await isAppReachable()), `Vite still responds at ${APP_URL} after ${label}`);
+  assert(!isProcessGroupRunning(vitePid), `Vite process group ${vitePid} remains after ${label}`);
+};
+
+const runSingleSignalCleanupProbe = async (signal, expectedCode) => {
+  assert(!(await isAppReachable()),
+    `cannot run signal cleanup probe because ${APP_URL} is already in use`);
+
+  const target = spawnSignalProbeTarget();
   let vitePid = 0;
 
   try {
-    const readyOutput = await waitForOutputMarker({
-      child,
-      getOutput: () => output,
+    vitePid = await captureProbeVitePid(target);
+    await waitForOutputMarker({
+      child: target.child,
+      getOutput: target.getOutput,
       marker: SIGNAL_PROBE_READY,
       timeoutMs: READY_TIMEOUT_MS,
     });
-    vitePid = Number.parseInt(readyOutput.match(/vitePid=(\d+)/)?.[1] || "0", 10);
-    assert(vitePid > 0, `signal probe target did not report its Vite pid\n${readyOutput}`);
-    assert(child.kill(signal), `failed to send ${signal} to signal probe target`);
+    assert(target.child.kill(signal), `failed to send ${signal} to signal probe target`);
     await delay(10);
-    if (child.exitCode === null && child.signalCode === null) child.kill(signal);
+    if (target.child.exitCode === null && target.child.signalCode === null) target.child.kill(signal);
 
-    const result = await Promise.race([
-      exit,
-      delay(10_000).then(() => null),
-    ]);
-    assert(result, `signal probe target did not exit within 10 seconds\n${output}`);
+    const result = await waitForProbeExit(target, 10_000);
+    assert(result, `signal probe target did not exit within 10 seconds\n${target.getOutput()}`);
     assert(!result.error, `signal probe target failed to launch: ${result.error?.message}`);
     assert(result.code === expectedCode && result.signal === null,
       `signal probe target exited with code=${result.code} signal=${result.signal || "none"}, `
-      + `expected code=${expectedCode}\n${output}`);
-    assert(output.includes(SIGNAL_PROBE_BROWSER_CLOSED),
-      `signal probe did not confirm browser cleanup\n${output}`);
-    assert(output.includes(SIGNAL_PROBE_VITE_STOPPED),
-      `signal probe did not confirm Vite cleanup\n${output}`);
-
-    const portDeadline = Date.now() + 5_000;
-    while (Date.now() < portDeadline && await isAppReachable()) await delay(100);
-    assert(!(await isAppReachable()), `Vite still responds at ${APP_URL} after ${signal} cleanup`);
-    console.log(`[office signal probe] PASS: ${signal} closed Chromium and the detached Vite process group`);
+      + `expected code=${expectedCode}\n${target.getOutput()}`);
+    assert(target.getOutput().includes(SIGNAL_PROBE_BROWSER_CLOSED),
+      `signal probe did not confirm browser cleanup\n${target.getOutput()}`);
+    assert(target.getOutput().includes(SIGNAL_PROBE_VITE_STOPPED),
+      `signal probe did not confirm Vite cleanup\n${target.getOutput()}`);
   } finally {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    if (await isAppReachable()) forceKillProcessGroup(vitePid);
+    await terminateAndReapProbeTarget(target);
+    await teardownProcessGroup(vitePid);
   }
+
+  await assertProbeResourcesGone(vitePid, `${signal} cleanup`);
+  console.log(`[office signal probe] PASS: ${signal} closed Chromium and the detached Vite process group`);
+};
+
+const runPreBrowserFailureProbe = async () => {
+  assert(!(await isAppReachable()),
+    `cannot run pre-browser failure probe because ${APP_URL} is already in use`);
+
+  const target = spawnSignalProbeTarget("stall-before-browser");
+  let vitePid = 0;
+  try {
+    vitePid = await captureProbeVitePid(target);
+    await waitForOutputMarker({
+      child: target.child,
+      getOutput: target.getOutput,
+      marker: SIGNAL_PROBE_PRE_BROWSER_STALL,
+      timeoutMs: READY_TIMEOUT_MS,
+    });
+    assert(await isAppReachable(), "pre-browser failure probe never observed the live Vite listener");
+    assert(target.child.kill("SIGKILL"), "failed to crash the pre-browser probe target");
+    const result = await waitForProbeExit(target, 5_000);
+    assert(result?.signal === "SIGKILL",
+      `pre-browser probe target did not fail with SIGKILL\n${target.getOutput()}`);
+    assert(!target.getOutput().includes(SIGNAL_PROBE_READY),
+      `pre-browser failure probe unexpectedly reached Chromium readiness\n${target.getOutput()}`);
+  } finally {
+    await terminateAndReapProbeTarget(target);
+    await teardownProcessGroup(vitePid);
+  }
+
+  await assertProbeResourcesGone(vitePid, "pre-browser failure cleanup");
+  console.log("[office signal probe] PASS: pre-browser failure left no Vite listener or process group");
 };
 
 const runSignalCleanupProbe = async () => {
+  await runPreBrowserFailureProbe();
   await runSingleSignalCleanupProbe("SIGTERM", 143);
   await runSingleSignalCleanupProbe("SIGINT", 130);
 };
@@ -801,14 +896,21 @@ const runVerifier = async () => {
   try {
     await mkdir(qaDirectory, { recursive: true });
     server = startVite();
+    if (process.env[SIGNAL_PROBE_TARGET_ENV] === "1") {
+      console.log(`${SIGNAL_PROBE_VITE_STARTED} vitePid=${server.child.pid}`);
+    }
     await waitForVite(server);
+    if (process.env[SIGNAL_PROBE_MODE_ENV] === "stall-before-browser") {
+      console.log(SIGNAL_PROBE_PRE_BROWSER_STALL);
+      await delay(60_000);
+    }
     browser = await chromium.launch({
       handleSIGHUP: false,
       handleSIGINT: false,
       handleSIGTERM: false,
     });
     if (process.env[SIGNAL_PROBE_TARGET_ENV] === "1") {
-      console.log(`${SIGNAL_PROBE_READY} vitePid=${server.child.pid}`);
+      console.log(SIGNAL_PROBE_READY);
     }
 
     for (const viewport of VIEWPORTS) {
