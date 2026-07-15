@@ -26,6 +26,7 @@
 
 - Create `src/work/officeProfiles.js`: read and normalize character options, assignments, and NPC fallbacks.
 - Create `src/work/officeProfiles.test.js`: profile and assignment tests.
+- Modify `package.json`: include `src/work/*.test.js` in the full test command.
 - Create `src/work/officeState.js`: pure office reducer, persistence normalization, timers, reservations, and state transitions.
 - Create `src/work/officeState.test.js`: legal transitions, recovery, and persistence tests.
 - Create `src/work/officeNavigation.js`: office navigation graph, route search, anchor reservations, and directional output.
@@ -56,6 +57,7 @@
 **Files:**
 - Create: `src/work/officeProfiles.js`
 - Test: `src/work/officeProfiles.test.js`
+- Modify: `package.json`
 
 **Interfaces:**
 - Consumes: storage keys `apiCharacters` and `apiRelations`.
@@ -147,6 +149,8 @@ export function normalizeOfficeAssignments(value = {}, profiles) {
 }
 ```
 
+Change the package test script to `node --test src/*.test.js src/work/*.test.js` so every later `npm test` command includes the new modules.
+
 - [ ] **Step 4: Run the focused and full tests**
 
 Run: `node --test src/work/officeProfiles.test.js && npm test`
@@ -156,7 +160,7 @@ Expected: all tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/work/officeProfiles.js src/work/officeProfiles.test.js
+git add src/work/officeProfiles.js src/work/officeProfiles.test.js package.json
 git commit -m "feat: add office profile assignments"
 ```
 
@@ -715,11 +719,14 @@ const expectCount = async (locator, expected) => {
 const browser = await chromium.launch();
 for (const viewport of [{ width: 375, height: 812 }, { width: 390, height: 844 }]) {
   const page = await browser.newPage({ viewport });
+  await page.addInitScript(() => { Math.random = () => 0.35; });
   await page.goto("http://127.0.0.1:4173/ai-roleplay-phone/");
   const unlock = page.getByRole("button", { name: "上划解锁" });
   if (await unlock.count()) await unlock.click();
   await page.getByRole("button", { name: "工作" }).click();
   await page.getByText("工作剩余").waitFor();
+  await page.getByRole("button", { name: "休息一下" }).click();
+  await page.locator(".office-meal").first().waitFor({ timeout: 20_000 });
   await expectCount(page.locator(".office-character"), 5);
   await expectCount(page.locator(".office-character-name"), 5);
   const screenshotPath = `docs/superpowers/qa/office-${viewport.width}x${viewport.height}.png`;
@@ -807,7 +814,7 @@ git commit -m "Deploy V0.2.95"
 
 - [ ] **Step 5: Push and verify the live site**
 
-Run: `git push origin main`
+Run: `git push origin HEAD:main`
 
 Expected: push succeeds.
 
