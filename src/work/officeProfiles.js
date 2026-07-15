@@ -1,9 +1,14 @@
 export const OFFICE_ASSIGNMENT_KEY = "ccatOfficeAssignmentsV1";
 export const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
 
+const defaultStorage = typeof window !== "undefined" ? window.localStorage : undefined;
+
+const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
 const readObject = (storage, key) => {
   try {
-    return JSON.parse(storage?.getItem?.(key) || "{}");
+    const parsed = JSON.parse(storage?.getItem?.(key) || "{}");
+    return isPlainObject(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -27,7 +32,7 @@ export const createNpcProfile = (slotId, kind) => ({
   generated: true,
 });
 
-export function readOfficeProfiles(storage = window.localStorage) {
+export function readOfficeProfiles(storage = defaultStorage) {
   const characters = readObject(storage, "apiCharacters");
   const allProfiles = Object.entries(characters).map(([id, value]) => normalizeProfile(id, value));
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createNpcProfile, normalizeOfficeAssignments, readOfficeProfiles } from "./officeProfiles.js";
+import { createNpcProfile, normalizeOfficeAssignments, OFFICE_SLOT_IDS, readOfficeProfiles } from "./officeProfiles.js";
 
 const storage = (data) => ({ getItem: (key) => data[key] ?? null });
 
@@ -20,7 +20,31 @@ test("separates main-character boss options and npc employee options", () => {
 test("fills missing and deleted assignments with named npc profiles", () => {
   const profiles = { bossOptions: [], employeeOptions: [] };
   const result = normalizeOfficeAssignments({ boss: "deleted" }, profiles);
+  assert.deepEqual(Object.keys(result), OFFICE_SLOT_IDS);
   assert.equal(result.boss.profile.name, "NPC");
   assert.equal(result.employee1.profile.name, "NPC");
   assert.equal(createNpcProfile("employee4", "employee").id, "npc-employee4");
+});
+
+test("defaults safely in node and ignores null or non-object stored payloads", () => {
+  const result = readOfficeProfiles();
+
+  assert.deepEqual(result, {
+    bossOptions: [],
+    employeeOptions: [],
+    relations: {},
+  });
+});
+
+test("treats null and array payloads as empty objects", () => {
+  const result = readOfficeProfiles(storage({
+    apiCharacters: "null",
+    apiRelations: "[]",
+  }));
+
+  assert.deepEqual(result, {
+    bossOptions: [],
+    employeeOptions: [],
+    relations: {},
+  });
 });
