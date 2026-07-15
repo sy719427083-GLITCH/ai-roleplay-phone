@@ -85,6 +85,8 @@ import {
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
+import WorkAppScreen from "./work/WorkAppScreen.jsx";
+import "./work/office.css";
 
 const MESSAGE_APP_TITLE = "微聊";
 
@@ -4678,6 +4680,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
   const isMessages = app.title === MESSAGE_APP_TITLE;
   const isWorldbook = app.title === "世界书";
+  const isWork = app.title === "工作";
   const [walletData, setWalletData] = useState(() => {
     try {
       const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
@@ -4750,6 +4753,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
+  if (isWork) return <WorkAppScreen onClose={onClose} />;
 
   return (
     <section
@@ -5059,12 +5063,14 @@ export function App() {
   const hasOverlay = Boolean(openedApp || settingPage);
   const isMessageOpening = openedApp?.title === MESSAGE_APP_TITLE;
   const isWorldbookOpening = openedApp?.title === "世界书";
+  const isWorkOpening = openedApp?.title === "工作";
   const surfaceClass = [
     "phone-surface",
     `tab-${tab}`,
     hasOverlay ? "overlay-active" : "",
     isMessageOpening ? "message-opening" : "",
     isWorldbookOpening ? "worldbook-opening" : "",
+    isWorkOpening ? "work-opening" : "",
     hideCharacterTabs ? "character-subpage-active" : "",
     hideMeTabs ? "me-subpage-active" : "",
   ].filter(Boolean).join(" ");
