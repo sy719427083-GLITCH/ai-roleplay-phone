@@ -24,6 +24,83 @@ const isPlainObject = (value) => Boolean(value) && typeof value === "object" && 
 
 const deepClone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
+const monotonicCounterValue = (candidate, current) => (
+  Number.isInteger(candidate) && candidate >= 0 && candidate >= current ? candidate : current
+);
+
+const INVALID_SERIALIZABLE_VALUE = Symbol("invalid serializable value");
+
+const isPlainRecord = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const cloneSerializableValue = (value, ancestors) => {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : INVALID_SERIALIZABLE_VALUE;
+  if (typeof value !== "object") return INVALID_SERIALIZABLE_VALUE;
+  if (ancestors.has(value)) return INVALID_SERIALIZABLE_VALUE;
+
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) return INVALID_SERIALIZABLE_VALUE;
+      const keys = Reflect.ownKeys(value).filter((key) => key !== "length");
+      if (keys.length !== value.length || keys.some((key) => typeof key !== "string")) {
+        return INVALID_SERIALIZABLE_VALUE;
+      }
+
+      const cloned = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (!descriptor?.enumerable || !("value" in descriptor)) return INVALID_SERIALIZABLE_VALUE;
+        const item = cloneSerializableValue(descriptor.value, ancestors);
+        if (item === INVALID_SERIALIZABLE_VALUE) return INVALID_SERIALIZABLE_VALUE;
+        cloned.push(item);
+      }
+      return cloned;
+    }
+
+    if (!isPlainRecord(value)) return INVALID_SERIALIZABLE_VALUE;
+    const cloned = Object.create(Object.getPrototypeOf(value));
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== "string") return INVALID_SERIALIZABLE_VALUE;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor?.enumerable || !("value" in descriptor)) return INVALID_SERIALIZABLE_VALUE;
+      const propertyValue = cloneSerializableValue(descriptor.value, ancestors);
+      if (propertyValue === INVALID_SERIALIZABLE_VALUE) return INVALID_SERIALIZABLE_VALUE;
+      Object.defineProperty(cloned, key, {
+        value: propertyValue,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+    return cloned;
+  } finally {
+    ancestors.delete(value);
+  }
+};
+
+const cloneReservationMap = (reservations) => {
+  try {
+    if (!isPlainRecord(reservations)) return null;
+    const cloned = cloneSerializableValue(reservations, new WeakSet());
+    if (cloned === INVALID_SERIALIZABLE_VALUE) return null;
+
+    for (const [anchorId, reservation] of Object.entries(cloned)) {
+      if (!isPlainRecord(reservation)) return null;
+      if (!Object.hasOwn(reservation, "anchorId") || !Object.hasOwn(reservation, "slotId")) return null;
+      if (typeof reservation.anchorId !== "string" || reservation.anchorId !== anchorId) return null;
+      if (typeof reservation.slotId !== "string") return null;
+    }
+    return cloned;
+  } catch {
+    return null;
+  }
+};
+
 const getHomeNode = (slotId) => `${slotId}-home`;
 
 const getIdleCharacter = (slotId, assignment = {}) => ({
@@ -256,9 +333,11 @@ export function officeReducer(state, action) {
       if (action.now === state.now) return state;
       return { ...state, now: action.now };
 
-    case "SET_RESERVATIONS":
-      if (!isPlainObject(action.reservations)) return state;
-      return { ...state, reservations: deepClone(action.reservations) };
+    case "SET_RESERVATIONS": {
+      const reservations = cloneReservationMap(action.reservations);
+      if (!reservations) return state;
+      return { ...state, reservations };
+    }
 
     case "ASSIGN_PROFILE": {
       const sourceAssignment = action.assignment || {
@@ -333,7 +412,10 @@ export function officeReducer(state, action) {
       const character = state.characters[action.slotId];
       if (!character) return state;
 
-      const reservations = character.reservedAnchorId
+      const isNonConversationEating = character.activity === "eating"
+        && character.phase !== "chatting"
+        && !character.conversationId;
+      const reservations = isNonConversationEating && character.reservedAnchorId
         ? releaseAnchor(state.reservations, character.reservedAnchorId, action.slotId)
         : state.reservations;
 
@@ -398,6 +480,8 @@ export function officeReducer(state, action) {
     case "UPDATE_CONVERSATION_IO":
       return withConversation(state, action.conversationId, (conversation) => ({
         ...conversation,
+        requestSequence: monotonicCounterValue(action.requestSequence, conversation.requestSequence),
+        turnIndex: monotonicCounterValue(action.turnIndex, conversation.turnIndex),
         promptContext: isPlainObject(action.promptContext) ? deepClone(action.promptContext) : conversation.promptContext,
         lastResponse: isPlainObject(action.lastResponse) ? deepClone(action.lastResponse) : conversation.lastResponse,
       }));

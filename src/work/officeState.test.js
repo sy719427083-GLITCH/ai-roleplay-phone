@@ -82,6 +82,106 @@ test("keeps simultaneous conversation transcripts isolated", () => {
   assert.equal(state.conversations.b.lastResponse.text, "上一句B");
 });
 
+test("updates sequence and turn counters only for the targeted conversation", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "a",
+      memberIds: ["employee1", "employee2"],
+      requestSequence: 0,
+      turnIndex: 0,
+      transcript: [],
+    },
+  });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "b",
+      memberIds: ["employee3", "employee4"],
+      requestSequence: 7,
+      turnIndex: 8,
+      transcript: [],
+    },
+  });
+  const untouchedConversation = state.conversations.b;
+
+  state = officeReducer(state, {
+    type: "UPDATE_CONVERSATION_IO",
+    conversationId: "a",
+    requestSequence: 1,
+  });
+  assert.equal(state.conversations.a.requestSequence, 1);
+  assert.equal(state.conversations.a.turnIndex, 0);
+  assert.equal(state.conversations.b, untouchedConversation);
+
+  state = officeReducer(state, {
+    type: "UPDATE_CONVERSATION_IO",
+    conversationId: "a",
+    turnIndex: 1,
+    promptContext: { stage: "reply" },
+    lastResponse: { speakerId: "employee1", text: "收到" },
+  });
+  assert.equal(state.conversations.a.requestSequence, 1);
+  assert.equal(state.conversations.a.turnIndex, 1);
+  assert.equal(state.conversations.a.promptContext.stage, "reply");
+  assert.equal(state.conversations.a.lastResponse.text, "收到");
+  assert.equal(state.conversations.b, untouchedConversation);
+  assert.equal(state.conversations.b.requestSequence, 7);
+  assert.equal(state.conversations.b.turnIndex, 8);
+});
+
+test("ignores malformed or regressive conversation counters independently", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "a",
+      memberIds: ["employee1", "employee2"],
+      requestSequence: 3,
+      turnIndex: 4,
+      transcript: [],
+    },
+  });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "b",
+      memberIds: ["employee3", "employee4"],
+      requestSequence: 9,
+      turnIndex: 10,
+      transcript: [],
+    },
+  });
+  const untouchedConversation = state.conversations.b;
+
+  for (const update of [
+    { requestSequence: 2, turnIndex: 3 },
+    { requestSequence: -1, turnIndex: -1 },
+    { requestSequence: 3.5, turnIndex: "5" },
+    { requestSequence: Number.NaN, turnIndex: Number.POSITIVE_INFINITY },
+  ]) {
+    state = officeReducer(state, {
+      type: "UPDATE_CONVERSATION_IO",
+      conversationId: "a",
+      ...update,
+    });
+    assert.equal(state.conversations.a.requestSequence, 3);
+    assert.equal(state.conversations.a.turnIndex, 4);
+    assert.equal(state.conversations.b, untouchedConversation);
+  }
+
+  state = officeReducer(state, {
+    type: "UPDATE_CONVERSATION_IO",
+    conversationId: "a",
+    requestSequence: 4,
+    turnIndex: 3,
+  });
+  assert.equal(state.conversations.a.requestSequence, 4);
+  assert.equal(state.conversations.a.turnIndex, 4);
+  assert.equal(state.conversations.b, untouchedConversation);
+});
+
 test("reload closes network conversations and returns characters home", () => {
   const restored = restoreOfficeState(JSON.stringify({
     conversations: { a: { id: "a" } },
@@ -147,7 +247,11 @@ test("set reservations installs a deep-cloned map", () => {
     "break-1": {
       anchorId: "break-1",
       slotId: "employee1",
-      details: { meal: "noodles" },
+      details: {
+        meal: "noodles",
+        tags: ["warm", { priority: 2 }],
+        note: null,
+      },
     },
   };
 
@@ -157,12 +261,106 @@ test("set reservations installs a deep-cloned map", () => {
   assert.notEqual(next.reservations, reservations);
   assert.notEqual(next.reservations["break-1"], reservations["break-1"]);
   assert.notEqual(next.reservations["break-1"].details, reservations["break-1"].details);
+  assert.notEqual(next.reservations["break-1"].details.tags, reservations["break-1"].details.tags);
 });
 
-test("set reservations safely ignores non-object maps", () => {
+test("set reservations accepts null-prototype maps with serializable nested metadata", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const metadata = Object.assign(Object.create(null), {
+    tags: ["quiet", { priority: 1 }],
+    enabled: true,
+    note: null,
+  });
+  const reservation = Object.assign(Object.create(null), {
+    anchorId: "break-1",
+    slotId: "employee1",
+    metadata,
+  });
+  const reservations = Object.assign(Object.create(null), { "break-1": reservation });
+
+  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+
+  assert.equal(next.reservations["break-1"].anchorId, "break-1");
+  assert.equal(next.reservations["break-1"].slotId, "employee1");
+  assert.deepEqual(next.reservations["break-1"].metadata.tags, ["quiet", { priority: 1 }]);
+  assert.equal(next.reservations["break-1"].metadata.enabled, true);
+  assert.equal(next.reservations["break-1"].metadata.note, null);
+  assert.notEqual(next.reservations, reservations);
+  assert.notEqual(next.reservations["break-1"], reservation);
+  assert.notEqual(next.reservations["break-1"].metadata, metadata);
+});
+
+test("set reservations safely rejects non-plain map inputs", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  class ReservationCollection {}
+  const classInstance = new ReservationCollection();
+  classInstance["break-1"] = { anchorId: "break-1", slotId: "employee1" };
+
+  for (const [label, reservations] of [
+    ["undefined", undefined],
+    ["null", null],
+    ["array", []],
+    ["string", "invalid"],
+    ["number", 42],
+    ["boolean", true],
+    ["bigint", 1n],
+    ["function", () => {}],
+    ["symbol", Symbol("invalid")],
+    ["date", new Date("2026-01-01T00:00:00.000Z")],
+    ["map", new Map([["break-1", { anchorId: "break-1", slotId: "employee1" }]])],
+    ["class instance", classInstance],
+  ]) {
+    assert.doesNotThrow(() => {
+      const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+      assert.equal(next, state);
+    }, label);
+  }
+});
+
+test("set reservations safely rejects cyclic and non-serializable nested values", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  class ReservationMetadata {}
+  const cyclicMap = {
+    "break-1": { anchorId: "break-1", slotId: "employee1" },
+  };
+  cyclicMap.self = cyclicMap;
+  const cyclicMetadata = {};
+  cyclicMetadata.self = cyclicMetadata;
+  const makeReservations = (metadata) => ({
+    "break-1": { anchorId: "break-1", slotId: "employee1", metadata },
+  });
+
+  for (const [label, reservations] of [
+    ["cyclic map", cyclicMap],
+    ["cyclic metadata", makeReservations(cyclicMetadata)],
+    ["bigint", makeReservations({ value: 1n })],
+    ["function", makeReservations({ value: () => {} })],
+    ["symbol", makeReservations({ value: Symbol("invalid") })],
+    ["undefined", makeReservations({ value: undefined })],
+    ["NaN", makeReservations({ value: Number.NaN })],
+    ["infinity", makeReservations({ value: Number.POSITIVE_INFINITY })],
+    ["date", makeReservations({ value: new Date("2026-01-01T00:00:00.000Z") })],
+    ["map", makeReservations({ value: new Map([["key", "value"]]) })],
+    ["class instance", makeReservations({ value: new ReservationMetadata() })],
+  ]) {
+    assert.doesNotThrow(() => {
+      const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+      assert.equal(next, state);
+    }, label);
+  }
+});
+
+test("set reservations rejects malformed or key-mismatched reservation records", () => {
   const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
 
-  for (const reservations of [undefined, null, [], "invalid", 42]) {
+  for (const reservations of [
+    { "break-1": null },
+    { "break-1": { anchorId: "break-1" } },
+    { "break-1": { slotId: "employee1" } },
+    { "break-1": { anchorId: 1, slotId: "employee1" } },
+    { "break-1": { anchorId: "break-1", slotId: 1 } },
+    { "break-1": { anchorId: "break-2", slotId: "employee1" } },
+  ]) {
     const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
     assert.equal(next, state);
   }
@@ -236,6 +434,89 @@ test("start return releases only the eating character's matching reservation", (
   assert.equal(next.characters.employee1.reservedAnchorId, "");
   assert.deepEqual(next.characters.employee1.route, ["break-1", "aisle-lower", "employee1-home"]);
   assert.equal(next.characters.employee1.routeIndex, 0);
+});
+
+test("start return preserves an active conversation owner's reservation for close", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+      "break-2": { anchorId: "break-2", slotId: "employee3" },
+    },
+  };
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "a",
+      memberIds: ["employee1", "employee2"],
+      anchorId: "chat-1",
+      anchorOwnerId: "employee1",
+      transcript: [],
+    },
+  });
+
+  state = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
+
+  assert.deepEqual(state.reservations, {
+    "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+    "break-2": { anchorId: "break-2", slotId: "employee3" },
+  });
+  assert.equal(state.conversations.a.anchorOwnerId, "employee1");
+
+  state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "a" });
+  assert.deepEqual(state.reservations, {
+    "break-2": { anchorId: "break-2", slotId: "employee3" },
+  });
+});
+
+test("start return preserves a chatting reservation without a conversation id", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+    },
+    characters: {
+      ...state.characters,
+      employee1: {
+        ...state.characters.employee1,
+        phase: "chatting",
+        activity: "chatting",
+        reservedAnchorId: "chat-1",
+      },
+    },
+  };
+
+  const next = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
+
+  assert.equal(next.reservations, state.reservations);
+  assert.equal(next.reservations["chat-1"].slotId, "employee1");
+});
+
+test("start return preserves a conversation reservation outside the chatting phase", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
+    },
+    characters: {
+      ...state.characters,
+      employee1: {
+        ...state.characters.employee1,
+        phase: "eating",
+        activity: "eating",
+        conversationId: "a",
+        reservedAnchorId: "chat-1",
+      },
+    },
+  };
+
+  const next = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
+
+  assert.equal(next.reservations, state.reservations);
+  assert.equal(next.reservations["chat-1"].slotId, "employee1");
 });
 
 test("start return preserves a wrong-owner reservation and finish return still resets home", () => {
