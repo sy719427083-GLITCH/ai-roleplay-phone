@@ -45,19 +45,41 @@ test("keeps simultaneous conversation transcripts isolated", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
   state = officeReducer(state, {
     type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], transcript: [] },
+    session: {
+      id: "a",
+      memberIds: ["employee1", "employee2"],
+      transcript: [],
+      promptContext: { summary: "组A", members: ["employee1", "employee2"] },
+      lastResponse: { speakerId: "employee1", text: "上一句A" },
+    },
   });
   state = officeReducer(state, {
     type: "OPEN_CONVERSATION",
-    session: { id: "b", memberIds: ["employee3", "employee4"], transcript: [] },
+    session: {
+      id: "b",
+      memberIds: ["employee3", "employee4"],
+      transcript: [],
+      promptContext: { summary: "组B", members: ["employee3", "employee4"] },
+      lastResponse: { speakerId: "employee3", text: "上一句B" },
+    },
   });
   state = officeReducer(state, {
     type: "APPEND_CONVERSATION",
     conversationId: "a",
     entry: { speakerId: "employee1", text: "A组" },
   });
+  state = officeReducer(state, {
+    type: "UPDATE_CONVERSATION_IO",
+    conversationId: "a",
+    promptContext: { summary: "组A-更新", members: ["employee1", "employee2"], turn: 2 },
+    lastResponse: { speakerId: "employee2", text: "只更新A" },
+  });
   assert.equal(state.conversations.a.transcript.length, 1);
   assert.equal(state.conversations.b.transcript.length, 0);
+  assert.equal(state.conversations.a.promptContext.summary, "组A-更新");
+  assert.equal(state.conversations.b.promptContext.summary, "组B");
+  assert.equal(state.conversations.a.lastResponse.text, "只更新A");
+  assert.equal(state.conversations.b.lastResponse.text, "上一句B");
 });
 
 test("reload closes network conversations and returns characters home", () => {
@@ -108,10 +130,15 @@ test("updates mode profile routing expiry and serialization state", () => {
   assert.equal(state.characters.employee2.phase, "idle");
   assert.equal(state.characters.employee2.positionNode, "employee2-home");
 
+  state = { ...state, reservations: { "break-2": { slotId: "employee2", anchorId: "break-2" } } };
   const snapshot = JSON.parse(serializeOfficeState(state));
   assert.equal(snapshot.mode, "rest");
   assert.equal(snapshot.durationMs, 60_000);
   assert.equal(snapshot.characters.employee2.profileId, "employee2-new");
+  assert.equal(snapshot.reservations, undefined);
+
+  const restored = restoreOfficeState(JSON.stringify(snapshot), assignments, 6000);
+  assert.deepEqual(restored.reservations, {});
 });
 
 test("queues and shifts bubbles per conversation without crossing sessions", () => {
@@ -184,4 +211,80 @@ test("closing one concurrent session returns only that group and leaves the othe
   assert.equal(state.characters.employee3.phase, "chatting");
   assert.equal(state.characters.employee3.conversationId, "b");
   assert.equal(state.characters.employee4.conversationId, "b");
+});
+
+test("closing a conversation without supplied routes still starts a direct return trip", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: { id: "a", memberIds: ["employee1", "employee2"], anchorId: "chat-1", transcript: [] },
+  });
+  state = {
+    ...state,
+    characters: {
+      ...state.characters,
+      employee1: { ...state.characters.employee1, positionNode: "chat-1" },
+      employee2: { ...state.characters.employee2, positionNode: "chat-1-side" },
+    },
+  };
+
+  state = officeReducer(state, {
+    type: "CLOSE_CONVERSATION",
+    conversationId: "a",
+  });
+
+  assert.equal(state.characters.employee1.phase, "returning");
+  assert.equal(state.characters.employee1.status, "返回工位");
+  assert.deepEqual(state.characters.employee1.route, ["chat-1", "employee1-home"]);
+  assert.equal(state.characters.employee2.phase, "returning");
+  assert.deepEqual(state.characters.employee2.route, ["chat-1-side", "employee2-home"]);
+});
+
+test("clones caller-owned payloads so later mutation cannot leak into reducer state", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const assignment = {
+    profileId: "employee1-new",
+    profile: { id: "employee1-new", name: "初始", meta: { mood: "calm" } },
+  };
+  const session = {
+    id: "a",
+    memberIds: ["employee1", "employee2"],
+    transcript: [],
+    promptContext: { topic: "预算", detail: { stage: 1 } },
+    lastResponse: { speakerId: "employee1", text: "初始回复", extra: { tone: "flat" } },
+  };
+  const entry = { speakerId: "employee1", text: "第一句", meta: { emphasis: "low" } };
+  const bubble = { speakerId: "employee2", text: "气泡", meta: { color: "blue" } };
+  const ioUpdate = {
+    promptContext: { topic: "预算更新", detail: { stage: 2 } },
+    lastResponse: { speakerId: "employee2", text: "更新回复", extra: { tone: "warm" } },
+  };
+
+  state = officeReducer(state, { type: "ASSIGN_PROFILE", slotId: "employee1", assignment });
+  state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+  state = officeReducer(state, { type: "APPEND_CONVERSATION", conversationId: "a", entry });
+  state = officeReducer(state, { type: "QUEUE_BUBBLE", conversationId: "a", bubble });
+  state = officeReducer(state, { type: "UPDATE_CONVERSATION_IO", conversationId: "a", ...ioUpdate });
+
+  assignment.profile.name = "被污染";
+  assignment.profile.meta.mood = "chaotic";
+  session.promptContext.detail.stage = 999;
+  session.lastResponse.extra.tone = "loud";
+  entry.text = "被改了";
+  entry.meta.emphasis = "high";
+  bubble.text = "被改了";
+  bubble.meta.color = "red";
+  ioUpdate.promptContext.detail.stage = 404;
+  ioUpdate.lastResponse.text = "串台";
+
+  assert.equal(state.assignments.employee1.profile.name, "初始");
+  assert.equal(state.assignments.employee1.profile.meta.mood, "calm");
+  assert.equal(state.conversations.a.promptContext.topic, "预算更新");
+  assert.equal(state.conversations.a.promptContext.detail.stage, 2);
+  assert.equal(state.conversations.a.lastResponse.text, "更新回复");
+  assert.equal(state.conversations.a.lastResponse.extra.tone, "warm");
+  assert.equal(state.conversations.a.transcript[0].text, "第一句");
+  assert.equal(state.conversations.a.transcript[0].meta.emphasis, "low");
+  assert.equal(state.conversations.a.bubbleQueue[0].text, "气泡");
+  assert.equal(state.conversations.a.bubbleQueue[0].meta.color, "blue");
 });

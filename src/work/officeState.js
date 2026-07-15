@@ -20,7 +20,7 @@ const slotIdsFromAssignments = (assignments = {}) => Object.keys(assignments);
 
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const cloneRecord = (value) => JSON.parse(JSON.stringify(value));
+const deepClone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
 const getHomeNode = (slotId) => `${slotId}-home`;
 
@@ -34,6 +34,7 @@ const getIdleCharacter = (slotId, assignment = {}) => ({
   conversationId: "",
   positionNode: getHomeNode(slotId),
   homeNode: getHomeNode(slotId),
+  homePosition: getHomeNode(slotId),
   route: [],
   routeIndex: 0,
   reservedAnchorId: "",
@@ -48,7 +49,7 @@ const normalizeAssignments = (assignments = {}) => Object.fromEntries(
     slotId,
     {
       profileId: assignments[slotId]?.profileId || "",
-      profile: assignments[slotId]?.profile || null,
+      profile: deepClone(assignments[slotId]?.profile) || null,
     },
   ]),
 );
@@ -58,8 +59,9 @@ const normalizeCharacter = (slotId, assignment, input = {}) => ({
   ...(isPlainObject(input) ? input : {}),
   slotId,
   profileId: assignment.profileId || "",
-  profile: assignment.profile || null,
+  profile: deepClone(assignment.profile) || null,
   homeNode: getHomeNode(slotId),
+  homePosition: getHomeNode(slotId),
 });
 
 const normalizeConversation = (session = {}, now = 0) => ({
@@ -67,13 +69,15 @@ const normalizeConversation = (session = {}, now = 0) => ({
   memberIds: Array.isArray(session.memberIds) ? [...session.memberIds] : [],
   topic: String(session.topic || ""),
   anchorId: String(session.anchorId || ""),
-  transcript: Array.isArray(session.transcript) ? [...session.transcript] : [],
+  transcript: Array.isArray(session.transcript) ? deepClone(session.transcript) : [],
   turnIndex: Number.isFinite(session.turnIndex) ? session.turnIndex : 0,
   requestSequence: Number.isFinite(session.requestSequence) ? session.requestSequence : 0,
   status: String(session.status || "active"),
   startedAt: Number.isFinite(session.startedAt) ? session.startedAt : now,
   endsAt: Number.isFinite(session.endsAt) ? session.endsAt : 0,
-  bubbleQueue: Array.isArray(session.bubbleQueue) ? [...session.bubbleQueue] : [],
+  bubbleQueue: Array.isArray(session.bubbleQueue) ? deepClone(session.bubbleQueue) : [],
+  promptContext: isPlainObject(session.promptContext) ? deepClone(session.promptContext) : {},
+  lastResponse: isPlainObject(session.lastResponse) ? deepClone(session.lastResponse) : null,
 });
 
 const sanitizeProps = (action) => {
@@ -113,6 +117,12 @@ const resetCharacterHome = (character, assignment) => ({
   ...getIdleCharacter(character.slotId, assignment),
 });
 
+const buildDirectReturnRoute = (character) => {
+  const currentNode = character.positionNode || character.homePosition || character.homeNode;
+  const homeNode = character.homePosition || character.homeNode || getHomeNode(character.slotId);
+  return currentNode === homeNode ? [homeNode] : [currentNode, homeNode];
+};
+
 const shouldResetOnRestore = (character, now) => {
   if (character.conversationId) return true;
   if (character.phase === "walkingToActivity" || character.phase === "returning") return true;
@@ -128,7 +138,7 @@ const startReturnCharacter = (character, route) => ({
   status: TRAVEL_STATUS.returning,
   conversationId: "",
   reservedAnchorId: "",
-  route: Array.isArray(route) ? [...route] : [],
+  route: Array.isArray(route) && route.length ? [...route] : buildDirectReturnRoute(character),
   routeIndex: 0,
   activityEndsAt: 0,
   props: {},
@@ -142,9 +152,7 @@ const closeConversationMembers = (state, conversation, returnRoutes = {}) => {
     if (!current || current.conversationId !== conversation.id) continue;
 
     const route = returnRoutes[slotId];
-    const next = route && route.length
-      ? startReturnCharacter(current, route)
-      : resetCharacterHome(current, state.assignments[slotId]);
+    const next = startReturnCharacter(current, route);
 
     if (next !== current) {
       characters = {
@@ -201,9 +209,8 @@ export function serializeOfficeState(state) {
     mode: state.mode,
     now: state.now,
     durationMs: state.durationMs,
-    reservations: cloneRecord(state.reservations || {}),
-    conversations: cloneRecord(state.conversations || {}),
-    characters: cloneRecord(state.characters || {}),
+    conversations: deepClone(state.conversations || {}),
+    characters: deepClone(state.characters || {}),
   });
 }
 
@@ -242,9 +249,13 @@ export function officeReducer(state, action) {
       return { ...state, now: action.now };
 
     case "ASSIGN_PROFILE": {
-      const assignment = action.assignment || {
+      const sourceAssignment = action.assignment || {
         profileId: action.profileId || "",
         profile: action.profile || null,
+      };
+      const assignment = {
+        profileId: sourceAssignment.profileId || "",
+        profile: deepClone(sourceAssignment.profile) || null,
       };
 
       if (!state.assignments[action.slotId]) return state;
@@ -351,13 +362,20 @@ export function officeReducer(state, action) {
     case "APPEND_CONVERSATION":
       return withConversation(state, action.conversationId, (conversation) => ({
         ...conversation,
-        transcript: [...conversation.transcript, action.entry],
+        transcript: [...conversation.transcript, deepClone(action.entry)],
       }));
 
     case "QUEUE_BUBBLE":
       return withConversation(state, action.conversationId, (conversation) => ({
         ...conversation,
-        bubbleQueue: [...conversation.bubbleQueue, action.bubble],
+        bubbleQueue: [...conversation.bubbleQueue, deepClone(action.bubble)],
+      }));
+
+    case "UPDATE_CONVERSATION_IO":
+      return withConversation(state, action.conversationId, (conversation) => ({
+        ...conversation,
+        promptContext: isPlainObject(action.promptContext) ? deepClone(action.promptContext) : conversation.promptContext,
+        lastResponse: isPlainObject(action.lastResponse) ? deepClone(action.lastResponse) : conversation.lastResponse,
       }));
 
     case "SHIFT_BUBBLE":

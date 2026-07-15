@@ -187,3 +187,150 @@ npm test
 
 - `RESET_EXPIRED` currently resolves expired activities immediately back to home/idle rather than converting them into a visible return walk. That matches the persistence brief, but later runtime choreography may want a softer handoff once navigation is wired in.
 - `START_ACTIVITY` uses the explicit travel labels from the brief and falls back to the meeting travel label for unknown routed activities; if later tasks introduce routed `gaming` or `slacking`, the scheduler/navigation layer should pass an explicit travel intent or extend the mapping.
+
+## Review Fixes
+
+### Implementation
+
+- Extended normalized conversation records with session-local `promptContext` and `lastResponse`.
+- Added `UPDATE_CONVERSATION_IO` so only one `conversationId` can update prompt/response state at a time.
+- Deep-cloned reducer boundary payloads for:
+  - `ASSIGN_PROFILE`
+  - `OPEN_CONVERSATION` session prompt/response state
+  - `APPEND_CONVERSATION`
+  - `QUEUE_BUBBLE`
+  - `UPDATE_CONVERSATION_IO`
+- Changed `CLOSE_CONVERSATION` so missing `returnRoutes` still move visitors into `phase: "returning"` with `status: "返回工位"` and a direct route from current `positionNode` to `homePosition`.
+- Removed transient `reservations` from serialized state; restore still resumes with `reservations: {}`.
+
+### Files
+
+- Modified `src/work/officeState.js`
+- Modified `src/work/officeState.test.js`
+- Modified `.superpowers/sdd/animated-office-task-2-report.md`
+
+### RED
+
+Command:
+
+```bash
+node --test src/work/officeState.test.js
+```
+
+Output before the production fix:
+
+```text
+TAP version 13
+# Subtest: walks to a meal, eats visible food, and returns home
+ok 1 - walks to a meal, eats visible food, and returns home
+# Subtest: keeps simultaneous conversation transcripts isolated
+not ok 2 - keeps simultaneous conversation transcripts isolated
+  error: "Cannot read properties of undefined (reading 'summary')"
+# Subtest: reload closes network conversations and returns characters home
+ok 3 - reload closes network conversations and returns characters home
+# Subtest: updates mode profile routing expiry and serialization state
+not ok 4 - updates mode profile routing expiry and serialization state
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + {
+    +   'break-2': {
+    +     anchorId: 'break-2',
+    +     slotId: 'employee2'
+    +   }
+    + }
+    - undefined
+# Subtest: queues and shifts bubbles per conversation without crossing sessions
+ok 5 - queues and shifts bubbles per conversation without crossing sessions
+# Subtest: rejects opening a conversation when any member is already busy in another session
+ok 6 - rejects opening a conversation when any member is already busy in another session
+# Subtest: closing one concurrent session returns only that group and leaves the other session active
+ok 7 - closing one concurrent session returns only that group and leaves the other session active
+# Subtest: closing a conversation without supplied routes still starts a direct return trip
+not ok 8 - closing a conversation without supplied routes still starts a direct return trip
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'idle'
+    - 'returning'
+# Subtest: clones caller-owned payloads so later mutation cannot leak into reducer state
+not ok 9 - clones caller-owned payloads so later mutation cannot leak into reducer state
+  error: |-
+    Expected values to be strictly equal:
+
+    '被污染' !== '初始'
+1..9
+# tests 9
+# pass 5
+# fail 4
+```
+
+These failures matched the review findings: no per-session prompt/response state, serialized reservations still persisted, route-less close snapped to idle, and caller-owned payload mutations leaked into state.
+
+### GREEN
+
+Focused command:
+
+```bash
+node --test src/work/officeState.test.js
+```
+
+Focused output after the fix:
+
+```text
+TAP version 13
+# Subtest: walks to a meal, eats visible food, and returns home
+ok 1 - walks to a meal, eats visible food, and returns home
+# Subtest: keeps simultaneous conversation transcripts isolated
+ok 2 - keeps simultaneous conversation transcripts isolated
+# Subtest: reload closes network conversations and returns characters home
+ok 3 - reload closes network conversations and returns characters home
+# Subtest: updates mode profile routing expiry and serialization state
+ok 4 - updates mode profile routing expiry and serialization state
+# Subtest: queues and shifts bubbles per conversation without crossing sessions
+ok 5 - queues and shifts bubbles per conversation without crossing sessions
+# Subtest: rejects opening a conversation when any member is already busy in another session
+ok 6 - rejects opening a conversation when any member is already busy in another session
+# Subtest: closing one concurrent session returns only that group and leaves the other session active
+ok 7 - closing one concurrent session returns only that group and leaves the other session active
+# Subtest: closing a conversation without supplied routes still starts a direct return trip
+ok 8 - closing a conversation without supplied routes still starts a direct return trip
+# Subtest: clones caller-owned payloads so later mutation cannot leak into reducer state
+ok 9 - clones caller-owned payloads so later mutation cannot leak into reducer state
+1..9
+# tests 9
+# pass 9
+# fail 0
+```
+
+Full command:
+
+```bash
+npm test
+```
+
+Full output after the fix:
+
+```text
+> ai-roleplay-phone@0.2.94 test
+> node --test src/*.test.js src/work/*.test.js
+
+1..55
+# tests 55
+# pass 55
+# fail 0
+```
+
+### Commit
+
+`feat: harden office reducer review fixes` (exact final HEAD hash recorded in the task response)
+
+### Self-Review
+
+- Kept the change surface within the same worktree and reducer-owned files.
+- Session-local IO state is now cloned at open and cloned again on targeted updates, so parallel groups cannot share prompt or response objects by reference.
+- Route-less conversation closure now preserves visible return behavior instead of snapping characters home.
+- State snapshots no longer persist transient reservations, which removes the serialize/restore asymmetry without changing restore semantics.
+- The new immutability test exercises nested mutation after dispatch, which is the failure mode the review was aiming at rather than shallow reference copying alone.
