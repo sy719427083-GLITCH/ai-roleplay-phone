@@ -616,6 +616,27 @@ const verifyViewport = async (browser, viewport) => {
     const geometry = await collectGeometry(page);
     verifyGeometry(geometry, viewport);
 
+    await page.evaluate(() => {
+      const timer = document.querySelector(".work-remaining strong");
+      if (!timer) throw new Error("missing Work timer before screenshot");
+      timer.setAttribute("data-office-qa-time", "07:59:52");
+      const style = document.createElement("style");
+      style.textContent = `
+        .work-remaining strong[data-office-qa-time] {
+          position: relative;
+          visibility: hidden;
+        }
+        .work-remaining strong[data-office-qa-time]::after {
+          position: absolute;
+          inset: 0;
+          color: inherit;
+          content: attr(data-office-qa-time);
+          visibility: visible;
+        }
+      `;
+      document.head.append(style);
+    });
+
     const screenshotPath = resolve(qaDirectory, `office-${viewportLabel}.png`);
     await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
 
