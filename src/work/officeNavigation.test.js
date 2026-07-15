@@ -8,7 +8,25 @@ import {
   releaseAnchor,
 } from "./officeNavigation.js";
 
-test("defines the office graph with percentage coordinates and explicit neighbors", () => {
+const CENTRAL_AISLE = Object.freeze({ minX: 45, maxX: 60, minY: 34, maxY: 88 });
+const LOWER_LEFT_OBSTRUCTION = Object.freeze({ minX: 5, maxX: 42, minY: 74, maxY: 90 });
+
+const isInside = (node, rectangle) => (
+  node.x >= rectangle.minX
+  && node.x <= rectangle.maxX
+  && node.y >= rectangle.minY
+  && node.y <= rectangle.maxY
+);
+
+const assertRouteMovesDown = (route) => {
+  for (let index = 1; index < route.length; index += 1) {
+    const previous = OFFICE_NODES[route[index - 1]];
+    const current = OFFICE_NODES[route[index]];
+    assert.ok(previous.y <= current.y, `${route[index - 1]} -> ${route[index]} should not backtrack upward`);
+  }
+};
+
+test("defines every required office navigation node group", () => {
   const ids = Object.keys(OFFICE_NODES);
   assert.equal(ids.filter((id) => id.endsWith("-home")).length, 5);
   assert.equal(ids.filter((id) => id.endsWith("-exit")).length, 5);
@@ -16,73 +34,90 @@ test("defines the office graph with percentage coordinates and explicit neighbor
   assert.equal(ids.filter((id) => id.startsWith("break-")).length, 2);
   assert.equal(ids.filter((id) => id.startsWith("chat-")).length, 4);
   assert.equal(ids.filter((id) => id === "meeting-1").length, 1);
-
-  assert.deepEqual(OFFICE_NODES["employee1-home"], {
-    id: "employee1-home",
-    x: 25,
-    y: 47,
-    neighbors: ["employee1-exit"],
-  });
-  assert.deepEqual(OFFICE_NODES["employee1-exit"], {
-    id: "employee1-exit",
-    x: 36,
-    y: 47,
-    neighbors: ["employee1-home", "aisle-upper"],
-  });
-  assert.deepEqual(OFFICE_NODES["aisle-upper"], {
-    id: "aisle-upper",
-    x: 50,
-    y: 43,
-    neighbors: ["employee1-exit", "employee2-exit", "boss-exit", "aisle-lower", "chat-1", "chat-2"],
-  });
-  assert.deepEqual(OFFICE_NODES["aisle-lower"], {
-    id: "aisle-lower",
-    x: 50,
-    y: 68,
-    neighbors: ["aisle-upper", "employee3-exit", "employee4-exit", "break-1", "break-2", "chat-3", "chat-4", "meeting-1"],
-  });
-  assert.deepEqual(OFFICE_NODES["meeting-1"], {
-    id: "meeting-1",
-    x: 50,
-    y: 57,
-    neighbors: ["aisle-lower"],
-  });
 });
 
-test("places the boss above every employee desk", () => {
-  const bossY = OFFICE_NODES["boss-home"].y;
-  const employeeHomeYs = [1, 2, 3, 4].map((employeeId) => (
-    OFFICE_NODES[`employee${employeeId}-home`].y
-  ));
+test("moves the boss from chair feet down into the central aisle", () => {
+  const home = OFFICE_NODES["boss-home"];
+  const exit = OFFICE_NODES["boss-exit"];
 
-  assert.ok(employeeHomeYs.every((employeeY) => bossY < employeeY));
+  assert.ok(home.y >= 29 && home.y <= 33, "boss-home should sit at the chair feet");
+  assert.ok(isInside(exit, CENTRAL_AISLE), "boss-exit should sit in the central aisle");
+  assert.ok(exit.y - home.y >= 4, "boss should clear the chair before joining the aisle");
+  assert.ok(Math.abs(exit.x - home.x) <= 3, "boss should leave through the open floor below the desk");
+  assert.ok(exit.neighbors.includes("aisle-upper"));
 });
 
-test("places employees in aligned upper and lower desk rows", () => {
-  const employee1 = OFFICE_NODES["employee1-home"];
-  const employee2 = OFFICE_NODES["employee2-home"];
-  const employee3 = OFFICE_NODES["employee3-home"];
-  const employee4 = OFFICE_NODES["employee4-home"];
+test("moves employee desk routes horizontally from chair feet toward the central aisle", () => {
+  const desks = [
+    { slotId: "employee1", side: "left", minY: 50, maxY: 54, aisleId: "aisle-upper" },
+    { slotId: "employee2", side: "right", minY: 50, maxY: 54, aisleId: "aisle-upper" },
+    { slotId: "employee3", side: "left", minY: 69, maxY: 73, aisleId: "aisle-lower" },
+    { slotId: "employee4", side: "right", minY: 69, maxY: 73, aisleId: "aisle-lower" },
+  ];
 
-  assert.equal(employee1.y, employee2.y);
-  assert.equal(employee3.y, employee4.y);
-  assert.ok(employee1.y < employee3.y);
+  for (const { slotId, side, minY, maxY, aisleId } of desks) {
+    const home = OFFICE_NODES[`${slotId}-home`];
+    const exit = OFFICE_NODES[`${slotId}-exit`];
+    const horizontalClearance = side === "left" ? exit.x - home.x : home.x - exit.x;
+
+    assert.ok(home.y >= minY && home.y <= maxY, `${slotId}-home should sit at the chair feet`);
+    assert.ok(isInside(exit, CENTRAL_AISLE), `${slotId}-exit should sit in the central aisle`);
+    assert.ok(horizontalClearance >= 15, `${slotId} should clear the desk toward the aisle`);
+    assert.ok(Math.abs(exit.y - home.y) <= 1, `${slotId} should cross the open floor in front of the desk`);
+    assert.ok(exit.neighbors.includes(aisleId), `${slotId}-exit should join ${aisleId}`);
+  }
 });
 
-test("aligns the left and right desk columns", () => {
-  assert.equal(OFFICE_NODES["employee1-home"].x, OFFICE_NODES["employee3-home"].x);
-  assert.equal(OFFICE_NODES["employee1-exit"].x, OFFICE_NODES["employee3-exit"].x);
-  assert.equal(OFFICE_NODES["employee2-home"].x, OFFICE_NODES["employee4-home"].x);
-  assert.equal(OFFICE_NODES["employee2-exit"].x, OFFICE_NODES["employee4-exit"].x);
+test("aligns the break route with the open floor in front of both counter seats", () => {
+  const aisleLower = OFFICE_NODES["aisle-lower"];
+  const breakAnchors = [OFFICE_NODES["break-1"], OFFICE_NODES["break-2"]];
+
+  assert.ok(aisleLower.x >= CENTRAL_AISLE.minX && aisleLower.x <= CENTRAL_AISLE.maxX);
+  assert.ok(aisleLower.y >= 92 && aisleLower.y <= 95, "aisle-lower should reach the clear counter approach");
+
+  for (const anchor of breakAnchors) {
+    assert.ok(anchor.x >= 15 && anchor.x <= 34, `${anchor.id} should align with a visible counter seat`);
+    assert.ok(anchor.y >= 92 && anchor.y <= 95, `${anchor.id} should sit in the front-seat foot band`);
+    assert.ok(anchor.x < aisleLower.x, `${anchor.id} should approach from the central aisle`);
+    assert.ok(Math.abs(anchor.y - aisleLower.y) <= 2, `${anchor.id} route should stay below the shelf obstruction`);
+    assert.ok(anchor.neighbors.includes("aisle-lower"));
+  }
+
+  assert.ok(Math.abs(breakAnchors[0].x - breakAnchors[1].x) >= 10, "counter seats should remain distinct");
 });
 
-test("places break anchors below every employee desk", () => {
-  const lowestDeskY = Math.max(
-    ...[1, 2, 3, 4].map((employeeId) => OFFICE_NODES[`employee${employeeId}-home`].y),
-  );
+test("keeps chat and meeting anchors separated inside the unobstructed central aisle", () => {
+  const chatAnchors = [1, 2, 3, 4].map((chatId) => OFFICE_NODES[`chat-${chatId}`]);
+  const sharedAnchors = [...chatAnchors, OFFICE_NODES["meeting-1"]];
 
-  assert.ok(OFFICE_NODES["break-1"].y > lowestDeskY);
-  assert.ok(OFFICE_NODES["break-2"].y > lowestDeskY);
+  for (const anchor of sharedAnchors) {
+    assert.ok(isInside(anchor, CENTRAL_AISLE), `${anchor.id} should stay in the central aisle`);
+    assert.ok(!isInside(anchor, LOWER_LEFT_OBSTRUCTION), `${anchor.id} should clear the pickup shelf and plant`);
+  }
+
+  for (let firstIndex = 0; firstIndex < chatAnchors.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < chatAnchors.length; secondIndex += 1) {
+      const first = chatAnchors[firstIndex];
+      const second = chatAnchors[secondIndex];
+      const distance = Math.hypot(second.x - first.x, second.y - first.y);
+      assert.ok(distance >= 10, `${first.id} and ${second.id} should support separate groups`);
+    }
+  }
+});
+
+test("routes through the meeting anchor without overshooting and reversing", () => {
+  const meeting = OFFICE_NODES["meeting-1"];
+
+  assert.ok(meeting.neighbors.includes("aisle-upper"));
+  assert.ok(meeting.neighbors.includes("aisle-lower"));
+
+  const inboundRoute = findOfficeRoute("employee1-home", "meeting-1");
+  assert.deepEqual(inboundRoute, ["employee1-home", "employee1-exit", "aisle-upper", "meeting-1"]);
+  assertRouteMovesDown(inboundRoute);
+
+  const outboundRoute = findOfficeRoute("meeting-1", "break-1");
+  assert.deepEqual(outboundRoute, ["meeting-1", "aisle-lower", "break-1"]);
+  assertRouteMovesDown(outboundRoute);
 });
 
 test("keeps every office node inside the safe frame", () => {
