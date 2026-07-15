@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
-  Bike,
   BookMarked,
   Briefcase,
-  BrushCleaning,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -12,7 +10,6 @@ import {
   ClipboardCheck,
   Database,
   Eye,
-  FileText,
   Gamepad2,
   Globe2,
   Heart,
@@ -24,18 +21,14 @@ import {
   Mail,
   MapPin,
   MessageCircle,
-  Moon,
   Palette,
-  Play,
   Plus,
-  RefreshCw,
   Settings,
   ShoppingBag,
   Smartphone,
   Search,
   Sparkles,
   Soup,
-  Square,
   ThumbsUp,
   UserRound,
   UsersRound,
@@ -87,32 +80,8 @@ import {
   updateChatMessage,
 } from "./messageState.js";
 import {
-  WORK_MAP_THEMES,
-  buildLocalThemeJobs,
-  buildWorkGenerationPrompt,
-  createWorkSession,
-  getThemeIdForTag,
-  getWorkTheme,
-  inferWorkMapTheme,
-  interpolateWorkRoute,
-  normalizeThemeJobs,
-  resolveDisplayedWorkJob,
-  resolveWorkMapView,
-  resolveWorkSessionState,
-  withWorkMapTheme,
-} from "./workThemes.js";
-import {
-  WORK_TRAVELER_GROUPS,
-  formatWorkDuration,
-  getWorkTraveler,
-  getWorkTravelerFallbackAsset,
-  persistWorkTravelerId,
-  readStoredWorkTravelerId,
-} from "./workTravelers.js";
-import {
   WORLD_TAGS,
   normalizeWorldTags,
-  resolveWorldTagSelection,
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
@@ -154,15 +123,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.93`;
-const workMapAsset = (fileName) => `${import.meta.env.BASE_URL}work-map-assets/${fileName}?v=0.2.93`;
-const workTravelerAsset = (asset) => `${import.meta.env.BASE_URL}${asset}?v=0.2.93`;
-
-const handleWorkTravelerImageError = (event, travelerId) => {
-  if (event.currentTarget.dataset.fallbackApplied === "true") return;
-  event.currentTarget.dataset.fallbackApplied = "true";
-  event.currentTarget.src = workTravelerAsset(getWorkTravelerFallbackAsset(travelerId));
-};
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.94`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -318,387 +279,6 @@ const settingsItems = [
   { id: "system", label: "系统设置", icon: Settings },
 ];
 
-const workCatalog = [
-  {
-    key: "review",
-    icon: "review",
-    cn: "审核",
-    en: "Review",
-    title: "资料审核",
-    titleEn: "Document Review",
-    content: "核对记录、标注异常、提交摘要",
-    contentEn: "Check records, flag issues, submit summary",
-    durationMinutes: 265,
-    reward: 1280,
-    level: 4,
-    distance: "0.3 km",
-    pin: { x: 50, y: 76 },
-  },
-  {
-    key: "delivery",
-    icon: "delivery",
-    cn: "配送",
-    en: "Delivery",
-    title: "社区配送",
-    titleEn: "Local Delivery",
-    content: "取件、配送、确认签收",
-    contentEn: "Pickup, deliver, confirm receipt",
-    durationMinutes: 150,
-    reward: 360,
-    level: 2,
-    distance: "2.1 km",
-    pin: { x: 12, y: 36 },
-  },
-  {
-    key: "cleaning",
-    icon: "cleaning",
-    cn: "清洁",
-    en: "Cleaning",
-    title: "空间清洁",
-    titleEn: "Space Cleaning",
-    content: "整理房间、清洁地面、归位物品",
-    contentEn: "Tidy rooms, clean floors, reset items",
-    durationMinutes: 95,
-    reward: 220,
-    level: 1,
-    distance: "1.6 km",
-    pin: { x: 22, y: 66 },
-  },
-  {
-    key: "care",
-    icon: "care",
-    cn: "陪护",
-    en: "Care",
-    title: "临时陪护",
-    titleEn: "Care Support",
-    content: "陪同外出、记录状态、完成交接",
-    contentEn: "Escort, record status, hand off",
-    durationMinutes: 380,
-    reward: 1620,
-    level: 4,
-    distance: "1.9 km",
-    pin: { x: 79, y: 67 },
-  },
-  {
-    key: "night",
-    icon: "night",
-    cn: "夜班",
-    en: "Night",
-    title: "夜间巡检",
-    titleEn: "Night Check",
-    content: "巡查路线、处理异常、填写报告",
-    contentEn: "Patrol route, handle issues, file report",
-    durationMinutes: 540,
-    reward: 2480,
-    level: 5,
-    distance: "2.7 km",
-    pin: { x: 88, y: 39 },
-  },
-  {
-    key: "kitchen",
-    icon: "kitchen",
-    cn: "备餐",
-    en: "Prep",
-    title: "餐食备料",
-    titleEn: "Meal Prep",
-    content: "清点食材、切配备料、完成封存",
-    contentEn: "Check ingredients, prep, seal packs",
-    durationMinutes: 80,
-    reward: 260,
-    level: 1,
-    distance: "0.8 km",
-    pin: { x: 34, y: 32 },
-  },
-  {
-    key: "shop",
-    icon: "shop",
-    cn: "代购",
-    en: "Shop",
-    title: "清单代购",
-    titleEn: "List Shopping",
-    content: "核对清单、采购物品、整理票据",
-    contentEn: "Check list, buy items, file receipt",
-    durationMinutes: 120,
-    reward: 420,
-    level: 2,
-    distance: "1.2 km",
-    pin: { x: 66, y: 34 },
-  },
-  {
-    key: "device",
-    icon: "device",
-    cn: "检修",
-    en: "Device",
-    title: "设备检修",
-    titleEn: "Device Check",
-    content: "检查设备、记录故障、提交照片",
-    contentEn: "Inspect device, log issues, submit photos",
-    durationMinutes: 210,
-    reward: 780,
-    level: 3,
-    distance: "2.4 km",
-    pin: { x: 18, y: 53 },
-  },
-  {
-    key: "event",
-    icon: "event",
-    cn: "活动",
-    en: "Event",
-    title: "活动协助",
-    titleEn: "Event Assist",
-    content: "布置物料、维持秩序、清点回收",
-    contentEn: "Set materials, guide flow, count returns",
-    durationMinutes: 300,
-    reward: 1380,
-    level: 4,
-    distance: "2.8 km",
-    pin: { x: 76, y: 53 },
-  },
-  {
-    key: "beauty",
-    icon: "beauty",
-    cn: "美化",
-    en: "Style",
-    title: "空间美化",
-    titleEn: "Space Styling",
-    content: "调整陈列、拍摄样图、同步清单",
-    contentEn: "Style display, shoot samples, sync list",
-    durationMinutes: 180,
-    reward: 620,
-    level: 2,
-    distance: "1.7 km",
-    pin: { x: 62, y: 73 },
-  },
-  {
-    key: "game",
-    icon: "game",
-    cn: "陪玩",
-    en: "Game",
-    title: "游戏陪练",
-    titleEn: "Game Coach",
-    content: "组队练习、复盘操作、提交总结",
-    contentEn: "Team practice, review moves, summarize",
-    durationMinutes: 240,
-    reward: 920,
-    level: 3,
-    distance: "0.6 km",
-    pin: { x: 42, y: 58 },
-  },
-  {
-    key: "survey",
-    icon: "survey",
-    cn: "调研",
-    en: "Survey",
-    title: "街区调研",
-    titleEn: "Area Survey",
-    content: "采集点位、记录人流、上传表格",
-    contentEn: "Collect spots, log flow, upload sheet",
-    durationMinutes: 360,
-    reward: 2150,
-    level: 5,
-    distance: "3.1 km",
-    pin: { x: 86, y: 62 },
-  },
-];
-
-const levelMarks = ["I", "II", "III", "IV", "V"];
-
-const workIconMap = {
-  review: ClipboardCheck,
-  delivery: Bike,
-  cleaning: BrushCleaning,
-  care: UserRound,
-  night: Moon,
-  writing: FileText,
-  assistant: Briefcase,
-  errand: MapPin,
-  kitchen: Soup,
-  shop: ShoppingBag,
-  device: Smartphone,
-  event: CalendarDays,
-  beauty: Palette,
-  game: Gamepad2,
-  survey: Globe2,
-};
-
-const workPins = [
-  { x: 50, y: 76 },
-  { x: 12, y: 36 },
-  { x: 22, y: 66 },
-  { x: 79, y: 67 },
-  { x: 88, y: 39 },
-  { x: 34, y: 32 },
-  { x: 66, y: 34 },
-  { x: 18, y: 53 },
-  { x: 76, y: 53 },
-  { x: 62, y: 73 },
-];
-
-const WORK_JOBS_STORAGE_KEY = "ccatWorkJobs";
-const WORK_ACTIVE_STORAGE_KEY = "ccatActiveWork";
-const WORK_SELECTED_STORAGE_KEY = "ccatSelectedWork";
-const WORK_SOURCE_STORAGE_KEY = "ccatWorkSource";
-const WORK_WORLDBOOK_STORAGE_KEY = "ccatWorkWorldbookId";
-const WORK_TAG_STORAGE_KEY = "ccatWorkTagByWorld";
-const WORK_PAID_REFRESH_COST = 20;
-const highValueWorkKeys = new Set(["review", "night", "device", "event", "survey"]);
-
-const roundToStep = (value, step = 5) => Math.max(step, Math.round(value / step) * step);
-
-const chooseWorkCompensation = (durationMinutes, level = 1, highValue = false) => {
-  const safeLevel = Math.min(5, Math.max(1, Number(level) || 1));
-  let minutes = Math.min(600, Math.max(30, Number(durationMinutes) || 60));
-  let hourlyRate;
-
-  if (highValue) {
-    minutes = Math.min(600, Math.max(minutes, 420 + Math.round((Math.random() * 180) / 5) * 5));
-    hourlyRate = Math.random() < 0.5
-      ? roundToStep(108 + Math.random() * (38 + safeLevel * 10), 5)
-      : roundToStep(82 + Math.random() * (10 + safeLevel * 3), 5);
-    if (hourlyRate * (minutes / 60) < 1000) {
-      hourlyRate = roundToStep(1000 / (minutes / 60), 5);
-    }
-  } else {
-    hourlyRate = roundToStep(24 + Math.random() * (24 + safeLevel * 7), 5);
-  }
-
-  return {
-    durationMinutes: minutes,
-    hourlyRate,
-    reward: Math.min(9999, roundToStep(hourlyRate * (minutes / 60), highValue ? 10 : 5)),
-  };
-};
-
-const reconcileWorkCompensation = (item = {}, fallback = workCatalog[0]) => {
-  const durationMinutes = Math.min(600, Math.max(30, Number(item.durationMinutes || item.duration || fallback.durationMinutes)));
-  const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
-  const hourlyRate = Number(item.hourlyRate || item.hourly || item.rate);
-
-  if (hourlyRate > 0) {
-    return {
-      durationMinutes,
-      hourlyRate: Math.min(999, hourlyRate),
-      reward: Math.min(9999, roundToStep(hourlyRate * (durationMinutes / 60), Number(item.reward) >= 1000 ? 10 : 5)),
-    };
-  }
-
-  const suppliedReward = Number(item.reward || fallback.reward);
-  if (suppliedReward > 0) {
-    return {
-      durationMinutes,
-      hourlyRate: Math.max(1, Math.round(suppliedReward / Math.max(0.5, durationMinutes / 60))),
-      reward: Math.min(9999, Math.max(1, Math.round(suppliedReward))),
-    };
-  }
-
-  return chooseWorkCompensation(durationMinutes, level, false);
-};
-
-const inferWorkIcon = (item = {}, index = 0, usedIcons = new Set()) => {
-  const source = `${item.icon || ""} ${item.type || ""} ${item.cn || ""} ${item.en || ""} ${item.title || ""} ${item.content || ""}`.toLowerCase();
-  const candidates = [
-    [/配送|送|delivery|courier|errand|跑腿|外勤/, "delivery"],
-    [/清洁|clean|整理|保洁/, "cleaning"],
-    [/陪护|照看|care|护理|陪伴/, "care"],
-    [/夜|night|巡检|值守/, "night"],
-    [/写|文案|writing|稿|记录/, "writing"],
-    [/助理|assistant|事务|排程/, "assistant"],
-    [/备餐|餐|kitchen|meal|prep|食材/, "kitchen"],
-    [/代购|shop|采购|清单|票据/, "shop"],
-    [/检修|device|设备|手机|故障/, "device"],
-    [/活动|event|布置|秩序/, "event"],
-    [/美化|style|陈列|拍摄|设计/, "beauty"],
-    [/游戏|game|陪练|复盘/, "game"],
-    [/调研|survey|采集|人流|街区/, "survey"],
-    [/审核|资料|review|document|核对|标注/, "review"],
-  ];
-  const matched = candidates.find(([pattern]) => pattern.test(source))?.[1];
-  const fallback = workCatalog[index]?.icon || workCatalog[index]?.key || "review";
-  const preferred = matched || (workIconMap[item.icon] ? item.icon : fallback);
-  if (!usedIcons.has(preferred)) {
-    usedIcons.add(preferred);
-    return preferred;
-  }
-  const openIcon = Object.keys(workIconMap).find((icon) => !usedIcons.has(icon)) || preferred;
-  usedIcons.add(openIcon);
-  return openIcon;
-};
-
-const buildWorkJobs = () => {
-  const regularPool = [...workCatalog].sort(() => Math.random() - 0.5);
-  const premiumPool = workCatalog.filter((job) => highValueWorkKeys.has(job.key)).sort(() => Math.random() - 0.5);
-  const usedKeys = new Set();
-
-  return Array.from({ length: 5 }).map((_, index) => {
-    const highValue = Math.random() < 0.1;
-    const pool = highValue ? premiumPool : regularPool;
-    const job = pool.find((item) => !usedKeys.has(item.key)) || regularPool.find((item) => !usedKeys.has(item.key)) || workCatalog[index];
-    usedKeys.add(job.key);
-    const levelOffset = Math.max(0, job.level - 1);
-    const durationJitter = Math.round((Math.random() * 34 - 12) / 5) * 5;
-    const baseDuration = Math.min(600, Math.max(45, job.durationMinutes + durationJitter + levelOffset * 8));
-    const compensation = chooseWorkCompensation(baseDuration, job.level, highValue);
-
-    return {
-      ...job,
-      key: `${job.key}_${Date.now()}_${index}`,
-      durationMinutes: compensation.durationMinutes,
-      hourlyRate: compensation.hourlyRate,
-      reward: compensation.reward,
-      pin: workPins[index] || job.pin,
-    };
-  });
-};
-
-const normalizeWorkJobs = (items = []) => {
-  if (!Array.isArray(items)) return [];
-  const usedIcons = new Set();
-  return items.slice(0, 5).map((item, index) => {
-    const fallback = workCatalog[index] || workCatalog[0];
-    const level = Math.min(5, Math.max(1, Number(item.level || fallback.level)));
-    const compensation = reconcileWorkCompensation(item, fallback);
-    return {
-      ...fallback,
-      key: `${fallback.key}_${Date.now()}_${index}`,
-      icon: inferWorkIcon(item, index, usedIcons),
-      cn: String(item.cn || item.label || fallback.cn).slice(0, 4),
-      en: String(item.en || item.labelEn || fallback.en).slice(0, 14),
-      title: String(item.title || fallback.title).slice(0, 12),
-      titleEn: String(item.titleEn || item.englishTitle || fallback.titleEn).slice(0, 28),
-      content: String(item.content || fallback.content).slice(0, 36),
-      contentEn: String(item.contentEn || item.englishContent || fallback.contentEn).slice(0, 72),
-      durationMinutes: compensation.durationMinutes,
-      hourlyRate: compensation.hourlyRate,
-      reward: compensation.reward,
-      level,
-      distance: String(item.distance || fallback.distance),
-      pin: workPins[index] || fallback.pin,
-    };
-  });
-};
-
-const loadStoredWorkJobs = (themeId = "modern") => {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem(WORK_JOBS_STORAGE_KEY));
-    if (Array.isArray(stored) && stored.length === 5 && stored.every((job) => job.themeId === themeId)) {
-      return normalizeThemeJobs(stored, themeId, (index) => buildLocalThemeJobs(themeId)[index]);
-    }
-  } catch {
-    // Fall back to local generation when stored work data is unavailable.
-  }
-  return buildLocalThemeJobs(themeId);
-};
-
-const loadStoredActiveWork = () => {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem(WORK_ACTIVE_STORAGE_KEY));
-    if (stored?.jobKey && stored?.startAt && stored?.endAt) return stored;
-  } catch {
-    // Ignore broken persisted work state.
-  }
-  return null;
-};
-
 const readWalletData = () => {
   let current = { balance: 0, transactions: [] };
   try {
@@ -744,14 +324,6 @@ const applyWalletTransaction = ({ type, amount, desc }) => {
     ],
   });
   return true;
-};
-
-const creditWalletFromWork = (job, amount) => {
-  applyWalletTransaction({ type: "add", amount, desc: `工作结算 - ${job.title}` });
-};
-
-const spendWalletForWorkRefresh = () => {
-  return applyWalletTransaction({ type: "sub", amount: WORK_PAID_REFRESH_COST, desc: "工作刷新" });
 };
 
 const formatDate = (date) =>
@@ -957,22 +529,20 @@ const readProactiveMessageSettings = () => {
 
 const normalizeWorldbookWorld = (world = {}) => {
   const tags = normalizeWorldTags(world);
-  return withWorkMapTheme({
-  id: String(world.id || world.name || `world-${Date.now()}`),
-  coverId: world.coverId || worldbookCoverMaterials[0].id,
-  name: world.name || "未命名世界",
-  genre: serializeWorldGenre(tags),
-  tags,
-  tone: world.tone || world.note || "",
-  updated: world.updated || "刚刚",
-  tint: world.tint || "custom",
-  stats: world.stats || {},
-  characters: Array.isArray(world.characters) ? world.characters : [],
-  memories: Array.isArray(world.memories) ? world.memories : [],
-  custom: Boolean(world.custom),
-  workMapTheme: world.workMapTheme,
-  workMapThemeMode: world.workMapThemeMode,
-  });
+  return {
+    id: String(world.id || world.name || `world-${Date.now()}`),
+    coverId: world.coverId || worldbookCoverMaterials[0].id,
+    name: world.name || "未命名世界",
+    genre: serializeWorldGenre(tags),
+    tags,
+    tone: world.tone || world.note || "",
+    updated: world.updated || "刚刚",
+    tint: world.tint || "custom",
+    stats: world.stats || {},
+    characters: Array.isArray(world.characters) ? world.characters : [],
+    memories: Array.isArray(world.memories) ? world.memories : [],
+    custom: Boolean(world.custom),
+  };
 };
 
 const readStoredWorldbookWorlds = () => {
@@ -2509,7 +2079,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.93</p>
+      <p className="version-label">Ccat OS V0.2.94</p>
     </section>
   );
 }
@@ -2947,584 +2517,6 @@ function GenericSettingPage({ item, onBack }) {
           <Icon size={34} strokeWidth={1.5} />
         </div>
       </div>
-    </section>
-  );
-}
-
-function WorkMap({ jobs, selectedId, onSelect, onClear, theme, activeWork, sessionState, traveler }) {
-  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
-  const activeJob = activeWork?.job || jobs.find((job) => job.key === activeWork?.jobKey) || null;
-  const navigationJob = activeJob || selectedJob;
-  const navigationPlace = theme.places.find((placeMeta) => placeMeta.type === navigationJob?.placeType);
-  const routeSamples = navigationJob?.routeSamples || navigationJob?.route || navigationPlace?.routeSamples || navigationPlace?.route || [];
-  const routeSegments = navigationJob?.routeSegments || navigationPlace?.routeSegments || [];
-  const travelerPosition = activeWork && sessionState.phase === "travel"
-    ? interpolateWorkRoute(routeSamples, sessionState.progress)
-    : activeWork && (sessionState.phase === "work" || sessionState.phase === "complete")
-      ? routeSamples.at(-1) || theme.home
-      : routeSamples[0] || theme.home;
-  return (
-    <section className="work-map-panel" aria-label="工作地图" onClick={onClear}>
-      {navigationJob && routeSegments.length > 0 && (
-        <svg className="work-road-route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          {routeSegments.map((segment, index) => (
-            <path key={`${navigationJob.key}-route-${index}`} d={segment} />
-          ))}
-        </svg>
-      )}
-      <span className="work-home-marker" style={{ left: `${theme.home.x}%`, top: `${theme.home.y}%` }} aria-label="主角住宅">
-        <House size={13} strokeWidth={2.2} />
-      </span>
-      {jobs.map((job) => {
-        const active = job.key === selectedId;
-        const running = job.key === activeJob?.key;
-        const Icon = workIconMap[job.icon] || MapPin;
-        return (
-          <button
-            className={`work-map-job-marker ${active ? "active" : ""} ${running ? "running" : ""}`}
-            key={job.key}
-            style={{
-              left: `${job.pin.x}%`,
-              top: `${job.pin.y}%`,
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelect(job.key);
-            }}
-            aria-label={`${job.placeName}：${job.title}`}
-          >
-            <Icon size={13} strokeWidth={2.2} />
-          </button>
-        );
-      })}
-      {travelerPosition && (
-        <img
-          key={traveler.id}
-          className={`work-map-traveler ${sessionState.phase === "travel" ? "walking" : ""}`}
-          src={workTravelerAsset(traveler.asset)}
-          style={{ left: `${travelerPosition.x}%`, top: `${travelerPosition.y}%` }}
-          alt={`${traveler.name}工作地图位置`}
-          onError={(event) => handleWorkTravelerImageError(event, traveler.id)}
-        />
-      )}
-    </section>
-  );
-}
-
-function WorkAppScreen({ onClose }) {
-  const [worldbooks, setWorldbooks] = useState(readWorldbookWorldsForSelect);
-  const [workSource, setWorkSource] = useState(() => {
-    try {
-      return window.localStorage.getItem(WORK_SOURCE_STORAGE_KEY) === "worldbook" ? "worldbook" : "reality";
-    } catch {
-      return "reality";
-    }
-  });
-  const [selectedWorldId, setSelectedWorldId] = useState(() => {
-    try {
-      return window.localStorage.getItem(WORK_WORLDBOOK_STORAGE_KEY) || "";
-    } catch {
-      return "";
-    }
-  });
-  const [selectedTagByWorld, setSelectedTagByWorld] = useState(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem(WORK_TAG_STORAGE_KEY) || "{}") || {};
-    } catch {
-      return {};
-    }
-  });
-  const selectedWorldForTags = worldbooks.find((world) => world.id === selectedWorldId) || worldbooks[0] || null;
-  const availableWorkTags = workSource === "worldbook" && selectedWorldForTags ? normalizeWorldTags(selectedWorldForTags) : [];
-  const selectedWorkTag = availableWorkTags.includes(selectedTagByWorld[selectedWorldForTags?.id])
-    ? selectedTagByWorld[selectedWorldForTags.id]
-    : availableWorkTags[0] || "";
-  const { selectedWorld, themeId, theme } = resolveWorkMapView(worldbooks, selectedWorldId, workSource, selectedWorkTag);
-  const mapImageUrl = `${workMapAsset(theme.asset)}&theme=${themeId}&world=${encodeURIComponent(selectedWorld?.id || "reality")}`;
-  const [jobs, setJobs] = useState(() => loadStoredWorkJobs(themeId));
-  const [selectedId, setSelectedId] = useState("");
-  const [refreshLeft, setRefreshLeft] = useState(5);
-  const [activeWork, setActiveWork] = useState(() => loadStoredActiveWork());
-  const [now, setNow] = useState(Date.now());
-  const [loadingJobs, setLoadingJobs] = useState(false);
-  const [worldPickerOpen, setWorldPickerOpen] = useState(false);
-  const [travelerPickerOpen, setTravelerPickerOpen] = useState(false);
-  const [workTravelerId, setWorkTravelerId] = useState(() => readStoredWorkTravelerId());
-  const [mapStatus, setMapStatus] = useState("");
-  const travelerPickerOpenerRef = useRef(null);
-  const travelerPickerDialogRef = useRef(null);
-  const selectedTravelerOptionRef = useRef(null);
-  const workTraveler = getWorkTraveler(workTravelerId);
-
-  useEffect(() => {
-    let intervalId;
-    const tick = () => setNow(Date.now());
-    const timeoutId = window.setTimeout(() => {
-      tick();
-      intervalId = window.setInterval(tick, 1000);
-    }, 1000 - (Date.now() % 1000));
-    return () => {
-      window.clearTimeout(timeoutId);
-      if (intervalId) window.clearInterval(intervalId);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!travelerPickerOpen) return undefined;
-
-    const dialog = travelerPickerDialogRef.current;
-    const initialFocusTarget = selectedTravelerOptionRef.current || dialog?.querySelector("button:not([disabled])");
-    initialFocusTarget?.focus();
-
-    const manageDialogKeyboard = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setTravelerPickerOpen(false);
-        return;
-      }
-
-      if (event.key !== "Tab" || !dialog) return;
-      const focusableControls = Array.from(
-        dialog.querySelectorAll(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((control) => control.tabIndex >= 0);
-      if (focusableControls.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const activeControlIndex = focusableControls.indexOf(document.activeElement);
-      const nextControlIndex = activeControlIndex < 0
-        ? (event.shiftKey ? focusableControls.length - 1 : 0)
-        : (activeControlIndex + (event.shiftKey ? -1 : 1) + focusableControls.length) % focusableControls.length;
-      event.preventDefault();
-      focusableControls[nextControlIndex].focus();
-    };
-
-    window.addEventListener("keydown", manageDialogKeyboard);
-    return () => {
-      window.removeEventListener("keydown", manageDialogKeyboard);
-      travelerPickerOpenerRef.current?.focus();
-    };
-  }, [travelerPickerOpen]);
-
-  useEffect(() => {
-    const refreshWorldbooks = () => setWorldbooks(readWorldbookWorldsForSelect());
-    refreshWorldbooks();
-    window.addEventListener("storage", refreshWorldbooks);
-    window.addEventListener("focus", refreshWorldbooks);
-    return () => {
-      window.removeEventListener("storage", refreshWorldbooks);
-      window.removeEventListener("focus", refreshWorldbooks);
-    };
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(WORK_JOBS_STORAGE_KEY, JSON.stringify(jobs));
-  }, [jobs]);
-
-  useEffect(() => {
-    window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, workSource);
-    if (selectedWorldId) window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, selectedWorldId);
-  }, [selectedWorldId, workSource]);
-
-  useEffect(() => {
-    window.localStorage.setItem(WORK_TAG_STORAGE_KEY, JSON.stringify(selectedTagByWorld));
-  }, [selectedTagByWorld]);
-
-  useEffect(() => {
-    if (activeWork) {
-      window.localStorage.setItem(WORK_ACTIVE_STORAGE_KEY, JSON.stringify(activeWork));
-    } else {
-      window.localStorage.removeItem(WORK_ACTIVE_STORAGE_KEY);
-    }
-  }, [activeWork]);
-
-  const fetchApiJobs = async (targetThemeId = themeId, targetWorld = workSource === "worldbook" ? selectedWorld : null) => {
-    const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
-    const endpoint = apiState.mainConfigs.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft;
-    const model = endpoint?.model || endpoint?.customModel;
-    if (!endpoint?.apiKey || !endpoint?.baseUrl || !model) return null;
-
-    let url = endpoint.baseUrl.replace(/\/+$/, "");
-    if (!url.endsWith("/v1")) url += "/v1";
-    const response = await fetch(`${url}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${endpoint.apiKey.trim()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: buildWorkGenerationPrompt({
-              world: targetWorld || null,
-              themeId: targetThemeId,
-            }),
-          },
-          { role: "user", content: "请根据当前地图的五个地点生成一轮工作。" },
-        ],
-        temperature: 0.8,
-      }),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    let content = data?.choices?.[0]?.message?.content || "";
-    const match = content.match(/\{[\s\S]*\}/);
-    if (match) content = match[0];
-    const parsed = JSON.parse(content);
-    const localJobs = buildLocalThemeJobs(targetThemeId);
-    const candidates = Array.from({ length: 5 }, (_, index) => parsed.jobs?.[index] || localJobs[index]);
-    const nextJobs = normalizeThemeJobs(candidates, targetThemeId, (index) => localJobs[index]);
-    return nextJobs.length === 5 ? nextJobs : null;
-  };
-
-  const generateWorkRound = async (targetThemeId = themeId, targetWorld = workSource === "worldbook" ? selectedWorld : null) => {
-    setLoadingJobs(true);
-    setMapStatus("正在同步地图与工作");
-    let nextJobs = null;
-    try {
-      nextJobs = await fetchApiJobs(targetThemeId, targetWorld);
-    } catch {
-      nextJobs = null;
-    }
-    if (!nextJobs) nextJobs = buildLocalThemeJobs(targetThemeId);
-    setJobs(nextJobs);
-    setSelectedId("");
-    setLoadingJobs(false);
-    setMapStatus("地图同步完成");
-    window.setTimeout(() => setMapStatus(""), 1800);
-  };
-
-  const workSessionState = resolveWorkSessionState(activeWork, now);
-  const hasRunningWork = workSessionState.phase === "travel" || workSessionState.phase === "work";
-  const hasCompletedWork = workSessionState.phase === "complete";
-  const hasPendingWork = hasRunningWork || hasCompletedWork;
-  const selectedJob = jobs.find((job) => job.key === selectedId) || null;
-  const activeJob = activeWork?.job || jobs.find((job) => job.key === activeWork?.jobKey) || null;
-  const displayJob = resolveDisplayedWorkJob(jobs, selectedId, activeWork, hasCompletedWork);
-  const selectedKey = selectedJob?.key || "";
-  const activeRemainingMs = hasRunningWork ? workSessionState.remainingMs : 0;
-  const progress = hasCompletedWork ? 100 : hasRunningWork ? workSessionState.progress * 100 : 0;
-  const mappedJobs = jobs.map((job) => ({
-    ...job,
-    remainingLabel: job.key === activeJob?.key
-      ? workSessionState.phase === "travel"
-        ? `前往 ${formatWorkDuration(activeRemainingMs)}`
-        : formatWorkDuration(activeRemainingMs)
-      : formatWorkDuration(job.durationMinutes * 60 * 1000),
-    remainingRatio: job.key === activeJob?.key ? progress / 100 : 0,
-  }));
-  const isDisplayingActiveJob = Boolean(displayJob && activeJob && displayJob.key === activeJob.key);
-
-  useEffect(() => {
-    if (hasPendingWork || jobs.every((job) => job.themeId === themeId)) return;
-    const nextJobs = loadStoredWorkJobs(themeId);
-    setJobs(nextJobs);
-    setSelectedId("");
-  }, [themeId, hasPendingWork]);
-
-  const selectJob = (id) => {
-    setSelectedId(id);
-  };
-
-  const clearSelectedJob = () => setSelectedId("");
-
-  const closeTravelerPicker = () => setTravelerPickerOpen(false);
-
-  const selectWorkTraveler = (travelerId) => {
-    const normalizedTravelerId = persistWorkTravelerId(travelerId);
-    setWorkTravelerId(normalizedTravelerId);
-    closeTravelerPicker();
-  };
-
-  const chooseReality = async () => {
-    if (hasPendingWork || loadingJobs || workSource === "reality") return;
-    setWorkSource("reality");
-    window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "reality");
-    setWorldPickerOpen(false);
-    await generateWorkRound("modern", null);
-  };
-
-  const openWorldPicker = () => {
-    if (hasPendingWork || loadingJobs) return;
-    const latestWorldbooks = readWorldbookWorldsForSelect();
-    setWorldbooks(latestWorldbooks);
-    if (!latestWorldbooks.length) {
-      window.alert("请先在世界书 APP 中创建一个世界。");
-      return;
-    }
-    setWorldPickerOpen(true);
-  };
-
-  const chooseWorldbook = async (world) => {
-    const nextTag = resolveWorldTagSelection(world, selectedTagByWorld[world.id]);
-    const nextThemeId = inferWorkMapTheme(world, nextTag);
-    setSelectedWorldId(world.id);
-    setSelectedTagByWorld((current) => ({ ...current, [world.id]: nextTag }));
-    setWorkSource("worldbook");
-    window.localStorage.setItem(WORK_WORLDBOOK_STORAGE_KEY, world.id);
-    window.localStorage.setItem(WORK_SOURCE_STORAGE_KEY, "worldbook");
-    setWorldPickerOpen(false);
-    await generateWorkRound(nextThemeId, world);
-  };
-
-  const chooseWorkTag = async (tag) => {
-    if (hasPendingWork || !selectedWorld || tag === selectedWorkTag || !getThemeIdForTag(tag) || loadingJobs) return;
-    const nextThemeId = inferWorkMapTheme(selectedWorld, tag);
-    setSelectedTagByWorld((current) => ({ ...current, [selectedWorld.id]: tag }));
-    await generateWorkRound(nextThemeId, selectedWorld);
-  };
-
-  const startWork = () => {
-    if (hasPendingWork || !selectedJob) return;
-    const startAt = Date.now();
-    const distanceKm = Number.parseFloat(selectedJob.distance) || 1;
-    const travelMs = Math.min(150_000, Math.max(35_000, 35_000 + distanceKm * 25_000));
-    setActiveWork({
-      ...createWorkSession(selectedJob, startAt, travelMs),
-      travelerId: workTravelerId,
-    });
-  };
-
-  const refreshJobs = async () => {
-    if (activeWork || loadingJobs) return;
-    if (refreshLeft <= 0 && !spendWalletForWorkRefresh()) {
-      window.alert(`余额不足，刷新一轮需要 ¥${WORK_PAID_REFRESH_COST}。`);
-      return;
-    }
-    await generateWorkRound();
-    if (refreshLeft > 0) setRefreshLeft((value) => Math.max(0, value - 1));
-  };
-
-  const stopWork = () => {
-    if (!hasRunningWork || !activeWork || !activeJob) return;
-    const workStartAt = activeWork.workStartAt || activeWork.arriveAt || activeWork.startAt;
-    const elapsed = workSessionState.phase === "work" ? Math.max(0, Date.now() - workStartAt) : 0;
-    const total = Math.max(1, activeWork.endAt - workStartAt);
-    const rawAmount = Math.floor(activeJob.reward * Math.min(1, elapsed / total));
-    const amount = Math.min(activeJob.reward, elapsed > 0 ? Math.max(1, rawAmount) : 0);
-    creditWalletFromWork(activeJob, amount);
-    setActiveWork(null);
-    window.alert(`已停止工作，结算 ¥${amount.toLocaleString("en-US")}，已入账钱包。`);
-  };
-
-  const claimWork = async () => {
-    if (!hasCompletedWork || !activeJob) return;
-    creditWalletFromWork(activeJob, activeJob.reward);
-    setActiveWork(null);
-    window.alert(`工作完成，领取 ¥${activeJob.reward.toLocaleString("en-US")}，已入账钱包。`);
-    await generateWorkRound();
-  };
-
-  const handlePrimaryWorkAction = () => {
-    if (hasCompletedWork && isDisplayingActiveJob) {
-      claimWork();
-      return;
-    }
-    if (hasPendingWork) return;
-    startWork();
-  };
-
-  return (
-    <section
-      className="full-page app-page work-page"
-      style={{ "--work-map-image": `url("${mapImageUrl}")` }}
-    >
-      <header className="work-header">
-        <button className="work-back" onClick={onClose} aria-label="返回">
-          <ChevronLeft size={22} />
-        </button>
-        <div className="work-world work-world-compact">
-          <button className={workSource === "reality" ? "active" : ""} onClick={chooseReality} disabled={hasPendingWork}>
-            <strong>现实</strong>
-          </button>
-          <button className={workSource === "worldbook" ? "active" : ""} onClick={openWorldPicker} disabled={hasPendingWork}>
-            <strong>异世</strong>
-          </button>
-        </div>
-        <button
-          ref={travelerPickerOpenerRef}
-          className="work-traveler-button"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setTravelerPickerOpen(true);
-          }}
-          aria-label={`选择工作主角，当前：${workTraveler.name}`}
-        >
-          <img
-            key={workTraveler.id}
-            src={workTravelerAsset(workTraveler.asset)}
-            alt=""
-            aria-hidden="true"
-            onError={(event) => handleWorkTravelerImageError(event, workTraveler.id)}
-          />
-        </button>
-      </header>
-
-      {workSource === "worldbook" && availableWorkTags.length > 0 && (
-        <nav className="work-tag-switcher" aria-label="选择世界地图">
-          {availableWorkTags.map((tag) => (
-            <button className={tag === selectedWorkTag ? "active" : ""} key={tag} onClick={() => chooseWorkTag(tag)} disabled={loadingJobs || hasPendingWork}>
-              {tag}
-            </button>
-          ))}
-        </nav>
-      )}
-
-      <WorkMap
-        jobs={mappedJobs}
-        selectedId={selectedKey}
-        onSelect={selectJob}
-        onClear={clearSelectedJob}
-        theme={theme}
-        activeWork={activeWork}
-        sessionState={workSessionState}
-        traveler={activeWork ? getWorkTraveler(activeWork.travelerId || workTravelerId) : workTraveler}
-      />
-
-      <section className="work-job-dock" aria-label="全部工作">
-        <div className="work-job-list">
-          {mappedJobs.map((job) => {
-            const Icon = workIconMap[job.icon] || FileText;
-            const selected = job.key === selectedKey;
-            const running = job.key === activeJob?.key;
-            return (
-              <button
-                key={job.key}
-                className={`work-job-row ${selected ? "active" : ""} ${running ? "running" : ""}`}
-                onClick={() => selectJob(job.key)}
-              >
-                <span className="work-job-row-icon"><Icon size={16} strokeWidth={1.9} /></span>
-                <span className="work-job-row-copy">
-                  <strong>{job.title}</strong>
-                  <small>{job.content}</small>
-                  {selected && <em>主角房 → {job.placeName} · {job.distance}</em>}
-                </span>
-                <span className="work-job-row-meta">
-                  <strong>{job.remainingLabel}</strong>
-                  <em>¥{job.reward.toLocaleString("en-US")}</em>
-                </span>
-                {running && (
-                  <span className="work-job-row-progress">
-                    <i><b style={{ width: `${progress}%` }} /></i>
-                    <small>
-                      {hasCompletedWork ? "工作完成" : workSessionState.phase === "travel" ? "前往中" : "剩余工作时间"}
-                    </small>
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="work-actions">
-        <button className="work-refresh-button" onClick={refreshJobs} disabled={loadingJobs || hasPendingWork}>
-          <RefreshCw size={15} />
-          <span>
-            <strong>{loadingJobs ? "生成中" : refreshLeft > 0 ? `刷新 ${refreshLeft}` : `¥${WORK_PAID_REFRESH_COST}`}</strong>
-          </span>
-        </button>
-        <button className={hasCompletedWork && isDisplayingActiveJob ? "work-start work-claim" : "work-start"} onClick={handlePrimaryWorkAction} disabled={loadingJobs || hasRunningWork || (hasCompletedWork && !isDisplayingActiveJob)}>
-          <Play size={17} fill="currentColor" />
-          <span>
-            <strong>{hasCompletedWork && isDisplayingActiveJob ? "点击领取" : hasRunningWork && isDisplayingActiveJob ? "进行中" : hasPendingWork ? "不可开始" : "开始"}</strong>
-            <em>{hasCompletedWork && isDisplayingActiveJob ? "Claim Reward" : hasRunningWork && isDisplayingActiveJob ? "Working" : hasPendingWork ? "Unavailable" : "Start"}</em>
-          </span>
-        </button>
-        <button className="work-stop-button" onClick={stopWork} disabled={!hasRunningWork}>
-          <Square size={15} fill="currentColor" />
-          <span>
-            <strong>停止</strong>
-            <em>Stop & Settle</em>
-          </span>
-        </button>
-        </div>
-      </section>
-
-      {worldPickerOpen && (
-        <div className="work-world-picker-backdrop" onClick={() => setWorldPickerOpen(false)}>
-          <section className="work-world-picker" onClick={(event) => event.stopPropagation()} aria-label="选择世界书">
-            <header>
-              <strong>选择工作世界</strong>
-              <button onClick={() => setWorldPickerOpen(false)} aria-label="关闭"><X size={19} /></button>
-            </header>
-            <div>
-              {worldbooks.map((world) => {
-                const worldTags = normalizeWorldTags(world);
-                const worldTheme = getWorkTheme(inferWorkMapTheme(world, worldTags[0]));
-                return (
-                  <button key={world.id} onClick={() => chooseWorldbook(world)}>
-                    <span>
-                      <strong>{world.name}</strong>
-                      <em>{worldTags.join(" · ")}</em>
-                    </span>
-                    <small>{worldTheme.name}</small>
-                    <ChevronRight size={17} />
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {travelerPickerOpen && (
-        <div className="work-traveler-picker-backdrop" onClick={closeTravelerPicker}>
-          <section
-            ref={travelerPickerDialogRef}
-            className="work-traveler-picker"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="work-traveler-picker-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header>
-              <strong id="work-traveler-picker-title">选择工作主角</strong>
-              <button type="button" onClick={closeTravelerPicker} aria-label="关闭工作主角选择">
-                <X size={19} />
-              </button>
-            </header>
-            <div className="work-traveler-list">
-              {WORK_TRAVELER_GROUPS.map((group) => (
-                <div className="work-traveler-row" key={group.id}>
-                  <span className="work-traveler-row-label">{group.label}</span>
-                  <div className="work-traveler-options">
-                    {group.travelers.map((traveler) => {
-                      const selected = traveler.id === workTravelerId;
-                      return (
-                        <button
-                          ref={selected ? selectedTravelerOptionRef : null}
-                          key={traveler.id}
-                          className={`work-traveler-option ${selected ? "selected" : ""}`}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            selectWorkTraveler(traveler.id);
-                          }}
-                          aria-label={`选择${group.label}${traveler.gender === "male" ? "男生" : "女生"}主角：${traveler.name}`}
-                          aria-pressed={selected}
-                        >
-                          <img
-                            src={workTravelerAsset(traveler.asset)}
-                            alt=""
-                            aria-hidden="true"
-                            onError={(event) => handleWorkTravelerImageError(event, traveler.id)}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
     </section>
   );
 }
@@ -5228,7 +4220,6 @@ function WorldbookAppScreen({ onClose }) {
     tags: [],
     tone: "",
     coverId: worldbookCoverMaterials[0].id,
-    workMapTheme: "auto",
   }));
   const selectedWorld = worlds.find((world) => world.id === selectedWorldId) || worlds[0] || null;
   const selectedCharacter = selectedWorld?.characters?.find((character) => character.id === selectedCharacterId) || selectedWorld?.characters?.[0];
@@ -5268,7 +4259,7 @@ function WorldbookAppScreen({ onClose }) {
 
   const openAddWorld = () => {
     const nextCover = worldbookCoverMaterials[savedWorlds.length % worldbookCoverMaterials.length];
-    setDraftWorld({ name: "", tags: [], tone: "", coverId: nextCover.id, workMapTheme: "auto" });
+    setDraftWorld({ name: "", tags: [], tone: "", coverId: nextCover.id });
     setView("add");
   };
 
@@ -5293,8 +4284,6 @@ function WorldbookAppScreen({ onClose }) {
       genre,
       tags,
       tone,
-      workMapTheme: inferWorkMapTheme({ tags, genre, tone }),
-      workMapThemeMode: "auto",
       updated: `${now.getMonth() + 1}月${now.getDate()}日`,
       tint: "custom",
       stats: { main: 0, support: 0, links: 0, memories: 0 },
@@ -5687,7 +4676,6 @@ function WorldbookAppScreen({ onClose }) {
 
 function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
-  const isWork = app.title === "工作";
   const isMessages = app.title === MESSAGE_APP_TITLE;
   const isWorldbook = app.title === "世界书";
   const [walletData, setWalletData] = useState(() => {
@@ -5760,7 +4748,6 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
     setWalletData((current) => ({ ...current, transactions: [] }));
   };
 
-  if (isWork) return <WorkAppScreen onClose={onClose} />;
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
 
