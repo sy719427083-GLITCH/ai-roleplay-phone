@@ -40,6 +40,12 @@ const session = (overrides = {}) => ({
   ...overrides,
 });
 
+const getPromptContext = (messages) => {
+  const marker = "当前会话上下文：\n";
+  const systemPrompt = messages[0].content;
+  return JSON.parse(systemPrompt.slice(systemPrompt.indexOf(marker) + marker.length));
+};
+
 test("selects the saved main endpoint using the shared API config storage", () => {
   const reads = [];
   const storage = {
@@ -90,6 +96,66 @@ test("includes only current-session profiles, relationships, and the last twelve
   assert.doesNotMatch(text, /DROP_ZERO|DROP_ONE|privateMetadata|metadata-/);
 });
 
+test("filters foreign tagged transcript entries before keeping the last twelve current-session entries", () => {
+  const currentEntries = Array.from({ length: 14 }, (_, index) => ({
+    ...(index % 2 === 0 ? { conversationId: "group-a" } : {}),
+    speakerId: index % 2 ? "b" : "a",
+    text: `CURRENT_${index}`,
+  }));
+  const foreignEntries = Array.from({ length: 8 }, (_, index) => ({
+    conversationId: "group-b",
+    speakerId: index % 2 ? "b" : "a",
+    text: `FOREIGN_${index}`,
+  }));
+  const messages = buildOfficeConversationMessages(session({
+    transcript: [
+      ...currentEntries.slice(0, 7),
+      { conversationId: "group-b", speakerId: "a", text: "FOREIGN_SHARED_MEMBER" },
+      ...currentEntries.slice(7),
+      ...foreignEntries,
+    ],
+  }));
+  const transcript = getPromptContext(messages).transcript;
+
+  assert.equal(transcript.length, 12);
+  assert.deepEqual(transcript.map((entry) => entry.text), currentEntries.slice(2).map((entry) => entry.text));
+  assert.equal(transcript[1].text, "CURRENT_3");
+  assert.doesNotMatch(JSON.stringify(messages), /FOREIGN_/);
+});
+
+test("includes only the sanitized current activity from the supported session fields", () => {
+  const directContext = getPromptContext(buildOfficeConversationMessages(session({
+    currentActivity: "  planning  ",
+    activity: "FOREIGN_ACTIVITY",
+    promptContext: {
+      activity: "FOREIGN_PROMPT_ACTIVITY",
+      secret: "PROMPT_CONTEXT_LEAK",
+    },
+  })));
+  const activityContext = getPromptContext(buildOfficeConversationMessages(session({
+    currentActivity: null,
+    activity: "  eating  ",
+    promptContext: { activity: "FOREIGN_PROMPT_ACTIVITY" },
+  })));
+  const promptContextActivity = getPromptContext(buildOfficeConversationMessages(session({
+    currentActivity: { unsafe: true },
+    activity: null,
+    promptContext: { activity: "  gaming  ", secret: "PROMPT_CONTEXT_LEAK" },
+  })));
+  const defaultContext = getPromptContext(buildOfficeConversationMessages(session({
+    currentActivity: 42,
+    activity: {},
+    promptContext: { activity: [] },
+  })));
+
+  assert.equal(directContext.currentActivity, "planning");
+  assert.equal(activityContext.currentActivity, "eating");
+  assert.equal(promptContextActivity.currentActivity, "gaming");
+  assert.equal(defaultContext.currentActivity, "chatting");
+  assert.doesNotMatch(JSON.stringify(directContext), /FOREIGN_|PROMPT_CONTEXT_LEAK|secret/);
+  assert.doesNotMatch(JSON.stringify(promptContextActivity), /PROMPT_CONTEXT_LEAK|secret|unsafe/);
+});
+
 test("accepts only the exact five-key reply for the current session and caps text", () => {
   const currentSession = session();
   const parsed = parseOfficeConversationReply(JSON.stringify({
@@ -126,6 +192,44 @@ test("rejects stale, foreign, malformed, missing-key, and extra-key replies", ()
     assert.equal(parseOfficeConversationReply(JSON.stringify(reply), currentSession), null);
   }
   assert.equal(parseOfficeConversationReply("not json", currentSession), null);
+});
+
+test("handles null, non-object, and malformed sessions without throwing or requesting", async () => {
+  const validRawReply = JSON.stringify({
+    conversationId: "group-a",
+    requestSequence: 3,
+    speakerId: "a",
+    text: "不应接受",
+    end: false,
+  });
+  const unusableSessions = [
+    null,
+    "group-a",
+    42,
+    [],
+    {},
+    { id: "", memberIds: ["a"], requestSequence: 3 },
+    { id: "group-a", memberIds: [], requestSequence: 3 },
+    { id: "group-a", memberIds: ["a"], requestSequence: "3" },
+  ];
+  let fetchCount = 0;
+  const fetchImpl = async () => {
+    fetchCount += 1;
+    throw new Error("must not request");
+  };
+
+  for (const unusableSession of unusableSessions) {
+    assert.doesNotThrow(() => buildOfficeConversationMessages(unusableSession));
+    assert.equal(parseOfficeConversationReply(validRawReply, unusableSession), null);
+    assert.equal(getOfficeFallbackReply(unusableSession), null);
+    assert.equal(await requestOfficeConversationTurn({
+      session: unusableSession,
+      storage: createApiStorage(),
+      fetchImpl,
+    }), null);
+  }
+  assert.equal(await requestOfficeConversationTurn(null), null);
+  assert.equal(fetchCount, 0);
 });
 
 test("posts an isolated request with injectable fetch and abort signal", async () => {
@@ -212,6 +316,67 @@ test("returns a fallback scoped to the failed session without making unconfigure
   assert.equal(unconfiguredReply.conversationId, "group-b");
   assert.equal(unconfiguredReply.requestSequence, 9);
   assert.equal(unconfiguredReply.speakerId, "b");
+});
+
+test("returns a valid current-session fallback for storage, HTTP, JSON, and content failures", async () => {
+  const currentSession = session({ memberIds: ["a"], turnIndex: 0 });
+  const expectedFallback = getOfficeFallbackReply(currentSession);
+  let storageFetchCount = 0;
+  const storageReply = await requestOfficeConversationTurn({
+    session: currentSession,
+    storage: {
+      getItem() {
+        throw new Error("storage unavailable");
+      },
+    },
+    fetchImpl: async () => {
+      storageFetchCount += 1;
+      throw new Error("must not request");
+    },
+  });
+  assert.deepEqual(storageReply, expectedFallback);
+  assert.equal(storageFetchCount, 0);
+
+  let nonOkJsonCount = 0;
+  const failureFetches = [
+    async () => ({
+      ok: false,
+      status: 503,
+      async json() {
+        nonOkJsonCount += 1;
+        return {};
+      },
+    }),
+    async () => ({
+      ok: true,
+      async json() {
+        throw new Error("invalid response json");
+      },
+    }),
+    async () => ({
+      ok: true,
+      async json() {
+        return { choices: [{ message: { content: "not json" } }] };
+      },
+    }),
+    async () => ({
+      ok: true,
+      async json() {
+        return { choices: [{ message: { content: { unexpected: true } } }] };
+      },
+    }),
+  ];
+
+  for (const fetchImpl of failureFetches) {
+    const reply = await requestOfficeConversationTurn({
+      session: currentSession,
+      storage: createApiStorage(),
+      fetchImpl,
+    });
+    assert.deepEqual(reply, expectedFallback);
+    assert.deepEqual(parseOfficeConversationReply(reply, currentSession), expectedFallback);
+  }
+  assert.equal(nonOkJsonCount, 0);
 });
 
 test("builds deterministic, member-only local fallback replies", () => {
