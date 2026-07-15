@@ -141,6 +141,143 @@ test("updates mode profile routing expiry and serialization state", () => {
   assert.deepEqual(restored.reservations, {});
 });
 
+test("set reservations installs a deep-cloned map", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const reservations = {
+    "break-1": {
+      anchorId: "break-1",
+      slotId: "employee1",
+      details: { meal: "noodles" },
+    },
+  };
+
+  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+
+  assert.deepEqual(next.reservations, reservations);
+  assert.notEqual(next.reservations, reservations);
+  assert.notEqual(next.reservations["break-1"], reservations["break-1"]);
+  assert.notEqual(next.reservations["break-1"].details, reservations["break-1"].details);
+});
+
+test("set reservations safely ignores non-object maps", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+
+  for (const reservations of [undefined, null, [], "invalid", 42]) {
+    const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+    assert.equal(next, state);
+  }
+});
+
+test("set reservations isolates state from later caller mutation", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const reservations = {
+    "break-1": {
+      anchorId: "break-1",
+      slotId: "employee1",
+      details: { meal: "rice" },
+    },
+  };
+
+  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+  reservations["break-1"].slotId = "boss";
+  reservations["break-1"].details.meal = "sandwich";
+  reservations["break-2"] = { anchorId: "break-2", slotId: "employee2" };
+
+  assert.deepEqual(next.reservations, {
+    "break-1": {
+      anchorId: "break-1",
+      slotId: "employee1",
+      details: { meal: "rice" },
+    },
+  });
+});
+
+test("start return releases only the eating character's matching reservation", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "break-1": { anchorId: "break-1", slotId: "employee1" },
+      "break-2": { anchorId: "break-2", slotId: "employee2" },
+      "chat-1": { anchorId: "chat-1", slotId: "boss" },
+    },
+    characters: {
+      ...state.characters,
+      employee1: {
+        ...state.characters.employee1,
+        phase: "eating",
+        activity: "eating",
+        status: "吃饭中",
+        positionNode: "break-1",
+        reservedAnchorId: "break-1",
+        activityEndsAt: 5000,
+        props: { meal: "noodles" },
+      },
+    },
+  };
+
+  const next = officeReducer(state, {
+    type: "START_RETURN",
+    slotId: "employee1",
+    route: ["break-1", "aisle-lower", "employee1-home"],
+  });
+
+  assert.deepEqual(next.reservations, {
+    "break-2": { anchorId: "break-2", slotId: "employee2" },
+    "chat-1": { anchorId: "chat-1", slotId: "boss" },
+  });
+  assert.deepEqual(state.reservations, {
+    "break-1": { anchorId: "break-1", slotId: "employee1" },
+    "break-2": { anchorId: "break-2", slotId: "employee2" },
+    "chat-1": { anchorId: "chat-1", slotId: "boss" },
+  });
+  assert.equal(next.characters.employee1.phase, "returning");
+  assert.equal(next.characters.employee1.status, "返回工位");
+  assert.equal(next.characters.employee1.reservedAnchorId, "");
+  assert.deepEqual(next.characters.employee1.route, ["break-1", "aisle-lower", "employee1-home"]);
+  assert.equal(next.characters.employee1.routeIndex, 0);
+});
+
+test("start return preserves a wrong-owner reservation and finish return still resets home", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "break-1": { anchorId: "break-1", slotId: "boss" },
+      "break-2": { anchorId: "break-2", slotId: "employee2" },
+    },
+    characters: {
+      ...state.characters,
+      employee1: {
+        ...state.characters.employee1,
+        phase: "eating",
+        activity: "eating",
+        status: "吃饭中",
+        positionNode: "break-1",
+        reservedAnchorId: "break-1",
+      },
+    },
+  };
+
+  state = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
+  assert.deepEqual(state.reservations, {
+    "break-1": { anchorId: "break-1", slotId: "boss" },
+    "break-2": { anchorId: "break-2", slotId: "employee2" },
+  });
+  assert.equal(state.characters.employee1.phase, "returning");
+  assert.deepEqual(state.characters.employee1.route, ["break-1", "employee1-home"]);
+
+  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1" });
+  assert.deepEqual(state.reservations, {
+    "break-1": { anchorId: "break-1", slotId: "boss" },
+    "break-2": { anchorId: "break-2", slotId: "employee2" },
+  });
+  assert.equal(state.characters.employee1.phase, "idle");
+  assert.equal(state.characters.employee1.activity, "idle");
+  assert.equal(state.characters.employee1.positionNode, "employee1-home");
+  assert.equal(state.characters.employee1.reservedAnchorId, "");
+});
+
 test("queues and shifts bubbles per conversation without crossing sessions", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
   state = officeReducer(state, {

@@ -256,6 +256,10 @@ export function officeReducer(state, action) {
       if (action.now === state.now) return state;
       return { ...state, now: action.now };
 
+    case "SET_RESERVATIONS":
+      if (!isPlainObject(action.reservations)) return state;
+      return { ...state, reservations: deepClone(action.reservations) };
+
     case "ASSIGN_PROFILE": {
       const sourceAssignment = action.assignment || {
         profileId: action.profileId || "",
@@ -325,8 +329,20 @@ export function officeReducer(state, action) {
         props: sanitizeProps(action),
       }));
 
-    case "START_RETURN":
-      return withCharacter(state, action.slotId, (character) => startReturnCharacter(character, action.route));
+    case "START_RETURN": {
+      const character = state.characters[action.slotId];
+      if (!character) return state;
+
+      const reservations = character.reservedAnchorId
+        ? releaseAnchor(state.reservations, character.reservedAnchorId, action.slotId)
+        : state.reservations;
+
+      return withCharacter(
+        reservations === state.reservations ? state : { ...state, reservations },
+        action.slotId,
+        (current) => startReturnCharacter(current, action.route),
+      );
+    }
 
     case "FINISH_RETURN":
       return withCharacter(state, action.slotId, (character) => resetCharacterHome(character, state.assignments[action.slotId]));
