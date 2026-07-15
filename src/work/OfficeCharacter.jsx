@@ -95,8 +95,11 @@ const getConversationEntry = (conversation) => {
     return true;
   };
 
-  const queued = Array.isArray(conversation.bubbleQueue) ? conversation.bubbleQueue[0] : null;
-  if (isValid(queued)) return queued;
+  if (Array.isArray(conversation.bubbleQueue)) {
+    const queued = conversation.bubbleQueue[0];
+    return isValid(queued) ? queued : null;
+  }
+
   return isValid(conversation.lastResponse) ? conversation.lastResponse : null;
 };
 
@@ -118,11 +121,7 @@ const getCurrentSpeakerId = (conversation, character) => {
 
   const entry = getConversationEntry(conversation);
   if (entry) return String(entry.speakerId);
-
-  const members = Array.isArray(conversation?.memberIds) ? conversation.memberIds : [];
-  if (!members.length) return "";
-  const turnIndex = Number.isFinite(conversation.turnIndex) ? conversation.turnIndex : 0;
-  return String(members[Math.abs(turnIndex) % members.length]);
+  return "";
 };
 
 const getSlackDetail = (character, slotId) => {
@@ -215,6 +214,7 @@ export function OfficeCharacter({
   conversation = null,
   mealStage = 0,
   now = 0,
+  sceneLayout = null,
   onSlotSelect,
   onAssetError,
 }) {
@@ -235,7 +235,17 @@ export function OfficeCharacter({
     : STATUS_FALLBACKS[phase] || STATUS_FALLBACKS[activity] || STATUS_FALLBACKS.idle;
   const status = cleanText(character.status) || fallbackStatus;
   const { id: nodeId, node } = resolveNode(character, slotId);
-  const facing = resolveFacing(character, nodeId);
+  const layoutX = typeof sceneLayout?.x === "number" ? sceneLayout.x : Number.NaN;
+  const layoutY = typeof sceneLayout?.y === "number" ? sceneLayout.y : Number.NaN;
+  const hasSceneLayout = isRecord(sceneLayout)
+    && Number.isFinite(layoutX)
+    && Number.isFinite(layoutY);
+  const positionX = hasSceneLayout ? layoutX : node.x;
+  const positionY = hasSceneLayout ? layoutY : node.y;
+  const layoutFacing = cleanText(sceneLayout?.facing);
+  const facing = hasSceneLayout && VALID_FACING.has(layoutFacing)
+    ? layoutFacing
+    : resolveFacing(character, nodeId);
   const spriteActivity = MOVING_PHASES.has(phase)
     ? "walking"
     : ATLAS_ACTIVITIES.has(activity)
@@ -273,12 +283,28 @@ export function OfficeCharacter({
   const meal = MEAL_DETAILS[cleanText(character.props?.meal)] ? cleanText(character.props.meal) : "bento";
   const slackDetail = getSlackDetail(character, slotId);
   const sessionId = cleanText(conversation?.id || conversation?.conversationId);
+  const conversationRole = isAtActivity && activity === "chatting"
+    ? currentSpeakerId === slotId
+      ? "speaker"
+      : "listener"
+    : "";
+  const groupIndex = Number.isInteger(sceneLayout?.groupIndex) ? sceneLayout.groupIndex : null;
+  const groupCount = Number.isInteger(sceneLayout?.groupCount) ? sceneLayout.groupCount : null;
+  const bubbleOffset = Number.isFinite(sceneLayout?.bubbleOffsetPx)
+    ? sceneLayout.bubbleOffsetPx
+    : 0;
+  const bubbleMemberOffset = Number.isFinite(sceneLayout?.bubbleMemberOffsetPx)
+    ? sceneLayout.bubbleMemberOffsetPx
+    : 0;
+  const bubblePlacement = cleanText(sceneLayout?.bubblePlacement) || "center";
 
   const layerStyle = {
-    left: `${node.x}%`,
-    top: `${node.y}%`,
-    zIndex: 20 + Math.round(node.y * 10),
+    left: `${positionX}%`,
+    top: `${positionY}%`,
+    zIndex: 20 + Math.round(positionY * 10),
     "--office-position-duration": `${positionDuration}ms`,
+    "--office-bubble-offset": `${bubbleOffset}px`,
+    "--office-bubble-member-offset": `${bubbleMemberOffset}px`,
   };
   const frameStyle = {
     backgroundImage: `url(${builtInAsset.src})`,
@@ -298,6 +324,10 @@ export function OfficeCharacter({
       data-facing={facing}
       data-node={nodeId}
       data-conversation-group={sessionId || undefined}
+      data-conversation-role={conversationRole || undefined}
+      data-group-index={groupIndex ?? undefined}
+      data-group-count={groupCount ?? undefined}
+      data-bubble-placement={bubblePlacement}
       style={layerStyle}
     >
       <button
@@ -311,6 +341,7 @@ export function OfficeCharacter({
         <div
           className="office-speech-bubble"
           data-conversation-id={sessionId}
+          data-bubble-placement={bubblePlacement}
           role="status"
           aria-live="polite"
         >
@@ -339,7 +370,7 @@ export function OfficeCharacter({
       {isAtActivity && activity === "gaming" && <GameProps />}
       {isAtActivity && activity === "eating" && <MealProps meal={meal} stage={normalizedMealStage} />}
       {isAtActivity && activity === "chatting" && (
-        <ConversationProps isSpeaker={!currentSpeakerId || currentSpeakerId === slotId} />
+        <ConversationProps isSpeaker={currentSpeakerId === slotId} />
       )}
 
       <div className="office-character-status" aria-hidden="true">

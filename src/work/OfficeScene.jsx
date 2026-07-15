@@ -4,6 +4,41 @@ import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
 const OFFICE_BACKGROUND = "/ai-roleplay-phone/work-office-assets/office-bg.png";
+const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
+const GROUP_BOUNDS = { minX: 12, maxX: 88, minY: 18, maxY: 94 };
+const SCENE_PERCENT_TO_PHONE_PX = 3.9;
+
+const GROUP_OFFSETS = {
+  2: [
+    { x: -9, y: 1 },
+    { x: 9, y: 1 },
+  ],
+  3: [
+    { x: -12, y: 5 },
+    { x: 0, y: -4 },
+    { x: 12, y: 5 },
+  ],
+  4: [
+    { x: -15, y: 6 },
+    { x: -5, y: -3 },
+    { x: 5, y: -1 },
+    { x: 15, y: 7 },
+  ],
+  5: [
+    { x: -16, y: 7 },
+    { x: -8, y: 0 },
+    { x: 0, y: -5 },
+    { x: 8, y: 1 },
+    { x: 16, y: 7 },
+  ],
+};
+
+const BUBBLE_PLACEMENTS = {
+  "chat-1": { side: "left", offsetPx: -62 },
+  "chat-2": { side: "right", offsetPx: 62 },
+  "chat-3": { side: "left", offsetPx: -62 },
+  "chat-4": { side: "right", offsetPx: 62 },
+};
 
 const STATIONS = [
   { id: "boss-desk", label: "老板工位", left: 32, top: 16, width: 36, height: 14 },
@@ -44,6 +79,71 @@ const getCharacterNode = (character, slotId) => {
     || cleanText(character?.homeNode)
     || `${slotId}-home`;
   return OFFICE_NODES[nodeId] || OFFICE_NODES[`${slotId}-home`] || { x: 50, y: 50 };
+};
+
+const fitGroupAxis = (anchorValue, offsets, minimum, maximum) => {
+  const rawMinimum = anchorValue + Math.min(...offsets);
+  const rawMaximum = anchorValue + Math.max(...offsets);
+  if (rawMinimum < minimum) return minimum - rawMinimum;
+  if (rawMaximum > maximum) return maximum - rawMaximum;
+  return 0;
+};
+
+const roundPosition = (value) => Math.round(value * 10) / 10;
+
+const getConversationLayout = (character, conversation, slotId, fallbackNode) => {
+  if (!isRecord(conversation)
+    || MOVING_PHASES.has(character.phase)
+    || character.phase !== "chatting"
+    || character.activity !== "chatting") {
+    return null;
+  }
+
+  const sessionId = cleanText(conversation.id || conversation.conversationId);
+  if (!sessionId || sessionId !== cleanText(character.conversationId)) return null;
+
+  const memberIds = Array.isArray(conversation.memberIds)
+    ? conversation.memberIds.map(String)
+    : [];
+  const groupCount = memberIds.length;
+  const groupIndex = memberIds.indexOf(slotId);
+  const offsets = GROUP_OFFSETS[groupCount];
+  if (!offsets || groupIndex < 0) return null;
+
+  const anchorId = cleanText(conversation.anchorId);
+  const anchor = OFFICE_NODES[anchorId] || fallbackNode;
+  const xAdjustment = fitGroupAxis(
+    anchor.x,
+    offsets.map((offset) => offset.x),
+    GROUP_BOUNDS.minX,
+    GROUP_BOUNDS.maxX,
+  );
+  const yAdjustment = fitGroupAxis(
+    anchor.y,
+    offsets.map((offset) => offset.y),
+    GROUP_BOUNDS.minY,
+    GROUP_BOUNDS.maxY,
+  );
+  const offset = offsets[groupIndex];
+  const x = roundPosition(anchor.x + xAdjustment + offset.x);
+  const y = roundPosition(anchor.y + yAdjustment + offset.y);
+  const groupCenterX = anchor.x + xAdjustment;
+  const facing = x < groupCenterX ? "right" : x > groupCenterX ? "left" : "right";
+  const bubblePlacement = BUBBLE_PLACEMENTS[anchorId] || { side: "center", offsetPx: 0 };
+  const bubbleMemberOffsetPx = bubblePlacement.offsetPx
+    ? roundPosition((anchor.x - x) * SCENE_PERCENT_TO_PHONE_PX)
+    : 0;
+
+  return {
+    x,
+    y,
+    facing,
+    groupIndex,
+    groupCount,
+    bubblePlacement: bubblePlacement.side,
+    bubbleOffsetPx: bubblePlacement.offsetPx,
+    bubbleMemberOffsetPx,
+  };
 };
 
 const clampStage = (value) => Math.min(3, Math.max(0, value));
@@ -155,6 +255,8 @@ export function OfficeScene({
       props: isRecord(sourceCharacter.props) ? sourceCharacter.props : {},
     };
     const node = getCharacterNode(character, slotId);
+    const conversation = resolveConversation(conversations, cleanText(character.conversationId));
+    const sceneLayout = getConversationLayout(character, conversation, slotId, node);
 
     return {
       slotId,
@@ -162,10 +264,12 @@ export function OfficeScene({
       assignment,
       character,
       node,
-      conversation: resolveConversation(conversations, cleanText(character.conversationId)),
+      sceneLayout,
+      finalY: sceneLayout?.y ?? node.y,
+      conversation,
       mealStage: getMealDepletionStage(character, now),
     };
-  }).sort((left, right) => left.node.y - right.node.y || left.slotIndex - right.slotIndex);
+  }).sort((left, right) => left.finalY - right.finalY || left.slotIndex - right.slotIndex);
 
   return (
     <section
@@ -192,7 +296,14 @@ export function OfficeScene({
       </div>
 
       <div className="office-character-layer" aria-label="办公室成员">
-        {sceneCharacters.map(({ slotId, character, assignment, conversation, mealStage }) => (
+        {sceneCharacters.map(({
+          slotId,
+          character,
+          assignment,
+          conversation,
+          mealStage,
+          sceneLayout,
+        }) => (
           <OfficeCharacter
             key={slotId}
             character={character}
@@ -200,6 +311,7 @@ export function OfficeScene({
             conversation={conversation}
             mealStage={mealStage}
             now={now}
+            sceneLayout={sceneLayout}
             onSlotSelect={onSlotSelect}
             onAssetError={onAssetError}
           />

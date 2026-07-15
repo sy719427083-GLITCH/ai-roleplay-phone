@@ -176,7 +176,7 @@
   animation: office-game-tap 760ms ease-in-out infinite;
 }
 
-.office-character[data-activity="chatting"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
+.office-character[data-activity="chatting"][data-conversation-role="speaker"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
   animation: office-talk 1000ms ease-in-out infinite;
 }
 
@@ -254,6 +254,7 @@
 
 .office-speech-bubble {
   z-index: 10;
+  left: calc(50% + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px));
   bottom: 120%;
   width: clamp(96px, 34vw, 132px);
   max-height: 45px;
