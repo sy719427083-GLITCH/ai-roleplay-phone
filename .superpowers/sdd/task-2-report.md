@@ -59,3 +59,39 @@
 
 ### Concerns
 - No remaining Task 2 concerns. Runtime creation/enrichment/completion wiring is intentionally deferred to Task 8 and cannot be verified in this task.
+
+## Secure Random Fix Re-Review
+
+### Files changed
+- `src/work/officeState.js`
+- `src/work/officeState.test.js`
+
+### RED
+- `node --test src/work/officeState.test.js`
+  - `1..32`, `# pass 30`, `# fail 2`
+  - `uses getRandomValues when randomUUID is unavailable` failed because `createWorkSessionId` was not exported.
+  - `throws clearly when secure work session ID generation is unavailable` failed for the same missing helper contract.
+  - `restore reuses the persisted work session ID` passed as a characterization guard.
+
+### Integration finding
+- `node --test src/work/officeState.test.js` after the helper implementation
+  - `1..32`, `# pass 3`, `# fail 29`
+  - The Node 18 test worker did not expose `globalThis.crypto`, so ordinary state creation correctly failed closed. The test harness now supplies Node's built-in `webcrypto`; production remains on global Web Crypto.
+
+### GREEN
+- `node --test src/work/officeState.test.js`
+  - `1..32`, `# pass 32`, `# fail 0`
+- `node --test src/work/officeActivities.test.js src/work/officeState.test.js`
+  - `1..38`, `# pass 38`, `# fail 0`
+- `npm test`
+  - `1..132`, `# pass 132`, `# fail 0`
+
+### Self-review
+- `createWorkSessionId(now, cryptoSource)` uses `crypto.randomUUID()` first, otherwise formats 16 bytes from `crypto.getRandomValues()` as a 32-character hexadecimal suffix.
+- The insecure `Math.random` fallback is removed; absence of both secure primitives throws `Secure random generation is unavailable for work session IDs.`
+- `restoreOfficeState` passes a persisted ID into `createOfficeState`, so restore reuses it without generating a replacement ID.
+- The test harness uses only Node's built-in `webcrypto`, and production remains dependency-free.
+- `git diff --check` passed with no output; no files outside Task 2 ownership and this report were changed.
+
+### Concerns
+- No remaining Task 2 defect. Creating a brand-new session in an environment without Web Crypto now intentionally fails closed.

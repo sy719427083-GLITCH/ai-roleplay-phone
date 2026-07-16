@@ -275,13 +275,20 @@ const normalizeRestoredCharacters = (rawCharacters, assignments, now) => Object.
   }),
 );
 
-const createWorkSessionId = (now = 0) => {
+export const createWorkSessionId = (now = 0, cryptoSource = globalThis.crypto) => {
   const timestamp = Number.isFinite(now) ? now : 0;
-  const cryptoObject = globalThis.crypto;
-  const randomToken = typeof cryptoObject?.randomUUID === "function"
-    ? cryptoObject.randomUUID()
-    : `${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-  return `work-session-${timestamp}-${randomToken}`;
+  if (typeof cryptoSource?.randomUUID === "function") {
+    return `work-session-${timestamp}-${cryptoSource.randomUUID()}`;
+  }
+
+  if (typeof cryptoSource?.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    cryptoSource.getRandomValues(bytes);
+    const randomToken = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `work-session-${timestamp}-${randomToken}`;
+  }
+
+  throw new Error("Secure random generation is unavailable for work session IDs.");
 };
 
 const normalizeActivityEventRecord = (value, workSessionId) => {
@@ -332,15 +339,15 @@ const restoreActivityEvents = (rawEvents, workSessionId, activeEventBySlot, now)
   })
 );
 
-export function createOfficeState({ assignments, now = 0, durationMs = 0 }) {
+export function createOfficeState({ assignments, now = 0, durationMs = 0, workSessionId = "" }) {
   const normalizedAssignments = normalizeAssignments(assignments);
-  const workSessionId = createWorkSessionId(now);
+  const resolvedWorkSessionId = String(workSessionId || createWorkSessionId(now));
 
   return {
     mode: OFFICE_MODE,
     now,
     durationMs,
-    workSessionId,
+    workSessionId: resolvedWorkSessionId,
     assignments: normalizedAssignments,
     reservations: {},
     conversations: {},
@@ -381,12 +388,14 @@ export function restoreOfficeState(raw, assignments, now = 0) {
       })()
     : (isPlainObject(raw) ? raw : {});
 
+  const persistedWorkSessionId = String(parsed.workSessionId || "");
   const base = createOfficeState({
     assignments,
     now,
     durationMs: Number.isFinite(parsed.durationMs) ? parsed.durationMs : 0,
+    workSessionId: persistedWorkSessionId,
   });
-  const workSessionId = String(parsed.workSessionId || base.workSessionId);
+  const workSessionId = base.workSessionId;
   const serializedActivityEvents = filterCurrentSessionActivityEvents(parsed.activityEvents, workSessionId);
   const serializedActiveEventBySlot = normalizeActiveEventOwnership(serializedActivityEvents, parsed.activeEventBySlot);
 

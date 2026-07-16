@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
 import test from "node:test";
 import { createOfficeActivityEvent } from "./officeActivities.js";
-import { createOfficeState, officeReducer, restoreOfficeState, serializeOfficeState } from "./officeState.js";
+import {
+  createOfficeState,
+  createWorkSessionId,
+  officeReducer,
+  restoreOfficeState,
+  serializeOfficeState,
+} from "./officeState.js";
+
+if (!globalThis.crypto) {
+  Object.defineProperty(globalThis, "crypto", {
+    value: webcrypto,
+    configurable: true,
+  });
+}
 
 const slotIds = ["boss", "employee1", "employee2", "employee3", "employee4"];
 
@@ -253,6 +267,44 @@ test("creates unique non-empty work session IDs across isolated contexts at the 
   assert.match(first.workSessionId, /\S/u);
   assert.match(second.workSessionId, /\S/u);
   assert.notEqual(first.workSessionId, second.workSessionId);
+});
+
+test("uses getRandomValues when randomUUID is unavailable", () => {
+  let seed = 0;
+  const cryptoSource = {
+    getRandomValues(bytes) {
+      for (let index = 0; index < bytes.length; index += 1) {
+        bytes[index] = seed + index;
+      }
+      seed += bytes.length;
+      return bytes;
+    },
+  };
+
+  const first = createWorkSessionId(1000, cryptoSource);
+  const second = createWorkSessionId(1000, cryptoSource);
+
+  assert.equal(first, "work-session-1000-000102030405060708090a0b0c0d0e0f");
+  assert.equal(second, "work-session-1000-101112131415161718191a1b1c1d1e1f");
+  assert.match(first, /^work-session-1000-[0-9a-f]{32}$/u);
+  assert.notEqual(first, second);
+});
+
+test("throws clearly when secure work session ID generation is unavailable", () => {
+  assert.throws(
+    () => createWorkSessionId(1000, {}),
+    new Error("Secure random generation is unavailable for work session IDs."),
+  );
+});
+
+test("restore reuses the persisted work session ID", () => {
+  const persistedWorkSessionId = "work-session-persisted-existing";
+
+  const restored = restoreOfficeState(JSON.stringify({
+    workSessionId: persistedWorkSessionId,
+  }), assignments, 5000);
+
+  assert.equal(restored.workSessionId, persistedWorkSessionId);
 });
 
 test("serializes only current-session events and restores in-flight records as local fallbacks", () => {
