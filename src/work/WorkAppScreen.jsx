@@ -338,7 +338,7 @@ export default function WorkAppScreen({ onClose }) {
   const [selectedAssignmentSlotId, setSelectedAssignmentSlotId] = useState("");
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
   const [motionNow, setMotionNow] = useState(initialContext.now);
-  const [, setAssignmentErrors] = useState({});
+  const [assignmentErrors, setAssignmentErrors] = useState({});
   const [, setCustomDrafts] = useState(() => Object.fromEntries(
     OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customAssetSrc]),
   ));
@@ -1252,6 +1252,7 @@ export default function WorkAppScreen({ onClose }) {
             selectedSlotId={selectedAssignmentSlotId}
             slots={SLOT_DETAILS}
             assignments={assignments}
+            assignmentErrors={assignmentErrors}
             profiles={profiles}
             occupiedProfiles={occupiedProfiles}
             onOpenSlot={setSelectedAssignmentSlotId}

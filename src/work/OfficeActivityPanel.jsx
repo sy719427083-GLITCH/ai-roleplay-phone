@@ -12,10 +12,15 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-const formatEventTime = (startedAt) => {
-  const date = new Date(Number(startedAt) || 0);
-  if (Number.isNaN(date.getTime())) return "--:--";
-  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+export const normalizeOfficeEventTime = (startedAt) => {
+  const timestamp = Number(startedAt);
+  if (!Number.isFinite(timestamp)) return { dateTime: undefined, label: "--:--" };
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return { dateTime: undefined, label: "--:--" };
+  return {
+    dateTime: date.toISOString(),
+    label: date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+  };
 };
 
 const getDisplayEvent = (event) => {
@@ -138,10 +143,11 @@ export default function OfficeActivityPanel({
             const characterName = event.profileSnapshots?.[0]?.name
               || assignments[event.actorId]?.profile?.name
               || event.actorId;
+            const eventTime = normalizeOfficeEventTime(event.startedAt);
             return (
               <article className="office-activity-entry" key={event.eventId}>
                 <header>
-                  <time dateTime={new Date(event.startedAt).toISOString()}>{formatEventTime(event.startedAt)}</time>
+                  <time dateTime={eventTime.dateTime}>{eventTime.label}</time>
                   <strong>{characterName}</strong>
                   <span>{event.status || ACTIVITY_DEFINITIONS[event.activityType]?.status}</span>
                 </header>

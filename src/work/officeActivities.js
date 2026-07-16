@@ -139,7 +139,12 @@ export function filterOfficeActivityEvents(events = [], filters = {}) {
   return [...events]
     .filter((event) => {
       if (filters.workSessionId && event.workSessionId !== filters.workSessionId) return false;
-      if (filters.actorId && event.actorId !== filters.actorId) return false;
+      if (filters.actorId) {
+        const participantIds = Array.isArray(event.participantIds)
+          ? event.participantIds.map(String)
+          : [];
+        if (event.actorId !== filters.actorId && !participantIds.includes(filters.actorId)) return false;
+      }
       if (filters.activityType && event.activityType !== filters.activityType) return false;
       return true;
     })

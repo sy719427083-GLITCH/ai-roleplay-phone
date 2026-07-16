@@ -31,6 +31,8 @@ const vite = await createServer({
 });
 const screenModule = await vite.ssrLoadModule("/src/work/WorkAppScreen.jsx");
 const activityPanelModule = await vite.ssrLoadModule("/src/work/OfficeActivityPanel.jsx");
+const assignmentFlowModule = await vite.ssrLoadModule("/src/work/OfficeAssignmentFlow.jsx");
+const activitiesModule = await vite.ssrLoadModule("/src/work/officeActivities.js");
 const characterModule = await vite.ssrLoadModule("/src/work/OfficeCharacter.jsx");
 const sceneModule = await vite.ssrLoadModule("/src/work/OfficeScene.jsx");
 const previousReact = globalThis.React;
@@ -117,6 +119,201 @@ test("activity history renders stored snapshots without relabeling old events", 
   assert.match(markup, /<strong>活动时的角色<\/strong>/);
   assert.doesNotMatch(markup, /<strong>现在的角色<\/strong>|旧会话角色/);
   assert.match(markup, /本地记录/);
+});
+
+test("shares one conversation event with exact participants across rendering and filters", () => {
+  assert.equal(typeof sceneModule.resolveOfficeActivityEventForCharacter, "function");
+  const sharedEvent = {
+    eventId: "event-conversation-a",
+    actorId: "employee1",
+    participantIds: ["employee1", "employee2"],
+    activityType: "chatting",
+    conversationId: "conversation-a",
+    status: "闲聊中",
+    subject: "周末安排",
+    startedAt: 200,
+  };
+  const simultaneousEvent = {
+    ...sharedEvent,
+    eventId: "event-conversation-b",
+    actorId: "employee3",
+    participantIds: ["employee3", "employee4"],
+    conversationId: "conversation-b",
+  };
+  const activityEvents = [sharedEvent, simultaneousEvent];
+  const activeEventBySlot = {
+    employee1: sharedEvent.eventId,
+    employee3: simultaneousEvent.eventId,
+  };
+  const resolve = (slotId, conversationId) => sceneModule.resolveOfficeActivityEventForCharacter({
+    slotId,
+    character: { slotId, conversationId },
+    activityEvents,
+    activeEventBySlot,
+  });
+
+  assert.strictEqual(resolve("employee1", "conversation-a"), sharedEvent);
+  assert.strictEqual(resolve("employee2", "conversation-a"), sharedEvent);
+  assert.strictEqual(resolve("employee4", "conversation-b"), simultaneousEvent);
+  assert.equal(resolve("employee2", "conversation-b"), null);
+  assert.equal(resolve("employee4", "conversation-a"), null);
+  const ownerMissingMembership = { ...sharedEvent, participantIds: ["employee2"] };
+  assert.equal(sceneModule.resolveOfficeActivityEventForCharacter({
+    slotId: "employee1",
+    character: { slotId: "employee1", conversationId: "conversation-a" },
+    activityEvents: [ownerMissingMembership],
+    activeEventBySlot: { employee1: ownerMissingMembership.eventId },
+  }), null);
+
+  const conversation = {
+    id: "conversation-a",
+    memberIds: ["employee1", "employee2"],
+    bubbleQueue: [{
+      conversationId: "conversation-a",
+      speakerId: "employee1",
+      text: "周末去看展吗？",
+    }],
+  };
+  const renderChatMember = (slotId, activityEvent = sharedEvent) => renderToStaticMarkup(
+    React.createElement(characterModule.OfficeCharacter, {
+      character: {
+        slotId,
+        phase: "chatting",
+        activity: "chatting",
+        conversationId: "conversation-a",
+        positionNode: `${slotId}-home`,
+        profile: { name: slotId },
+      },
+      assignment: { chibiId: "employee-f-01" },
+      activityEvent,
+      conversation,
+      motionNow: 720,
+    }),
+  );
+  const speakerMarkup = renderChatMember("employee1");
+  const listenerMarkup = renderChatMember("employee2");
+  const unrelatedMarkup = renderChatMember("employee4");
+  const malformedOwnerMarkup = renderChatMember("employee1", ownerMissingMembership);
+  assert.match(speakerMarkup, /data-activity="chatting"[^>]*data-conversation-role="speaker"/);
+  assert.match(speakerMarkup, /office-chat-prop/);
+  assert.match(listenerMarkup, /data-activity="chatting"[^>]*data-conversation-role="listener"/);
+  assert.match(listenerMarkup, /office-listen-prop/);
+  assert.match(listenerMarkup, /--office-frame-row:7/);
+  assert.match(unrelatedMarkup, /data-activity="idle"/);
+  assert.doesNotMatch(unrelatedMarkup, /office-chat-prop|office-listen-prop/);
+  assert.match(malformedOwnerMarkup, /data-activity="idle"/);
+
+  const sceneMarkup = renderToStaticMarkup(React.createElement(sceneModule.OfficeScene, {
+    state: {
+      now: 720,
+      activityEvents,
+      activeEventBySlot,
+      assignments: {},
+      conversations: {
+        "conversation-a": conversation,
+        "conversation-b": {
+          id: "conversation-b",
+          memberIds: ["employee3", "employee4"],
+          bubbleQueue: [{
+            conversationId: "conversation-b",
+            speakerId: "employee4",
+            text: "第二组正在聊",
+          }],
+        },
+      },
+      characters: Object.fromEntries([1, 2, 3, 4].map((number) => {
+        const slotId = `employee${number}`;
+        const conversationId = number < 3 ? "conversation-a" : "conversation-b";
+        return [slotId, {
+          slotId,
+          phase: "chatting",
+          activity: "chatting",
+          conversationId,
+          positionNode: `${slotId}-home`,
+          profile: { name: slotId },
+        }];
+      })),
+    },
+    assignments: {},
+    motionNow: 720,
+  }));
+  assert.equal((sceneMarkup.match(/data-activity="chatting"/g) || []).length, 4);
+  assert.equal((sceneMarkup.match(/data-conversation-role="speaker"/g) || []).length, 2);
+  assert.equal((sceneMarkup.match(/data-conversation-role="listener"/g) || []).length, 2);
+
+  assert.deepEqual(activitiesModule.filterOfficeActivityEvents(activityEvents, {
+    actorId: "employee2",
+  }).map(({ eventId }) => eventId), [sharedEvent.eventId]);
+  assert.deepEqual(activitiesModule.filterOfficeActivityEvents(activityEvents, {
+    actorId: "employee4",
+  }).map(({ eventId }) => eventId), [simultaneousEvent.eventId]);
+  assert.deepEqual(activitiesModule.filterOfficeActivityEvents(activityEvents, {
+    actorId: "boss",
+  }), []);
+});
+
+test("renders persisted assignment errors while preserving a valid custom draft", () => {
+  const renderError = (message) => renderToStaticMarkup(
+    React.createElement(assignmentFlowModule.default, {
+      view: "selection",
+      selectedSlotId: "employee1",
+      slots: [{ id: "employee1", label: "员工一", kind: "employee" }],
+      assignments: {
+        employee1: {
+          profileId: "npc-employee1",
+          profile: { name: "NPC", generated: true },
+          chibiId: "employee-f-01",
+          customAssetSrc: "https://example.com/valid.png",
+        },
+      },
+      assignmentErrors: { employee1: message },
+      profiles: { bossOptions: [], employeeOptions: [] },
+      occupiedProfiles: new Map(),
+      onOpenSlot() {},
+      onBack() {},
+      onProfileChange() {},
+      onChibiChange() {},
+      onUpload() {},
+      onCustomDraftChange() {},
+    }),
+  );
+
+  for (const message of [
+    "图片不能超过 1 MB，请使用更小图片或图片 URL",
+    "请选择图片文件",
+    "图片读取失败，请重试或使用图片 URL",
+    "安排无法保存，请检查设备存储后重试",
+    "图片无法保存，请使用更小图片或图片 URL",
+    "图片加载失败，已恢复内置形象",
+  ]) {
+    const markup = renderError(message);
+    assert.match(markup, /value="https:\/\/example.com\/valid.png"/);
+    assert.ok(markup.includes(message), `missing assignment error: ${message}`);
+    assert.match(markup, /role="alert"/);
+    assert.match(markup, /aria-describedby="employee1-asset-error"/);
+  }
+});
+
+test("renders malformed legacy activity timestamps without throwing", () => {
+  const render = () => renderToStaticMarkup(React.createElement(activityPanelModule.default, {
+    open: true,
+    workSessionId: "session-current",
+    assignments: { employee1: { profile: { name: "小林" } } },
+    events: [{
+      eventId: "event-invalid-time",
+      workSessionId: "session-current",
+      actorId: "employee1",
+      participantIds: ["employee1"],
+      profileSnapshots: [{ name: "小林" }],
+      activityType: "working",
+      startedAt: "legacy-not-a-date",
+      endedAt: 1,
+    }],
+    onClose() {},
+  }));
+
+  assert.doesNotThrow(render);
+  assert.match(render(), /<time>--:--<\/time>/);
 });
 
 test("creates authoritative events and completes exact route and activity lifecycles", () => {

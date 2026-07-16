@@ -43,12 +43,33 @@ const isRecord = (value) => Boolean(value) && typeof value === "object" && !Arra
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
-export const getOwnedActivityEvent = (activityEvent, slotId) => {
+export const getOwnedActivityEvent = (activityEvent, characterOrSlotId) => {
   if (!isRecord(activityEvent)) return null;
   if (!cleanText(activityEvent.eventId)) return null;
-  if (cleanText(activityEvent.actorId) !== slotId) return null;
-  if (!EVENT_ACTIVITIES.has(cleanText(activityEvent.activityType))) return null;
+  const character = isRecord(characterOrSlotId) ? characterOrSlotId : {};
+  const slotId = cleanText(character.slotId || characterOrSlotId);
+  const activityType = cleanText(activityEvent.activityType);
+  if (!slotId || !EVENT_ACTIVITIES.has(activityType)) return null;
   if (Number(activityEvent.endedAt) > 0) return null;
+  if (cleanText(activityEvent.actorId) === slotId) {
+    if (activityType !== "chatting") return activityEvent;
+    const characterConversationId = cleanText(character.conversationId);
+    if (!characterConversationId) {
+      return character.phase === "walkingToActivity" ? activityEvent : null;
+    }
+    const participantIds = Array.isArray(activityEvent.participantIds)
+      ? activityEvent.participantIds.map(String)
+      : [];
+    if (cleanText(activityEvent.conversationId) !== characterConversationId) return null;
+    return participantIds.includes(slotId) ? activityEvent : null;
+  }
+  if (activityType !== "chatting") return null;
+  const conversationId = cleanText(activityEvent.conversationId);
+  if (!conversationId || conversationId !== cleanText(character.conversationId)) return null;
+  const participantIds = Array.isArray(activityEvent.participantIds)
+    ? activityEvent.participantIds.map(String)
+    : [];
+  if (!participantIds.includes(slotId)) return null;
   return activityEvent;
 };
 
@@ -256,7 +277,7 @@ export function OfficeCharacter({
 }) {
   const slotId = cleanText(character.slotId || assignment.slotId) || "unassigned";
   const phase = cleanText(character.phase) || "idle";
-  const ownedActivityEvent = getOwnedActivityEvent(activityEvent, slotId);
+  const ownedActivityEvent = getOwnedActivityEvent(activityEvent, { ...character, slotId });
   const activity = cleanText(ownedActivityEvent?.activityType) || "idle";
   const activitySubject = cleanText(ownedActivityEvent?.subject);
   const propVariant = cleanText(ownedActivityEvent?.propVariant);

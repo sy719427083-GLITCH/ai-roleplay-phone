@@ -24,6 +24,7 @@ const getNextRadioIndex = (currentIndex, key, itemCount) => {
 
 function AssignmentEditor({
   assignment,
+  errorMessage,
   occupiedProfiles,
   onChibiChange,
   onCustomDraftChange,
@@ -37,6 +38,7 @@ function AssignmentEditor({
   const selectedProfileId = assignment.profile?.generated ? "" : assignment.profileId;
   const [customDraft, setCustomDraft] = useState(assignment.customAssetSrc || "");
   const isInvalidDraft = !isAcceptedAssetSource(customDraft);
+  const visibleError = isInvalidDraft ? "地址格式不支持" : cleanText(errorMessage);
   const errorId = `${slot.id}-asset-error`;
   const selectedChibiIndex = compatibleChibis.findIndex((chibi) => chibi.id === assignment.chibiId);
   const rovingChibiIndex = selectedChibiIndex >= 0 ? selectedChibiIndex : 0;
@@ -119,6 +121,7 @@ function AssignmentEditor({
             type="file"
             accept="image/*"
             aria-label={`${slot.label}上传形象`}
+            aria-describedby={visibleError ? errorId : undefined}
             tabIndex={-1}
             onChange={(event) => onUpload(slot.id, event)}
           />
@@ -132,7 +135,7 @@ function AssignmentEditor({
             value={customDraft}
             aria-label={`${slot.label}形象地址`}
             aria-invalid={isInvalidDraft || undefined}
-            aria-describedby={isInvalidDraft ? errorId : undefined}
+            aria-describedby={visibleError ? errorId : undefined}
             placeholder="图片 URL"
             onChange={(event) => {
               setCustomDraft(event.target.value);
@@ -141,7 +144,7 @@ function AssignmentEditor({
           />
         </label>
       </div>
-      {isInvalidDraft && <p className="office-field-error" id={errorId} role="alert">地址格式不支持</p>}
+      {visibleError && <p className="office-field-error" id={errorId} role="alert">{visibleError}</p>}
     </div>
   );
 }
@@ -151,6 +154,7 @@ export default function OfficeAssignmentFlow({
   selectedSlotId,
   slots,
   assignments,
+  assignmentErrors = {},
   profiles,
   occupiedProfiles,
   onOpenSlot,
@@ -188,6 +192,7 @@ export default function OfficeAssignmentFlow({
           <AssignmentEditor
             slot={selectedSlot}
             assignment={assignments[selectedSlot.id]}
+            errorMessage={assignmentErrors[selectedSlot.id]}
             profiles={profiles}
             occupiedProfiles={occupiedProfiles}
             onProfileChange={onProfileChange}

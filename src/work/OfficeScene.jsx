@@ -61,6 +61,51 @@ const isRecord = (value) => Boolean(value) && typeof value === "object" && !Arra
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
+export function resolveOfficeActivityEventForCharacter({
+  slotId,
+  character = {},
+  activityEvents = [],
+  activeEventBySlot = {},
+  activityEventById = null,
+} = {}) {
+  const normalizedSlotId = cleanText(slotId || character.slotId);
+  if (!normalizedSlotId) return null;
+  const eventById = activityEventById instanceof Map
+    ? activityEventById
+    : new Map((Array.isArray(activityEvents) ? activityEvents : [])
+      .map((event) => [cleanText(event?.eventId), event]));
+  const activeEventId = cleanText(activeEventBySlot?.[normalizedSlotId]);
+  const directlyOwnedEvent = eventById.get(activeEventId);
+  if (directlyOwnedEvent?.actorId === normalizedSlotId) {
+    if (directlyOwnedEvent.activityType !== "chatting") return directlyOwnedEvent;
+    const eventConversationId = cleanText(directlyOwnedEvent.conversationId);
+    const characterConversationId = cleanText(character.conversationId);
+    if (!characterConversationId) {
+      return character.phase === "walkingToActivity" ? directlyOwnedEvent : null;
+    }
+    const participantIds = Array.isArray(directlyOwnedEvent.participantIds)
+      ? directlyOwnedEvent.participantIds.map(String)
+      : [];
+    if (eventConversationId === characterConversationId
+      && participantIds.includes(normalizedSlotId)) return directlyOwnedEvent;
+  }
+
+  const characterConversationId = cleanText(character.conversationId);
+  if (!characterConversationId) return null;
+  for (const event of eventById.values()) {
+    if (cleanText(event?.activityType) !== "chatting") continue;
+    if (cleanText(event?.conversationId) !== characterConversationId) continue;
+    const participantIds = Array.isArray(event?.participantIds)
+      ? event.participantIds.map(String)
+      : [];
+    if (!participantIds.includes(normalizedSlotId)) continue;
+    const ownerId = cleanText(event?.actorId);
+    if (!ownerId || cleanText(activeEventBySlot?.[ownerId]) !== cleanText(event?.eventId)) continue;
+    return event;
+  }
+  return null;
+}
+
 const getFallbackCharacter = (slotId, assignment) => ({
   slotId,
   profileId: cleanText(assignment?.profileId),
@@ -300,9 +345,13 @@ export function OfficeScene({
       getConversationLayout(character, conversation, slotId, node),
     );
     const sceneLayout = motion || conversationLayout;
-    const activeEventId = cleanText(activeEventBySlot[slotId]);
-    const candidateEvent = activityEventById.get(activeEventId);
-    const activityEvent = candidateEvent?.actorId === slotId ? candidateEvent : null;
+    const activityEvent = resolveOfficeActivityEventForCharacter({
+      slotId,
+      character,
+      activityEvents,
+      activeEventBySlot,
+      activityEventById,
+    });
 
     return {
       slotId,
