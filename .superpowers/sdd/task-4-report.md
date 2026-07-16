@@ -107,3 +107,75 @@ Result:
 
 - `officeActivityApi.js` has its own small `getChatCompletionsUrl` helper because `officeConversationApi.js` does not export that internal helper. This preserves the existing conversation API surface.
 - Character `worldview` is preserved for Character profiles only; Me worldview-like fields are intentionally excluded from the conversation prompt test to avoid leaking unrelated Me-only metadata.
+
+## Fix Review Evidence
+
+Review issue fixed on 2026-07-16:
+
+- Confirmed `createOfficeProfileSnapshot(profile, "character")` produces the production shape `source: "character"` with `type: "main"` or `"npc"`.
+- Root cause: `normalizeMemberProfile` preferred `type` over `source` and compared only with synthetic uppercase `"Character"`, so a real Character snapshot was treated as kind `"main"` or `"npc"` and lost `worldview`.
+- Fix: prefer the snapshot's `source`, fall back to `type` only when source is absent, and compare the selected kind case-insensitively.
+- Replaced the synthetic richer-profile fixture with snapshots produced by `createOfficeProfileSnapshot`. The test now covers lowercase `source: "character"`, `type: "main"`, Character worldview preservation, Me worldview exclusion, and outsider isolation.
+
+### RED
+
+Command:
+
+```bash
+node --test src/work/officeConversationApi.test.js
+```
+
+Result before the production fix:
+
+- Exit code: `1`
+- Expected failing test: `preserves richer Me and Character profile snapshots only for current members`
+- Failure showed the real `source: "character", type: "main"` member was missing `worldview`.
+- TAP summary: `tests 12`, `pass 11`, `fail 1`
+
+### GREEN
+
+Conversation regression command:
+
+```bash
+node --test src/work/officeConversationApi.test.js
+```
+
+Result:
+
+- Exit code: `0`
+- TAP summary: `tests 12`, `pass 12`, `fail 0`
+
+Focused Task 4 command:
+
+```bash
+node --test src/work/officeActivityApi.test.js src/work/officeConversationApi.test.js
+```
+
+Result:
+
+- Exit code: `0`
+- TAP summary: `tests 17`, `pass 17`, `fail 0`
+
+Full suite command:
+
+```bash
+npm test
+```
+
+Result:
+
+- Exit code: `0`
+- Script: `node --test src/*.test.js src/work/*.test.js`
+- TAP summary: `tests 141`, `pass 141`, `fail 0`
+
+### Fix Review
+
+- Changed only `src/work/officeConversationApi.js`, `src/work/officeConversationApi.test.js`, and this required report.
+- `git diff --check` completed with no output.
+- The updated member/outsider isolation assertion passed; existing relationship, transcript, request-sequence, and conversation-session isolation tests remained unchanged and passed in both focused and full runs.
+- Activity API files and the accepted duplicate `getChatCompletionsUrl` helper were not changed.
+- No reviewer subagent was available in this environment; performed a manual diff and requirements review instead.
+
+### Remaining Concerns
+
+- None for this compatibility fix. The existing duplicated URL helper remains the accepted Task 4 minor note and was intentionally left out of scope.

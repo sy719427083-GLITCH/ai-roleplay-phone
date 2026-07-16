@@ -8,6 +8,7 @@ import {
   parseOfficeConversationReply,
   requestOfficeConversationTurn,
 } from "./officeConversationApi.js";
+import { createOfficeProfileSnapshot } from "./officeProfiles.js";
 
 const createStorage = (data = {}) => ({
   getItem(key) {
@@ -97,44 +98,43 @@ test("includes only current-session profiles, relationships, and the last twelve
 });
 
 test("preserves richer Me and Character profile snapshots only for current members", () => {
+  const meSnapshot = {
+    ...createOfficeProfileSnapshot({
+      id: "profile-me",
+      name: "我",
+      identity: "产品经理",
+      personality: "谨慎",
+      appearance: "白衬衫",
+      persona: "习惯先问清楚目标",
+    }, "me"),
+    worldview: "不应出现在 Me 档案",
+  };
+  const characterSnapshot = createOfficeProfileSnapshot({
+    id: "profile-character",
+    type: "main",
+    name: "林岚",
+    identity: "工程师",
+    personality: "直接",
+    appearance: "黑色外套",
+    persona: "喜欢把复杂问题拆开",
+    worldview: "所有系统都应该先定义边界",
+  }, "character");
+  const outsiderSnapshot = createOfficeProfileSnapshot({
+    id: "profile-outsider",
+    type: "npc",
+    name: "未参与角色",
+    identity: "销售",
+    personality: "热络",
+    appearance: "红色围巾",
+    persona: "不应进入提示词",
+    worldview: "外部世界观不应泄漏",
+  }, "character");
   const messages = buildOfficeConversationMessages(
     session({ memberIds: ["me-1", "char-1"] }),
     {
-      "me-1": {
-        profile: {
-          id: "profile-me",
-          source: "Me",
-          type: "Me",
-          name: "我",
-          identity: "产品经理",
-          personality: "谨慎",
-          appearance: "白衬衫",
-          persona: "习惯先问清楚目标",
-          worldview: "不应出现在 Me 档案",
-        },
-      },
-      "char-1": {
-        id: "profile-character",
-        source: "Character",
-        type: "Character",
-        name: "林岚",
-        identity: "工程师",
-        personality: "直接",
-        appearance: "黑色外套",
-        persona: "喜欢把复杂问题拆开",
-        worldview: "所有系统都应该先定义边界",
-      },
-      outsider: {
-        id: "profile-outsider",
-        source: "Character",
-        type: "Character",
-        name: "未参与角色",
-        identity: "销售",
-        personality: "热络",
-        appearance: "红色围巾",
-        persona: "不应进入提示词",
-        worldview: "外部世界观不应泄漏",
-      },
+      "me-1": { profile: meSnapshot },
+      "char-1": characterSnapshot,
+      outsider: outsiderSnapshot,
     },
   );
   const context = getPromptContext(messages);
@@ -144,8 +144,7 @@ test("preserves richer Me and Character profile snapshots only for current membe
     {
       memberId: "me-1",
       profileId: "profile-me",
-      source: "Me",
-      type: "Me",
+      source: "me",
       name: "我",
       identity: "产品经理",
       personality: "谨慎",
@@ -155,8 +154,8 @@ test("preserves richer Me and Character profile snapshots only for current membe
     {
       memberId: "char-1",
       profileId: "profile-character",
-      source: "Character",
-      type: "Character",
+      source: "character",
+      type: "main",
       name: "林岚",
       identity: "工程师",
       personality: "直接",

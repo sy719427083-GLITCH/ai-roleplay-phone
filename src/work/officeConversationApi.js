@@ -110,8 +110,8 @@ const normalizeMemberProfile = (memberId, value) => {
   };
   if (typeof profile.source === "string" && profile.source.trim()) normalized.source = profile.source.trim();
   if (typeof profile.type === "string" && profile.type.trim()) normalized.type = profile.type.trim();
-  const profileKind = normalized.type || normalized.source;
-  if (profileKind === "Character" && typeof profile.worldview === "string" && profile.worldview.trim()) {
+  const profileKind = (normalized.source || normalized.type || "").toLowerCase();
+  if (profileKind === "character" && typeof profile.worldview === "string" && profile.worldview.trim()) {
     normalized.worldview = profile.worldview.trim();
   }
   return normalized;
