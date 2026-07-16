@@ -1,9 +1,13 @@
 import { getActivityFrame, getOfficeChibi } from "./officeAssets.js";
+import { getWalkFrame } from "./officeMotion.js";
 import { OFFICE_NODES, getFacing } from "./officeNavigation.js";
 
 const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
-const ATLAS_ACTIVITIES = new Set(["idle", "working", "slacking", "eating", "gaming", "chatting"]);
-const VALID_FACING = new Set(["left", "right", "up", "down"]);
+const ATLAS_ACTIVITIES = new Set([
+  "idle", "working", "slacking", "eating", "gaming", "reading",
+  "watchingSeries", "watchingShortVideo", "chatting", "listening",
+]);
+const VALID_FACING = new Set(["left", "right", "front", "back"]);
 
 const STATUS_FALLBACKS = {
   idle: "空闲中",
@@ -11,6 +15,9 @@ const STATUS_FALLBACKS = {
   slacking: "摸鱼中",
   eating: "吃饭中",
   gaming: "游戏中",
+  reading: "看书中",
+  watchingSeries: "刷剧中",
+  watchingShortVideo: "看抖音中",
   chatting: "闲聊中",
   returning: "返回工位",
 };
@@ -32,10 +39,10 @@ const isRecord = (value) => Boolean(value) && typeof value === "object" && !Arra
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
-const clampDuration = (value, fallback) => {
-  const duration = Number(value);
-  if (!Number.isFinite(duration)) return fallback;
-  return Math.min(1800, Math.max(450, duration));
+const normalizeFacing = (facing) => {
+  if (facing === "up") return "back";
+  if (facing === "down") return "front";
+  return VALID_FACING.has(facing) ? facing : "right";
 };
 
 const resolveNode = (character, slotId) => {
@@ -55,7 +62,9 @@ const resolveNode = (character, slotId) => {
 
 const resolveFacing = (character, resolvedNodeId) => {
   const declaredFacing = cleanText(character?.facing);
-  if (VALID_FACING.has(declaredFacing)) return declaredFacing;
+  if (["left", "right", "front", "back", "up", "down"].includes(declaredFacing)) {
+    return normalizeFacing(declaredFacing);
+  }
 
   if (MOVING_PHASES.has(character?.phase) && Array.isArray(character?.route)) {
     const routeIndex = Number.isFinite(character.routeIndex) ? character.routeIndex : 0;
@@ -67,20 +76,13 @@ const resolveFacing = (character, resolvedNodeId) => {
       : previousId
         ? getFacing(previousId, currentId)
         : null;
-    if (VALID_FACING.has(routeFacing)) return routeFacing;
+    if (routeFacing) return normalizeFacing(routeFacing);
   }
 
   return "right";
 };
 
-const resolveFramePhase = (character, now) => {
-  const explicitPhase = Number(character?.props?.framePhase ?? character?.framePhase);
-  if (Number.isFinite(explicitPhase)) return explicitPhase;
-
-  const clock = Number(now);
-  if (Number.isFinite(clock) && clock > 0) return Math.floor(clock / 720);
-  return Number.isFinite(character?.routeIndex) ? character.routeIndex : 0;
-};
+const getActiveFrame = (motionNow) => Math.floor(Math.max(0, Number(motionNow) || 0) / 180) % 4;
 
 const getConversationEntry = (conversation) => {
   if (!isRecord(conversation)) return null;
@@ -124,35 +126,29 @@ const getCurrentSpeakerId = (conversation, character) => {
   return "";
 };
 
-const getSlackDetail = (character, slotId) => {
-  const requested = cleanText(character?.props?.slackProp).toLowerCase();
+const getSlackDetail = (propVariant) => {
+  const requested = cleanText(propVariant).toLowerCase();
   if (requested === "console" || requested === "game") return SLACK_DETAILS.handheld;
   if (SLACK_DETAILS[requested]) return SLACK_DETAILS[requested];
-
-  const options = Object.values(SLACK_DETAILS);
-  const slotSeed = [...slotId].reduce((total, letter) => total + letter.charCodeAt(0), 0);
-  const timeSeed = Number.isFinite(character?.activityStartedAt)
-    ? Math.floor(character.activityStartedAt / 1000)
-    : 0;
-  return options[Math.abs(slotSeed + timeSeed) % options.length];
+  return SLACK_DETAILS.phone;
 };
 
-function WorkProps() {
+function WorkProps({ subject, variant }) {
   return (
-    <div className="office-work-props office-activity-prop" role="img" aria-label="电脑与工作文件">
+    <div className="office-work-props office-activity-prop" data-prop={variant} role="img" aria-label={`正在处理${subject || "工作"}`}>
       <i className="office-work-computer computer" aria-hidden="true"><b className="screen"></b><b className="cursor"></b></i>
       <i className="office-work-document document" aria-hidden="true"><b></b><b></b><b></b></i>
     </div>
   );
 }
 
-function SlackProps({ detail }) {
+function SlackProps({ detail, subject, variant }) {
   return (
     <div
       className={`office-slack-prop office-activity-prop prop-${detail.className}`}
-      data-prop={detail.className}
+      data-prop={variant || detail.className}
       role="img"
-      aria-label={`正在看${detail.label}`}
+      aria-label={`正在看${subject || detail.label}`}
     >
       <i className="office-slack-screen" aria-hidden="true"></i>
       <i className="office-slack-hand" aria-hidden="true"></i>
@@ -162,24 +158,25 @@ function SlackProps({ detail }) {
   );
 }
 
-function GameProps() {
+function GameProps({ subject, variant }) {
   return (
-    <div className="office-game-props office-activity-prop" role="img" aria-label="游戏画面与控制器">
+    <div className="office-game-props office-activity-prop" data-prop={variant} role="img" aria-label={`正在玩${subject || "游戏"}`}>
       <i className="office-game-screen" aria-hidden="true"><b></b><b></b><b></b></i>
       <i className="office-game-controller" aria-hidden="true"><b></b><b></b></i>
     </div>
   );
 }
 
-function MealProps({ meal, stage }) {
+function MealProps({ meal, stage, subject, variant }) {
   const detail = MEAL_DETAILS[meal] || MEAL_DETAILS.bento;
   return (
     <div
       className={`office-meal office-activity-prop meal-${meal} meal-stage-${stage}`}
       data-depletion-stage={stage}
       data-meal={meal}
+      data-prop={variant}
       role="img"
-      aria-label={`${detail.label}、餐具${meal === "sandwich" ? "" : "和热气"}`}
+      aria-label={`正在吃${subject || detail.label}`}
     >
       <span className="office-food food" aria-hidden="true">
         <i className="office-food-serving"></i>
@@ -192,17 +189,41 @@ function MealProps({ meal, stage }) {
   );
 }
 
-function ConversationProps({ isSpeaker }) {
+function BookProps({ subject, variant }) {
+  return (
+    <div className={`office-book-prop office-activity-prop prop-${variant || "paperback"}`} data-prop={variant} role="img" aria-label={`正在阅读${subject || "书籍"}`}>
+      <i></i><i></i><b></b>
+    </div>
+  );
+}
+
+function SeriesProps({ subject, variant }) {
+  return (
+    <div className={`office-series-prop office-activity-prop prop-${variant || "tablet"}`} data-prop={variant} role="img" aria-label={`正在观看${subject || "剧集"}`}>
+      <i className="screen"></i><i className="hands"></i>
+    </div>
+  );
+}
+
+function ShortVideoProps({ subject, variant }) {
+  return (
+    <div className={`office-short-video-prop office-activity-prop prop-${variant || "phone-portrait-light"}`} data-prop={variant} role="img" aria-label={`正在看${subject || "短视频"}`}>
+      <i className="phone"></i><i className="thumb"></i>
+    </div>
+  );
+}
+
+function ConversationProps({ isSpeaker, subject, variant }) {
   if (isSpeaker) {
     return (
-      <div className="office-chat-prop office-activity-prop" role="img" aria-label="正在说话">
+      <div className="office-chat-prop office-activity-prop" data-prop={variant} role="img" aria-label={`正在聊${subject || "当前话题"}`}>
         <i aria-hidden="true"></i><i aria-hidden="true"></i><i aria-hidden="true"></i>
       </div>
     );
   }
 
   return (
-    <div className="office-listen-prop office-activity-prop" role="img" aria-label="正在倾听">
+    <div className="office-listen-prop office-activity-prop" data-prop={variant} role="img" aria-label={`正在听${subject || "当前话题"}`}>
       <i aria-hidden="true"></i><i aria-hidden="true"></i>
     </div>
   );
@@ -212,15 +233,19 @@ export function OfficeCharacter({
   character = {},
   assignment = {},
   conversation = null,
+  activityEvent = null,
   mealStage = 0,
-  now = 0,
+  motion = null,
+  motionNow = 0,
   sceneLayout = null,
   onSlotSelect,
   onAssetError,
 }) {
   const slotId = cleanText(character.slotId || assignment.slotId) || "unassigned";
   const phase = cleanText(character.phase) || "idle";
-  const activity = cleanText(character.activity) || "idle";
+  const activity = cleanText(activityEvent?.activityType) || cleanText(character.activity) || "idle";
+  const activitySubject = cleanText(activityEvent?.subject);
+  const propVariant = cleanText(activityEvent?.propVariant);
   const profile = {
     ...(isRecord(character.profile) ? character.profile : {}),
     ...(isRecord(assignment.profile) ? assignment.profile : {}),
@@ -233,7 +258,7 @@ export function OfficeCharacter({
         ? "前往闲聊"
         : "前往工位"
     : STATUS_FALLBACKS[phase] || STATUS_FALLBACKS[activity] || STATUS_FALLBACKS.idle;
-  const status = cleanText(character.status) || fallbackStatus;
+  const status = cleanText(activityEvent?.status) || cleanText(character.status) || fallbackStatus;
   const { id: nodeId, node } = resolveNode(character, slotId);
   const layoutX = typeof sceneLayout?.x === "number" ? sceneLayout.x : Number.NaN;
   const layoutY = typeof sceneLayout?.y === "number" ? sceneLayout.y : Number.NaN;
@@ -242,16 +267,10 @@ export function OfficeCharacter({
     && Number.isFinite(layoutY);
   const positionX = hasSceneLayout ? layoutX : node.x;
   const positionY = hasSceneLayout ? layoutY : node.y;
-  const layoutFacing = cleanText(sceneLayout?.facing);
-  const facing = hasSceneLayout && VALID_FACING.has(layoutFacing)
+  const layoutFacing = normalizeFacing(cleanText(motion?.facing || sceneLayout?.facing));
+  const facing = hasSceneLayout
     ? layoutFacing
     : resolveFacing(character, nodeId);
-  const spriteActivity = MOVING_PHASES.has(phase)
-    ? "walking"
-    : ATLAS_ACTIVITIES.has(activity)
-      ? activity
-      : "idle";
-  const frame = getActivityFrame(spriteActivity, resolveFramePhase(character, now));
   const kind = slotId === "boss" ? "boss" : "employee";
   const assetId = cleanText(
     assignment.chibiId
@@ -272,16 +291,22 @@ export function OfficeCharacter({
   const bubble = getOwnBubble(conversation, character, slotId);
   const currentSpeakerId = getCurrentSpeakerId(conversation, character);
   const isAtActivity = !MOVING_PHASES.has(phase);
-  const walkDuration = clampDuration(
-    character.routeStepDurationMs
-      ?? character.stepDurationMs
-      ?? character.props?.walkDurationMs,
-    900,
-  );
-  const positionDuration = MOVING_PHASES.has(phase) ? walkDuration : 220;
+  const isMoving = MOVING_PHASES.has(phase);
+  const spriteActivity = isMoving
+    ? "walking"
+    : activity === "chatting" && currentSpeakerId && currentSpeakerId !== slotId
+      ? "listening"
+      : ATLAS_ACTIVITIES.has(activity)
+        ? activity
+        : "idle";
+  const framePhase = isMoving
+    ? getWalkFrame({ startedAt: character.routeStartedAt, now: motionNow })
+    : getActiveFrame(motionNow);
+  const frame = getActivityFrame(spriteActivity, framePhase, facing);
+  const positionDuration = isMoving ? 0 : 220;
   const normalizedMealStage = Math.min(3, Math.max(0, Number.parseInt(mealStage, 10) || 0));
-  const meal = MEAL_DETAILS[cleanText(character.props?.meal)] ? cleanText(character.props.meal) : "bento";
-  const slackDetail = getSlackDetail(character, slotId);
+  const meal = MEAL_DETAILS[propVariant] ? propVariant : "bento";
+  const slackDetail = getSlackDetail(propVariant);
   const sessionId = cleanText(conversation?.id || conversation?.conversationId);
   const conversationRole = isAtActivity && activity === "chatting"
     ? currentSpeakerId === slotId
@@ -296,6 +321,9 @@ export function OfficeCharacter({
   const bubbleMemberOffset = Number.isFinite(sceneLayout?.bubbleMemberOffsetPx)
     ? sceneLayout.bubbleMemberOffsetPx
     : 0;
+  const bubbleViewportOffset = Number.isFinite(sceneLayout?.bubbleViewportOffsetPx)
+    ? sceneLayout.bubbleViewportOffsetPx
+    : 0;
   const bubblePlacement = cleanText(sceneLayout?.bubblePlacement) || "center";
 
   const layerStyle = {
@@ -305,6 +333,7 @@ export function OfficeCharacter({
     "--office-position-duration": `${positionDuration}ms`,
     "--office-bubble-offset": `${bubbleOffset}px`,
     "--office-bubble-member-offset": `${bubbleMemberOffset}px`,
+    "--office-bubble-viewport-offset": `${bubbleViewportOffset}px`,
   };
   const frameStyle = {
     backgroundImage: `url(${builtInAsset.src})`,
@@ -365,12 +394,19 @@ export function OfficeCharacter({
         )}
       </div>
 
-      {isAtActivity && activity === "working" && <WorkProps />}
-      {isAtActivity && activity === "slacking" && <SlackProps detail={slackDetail} />}
-      {isAtActivity && activity === "gaming" && <GameProps />}
-      {isAtActivity && activity === "eating" && <MealProps meal={meal} stage={normalizedMealStage} />}
+      {isAtActivity && activity === "working" && <WorkProps subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "slacking" && <SlackProps detail={slackDetail} subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "gaming" && <GameProps subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "eating" && <MealProps meal={meal} stage={normalizedMealStage} subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "reading" && <BookProps subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "watchingSeries" && <SeriesProps subject={activitySubject} variant={propVariant} />}
+      {isAtActivity && activity === "watchingShortVideo" && <ShortVideoProps subject={activitySubject} variant={propVariant} />}
       {isAtActivity && activity === "chatting" && (
-        <ConversationProps isSpeaker={currentSpeakerId === slotId} />
+        <ConversationProps
+          isSpeaker={currentSpeakerId === slotId}
+          subject={activitySubject}
+          variant={propVariant}
+        />
       )}
 
       <div className="office-character-status" aria-hidden="true">

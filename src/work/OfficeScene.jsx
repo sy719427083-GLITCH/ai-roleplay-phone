@@ -1,12 +1,17 @@
 import OfficeCharacter from "./OfficeCharacter.jsx";
+import { sampleOfficeRoute } from "./officeMotion.js";
 import { OFFICE_NODES } from "./officeNavigation.js";
 import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
-const OFFICE_BACKGROUND = "/ai-roleplay-phone/work-office-assets/office-bg.png";
+const OFFICE_BACKGROUND = "/ai-roleplay-phone/work-office-assets/office-bg.webp";
+const OFFICE_WALK_SPEED = 18;
 const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
 const GROUP_BOUNDS = { minX: 12, maxX: 88, minY: 18, maxY: 94 };
 const SCENE_PERCENT_TO_PHONE_PX = 3.9;
+const SCENE_PHONE_WIDTH_PX = 390;
+const BUBBLE_HALF_WIDTH_PX = 90;
+const BUBBLE_VIEWPORT_GUTTER_PX = 12;
 
 const GROUP_OFFSETS = {
   2: [
@@ -146,6 +151,21 @@ const getConversationLayout = (character, conversation, slotId, fallbackNode) =>
   };
 };
 
+const withBubbleViewportClamp = (layout) => {
+  if (!layout) return null;
+  const bubbleCenter = (layout.x * SCENE_PERCENT_TO_PHONE_PX)
+    + (layout.bubbleOffsetPx || 0)
+    + (layout.bubbleMemberOffsetPx || 0);
+  const minimumCenter = BUBBLE_VIEWPORT_GUTTER_PX + BUBBLE_HALF_WIDTH_PX;
+  const maximumCenter = SCENE_PHONE_WIDTH_PX - minimumCenter;
+  const clampedCenter = Math.min(maximumCenter, Math.max(minimumCenter, bubbleCenter));
+
+  return {
+    ...layout,
+    bubbleViewportOffsetPx: roundPosition(clampedCenter - bubbleCenter),
+  };
+};
+
 const clampStage = (value) => Math.min(3, Math.max(0, value));
 
 const parseMealStage = (value) => {
@@ -231,6 +251,7 @@ function StationHitArea({ station, onStationSelect }) {
 export function OfficeScene({
   state = {},
   assignments = {},
+  motionNow,
   onSlotSelect,
   onStationSelect,
   onAssetError,
@@ -240,6 +261,10 @@ export function OfficeScene({
   const characters = isRecord(state.characters) ? state.characters : {};
   const conversations = isRecord(state.conversations) ? state.conversations : {};
   const now = Number.isFinite(state.now) ? state.now : 0;
+  const sampledMotionNow = Number.isFinite(motionNow) ? motionNow : now;
+  const activityEvents = Array.isArray(state.activityEvents) ? state.activityEvents : [];
+  const activeEventBySlot = isRecord(state.activeEventBySlot) ? state.activeEventBySlot : {};
+  const activityEventById = new Map(activityEvents.map((event) => [cleanText(event?.eventId), event]));
 
   const sceneCharacters = OFFICE_SLOT_IDS.map((slotId, slotIndex) => {
     const assignment = isRecord(suppliedAssignments[slotId])
@@ -256,7 +281,22 @@ export function OfficeScene({
     };
     const node = getCharacterNode(character, slotId);
     const conversation = resolveConversation(conversations, cleanText(character.conversationId));
-    const sceneLayout = getConversationLayout(character, conversation, slotId, node);
+    const motion = MOVING_PHASES.has(character.phase)
+      ? sampleOfficeRoute({
+        route: character.route,
+        startedAt: character.routeStartedAt,
+        now: sampledMotionNow,
+        speed: OFFICE_WALK_SPEED,
+        nodes: OFFICE_NODES,
+      })
+      : null;
+    const conversationLayout = withBubbleViewportClamp(
+      getConversationLayout(character, conversation, slotId, node),
+    );
+    const sceneLayout = motion || conversationLayout;
+    const activeEventId = cleanText(activeEventBySlot[slotId]);
+    const candidateEvent = activityEventById.get(activeEventId);
+    const activityEvent = candidateEvent?.actorId === slotId ? candidateEvent : null;
 
     return {
       slotId,
@@ -264,9 +304,11 @@ export function OfficeScene({
       assignment,
       character,
       node,
+      motion,
       sceneLayout,
       finalY: sceneLayout?.y ?? node.y,
       conversation,
+      activityEvent,
       mealStage: getMealDepletionStage(character, now),
     };
   }).sort((left, right) => left.finalY - right.finalY || left.slotIndex - right.slotIndex);
@@ -301,7 +343,9 @@ export function OfficeScene({
           character,
           assignment,
           conversation,
+          activityEvent,
           mealStage,
+          motion,
           sceneLayout,
         }) => (
           <OfficeCharacter
@@ -309,8 +353,10 @@ export function OfficeScene({
             character={character}
             assignment={assignment}
             conversation={conversation}
+            activityEvent={activityEvent}
             mealStage={mealStage}
-            now={now}
+            motion={motion}
+            motionNow={sampledMotionNow}
             sceneLayout={sceneLayout}
             onSlotSelect={onSlotSelect}
             onAssetError={onAssetError}

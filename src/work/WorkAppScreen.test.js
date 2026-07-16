@@ -7,6 +7,10 @@ import { createServer } from "vite";
 const screenPath = new URL("./WorkAppScreen.jsx", import.meta.url);
 const screenExists = existsSync(screenPath);
 const source = screenExists ? readFileSync(screenPath, "utf8") : "";
+const characterSource = readFileSync(new URL("./OfficeCharacter.jsx", import.meta.url), "utf8");
+const sceneSource = readFileSync(new URL("./OfficeScene.jsx", import.meta.url), "utf8");
+const characterAndSceneSource = `${characterSource}\n${sceneSource}`;
+const cssSource = readFileSync(new URL("./office.css", import.meta.url), "utf8");
 const vite = await createServer({
   appType: "custom",
   configFile: false,
@@ -167,4 +171,18 @@ test("owns one upload reader per slot and aborts stale or unmounted work", () =>
   assert.equal(second.abortCount, 1);
   assert.equal(other.abortCount, 1);
   assert.equal(registry.isCurrent("employee1", second), false);
+});
+
+test("renders every concrete office action from the authoritative event", () => {
+  for (const token of [
+    "BookProps", "SeriesProps", "ShortVideoProps", "MealProps", "GameProps",
+    "activityEvent", "sampleOfficeRoute", "motionNow", "getWalkFrame",
+  ]) assert.ok(characterAndSceneSource.includes(token), `missing ${token}`);
+});
+
+test("removes hard route-step and bubble-clamp rendering", () => {
+  assert.doesNotMatch(characterAndSceneSource, /routeStepDurationMs/);
+  assert.match(cssSource, /overflow-wrap:\s*anywhere/);
+  assert.match(cssSource, /word-break:\s*break-word/);
+  assert.doesNotMatch(cssSource, /-webkit-line-clamp/);
 });
