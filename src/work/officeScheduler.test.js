@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { OFFICE_ACTIVITY_TYPES } from "./officeActivities.js";
 import { findOfficeRoute } from "./officeNavigation.js";
 import {
   MODE_WEIGHTS,
@@ -47,11 +48,92 @@ const createSequenceRandom = (values) => {
   };
 };
 
-test("exports the exact office mode weights", () => {
+test("exports reachable weights for all eight activity types", () => {
   assert.deepEqual(MODE_WEIGHTS, {
-    focus: { working: 72, slacking: 5, eating: 8, gaming: 3, chatting: 12 },
-    free: { working: 35, slacking: 16, eating: 14, gaming: 10, chatting: 25 },
-    rest: { working: 8, slacking: 22, eating: 28, gaming: 16, chatting: 26 },
+    focus: {
+      working: 58,
+      reading: 12,
+      slacking: 4,
+      eating: 7,
+      gaming: 3,
+      watchingSeries: 3,
+      watchingShortVideo: 3,
+      chatting: 10,
+    },
+    free: {
+      working: 25,
+      reading: 10,
+      slacking: 12,
+      eating: 12,
+      gaming: 9,
+      watchingSeries: 8,
+      watchingShortVideo: 9,
+      chatting: 15,
+    },
+    rest: {
+      working: 6,
+      reading: 12,
+      slacking: 14,
+      eating: 18,
+      gaming: 12,
+      watchingSeries: 12,
+      watchingShortVideo: 12,
+      chatting: 14,
+    },
+  });
+
+  for (const mode of Object.values(MODE_WEIGHTS)) {
+    assert.equal(Object.values(mode).reduce((sum, value) => sum + value, 0), 100);
+    for (const activity of OFFICE_ACTIVITY_TYPES) assert.ok(mode[activity] > 0, activity);
+  }
+});
+
+test("free mode selects the new desk activities with deterministic prop variants", () => {
+  const state = createState("free", {
+    boss: { phase: "walkingToActivity", activity: "eating" },
+    employee2: { phase: "returning", activity: "eating" },
+    employee3: { phase: "gaming", activity: "gaming" },
+    employee4: { conversationId: "busy-session" },
+  });
+  const profiles = createProfiles();
+
+  assert.deepEqual(chooseOfficeEvent({
+    state,
+    profiles,
+    random: createSequenceRandom([0.0, 0.27, 0.0]),
+    now: 1000,
+  }), {
+    slotId: "employee1",
+    memberIds: ["employee1"],
+    activity: "reading",
+    propVariant: "paperback",
+    now: 1000,
+  });
+
+  assert.deepEqual(chooseOfficeEvent({
+    state,
+    profiles,
+    random: createSequenceRandom([0.0, 0.70, 0.67]),
+    now: 2000,
+  }), {
+    slotId: "employee1",
+    memberIds: ["employee1"],
+    activity: "watchingSeries",
+    propVariant: "second-screen",
+    now: 2000,
+  });
+
+  assert.deepEqual(chooseOfficeEvent({
+    state,
+    profiles,
+    random: createSequenceRandom([0.0, 0.80, 0.60]),
+    now: 3000,
+  }), {
+    slotId: "employee1",
+    memberIds: ["employee1"],
+    activity: "watchingShortVideo",
+    propVariant: "phone-portrait-dark",
+    now: 3000,
   });
 });
 
@@ -98,12 +180,14 @@ test("rest mode chooses meals with concrete food values and reserves the break a
 
 test("personality keywords shift activity selection deterministically", () => {
   const cases = [
-    { personality: "自律", roll: 0.40, expected: "working" },
-    { personality: "贪吃", roll: 0.48, expected: "eating" },
-    { personality: "游戏", roll: 0.62, expected: "gaming" },
-    { personality: "外向", roll: 0.68, expected: "chatting" },
-    { personality: "话多", roll: 0.68, expected: "chatting" },
-    { personality: "社恐", roll: 0.90, expected: "gaming" },
+    { personality: "自律", roll: 0.58, expected: "reading" },
+    { personality: "沉静", roll: 0.45, expected: "reading" },
+    { personality: "贪吃", roll: 0.64, expected: "eating" },
+    { personality: "游戏", roll: 0.55, expected: "gaming" },
+    { personality: "追剧", roll: 0.60, expected: "watchingSeries" },
+    { personality: "短视频", roll: 0.70, expected: "watchingShortVideo" },
+    { personality: "外向", roll: 0.80, expected: "chatting" },
+    { personality: "话多", roll: 0.75, expected: "chatting" },
   ];
 
   for (const { personality, roll, expected } of cases) {

@@ -1,537 +1,101 @@
-# Task 3 Report: Browser Route Calibration and Screenshot Tooling
+# Task 3 Report: Extend The Scheduler With Concrete New Activities
 
-## Implementation
+## Status
 
-- Added `scripts/work-route-calibrator.html` and `scripts/work-route-calibrator.js` with:
-  - theme switching across the existing `WORK_MAP_THEMES` registry
-  - route switching between `home` and each of the five place routes
-  - normalized `0..100` coordinate editing
-  - click-to-add route samples
-  - drag editing for `home`, active route `pin`, and interior samples
-  - `Delete`, `Undo`, and `Clear` behavior scoped to the active route
-  - visible-segment break toggles that split exported `visibleSegments` without splitting `samples`
-  - deterministic route export and theme export JSON
-  - all six markers rendered together for alignment checking
-- Added `scripts/verify-work-routes.mjs` with:
-  - focused mode for today: `--theme <id>` and optional `--place <type>` / `--job <type>`
-  - full-registry planning that reports missing calibrated themes instead of fabricating screenshots
-  - deterministic screenshot paths under `artifacts/work-routes/<theme>/<place>.png`
-  - bounded verification timeout support via `--timeout-ms`
-  - detached child-server process-group management
-  - cleanup in `finally` for both Playwright and the spawned dev server
-- Added `scripts/work-route-tools.test.mjs` covering:
-  - deterministic route export and visible-segment generation
-  - normalized bounds and break-index assertions
-  - deterministic screenshot path generation
-  - focused/full verification planning
-  - timeout cleanup hook execution
-  - process-group teardown for a detached child plus spawned descendant
-- Updated `package.json` scripts:
-  - `calibrate:routes`
-  - `verify:routes`
-  - `test` now includes the new script-level test file
+- Completed on July 16, 2026.
+- Scope kept to the requested owned files plus this report.
 
 ## Files
 
-- Added `scripts/work-route-calibrator.html`
-- Added `scripts/work-route-calibrator.js`
-- Added `scripts/verify-work-routes.mjs`
-- Added `scripts/work-route-tools.test.mjs`
-- Added `.superpowers/sdd/task-3-report.md`
-- Modified `package.json`
-
-## Root Cause
-
-- The verifier originally launched the local server through `npm`, but only tracked the immediate child PID.
-- When the verifier finished or was interrupted, descendant Vite/esbuild processes could survive as orphans because the script did not kill the whole process group.
-- There was no explicit end-to-end verification timeout, so selector hangs or cleanup stalls could leave the parent verifier running until manually terminated.
+- Modified `src/work/officeScheduler.js`
+- Modified `src/work/officeScheduler.test.js`
+- Modified `src/work/officeState.js`
+- Modified `src/work/officeState.test.js`
+- Modified `.superpowers/sdd/task-3-report.md`
 
 ## RED
 
 ### Command
 
 ```bash
-node --test scripts/work-route-tools.test.mjs
+node --test src/work/officeScheduler.test.js src/work/officeState.test.js
 ```
 
-### Output
+### Evidence
 
-```text
-TAP version 13
-# file:///Users/mypc/Desktop/Ccat%20OS/ai-roleplay-phone/scripts/work-route-tools.test.mjs:14
-#   isProcessAlive,
-#   ^^^^^^^^^^^^^^
-# SyntaxError: The requested module './verify-work-routes.mjs' does not provide an export named 'isProcessAlive'
-not ok 1 - /Users/mypc/Desktop/Ccat OS/ai-roleplay-phone/scripts/work-route-tools.test.mjs
-1..1
-# tests 1
-# pass 0
-# fail 1
-```
+Initial run failed in the intended task areas:
 
-This was the intended red step for the lifecycle fix: the verifier did not yet expose the timeout/process-group primitives needed to lock down reliable shutdown.
+- `officeScheduler.test.js`
+  - `exports reachable weights for all eight activity types`
+  - `free mode selects the new desk activities with deterministic prop variants`
+  - `personality keywords shift activity selection deterministically`
+- `officeState.test.js`
+  - `new desk-local activities enter their exact active statuses and keep prop variants`
+  - `restore resets the new desk-local phases back to idle`
+
+Representative failures:
+
+- scheduler still exported the old five-activity weight tables
+- free-mode reading selection returned an old activity instead of `reading`
+- new reducer arrivals fell back to `闲聊中`
+- restore left `reading` phase characters active instead of resetting them to idle
 
 ## GREEN
 
 ### Command
 
 ```bash
-node --test scripts/work-route-tools.test.mjs
+node --test src/work/officeScheduler.test.js src/work/officeState.test.js
 ```
 
 ### Output
 
 ```text
-1..7
-# tests 7
-# pass 7
+1..45
+# tests 45
+# pass 45
 # fail 0
-# duration_ms 320.221458
 ```
 
-The focused green confirms deterministic export helpers, verification planning, timeout cleanup, and detached process-group teardown.
-
-## Bounded Smoke
+## Full Suite
 
 ### Command
 
 ```bash
-node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
+node --test src/work/officeScheduler.test.js src/work/officeState.test.js && npm test
 ```
 
 ### Output
 
 ```text
-Verified 1 route screenshot(s) via http://127.0.0.1:4173
-artifacts/work-routes/modern/bookstore.png
+Focused scheduler/state tests: 45 passed, 0 failed
+npm test: 135 passed, 0 failed
 ```
 
-The verifier exited on its own after the screenshot write.
+## Implementation Summary
 
-## Full-Suite Result
-
-### Command
-
-```bash
-npm test
-```
-
-### Output
-
-```text
-> ai-roleplay-phone@0.2.90 test
-> node --test src/*.test.js scripts/*.test.mjs
-
-1..80
-# tests 80
-# pass 80
-# fail 0
-```
-
-## Cleanup Verification
-
-### Commands
-
-```bash
-lsof -nP -iTCP:4173 -sTCP:LISTEN
-lsof -nP -iTCP:4174 -sTCP:LISTEN
-ps -axo pid,ppid,command | rg 'verify-work-routes\.mjs|node_modules/.bin/vite --host 127.0.0.1 --port 4173|node_modules/.bin/vite --host 127.0.0.1 --port 4174'
-```
-
-### Output
-
-```text
-lsof 4173: exit 1, no listeners
-lsof 4174: exit 1, no listeners
-ps: only the transient `ps | rg` command itself matched
-```
-
-No verifier or dev-server process remained after the bounded smoke and full test run.
+- Expanded scheduler mode weights to the exact eight-activity 100-point tables from the task brief.
+- Added deterministic desk-local prop variants for:
+  - `reading` via `paperback` / `hardcover` / `magazine`
+  - `watchingSeries` via `phone-landscape` / `tablet` / `second-screen`
+  - `watchingShortVideo` via `phone-portrait-light` / `phone-portrait-dark`
+- Extended personality modifiers so:
+  - `自律` and `沉静` bias toward work/reading
+  - `追剧` biases toward `watchingSeries`
+  - `短视频` biases toward `watchingShortVideo`
+  - `外向` and `话多` still bias toward chat
+  - final weights clamp to at least `1`
+- Added reducer statuses for `reading`, `watchingSeries`, and `watchingShortVideo`.
+- Treated the three new activities as desk-local active phases during restore reset handling.
 
 ## Self-Review
 
-- Kept the production code changes inside the Task 3-owned files plus the requested report.
-- Fixed the actual shutdown boundary instead of adding manual cleanup steps:
-  - detached server spawn
-  - process-group kill
-  - bounded timeout wrapper
-  - unconditional `finally` cleanup for Playwright and server state
-- Verified the cleanup fix with both unit-style lifecycle tests and a real smoke run.
-- Confirmed the modern/bookstore smoke leaves no listeners on ports `4173` or `4174`.
+- Re-checked the weighted-activity order against the brief. The order now matches the required selection thresholds instead of the exported activity list order.
+- Verified existing group-chat and reservation behavior stayed intact through the existing chat and anchor tests.
+- Kept the reducer changes narrow: exact statuses plus restore handling only.
+- Confirmed no unrelated files were edited.
 
 ## Concerns
 
-- The calibrator exports deterministic `M/L` segment chains from the current sample list. That is stable and schema-compatible, but it does not try to preserve hand-simplified sparse path authoring if future calibrations want more compact `visibleSegments`.
-- Full `25 x 5` screenshot mode still correctly fails until Tasks 6-10 populate the remaining route registry entries; that is now explicit behavior rather than silent fallback.
-
-## Review Fixes (2026-07-13)
-
-### Changes
-
-- Enforced the Task 2 minimum of 12 normalized samples in calibrator validation and serialization. Two-point and cleared routes now fail with a count and the number of samples still needed.
-- Added explicit `authored` draft state. Only route records loaded from `WORK_ROUTE_DATA` start authored; `placeMeta.route` and synthesized `[home, pin]` data are no longer imported as calibration samples.
-- Changed Clear to reset the active route to `authored: false`, `samples: []`, and `breakIndices: []` while retaining its marker pin and distance metadata.
-- Made theme export aggregate and reject every unauthored or invalid route with `theme:place` labels. The UI disables route/theme copy buttons until their respective exports are valid.
-- Marked every route selector option as `ready`, `unauthored`, `incomplete N/12`, or `invalid`; the active route also shows actionable validation text and an unauthored empty state.
-- Added an editable-target keyboard guard for `input`, `textarea`, `select`, inherited/direct contenteditable targets, so Delete/Backspace and Undo shortcuts do not alter calibration while editing controls.
-- Validated raw coordinates before normalization so export cannot clamp an out-of-bounds input into an apparently valid record.
-
-### RED Evidence
-
-Command:
-
-```bash
-node --test scripts/work-route-tools.test.mjs
-```
-
-Initial output:
-
-```text
-SyntaxError: The requested module './work-route-calibrator.js' does not provide an export named 'buildRouteDraft'
-1..1
-# tests 1
-# pass 0
-# fail 1
-```
-
-Clear-transition RED output:
-
-```text
-SyntaxError: The requested module './work-route-calibrator.js' does not provide an export named 'clearRouteDraft'
-1..1
-# tests 1
-# pass 0
-# fail 1
-```
-
-### Focused GREEN
-
-Command:
-
-```bash
-node --test scripts/work-route-tools.test.mjs
-```
-
-Output:
-
-```text
-1..12
-# tests 12
-# pass 12
-# fail 0
-```
-
-The focused tests prove two-point and actual cleared drafts reject export, legacy route metadata stays unauthored, theme export reports all invalid routes, complete 12-sample routes export, and editable targets are recognized.
-
-### Full Suite
-
-Command:
-
-```bash
-npm test
-```
-
-Output:
-
-```text
-1..85
-# tests 85
-# pass 85
-# fail 0
-```
-
-### Bounded Smoke And Cleanup
-
-Command:
-
-```bash
-node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
-```
-
-Output:
-
-```text
-Verified 1 route screenshot(s) via http://127.0.0.1:4173
-artifacts/work-routes/modern/bookstore.png
-```
-
-Cleanup commands:
-
-```bash
-lsof -nP -iTCP:4173 -sTCP:LISTEN
-lsof -nP -iTCP:4174 -sTCP:LISTEN
-ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|[v]ite .*--port 417[34]'
-```
-
-Exact result: all three commands exited `1` with no output. No verifier, Vite process, or listener remained.
-
-### Review Self-Check
-
-- Scope remained limited to `scripts/work-route-calibrator.js`, `scripts/work-route-tools.test.mjs`, and this report.
-- No `src` production module, asset, version, deployment file, or `designs/` content was changed.
-- Exported schema remains exactly `pin`, `distanceMeters`, `samples`, and `visibleSegments`; draft-only `authored` state is never serialized.
-
-### Remaining Concerns
-
-- Full `25 x 5` mode remains intentionally unavailable until later tasks add the missing calibrated route themes.
-- Deterministic calibrator segment output remains point-for-point `M/L` geometry rather than preserving hand-simplified paths from an imported calibrated record after editing.
-
-## Reliable Termination Follow-Up (2026-07-13)
-
-### Root Cause
-
-- `withTimeout` set its timed-out state but waited for `onTimeout()` to settle before rejecting, so a never-resolving cleanup hook prevented timeout delivery.
-- `runVerification` awaited raw `context.close()` and `browser.close()` promises in `finally`, so either close could keep the verifier alive indefinitely.
-- Server, browser, and context variables were assigned only after acquisition promises resolved. Timeout cleanup could observe `null`, finish, and miss a resource that appeared later.
-
-### Fix
-
-- Timeout rejection now occurs immediately at the deadline while the cleanup callback runs in a detached, rejection-handled chain.
-- Added an abort-aware resource lifecycle registry. It records server/browser/context acquisition, schedules cleanup exactly once, and retains aborted state so resources acquired after timeout or after an initial `cleanupAll()` are immediately cleaned.
-- Added a per-resource `2,000ms` cleanup bound. Playwright context and browser close operations each receive their own bound.
-- Registered the Vite server immediately after spawn, before readiness polling, and aborts its fetch/delay readiness loop. Timeout cleanup signals the process group with `SIGTERM` immediately, then uses bounded `SIGKILL` escalation.
-- Added a `4,500ms` unreferenced CLI exit guard after completion/error so lingering external handles cannot keep the verifier process alive after bounded cleanup.
-- Continuing timed-out operations and all detached/background cleanup promises retain rejection handlers to prevent unhandled rejections.
-
-### RED Evidence
-
-Never-resolving timeout cleanup test:
-
-```text
-not ok 12 - withTimeout rejects without awaiting a never-resolving cleanup hook
-failureType: 'cancelledByParent'
-error: 'Promise resolution is still pending but the event loop has already resolved'
-1..13
-# pass 11
-# cancelled 2
-```
-
-Late-resource lifecycle test before the registry existed:
-
-```text
-SyntaxError: The requested module './verify-work-routes.mjs' does not provide an export named 'createResourceLifecycle'
-1..1
-# tests 1
-# pass 0
-# fail 1
-```
-
-Strengthened acquisition test before lifecycle-owned acquisition existed:
-
-```text
-not ok 13 - resources acquired after timeout are immediately given bounded cleanup
-error: 'lifecycle.acquire is not a function'
-1..14
-# pass 13
-# fail 1
-```
-
-### Focused Tests
-
-Command:
-
-```bash
-node --test scripts/work-route-tools.test.mjs
-```
-
-Output:
-
-```text
-1..14
-# tests 14
-# pass 14
-# fail 0
-# cancelled 0
-# duration_ms 404.524459
-```
-
-The never-resolving cleanup test completed in `21.469834ms`. The late-acquisition test, including a never-resolving resource close and two idempotent final cleanup calls, completed in `47.812833ms`.
-
-### Full Suite
-
-Command:
-
-```bash
-npm test
-```
-
-Output:
-
-```text
-1..87
-# tests 87
-# pass 87
-# fail 0
-# cancelled 0
-# duration_ms 444.43225
-```
-
-### Bounded Smoke
-
-Command:
-
-```bash
-node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
-```
-
-Output:
-
-```text
-Verified 1 route screenshot(s) via http://127.0.0.1:4173
-artifacts/work-routes/modern/bookstore.png
-```
-
-The command exited normally in `4.4s`.
-
-### Final Process Checks
-
-Commands:
-
-```bash
-lsof -nP -iTCP:4173 -sTCP:LISTEN
-lsof -nP -iTCP:4174 -sTCP:LISTEN
-ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|[v]ite .*--port 417[34]|[c]hrome-headless-shell.*playwright'
-```
-
-Exact result: every command exited `1` with no output. No verifier, Vite server, Playwright browser process, or listener remained.
-
-### Scope Review
-
-- Modified only `scripts/verify-work-routes.mjs`, `scripts/work-route-tools.test.mjs`, and this report.
-- Did not modify `src` modules, assets, package version, deployment files, or `designs/`.
-
-### Remaining Concern
-
-- The CLI exit guard is a final backstop for external handles after bounded cleanup. Under normal success and the tested timeout paths, resources close and Node exits naturally before that guard fires.
-
-## Natural Exit Follow-Up (2026-07-13)
-
-### Changes
-
-- Removed `scheduleForcedExit`, its timer, and every `process.exit()` call. Direct execution now sets only `process.exitCode = 1` on failure and otherwise lets Node terminate naturally.
-- Extended lifecycle-owned acquisition with an independent `timeoutMs`. The timeout wrapper remains attached to the underlying acquisition, so a resource resolving after timeout is still registered and immediately receives bounded cleanup.
-- Passed `options.timeoutMs` to Playwright's native `chromium.launch({ timeout })` option and to lifecycle acquisition for both browser and context creation.
-- Preserved abort-aware, idempotent cleanup and per-resource close bounds without masking persistent event-loop handles.
-- Replaced the prior hard-exit concern: there is now no in-process CLI exit guard.
-
-### RED Evidence
-
-Command:
-
-```bash
-node --test scripts/work-route-tools.test.mjs
-```
-
-Output before acquisition timeout support:
-
-```text
-not ok 13 - resources acquired after cleanup are boundedly closed after acquisition timeout
-failureType: 'cancelledByParent'
-error: 'Promise resolution is still pending but the event loop has already resolved'
-1..15
-# pass 12
-# cancelled 3
-```
-
-This proved `lifecycle.acquire(..., { timeoutMs: 20 })` still awaited its raw acquisition indefinitely. The same run could not reach the direct-execution source assertion because the pending test cancelled its successors.
-
-### Focused Tests
-
-Command:
-
-```bash
-node --test scripts/work-route-tools.test.mjs
-```
-
-Output:
-
-```text
-1..15
-# tests 15
-# pass 15
-# fail 0
-# cancelled 0
-# duration_ms 411.868792
-```
-
-Relevant results:
-
-```text
-ok 13 - resources acquired after cleanup are boundedly closed after acquisition timeout
-# duration_ms 48.031334
-ok 14 - direct verifier execution never schedules or calls process.exit
-# duration_ms 0.91875
-```
-
-The late-resource test times out acquisition, completes an initial `cleanupAll()`, then resolves the resource and proves its never-resolving close was attempted exactly once and bounded by the lifecycle.
-
-### Full Suite
-
-Command:
-
-```bash
-npm test
-```
-
-Output:
-
-```text
-1..88
-# tests 88
-# pass 88
-# fail 0
-# cancelled 0
-# duration_ms 425.302041
-```
-
-### Externally Bounded Smoke
-
-Command:
-
-```bash
-perl -e 'alarm shift; exec @ARGV' 40 node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 30000
-```
-
-Output:
-
-```text
-Verified 1 route screenshot(s) via http://127.0.0.1:4173
-artifacts/work-routes/modern/bookstore.png
-```
-
-Exact result: exit code `0` after `4.044878375s`, before the external 40-second alarm. With no `process.exit()` call or hard-exit timer in the verifier, this confirms natural CLI termination on the real success path.
-
-Timeout-path command:
-
-```bash
-perl -e 'alarm shift; exec @ARGV' 10 node scripts/verify-work-routes.mjs --theme modern --place bookstore --timeout-ms 1000
-```
-
-Output:
-
-```text
-route verification timed out after 1000ms
-```
-
-Exact result: exit code `1` after `1.084820959s`, before the external 10-second alarm. This confirms natural CLI termination on the real timeout path as well.
-
-### Process And Listener Checks
-
-Commands:
-
-```bash
-lsof -nP -iTCP:4173 -sTCP:LISTEN
-lsof -nP -iTCP:4174 -sTCP:LISTEN
-ps -axo pid=,ppid=,command= | rg '[v]erify-work-routes\.mjs|node_modules/.bin/[v]ite|[c]hrome-headless-shell.*playwright|[C]hromium.*playwright'
-```
-
-Exact result after both the success and timeout invocations: all three commands exited `1` with no output. No verifier, Vite, Playwright, or listener remained.
-
-### Scope Review
-
-- Modified only `scripts/verify-work-routes.mjs`, `scripts/work-route-tools.test.mjs`, and this report.
-- Did not modify `src` modules, assets, package version, deployment files, or `designs/`.
-
-### Remaining Concern
-
-- Playwright exposes a native launch timeout but not an equivalent context-creation timeout option; context creation is therefore bounded by lifecycle acquisition plus the overall verifier deadline.
+- `src/work/WorkAppScreen.jsx` still has the older `DESK_ACTIVITIES` set (`working`, `slacking`, `gaming`). That means the scheduler and reducer now understand the new desk-local activities, but the live UI will not start them until the consumer-side follow-up task lands.
+- Personality modifier magnitudes were chosen to satisfy the task intent and deterministic tests because the brief specified the direction of each bias, not exact delta values.

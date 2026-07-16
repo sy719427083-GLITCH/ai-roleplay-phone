@@ -56,6 +56,38 @@ test("walks to a meal, eats visible food, and returns home", () => {
   assert.equal(state.characters.employee1.positionNode, "employee1-home");
 });
 
+test("new desk-local activities enter their exact active statuses and keep prop variants", () => {
+  const cases = [
+    { activity: "reading", status: "看书中", propVariant: "hardcover" },
+    { activity: "watchingSeries", status: "刷剧中", propVariant: "tablet" },
+    { activity: "watchingShortVideo", status: "看抖音中", propVariant: "phone-portrait-dark" },
+  ];
+
+  for (const { activity, status, propVariant } of cases) {
+    let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
+    state = officeReducer(state, {
+      type: "START_ACTIVITY",
+      slotId: "employee1",
+      activity,
+      anchorId: "employee1-home",
+      route: ["employee1-home"],
+      now: 1100,
+    });
+    state = officeReducer(state, {
+      type: "ARRIVE_ACTIVITY",
+      slotId: "employee1",
+      now: 1200,
+      endsAt: 9200,
+      propVariant,
+    });
+
+    assert.equal(state.characters.employee1.phase, activity);
+    assert.equal(state.characters.employee1.activity, activity);
+    assert.equal(state.characters.employee1.status, status);
+    assert.equal(state.characters.employee1.props.propVariant, propVariant);
+  }
+});
+
 test("keeps simultaneous conversation transcripts isolated", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
   state = officeReducer(state, {
@@ -205,6 +237,40 @@ test("reload closes network conversations and returns characters home", () => {
 
   assert.deepEqual(restored.conversations, {});
   assert.equal(restored.characters.employee1.phase, "idle");
+});
+
+test("restore resets the new desk-local phases back to idle", () => {
+  const restored = restoreOfficeState(JSON.stringify({
+    characters: {
+      employee1: {
+        phase: "reading",
+        activity: "reading",
+        status: "看书中",
+        activityEndsAt: 9000,
+        props: { propVariant: "paperback" },
+      },
+      employee2: {
+        phase: "watchingSeries",
+        activity: "watchingSeries",
+        status: "刷剧中",
+        activityEndsAt: 9000,
+        props: { propVariant: "tablet" },
+      },
+      employee3: {
+        phase: "watchingShortVideo",
+        activity: "watchingShortVideo",
+        status: "看抖音中",
+        activityEndsAt: 9000,
+        props: { propVariant: "phone-portrait-light" },
+      },
+    },
+  }), assignments, 5000);
+
+  assert.equal(restored.characters.employee1.phase, "idle");
+  assert.equal(restored.characters.employee1.activity, "idle");
+  assert.equal(restored.characters.employee1.status, "空闲中");
+  assert.equal(restored.characters.employee2.phase, "idle");
+  assert.equal(restored.characters.employee3.phase, "idle");
 });
 
 test("stores and enriches only the active event for a slot", () => {

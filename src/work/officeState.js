@@ -7,12 +7,22 @@ import { releaseAnchor } from "./officeNavigation.js";
 
 const OFFICE_MODE = "free";
 const IDLE_STATUS = "空闲中";
+const DESK_LOCAL_ACTIVE_PHASES = new Set([
+  "eating",
+  "gaming",
+  "reading",
+  "watchingSeries",
+  "watchingShortVideo",
+]);
 
 export const ACTIVITY_STATUS = {
   working: "工作中",
   slacking: "摸鱼中",
   eating: "吃饭中",
   gaming: "游戏中",
+  reading: "看书中",
+  watchingSeries: "刷剧中",
+  watchingShortVideo: "看抖音中",
   chatting: "闲聊中",
 };
 
@@ -212,7 +222,7 @@ const shouldResetOnRestore = (character, now) => {
   if (character.conversationId) return true;
   if (character.phase === "walkingToActivity" || character.phase === "returning") return true;
   if (character.phase === "chatting" || character.activity === "chatting") return true;
-  if (character.phase === "eating" || character.phase === "gaming") return true;
+  if (DESK_LOCAL_ACTIVE_PHASES.has(character.phase)) return true;
   if (character.activityEndsAt && character.activityEndsAt <= now) return true;
   return false;
 };

@@ -1,15 +1,54 @@
 import { claimAnchor, findOfficeRoute } from "./officeNavigation.js";
 
 export const MODE_WEIGHTS = {
-  focus: { working: 72, slacking: 5, eating: 8, gaming: 3, chatting: 12 },
-  free: { working: 35, slacking: 16, eating: 14, gaming: 10, chatting: 25 },
-  rest: { working: 8, slacking: 22, eating: 28, gaming: 16, chatting: 26 },
+  focus: {
+    working: 58,
+    reading: 12,
+    slacking: 4,
+    eating: 7,
+    gaming: 3,
+    watchingSeries: 3,
+    watchingShortVideo: 3,
+    chatting: 10,
+  },
+  free: {
+    working: 25,
+    reading: 10,
+    slacking: 12,
+    eating: 12,
+    gaming: 9,
+    watchingSeries: 8,
+    watchingShortVideo: 9,
+    chatting: 15,
+  },
+  rest: {
+    working: 6,
+    reading: 12,
+    slacking: 14,
+    eating: 18,
+    gaming: 12,
+    watchingSeries: 12,
+    watchingShortVideo: 12,
+    chatting: 14,
+  },
 };
 
-const ACTIVITY_ORDER = ["working", "slacking", "eating", "gaming", "chatting"];
+const ACTIVITY_ORDER = [
+  "working",
+  "reading",
+  "slacking",
+  "eating",
+  "gaming",
+  "watchingSeries",
+  "watchingShortVideo",
+  "chatting",
+];
 const BREAK_ANCHORS = ["break-1", "break-2"];
 const CHAT_ANCHORS = ["chat-1", "chat-2", "chat-3", "chat-4"];
 const MEALS = ["bento", "rice", "noodles", "sandwich"];
+const BOOK_PROPS = ["paperback", "hardcover", "magazine"];
+const SERIES_PROPS = ["phone-landscape", "tablet", "second-screen"];
+const SHORT_VIDEO_PROPS = ["phone-portrait-light", "phone-portrait-dark"];
 const TOPICS = ["项目进度", "午饭时间", "周末安排", "办公室日常"];
 const INTERRUPTIBLE_PHASES = new Set(["idle", "working"]);
 const BLOCKED_ACTIVITIES = new Set(["slacking", "eating", "returning", "gaming", "chatting"]);
@@ -41,17 +80,31 @@ const applyPersonalityModifiers = (weights, personality = "") => {
 
   if (text.includes("外向")) {
     next.working -= 4;
+    next.reading -= 2;
     next.chatting += 12;
   }
   if (text.includes("社恐")) {
-    next.working += 8;
+    next.working += 6;
+    next.reading += 4;
     next.chatting -= 18;
   }
   if (text.includes("自律")) {
-    next.working += 18;
-    next.slacking -= 6;
+    next.working += 12;
+    next.reading += 8;
+    next.slacking -= 8;
     next.eating -= 4;
-    next.gaming -= 8;
+    next.gaming -= 10;
+    next.watchingSeries -= 4;
+    next.watchingShortVideo -= 4;
+  }
+  if (text.includes("沉静")) {
+    next.working += 4;
+    next.reading += 12;
+    next.slacking -= 4;
+    next.gaming -= 3;
+    next.watchingSeries -= 3;
+    next.watchingShortVideo -= 3;
+    next.chatting -= 6;
   }
   if (text.includes("贪吃")) {
     next.slacking -= 2;
@@ -61,8 +114,23 @@ const applyPersonalityModifiers = (weights, personality = "") => {
     next.working -= 6;
     next.gaming += 18;
   }
+  if (text.includes("追剧")) {
+    next.working -= 4;
+    next.slacking -= 2;
+    next.gaming -= 4;
+    next.watchingSeries += 18;
+    next.watchingShortVideo -= 2;
+  }
+  if (text.includes("短视频")) {
+    next.working -= 4;
+    next.slacking -= 2;
+    next.gaming -= 4;
+    next.watchingSeries -= 2;
+    next.watchingShortVideo += 18;
+  }
   if (text.includes("话多")) {
     next.slacking -= 2;
+    next.reading -= 2;
     next.chatting += 16;
   }
 
@@ -125,6 +193,16 @@ const buildSingleCharacterEvent = (slotId, activity, now) => ({
   activity,
   now,
 });
+
+const buildDeskLocalEvent = ({ slotId, activity, now, random, propPool }) => {
+  const event = buildSingleCharacterEvent(slotId, activity, now);
+  if (!Array.isArray(propPool) || !propPool.length) return event;
+
+  return {
+    ...event,
+    propVariant: pickFromList(propPool, random),
+  };
+};
 
 const buildEatingEvent = ({ slotId, character, reservations, random, now }) => {
   const claim = getAvailableAnchorClaim(BREAK_ANCHORS, reservations, slotId, random);
@@ -260,6 +338,36 @@ export function chooseOfficeEvent({ state, profiles, random, now }) {
       primarySlotId,
       random,
       now,
+    });
+  }
+
+  if (activity === "reading") {
+    return buildDeskLocalEvent({
+      slotId: primarySlotId,
+      activity,
+      now,
+      random,
+      propPool: BOOK_PROPS,
+    });
+  }
+
+  if (activity === "watchingSeries") {
+    return buildDeskLocalEvent({
+      slotId: primarySlotId,
+      activity,
+      now,
+      random,
+      propPool: SERIES_PROPS,
+    });
+  }
+
+  if (activity === "watchingShortVideo") {
+    return buildDeskLocalEvent({
+      slotId: primarySlotId,
+      activity,
+      now,
+      random,
+      propPool: SHORT_VIDEO_PROPS,
     });
   }
 
