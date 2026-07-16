@@ -33,6 +33,28 @@ test("snapshots preserve source-specific role fields", () => {
   });
 });
 
+test("rejects cross-source assignment ids with named npc fallbacks", () => {
+  const profiles = {
+    bossOptions: [officeProfiles.createOfficeProfileSnapshot({ id: "me1", name: "沈知白" }, "me")],
+    employeeOptions: [officeProfiles.createOfficeProfileSnapshot({
+      id: "character1", type: "main", name: "程砚",
+    }, "character")],
+  };
+  const result = normalizeOfficeAssignments({
+    boss: "character1",
+    employee1: "me1",
+  }, profiles);
+
+  assert.equal(result.boss.profileId, "npc-boss");
+  assert.equal(result.boss.profile.name, "NPC");
+  assert.equal(result.boss.profile.source, "fallback");
+  assert.notEqual(result.boss.profileId, "character1");
+  assert.equal(result.employee1.profileId, "npc-employee1");
+  assert.equal(result.employee1.profile.name, "NPC");
+  assert.equal(result.employee1.profile.source, "fallback");
+  assert.notEqual(result.employee1.profileId, "me1");
+});
+
 test("fills missing and deleted assignments with named npc profiles", () => {
   const profiles = { bossOptions: [], employeeOptions: [] };
   const result = normalizeOfficeAssignments({ boss: "deleted" }, profiles);
