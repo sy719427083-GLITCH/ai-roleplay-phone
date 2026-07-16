@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { ArrowLeft, Link as LinkIcon, Upload, Users, X } from "lucide-react";
+import { ArrowLeft, Ellipsis, Users } from "lucide-react";
+import OfficeActivityPanel from "./OfficeActivityPanel.jsx";
+import OfficeAssignmentFlow from "./OfficeAssignmentFlow.jsx";
 import OfficeScene from "./OfficeScene.jsx";
 import { OFFICE_CHIBIS } from "./officeAssets.js";
+import { createOfficeActivityEvent } from "./officeActivities.js";
+import { requestOfficeActivityDetail } from "./officeActivityApi.js";
 import { requestOfficeConversationTurn } from "./officeConversationApi.js";
 import { claimAnchor, findOfficeRoute } from "./officeNavigation.js";
+import { sampleOfficeRoute } from "./officeMotion.js";
 import {
+  createOfficeProfileSnapshot,
   normalizeOfficeAssignments,
   OFFICE_ASSIGNMENT_KEY,
   OFFICE_SLOT_IDS,
@@ -24,7 +30,6 @@ import "./office.css";
 
 const OFFICE_STATE_KEY = "ccatOfficeStateV1";
 const TICK_INTERVAL_MS = 250;
-const ROUTE_STEP_MS = 800;
 const SCHEDULE_MIN_MS = 4_000;
 const SCHEDULE_MAX_MS = 8_000;
 const STATE_PERSIST_DEBOUNCE_MS = 1_000;
@@ -51,8 +56,14 @@ const SLOT_DETAILS = [
   { id: "employee4", label: "员工四", kind: "employee", defaultChibiId: "employee-m-02" },
 ];
 
-const SLOT_DETAIL_MAP = Object.fromEntries(SLOT_DETAILS.map((slot) => [slot.id, slot]));
-const DESK_ACTIVITIES = new Set(["working", "slacking", "gaming"]);
+const DESK_ACTIVITIES = new Set([
+  "working",
+  "slacking",
+  "gaming",
+  "reading",
+  "watchingSeries",
+  "watchingShortVideo",
+]);
 const AVAILABLE_PHASES = new Set(["idle", "working"]);
 const MODE_OPTIONS = [
   { id: "focus", label: "认真干活" },
@@ -318,136 +329,17 @@ const getDialogFocusableElements = (dialog) => (
     : []
 );
 
-function AssignmentRow({
-  assignment,
-  customDraft,
-  errorMessage,
-  occupiedProfiles,
-  onChibiChange,
-  onCustomDraftChange,
-  onProfileChange,
-  onUpload,
-  profiles,
-  slot,
-}) {
-  const compatibleChibis = OFFICE_CHIBIS.filter((chibi) => chibi.kind === slot.kind);
-  const profileOptions = slot.kind === "boss" ? profiles.bossOptions : profiles.employeeOptions;
-  const selectedProfileId = assignment.profile?.generated ? "" : assignment.profileId;
-  const isInvalidDraft = !isAcceptedCustomAssetSource(customDraft);
-  const errorId = `${slot.id}-asset-error`;
-  const selectedChibiIndex = compatibleChibis.findIndex((chibi) => chibi.id === assignment.chibiId);
-  const rovingChibiIndex = selectedChibiIndex >= 0 ? selectedChibiIndex : 0;
-  const visibleError = isInvalidDraft ? "地址格式不支持" : cleanText(errorMessage);
-
-  const handleChibiKeyDown = (event, index) => {
-    const nextIndex = getNextOfficeRadioIndex(index, event.key, compatibleChibis.length);
-    if (nextIndex < 0) return;
-    event.preventDefault();
-    onChibiChange(slot.id, compatibleChibis[nextIndex].id);
-    event.currentTarget.parentElement
-      ?.querySelectorAll("[role='radio']")
-      ?.[nextIndex]
-      ?.focus();
-  };
-
-  return (
-    <section className="office-assignment-row" aria-labelledby={`${slot.id}-assignment-title`}>
-      <div className="office-assignment-row-heading">
-        <div>
-          <h3 id={`${slot.id}-assignment-title`}>{slot.label}</h3>
-          <span>{assignment.profile?.name || "NPC"}</span>
-        </div>
-        <select
-          aria-label={`${slot.label}角色`}
-          value={selectedProfileId}
-          onChange={(event) => onProfileChange(slot.id, event.target.value)}
-        >
-          <option value="">NPC</option>
-          {profileOptions.map((profile) => {
-            const occupiedSlot = occupiedProfiles.get(profile.id);
-            const occupiedElsewhere = occupiedSlot && occupiedSlot !== slot.id;
-            const occupiedLabel = occupiedElsewhere ? SLOT_DETAIL_MAP[occupiedSlot]?.label : "";
-            return (
-              <option key={profile.id} value={profile.id} disabled={occupiedElsewhere}>
-                {profile.name}{occupiedElsewhere ? `（已在${occupiedLabel}）` : ""}
-              </option>
-            );
-          })}
-        </select>
-      </div>
-
-      <div className="office-chibi-picker" role="radiogroup" aria-label={`${slot.label}形象`}>
-        {compatibleChibis.map((chibi, index) => (
-          <button
-            key={chibi.id}
-            type="button"
-            className="office-chibi-option"
-            data-selected={assignment.chibiId === chibi.id}
-            aria-checked={assignment.chibiId === chibi.id}
-            aria-label={chibi.name}
-            role="radio"
-            tabIndex={index === rovingChibiIndex ? 0 : -1}
-            title={chibi.name}
-            onClick={() => onChibiChange(slot.id, chibi.id)}
-            onKeyDown={(event) => handleChibiKeyDown(event, index)}
-          >
-            <span style={{ backgroundImage: `url(${chibi.src})` }}></span>
-          </button>
-        ))}
-      </div>
-
-      <div className="office-custom-asset-controls">
-        <label
-          className="office-upload-command"
-          title="上传自定义形象"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" && event.key !== " ") return;
-            event.preventDefault();
-            event.currentTarget.querySelector("input")?.click();
-          }}
-        >
-          <Upload size={18} strokeWidth={1.8} aria-hidden="true" />
-          <span>上传</span>
-          <input
-            type="file"
-            accept="image/*"
-            aria-label={`${slot.label}上传形象`}
-            aria-describedby={visibleError ? errorId : undefined}
-            tabIndex={-1}
-            onChange={(event) => onUpload(slot.id, event)}
-          />
-        </label>
-        <label className="office-asset-url-field" title="自定义图片地址">
-          <LinkIcon size={17} strokeWidth={1.8} aria-hidden="true" />
-          <span className="sr-only">{slot.label}形象地址</span>
-          <input
-            type="text"
-            inputMode="url"
-            value={customDraft}
-            aria-label={`${slot.label}形象地址`}
-            aria-invalid={isInvalidDraft || undefined}
-            aria-describedby={visibleError ? errorId : undefined}
-            placeholder="图片 URL"
-            onChange={(event) => onCustomDraftChange(slot.id, event.target.value)}
-          />
-        </label>
-      </div>
-      {visibleError && (
-        <p className="office-field-error" id={errorId} role="alert">{visibleError}</p>
-      )}
-    </section>
-  );
-}
-
 export default function WorkAppScreen({ onClose }) {
   const [initialContext] = useState(createInitialContext);
   const [state, reducerDispatch] = useReducer(officeReducer, initialContext.initialState);
   const [assignments, setAssignments] = useState(initialContext.assignments);
+  const [profiles, setProfiles] = useState(initialContext.profiles);
   const [assignmentPanelOpen, setAssignmentPanelOpen] = useState(false);
-  const [assignmentErrors, setAssignmentErrors] = useState({});
-  const [customDrafts, setCustomDrafts] = useState(() => Object.fromEntries(
+  const [selectedAssignmentSlotId, setSelectedAssignmentSlotId] = useState("");
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+  const [motionNow, setMotionNow] = useState(initialContext.now);
+  const [, setAssignmentErrors] = useState({});
+  const [, setCustomDrafts] = useState(() => Object.fromEntries(
     OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customAssetSrc]),
   ));
 
@@ -459,10 +351,18 @@ export default function WorkAppScreen({ onClose }) {
   const pendingActivitiesRef = useRef(new Map());
   const pendingConversationsRef = useRef(new Map());
   const returningMealPropsRef = useRef(new Map());
+  const activityControllersRef = useRef(new Map());
+  const activityCounterRef = useRef(initialContext.initialState.activityEvents?.length || 0);
   const conversationControllersRef = useRef(new Map());
   const conversationRuntimeRef = useRef(new Map());
+  const completedRouteKeysRef = useRef(new Set());
+  const timestampOriginRef = useRef(Date.now() - (
+    typeof performance !== "undefined" ? performance.now() : 0
+  ));
   const assignmentDialogRef = useRef(null);
   const assignmentOpenerRef = useRef(null);
+  const activityOpenerRef = useRef(null);
+  const activityWasOpenRef = useRef(false);
   const isMountedRef = useRef(true);
   const uploadReadersRef = useRef(null);
   if (!uploadReadersRef.current) uploadReadersRef.current = createOfficeUploadReaderRegistry();
@@ -486,13 +386,22 @@ export default function WorkAppScreen({ onClose }) {
     });
   }, []);
 
-  const openAssignmentPanel = useCallback(() => {
+  const openAssignmentPanel = useCallback((slotId = "") => {
     if (typeof document !== "undefined") assignmentOpenerRef.current = document.activeElement;
+    setActivityPanelOpen(false);
+    setSelectedAssignmentSlotId(OFFICE_SLOT_IDS.includes(slotId) ? slotId : "");
     setAssignmentPanelOpen(true);
   }, []);
 
   const closeAssignmentPanel = useCallback(() => {
     setAssignmentPanelOpen(false);
+    setSelectedAssignmentSlotId("");
+  }, []);
+
+  const openActivityPanel = useCallback(() => {
+    setAssignmentPanelOpen(false);
+    setSelectedAssignmentSlotId("");
+    setActivityPanelOpen(true);
   }, []);
 
   const handleAssignmentDialogKeyDown = useCallback((event) => {
@@ -533,6 +442,17 @@ export default function WorkAppScreen({ onClose }) {
     };
   }, [assignmentPanelOpen]);
 
+  useEffect(() => {
+    if (activityPanelOpen) {
+      activityWasOpenRef.current = true;
+      return;
+    }
+    if (!activityWasOpenRef.current) return;
+    activityWasOpenRef.current = false;
+    const opener = activityOpenerRef.current;
+    if (opener?.isConnected && typeof opener.focus === "function") opener.focus();
+  }, [activityPanelOpen]);
+
   const getRemainingMs = useCallback((snapshot = stateRef.current, now = Date.now()) => (
     Math.max(0, snapshot.durationMs - Math.max(0, now - sessionStartedAtRef.current))
   ), []);
@@ -558,6 +478,59 @@ export default function WorkAppScreen({ onClose }) {
     conversationRuntimeRef.current.delete(conversationId);
   }, []);
 
+  const completeActivityEvents = useCallback((slotIds, endedAt = Date.now()) => {
+    for (const slotId of new Set(slotIds)) {
+      const eventId = stateRef.current.activeEventBySlot?.[slotId];
+      if (!eventId) continue;
+      dispatchOffice({ type: "COMPLETE_ACTIVITY_EVENT", eventId, endedAt });
+    }
+  }, [dispatchOffice]);
+
+  const createActivityRuntime = useCallback((event) => {
+    const actorId = event.slotId || event.leaderId || event.memberIds?.[0];
+    if (!actorId || !assignmentsRef.current[actorId]) return null;
+    const participantIds = event.memberIds || [actorId];
+    const now = Number.isFinite(event.now) ? event.now : Date.now();
+    completeActivityEvents(participantIds, now);
+
+    const activityEvent = createOfficeActivityEvent({
+      eventId: `activity-${stateRef.current.workSessionId}-${activityCounterRef.current++}`,
+      workSessionId: stateRef.current.workSessionId,
+      actorId,
+      participantIds,
+      profileSnapshots: participantIds.map((slotId) => (
+        createOfficeProfileSnapshot(
+          assignmentsRef.current[slotId]?.profile,
+          slotId === "boss" ? "me" : "character",
+        )
+      )),
+      activityType: event.activity,
+      propVariant: event.meal || event.propVariant || "",
+      startedAt: now,
+      requestSequence: 1,
+      conversationId: event.session?.id || "",
+    });
+    dispatchOffice({ type: "CREATE_ACTIVITY_EVENT", event: activityEvent });
+
+    const controller = new AbortController();
+    activityControllersRef.current.set(activityEvent.eventId, controller);
+    requestOfficeActivityDetail({
+      event: activityEvent,
+      signal: controller.signal,
+      storage: initialContext.storage,
+    }).then((detail) => {
+      if (!isMountedRef.current) return;
+      if (activityControllersRef.current.get(activityEvent.eventId) !== controller) return;
+      dispatchOffice({ type: "ENRICH_ACTIVITY_EVENT", detail });
+    }).finally(() => {
+      if (activityControllersRef.current.get(activityEvent.eventId) === controller) {
+        activityControllersRef.current.delete(activityEvent.eventId);
+      }
+    });
+
+    return activityEvent;
+  }, [completeActivityEvents, dispatchOffice, initialContext.storage]);
+
   const closeConversation = useCallback((conversationId) => {
     const snapshot = stateRef.current;
     const conversation = snapshot.conversations?.[conversationId];
@@ -569,13 +542,14 @@ export default function WorkAppScreen({ onClose }) {
       if (route.length) returnRoutes[slotId] = route;
     }
 
+    completeActivityEvents(conversation.memberIds, Date.now());
     stopConversationRuntime(conversationId);
     dispatchOffice({
       type: "CLOSE_CONVERSATION",
       conversationId,
       returnRoutes,
     });
-  }, [dispatchOffice, stopConversationRuntime]);
+  }, [completeActivityEvents, dispatchOffice, stopConversationRuntime]);
 
   const startConversationWalk = useCallback((event) => {
     pendingConversationsRef.current.set(event.session.id, {
@@ -603,9 +577,12 @@ export default function WorkAppScreen({ onClose }) {
     const duration = event.activity === "working"
       ? 12_000 + Math.floor(Math.random() * 6_000)
       : 9_000 + Math.floor(Math.random() * 5_000);
-    const activityProps = event.activity === "slacking"
-      ? { slackProp: SLACK_PROPS[Math.floor(Math.random() * SLACK_PROPS.length)] }
-      : {};
+    const activityProps = {
+      ...(event.activity === "slacking"
+        ? { slackProp: SLACK_PROPS[Math.floor(Math.random() * SLACK_PROPS.length)] }
+        : {}),
+      ...(event.propVariant ? { propVariant: event.propVariant } : {}),
+    };
 
     dispatchOffice({
       type: "START_ACTIVITY",
@@ -626,6 +603,7 @@ export default function WorkAppScreen({ onClose }) {
 
   const applyScheduledEvent = useCallback((event) => {
     if (!event) return;
+    createActivityRuntime(event);
     if (event.activity === "chatting") {
       startConversationWalk(event);
       return;
@@ -644,7 +622,7 @@ export default function WorkAppScreen({ onClose }) {
       return;
     }
     if (DESK_ACTIVITIES.has(event.activity)) startDeskActivity(event);
-  }, [dispatchOffice, startConversationWalk, startDeskActivity]);
+  }, [createActivityRuntime, dispatchOffice, startConversationWalk, startDeskActivity]);
 
   const runScheduleAttempt = useCallback((now) => {
     const event = chooseOfficeEvent({
@@ -656,49 +634,48 @@ export default function WorkAppScreen({ onClose }) {
     applyScheduledEvent(event);
   }, [applyScheduledEvent]);
 
-  const advanceRoutes = useCallback(() => {
-    const now = Date.now();
-    const snapshot = stateRef.current;
+  const routeSamples = useMemo(() => Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => {
+    const character = state.characters?.[slotId];
+    if (!character || !["walkingToActivity", "returning"].includes(character.phase)) {
+      return [slotId, null];
+    }
+    return [slotId, sampleOfficeRoute({
+      route: character.route,
+      startedAt: character.routeStartedAt,
+      now: motionNow,
+    })];
+  })), [motionNow, state.characters]);
+
+  useEffect(() => {
+    const activeRouteKeys = new Set();
 
     for (const slotId of OFFICE_SLOT_IDS) {
-      const character = snapshot.characters?.[slotId];
-      if (!character || !["walkingToActivity", "returning"].includes(character.phase)) continue;
-      const route = Array.isArray(character.route) ? character.route : [];
+      const character = state.characters?.[slotId];
+      const sample = routeSamples[slotId];
+      if (!character || !sample) continue;
+      const routeKey = `${slotId}:${character.routeStartedAt}`;
+      activeRouteKeys.add(routeKey);
+      if (!sample.done || completedRouteKeysRef.current.has(routeKey)) continue;
+      completedRouteKeysRef.current.add(routeKey);
 
-      if (route.length && character.routeIndex < route.length - 1) {
-        dispatchOffice({ type: "ADVANCE_ROUTE", slotId });
-        continue;
-      }
-
+      const completion = { type: "COMPLETE_ROUTE", slotId, now: motionNow };
       if (character.phase === "returning") {
         returningMealPropsRef.current.delete(slotId);
-        dispatchOffice({ type: "FINISH_RETURN", slotId });
-        continue;
-      }
-
-      if (character.activity === "eating") {
+      } else if (character.activity === "eating") {
         const pending = pendingActivitiesRef.current.get(slotId) || {};
         pendingActivitiesRef.current.delete(slotId);
-        dispatchOffice({
-          type: "ARRIVE_ACTIVITY",
-          slotId,
-          now,
-          endsAt: now + 12_000 + Math.floor(Math.random() * 5_000),
-          meal: pending.meal || "bento",
-        });
-        continue;
-      }
-
-      if (character.activity === "chatting") {
+        completion.endsAt = motionNow + 12_000 + Math.floor(Math.random() * 5_000);
+        completion.meal = pending.meal || "bento";
+      } else if (character.activity === "chatting") {
         const pending = [...pendingConversationsRef.current.values()]
           .find((entry) => entry.memberIds.includes(slotId));
-        dispatchOffice({
-          type: "ARRIVE_ACTIVITY",
-          slotId,
-          now,
-          endsAt: pending?.session.endsAt || now + 45_000,
-        });
+        completion.endsAt = pending?.session.endsAt || motionNow + 45_000;
       }
+      dispatchOffice(completion);
+    }
+
+    for (const routeKey of completedRouteKeysRef.current) {
+      if (!activeRouteKeys.has(routeKey)) completedRouteKeysRef.current.delete(routeKey);
     }
 
     for (const [conversationId, pending] of pendingConversationsRef.current) {
@@ -711,13 +688,12 @@ export default function WorkAppScreen({ onClose }) {
           && !character.conversationId;
       });
       if (!allArrived) continue;
-
       dispatchOffice({ type: "OPEN_CONVERSATION", session: pending.session });
       if (stateRef.current.conversations?.[conversationId]) {
         pendingConversationsRef.current.delete(conversationId);
       }
     }
-  }, [dispatchOffice]);
+  }, [dispatchOffice, motionNow, routeSamples, state.characters]);
 
   const resolveExpiredActivities = useCallback((now) => {
     const snapshot = stateRef.current;
@@ -733,17 +709,19 @@ export default function WorkAppScreen({ onClose }) {
       if (character.phase === "eating" && character.activity === "eating") {
         const route = getGraphReturnRoute(slotId, character);
         if (!route.length) continue;
+        completeActivityEvents([slotId], now);
         returningMealPropsRef.current.set(slotId, character.props);
-        dispatchOffice({ type: "START_RETURN", slotId, route });
+        dispatchOffice({ type: "START_RETURN", slotId, route, now });
         continue;
       }
 
       if (DESK_ACTIVITIES.has(character.activity)
         && character.positionNode === character.homeNode) {
+        completeActivityEvents([slotId], now);
         dispatchOffice({ type: "FINISH_RETURN", slotId });
       }
     }
-  }, [closeConversation, dispatchOffice]);
+  }, [closeConversation, completeActivityEvents, dispatchOffice]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -760,9 +738,14 @@ export default function WorkAppScreen({ onClose }) {
   }, [dispatchOffice, resolveExpiredActivities, runScheduleAttempt]);
 
   useEffect(() => {
-    const timer = window.setInterval(advanceRoutes, ROUTE_STEP_MS);
-    return () => window.clearInterval(timer);
-  }, [advanceRoutes]);
+    let frameId = 0;
+    const frame = (timestamp) => {
+      setMotionNow(timestampOriginRef.current + timestamp);
+      frameId = window.requestAnimationFrame(frame);
+    };
+    frameId = window.requestAnimationFrame(frame);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
 
   useEffect(() => {
     if (statePersistTimerRef.current) return;
@@ -846,7 +829,7 @@ export default function WorkAppScreen({ onClose }) {
           const reply = await requestOfficeConversationTurn({
             session: requestSession,
             profileMap: getProfileMap(assignmentsRef.current),
-            relationships: initialContext.relationships,
+            relationships: profiles.relations,
             signal: controller.signal,
             storage: initialContext.storage,
           });
@@ -889,8 +872,8 @@ export default function WorkAppScreen({ onClose }) {
   }, [
     closeConversation,
     dispatchOffice,
-    initialContext.relationships,
     initialContext.storage,
+    profiles.relations,
     state.conversations,
     stopConversationRuntime,
   ]);
@@ -902,6 +885,8 @@ export default function WorkAppScreen({ onClose }) {
       uploadReadersRef.current.abortAll();
       if (statePersistTimerRef.current) clearTimeout(statePersistTimerRef.current);
       persistOfficeState();
+      for (const controller of activityControllersRef.current.values()) controller.abort();
+      activityControllersRef.current.clear();
       for (const conversationId of [...conversationRuntimeRef.current.keys()]) {
         stopConversationRuntime(conversationId);
       }
@@ -923,6 +908,48 @@ export default function WorkAppScreen({ onClose }) {
     });
     return true;
   }, [dispatchOffice]);
+
+  const refreshProfiles = useCallback(() => {
+    const nextProfiles = readOfficeProfiles(initialContext.storage);
+    const currentAssignments = assignmentsRef.current;
+    const normalized = normalizeOfficeAssignments(
+      Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => [
+        slotId,
+        currentAssignments[slotId]?.profileId || "",
+      ])),
+      nextProfiles,
+    );
+    const nextAssignments = Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => [slotId, {
+      ...currentAssignments[slotId],
+      profileId: normalized[slotId].profileId,
+      profile: normalized[slotId].profile,
+    }]));
+
+    setProfiles(nextProfiles);
+    assignmentsRef.current = nextAssignments;
+    setAssignments(nextAssignments);
+    safeSetItem(initialContext.storage, OFFICE_ASSIGNMENT_KEY, serializeAssignments(nextAssignments));
+    for (const slotId of OFFICE_SLOT_IDS) {
+      dispatchOffice({
+        type: "ASSIGN_PROFILE",
+        slotId,
+        assignment: {
+          profileId: nextAssignments[slotId].profileId,
+          profile: nextAssignments[slotId].profile,
+        },
+      });
+    }
+  }, [dispatchOffice, initialContext.storage]);
+
+  useEffect(() => {
+    refreshProfiles();
+    const profileStorageKeys = new Set(["apiMeProfiles", "apiCharacters", "apiRelations"]);
+    const handleStorage = (event) => {
+      if (profileStorageKeys.has(event.key)) refreshProfiles();
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [refreshProfiles]);
 
   const replaceAssignment = useCallback((slotId, nextAssignment, options = {}) => {
     const currentAssignments = assignmentsRef.current;
@@ -950,13 +977,13 @@ export default function WorkAppScreen({ onClose }) {
       otherSlotId !== slotId && assignmentsRef.current[otherSlotId]?.profileId === profileId
     ))) return;
 
-    const normalized = normalizeOfficeAssignments({ [slotId]: profileId }, initialContext.profiles);
+    const normalized = normalizeOfficeAssignments({ [slotId]: profileId }, profiles);
     replaceAssignment(slotId, {
       ...assignmentsRef.current[slotId],
       profileId: normalized[slotId].profileId,
       profile: normalized[slotId].profile,
     });
-  }, [initialContext.profiles, replaceAssignment]);
+  }, [profiles, replaceAssignment]);
 
   const handleChibiChange = useCallback((slotId, chibiId) => {
     replaceAssignment(slotId, {
@@ -1083,7 +1110,7 @@ export default function WorkAppScreen({ onClose }) {
     });
     if (!session) return;
 
-    startConversationWalk({
+    applyScheduledEvent({
       activity: "chatting",
       anchorId: "meeting-1",
       leaderId,
@@ -1093,7 +1120,7 @@ export default function WorkAppScreen({ onClose }) {
       routesByMember,
       session,
     });
-  }, [startConversationWalk]);
+  }, [applyScheduledEvent]);
 
   const occupiedProfiles = useMemo(() => {
     const occupied = new Map();
@@ -1108,6 +1135,8 @@ export default function WorkAppScreen({ onClose }) {
 
   const remainingMs = getRemainingMs(state, state.now);
   const availableMeetingMembers = getAvailableCharacterIds(state).length;
+  const assignmentView = selectedAssignmentSlotId ? "selection" : "overview";
+  const panelOpen = assignmentPanelOpen || activityPanelOpen;
   const sceneState = useMemo(() => ({
     ...state,
     characters: Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => {
@@ -1115,7 +1144,6 @@ export default function WorkAppScreen({ onClose }) {
       const returningMealProps = returningMealPropsRef.current.get(slotId);
       return [slotId, {
         ...character,
-        routeStepDurationMs: ROUTE_STEP_MS,
         props: returningMealProps && character.phase === "returning"
           ? returningMealProps
           : character.props,
@@ -1127,8 +1155,8 @@ export default function WorkAppScreen({ onClose }) {
     <main className="work-app-screen">
       <header
         className="work-app-header"
-        aria-hidden={assignmentPanelOpen || undefined}
-        inert={assignmentPanelOpen}
+        aria-hidden={panelOpen || undefined}
+        inert={panelOpen}
       >
         <button
           type="button"
@@ -1153,13 +1181,24 @@ export default function WorkAppScreen({ onClose }) {
         >
           <Users size={21} strokeWidth={1.9} aria-hidden="true" />
         </button>
+        <button
+          type="button"
+          className="work-icon-button"
+          aria-label="活动记录"
+          title="活动记录"
+          aria-expanded={activityPanelOpen}
+          ref={activityOpenerRef}
+          onClick={openActivityPanel}
+        >
+          <Ellipsis size={22} strokeWidth={1.9} aria-hidden="true" />
+        </button>
       </header>
 
       <nav
         className="work-mode-control"
         aria-label="工作模式"
-        aria-hidden={assignmentPanelOpen || undefined}
-        inert={assignmentPanelOpen}
+        aria-hidden={panelOpen || undefined}
+        inert={panelOpen}
       >
         {MODE_OPTIONS.map((mode) => (
           <button
@@ -1186,12 +1225,13 @@ export default function WorkAppScreen({ onClose }) {
 
       <div
         className="work-office-surface"
-        aria-hidden={assignmentPanelOpen || undefined}
-        inert={assignmentPanelOpen}
+        aria-hidden={panelOpen || undefined}
+        inert={panelOpen}
       >
         <OfficeScene
           state={sceneState}
           assignments={assignments}
+          motionNow={motionNow}
           onSlotSelect={openAssignmentPanel}
           onAssetError={onAssetError}
         />
@@ -1207,41 +1247,30 @@ export default function WorkAppScreen({ onClose }) {
           ref={assignmentDialogRef}
           onKeyDown={handleAssignmentDialogKeyDown}
         >
-          <header className="office-assignment-header">
-            <div>
-              <h2>员工安排</h2>
-              <span>{SLOT_DETAILS.length} 个工位</span>
-            </div>
-            <button
-              type="button"
-              className="work-icon-button"
-              aria-label="关闭员工安排"
-              title="关闭"
-              data-office-dialog-close="true"
-              onClick={closeAssignmentPanel}
-            >
-              <X size={21} strokeWidth={1.9} aria-hidden="true" />
-            </button>
-          </header>
-          <div className="office-assignment-scroll">
-            {SLOT_DETAILS.map((slot) => (
-              <AssignmentRow
-                key={slot.id}
-                slot={slot}
-                assignment={assignments[slot.id]}
-                customDraft={customDrafts[slot.id]}
-                errorMessage={assignmentErrors[slot.id]}
-                profiles={initialContext.profiles}
-                occupiedProfiles={occupiedProfiles}
-                onProfileChange={handleProfileChange}
-                onChibiChange={handleChibiChange}
-                onCustomDraftChange={handleCustomDraftChange}
-                onUpload={handleUpload}
-              />
-            ))}
-          </div>
+          <OfficeAssignmentFlow
+            view={assignmentView}
+            selectedSlotId={selectedAssignmentSlotId}
+            slots={SLOT_DETAILS}
+            assignments={assignments}
+            profiles={profiles}
+            occupiedProfiles={occupiedProfiles}
+            onOpenSlot={setSelectedAssignmentSlotId}
+            onBack={() => selectedAssignmentSlotId ? setSelectedAssignmentSlotId("") : closeAssignmentPanel()}
+            onProfileChange={handleProfileChange}
+            onChibiChange={handleChibiChange}
+            onUpload={handleUpload}
+            onCustomDraftChange={handleCustomDraftChange}
+          />
         </aside>
       )}
+
+      <OfficeActivityPanel
+        open={activityPanelOpen}
+        events={state.activityEvents}
+        workSessionId={state.workSessionId}
+        assignments={assignments}
+        onClose={() => setActivityPanelOpen(false)}
+      />
     </main>
   );
 }

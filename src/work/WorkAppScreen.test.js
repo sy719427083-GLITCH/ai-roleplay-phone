@@ -9,6 +9,15 @@ import { createServer } from "vite";
 const screenPath = new URL("./WorkAppScreen.jsx", import.meta.url);
 const screenExists = existsSync(screenPath);
 const source = screenExists ? readFileSync(screenPath, "utf8") : "";
+const assignmentFlowPath = new URL("./OfficeAssignmentFlow.jsx", import.meta.url);
+const assignmentFlowSource = existsSync(assignmentFlowPath)
+  ? readFileSync(assignmentFlowPath, "utf8")
+  : "";
+const activityPanelPath = new URL("./OfficeActivityPanel.jsx", import.meta.url);
+const activityPanelSource = existsSync(activityPanelPath)
+  ? readFileSync(activityPanelPath, "utf8")
+  : "";
+const screenAndPanelsSource = `${source}\n${assignmentFlowSource}\n${activityPanelSource}`;
 const characterSource = readFileSync(new URL("./OfficeCharacter.jsx", import.meta.url), "utf8");
 const sceneSource = readFileSync(new URL("./OfficeScene.jsx", import.meta.url), "utf8");
 const characterAndSceneSource = `${characterSource}\n${sceneSource}`;
@@ -21,6 +30,7 @@ const vite = await createServer({
   server: { middlewareMode: true },
 });
 const screenModule = await vite.ssrLoadModule("/src/work/WorkAppScreen.jsx");
+const activityPanelModule = await vite.ssrLoadModule("/src/work/OfficeActivityPanel.jsx");
 const characterModule = await vite.ssrLoadModule("/src/work/OfficeCharacter.jsx");
 const sceneModule = await vite.ssrLoadModule("/src/work/OfficeScene.jsx");
 const previousReact = globalThis.React;
@@ -37,11 +47,96 @@ test("ships the Work app screen with the required public controls", () => {
   for (const label of ["工作剩余", "认真干活", "自由行动", "休息一下", "开会"]) {
     assert.ok(source.includes(label), `missing visible control: ${label}`);
   }
-  assert.match(source, /ArrowLeft/);
-  assert.match(source, /Users/);
-  assert.match(source, /Upload/);
-  assert.match(source, /Link/);
-  assert.match(source, /X/);
+  assert.match(screenAndPanelsSource, /ArrowLeft/);
+  assert.match(screenAndPanelsSource, /Users/);
+  assert.match(screenAndPanelsSource, /Upload/);
+  assert.match(screenAndPanelsSource, /Link/);
+  assert.match(screenAndPanelsSource, /X/);
+});
+
+test("ships safe-area tools assignment back navigation and activity history", () => {
+  for (const token of [
+    "Ellipsis", "活动记录", "OfficeActivityPanel", "OfficeAssignmentFlow",
+    "assignmentView", "selectedAssignmentSlotId", "requestOfficeActivityDetail",
+    "activityControllersRef", "requestAnimationFrame",
+  ]) assert.ok(source.includes(token), `missing Work screen wiring: ${token}`);
+  assert.doesNotMatch(source, /ROUTE_STEP_MS/);
+  assert.doesNotMatch(source, /setInterval\(advanceRoutes/);
+});
+
+test("implements two-level assignments with five slots and eight role-compatible chibis", () => {
+  for (const token of [
+    "返回办公室", "返回员工安排", "selectedSlotId", "onOpenSlot",
+    "onProfileChange", "onChibiChange", "onUpload", "onCustomDraftChange",
+    "OFFICE_CHIBIS", "compatibleChibis", "slice(0, 8)",
+  ]) assert.ok(assignmentFlowSource.includes(token), `missing assignment flow: ${token}`);
+  assert.match(assignmentFlowSource, /slots\.map/);
+  assert.match(source, /view=\{assignmentView\}/);
+  assert.match(source, /selectedSlotId=\{selectedAssignmentSlotId\}/);
+});
+
+test("filters current-session activity history and owns focus restoration", () => {
+  for (const token of [
+    "filterOfficeActivityEvents", "workSessionId", "全部", "进行中", "本地记录",
+    "subject", "summary", "insightOrResult", "activityOpenerRef", "activityPanelOpen",
+  ]) assert.ok(`${activityPanelSource}\n${source}`.includes(token), `missing activity panel: ${token}`);
+  assert.match(activityPanelSource, /startedAt/);
+  assert.match(activityPanelSource, /onKeyDown/);
+  assert.match(source, /aria-expanded=\{activityPanelOpen\}/);
+});
+
+test("activity history renders stored snapshots without relabeling old events", () => {
+  const markup = renderToStaticMarkup(React.createElement(activityPanelModule.default, {
+    open: true,
+    workSessionId: "session-current",
+    assignments: {
+      employee1: { profile: { name: "现在的角色" } },
+    },
+    events: [{
+      eventId: "event-current",
+      workSessionId: "session-current",
+      actorId: "employee1",
+      profileSnapshots: [{ name: "活动时的角色", personality: "沉静" }],
+      activityType: "reading",
+      status: "看书中",
+      startedAt: 200,
+      endedAt: 300,
+      detailStatus: "fallback",
+    }, {
+      eventId: "event-foreign",
+      workSessionId: "session-old",
+      actorId: "employee1",
+      profileSnapshots: [{ name: "旧会话角色" }],
+      activityType: "working",
+      startedAt: 400,
+      endedAt: 500,
+    }],
+    onClose() {},
+  }));
+
+  assert.match(markup, /<strong>活动时的角色<\/strong>/);
+  assert.doesNotMatch(markup, /<strong>现在的角色<\/strong>|旧会话角色/);
+  assert.match(markup, /本地记录/);
+});
+
+test("creates authoritative events and completes exact route and activity lifecycles", () => {
+  for (const token of [
+    "createOfficeActivityEvent", "createOfficeProfileSnapshot", "CREATE_ACTIVITY_EVENT",
+    "ENRICH_ACTIVITY_EVENT", "COMPLETE_ACTIVITY_EVENT", "sampleOfficeRoute",
+    "completedRouteKeysRef", "COMPLETE_ROUTE", "activityCounterRef",
+  ]) assert.ok(source.includes(token), `missing office runtime: ${token}`);
+  for (const activity of [
+    "working", "slacking", "gaming", "reading", "watchingSeries", "watchingShortVideo",
+  ]) assert.ok(source.includes(`\"${activity}\"`), `missing desk runtime activity: ${activity}`);
+  assert.match(source, /apiMeProfiles/);
+  assert.match(source, /apiCharacters/);
+  assert.match(source, /apiRelations/);
+});
+
+test("keeps safe-area tools as overlays without moving scene geometry", () => {
+  assert.match(cssSource, /\.work-app-header\s*\{[^}]*position:\s*absolute[^}]*top:\s*var\(--app-safe-top-clearance\)[^}]*height:\s*52px[^}]*grid-template-columns:\s*48px minmax\(0, 1fr\) 44px 44px/s);
+  assert.match(cssSource, /\.work-mode-control\s*\{[^}]*position:\s*absolute[^}]*top:\s*calc\(var\(--app-safe-top-clearance\) \+ 52px\)[^}]*height:\s*48px/s);
+  assert.match(cssSource, /\.work-office-surface\s*\{[^}]*position:\s*absolute[^}]*inset:\s*100px 0 0/s);
 });
 
 test("owns persistent assignment and lifecycle reducer wiring", () => {
@@ -59,7 +154,7 @@ test("owns persistent assignment and lifecycle reducer wiring", () => {
     "SET_MODE",
     "SET_RESERVATIONS",
     "START_ACTIVITY",
-    "ADVANCE_ROUTE",
+    "COMPLETE_ROUTE",
     "ARRIVE_ACTIVITY",
     "START_RETURN",
     "FINISH_RETURN",
@@ -81,8 +176,8 @@ test("keeps routes, conversation requests, and custom assets isolated", () => {
   assert.match(source, /requestSequence\s*\+\s*1/);
   assert.match(source, /conversationId/);
   assert.match(source, /requestOfficeConversationTurn/);
-  assert.match(source, /data:image\//);
-  assert.match(source, /accept="image\/\*"/);
+  assert.match(screenAndPanelsSource, /data:image\//);
+  assert.match(screenAndPanelsSource, /accept="image\/\*"/);
   assert.match(source, /customAssetSrc:\s*""/);
 });
 
