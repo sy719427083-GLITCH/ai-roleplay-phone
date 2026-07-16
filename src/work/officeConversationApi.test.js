@@ -96,6 +96,78 @@ test("includes only current-session profiles, relationships, and the last twelve
   assert.doesNotMatch(text, /DROP_ZERO|DROP_ONE|privateMetadata|metadata-/);
 });
 
+test("preserves richer Me and Character profile snapshots only for current members", () => {
+  const messages = buildOfficeConversationMessages(
+    session({ memberIds: ["me-1", "char-1"] }),
+    {
+      "me-1": {
+        profile: {
+          id: "profile-me",
+          source: "Me",
+          type: "Me",
+          name: "我",
+          identity: "产品经理",
+          personality: "谨慎",
+          appearance: "白衬衫",
+          persona: "习惯先问清楚目标",
+          worldview: "不应出现在 Me 档案",
+        },
+      },
+      "char-1": {
+        id: "profile-character",
+        source: "Character",
+        type: "Character",
+        name: "林岚",
+        identity: "工程师",
+        personality: "直接",
+        appearance: "黑色外套",
+        persona: "喜欢把复杂问题拆开",
+        worldview: "所有系统都应该先定义边界",
+      },
+      outsider: {
+        id: "profile-outsider",
+        source: "Character",
+        type: "Character",
+        name: "未参与角色",
+        identity: "销售",
+        personality: "热络",
+        appearance: "红色围巾",
+        persona: "不应进入提示词",
+        worldview: "外部世界观不应泄漏",
+      },
+    },
+  );
+  const context = getPromptContext(messages);
+  const text = JSON.stringify(messages);
+
+  assert.deepEqual(context.members, [
+    {
+      memberId: "me-1",
+      profileId: "profile-me",
+      source: "Me",
+      type: "Me",
+      name: "我",
+      identity: "产品经理",
+      personality: "谨慎",
+      appearance: "白衬衫",
+      persona: "习惯先问清楚目标",
+    },
+    {
+      memberId: "char-1",
+      profileId: "profile-character",
+      source: "Character",
+      type: "Character",
+      name: "林岚",
+      identity: "工程师",
+      personality: "直接",
+      appearance: "黑色外套",
+      persona: "喜欢把复杂问题拆开",
+      worldview: "所有系统都应该先定义边界",
+    },
+  ]);
+  assert.doesNotMatch(text, /未参与角色|外部世界观不应泄漏|不应进入提示词|不应出现在 Me 档案/);
+});
+
 test("filters foreign tagged transcript entries before keeping the last twelve current-session entries", () => {
   const currentEntries = Array.from({ length: 14 }, (_, index) => ({
     ...(index % 2 === 0 ? { conversationId: "group-a" } : {}),
