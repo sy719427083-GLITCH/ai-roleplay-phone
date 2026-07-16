@@ -1,3 +1,8 @@
+import {
+  createLocalActivityDetail,
+  createOfficeActivityEvent,
+  mergeOfficeActivityDetail,
+} from "./officeActivities.js";
 import { releaseAnchor } from "./officeNavigation.js";
 
 const OFFICE_MODE = "free";
@@ -100,6 +105,8 @@ const cloneReservationMap = (reservations) => {
     return null;
   }
 };
+
+let workSessionCounter = 0;
 
 const getHomeNode = (slotId) => `${slotId}-home`;
 
@@ -270,16 +277,74 @@ const normalizeRestoredCharacters = (rawCharacters, assignments, now) => Object.
   }),
 );
 
+const createWorkSessionId = (now = 0) => {
+  workSessionCounter += 1;
+  const timestamp = Number.isFinite(now) ? now : 0;
+  return `work-session-${timestamp}-${workSessionCounter}`;
+};
+
+const normalizeActivityEventRecord = (value, workSessionId) => {
+  const event = createOfficeActivityEvent({
+    ...(isPlainObject(value) ? deepClone(value) : {}),
+    workSessionId: String(value?.workSessionId || workSessionId || ""),
+  });
+
+  return {
+    ...event,
+    title: String(value?.title || event.title),
+    subject: String(value?.subject || ""),
+    summary: String(value?.summary || ""),
+    insightOrResult: String(value?.insightOrResult || ""),
+    endedAt: Number.isFinite(value?.endedAt) ? value.endedAt : 0,
+    detailStatus: value?.detailStatus === "complete" ? "complete" : "pending",
+  };
+};
+
+const filterCurrentSessionActivityEvents = (events, workSessionId) => (Array.isArray(events) ? events : [])
+  .map((event) => normalizeActivityEventRecord(event, workSessionId))
+  .filter((event) => event.workSessionId === workSessionId);
+
+const normalizeActiveEventOwnership = (events, activeEventBySlot) => {
+  const eventById = new Map(events.map((event) => [event.eventId, event]));
+  return Object.fromEntries(Object.entries(isPlainObject(activeEventBySlot) ? activeEventBySlot : {}).filter(([slotId, eventId]) => {
+    const event = eventById.get(String(eventId || ""));
+    return Boolean(event) && event.actorId === slotId;
+  }).map(([slotId, eventId]) => [slotId, String(eventId)]));
+};
+
+const restoreActivityEvents = (rawEvents, workSessionId, activeEventBySlot, now) => (
+  filterCurrentSessionActivityEvents(rawEvents, workSessionId).map((event) => {
+    const isOwnedInFlight = activeEventBySlot[event.actorId] === event.eventId;
+    const isPending = !event.endedAt;
+    if (!isOwnedInFlight && !isPending) return event;
+
+    const completedEvent = {
+      ...event,
+      endedAt: Math.max(event.startedAt || 0, Number.isFinite(now) ? now : 0),
+    };
+
+    if (completedEvent.detailStatus === "complete" && completedEvent.subject && completedEvent.summary && completedEvent.insightOrResult) {
+      return completedEvent;
+    }
+
+    return mergeOfficeActivityDetail(completedEvent, createLocalActivityDetail(completedEvent));
+  })
+);
+
 export function createOfficeState({ assignments, now = 0, durationMs = 0 }) {
   const normalizedAssignments = normalizeAssignments(assignments);
+  const workSessionId = createWorkSessionId(now);
 
   return {
     mode: OFFICE_MODE,
     now,
     durationMs,
+    workSessionId,
     assignments: normalizedAssignments,
     reservations: {},
     conversations: {},
+    activityEvents: [],
+    activeEventBySlot: {},
     characters: Object.fromEntries(
       slotIdsFromAssignments(normalizedAssignments).map((slotId) => [
         slotId,
@@ -290,11 +355,16 @@ export function createOfficeState({ assignments, now = 0, durationMs = 0 }) {
 }
 
 export function serializeOfficeState(state) {
+  const activityEvents = filterCurrentSessionActivityEvents(state.activityEvents, state.workSessionId);
+  const activeEventBySlot = normalizeActiveEventOwnership(activityEvents, state.activeEventBySlot);
   return JSON.stringify({
     mode: state.mode,
     now: state.now,
     durationMs: state.durationMs,
+    workSessionId: state.workSessionId,
     conversations: deepClone(state.conversations || {}),
+    activityEvents: deepClone(activityEvents),
+    activeEventBySlot: deepClone(activeEventBySlot),
     characters: deepClone(state.characters || {}),
   });
 }
@@ -315,10 +385,16 @@ export function restoreOfficeState(raw, assignments, now = 0) {
     now,
     durationMs: Number.isFinite(parsed.durationMs) ? parsed.durationMs : 0,
   });
+  const workSessionId = String(parsed.workSessionId || base.workSessionId);
+  const serializedActivityEvents = filterCurrentSessionActivityEvents(parsed.activityEvents, workSessionId);
+  const serializedActiveEventBySlot = normalizeActiveEventOwnership(serializedActivityEvents, parsed.activeEventBySlot);
 
   return {
     ...base,
     mode: String(parsed.mode || base.mode),
+    workSessionId,
+    activityEvents: restoreActivityEvents(parsed.activityEvents, workSessionId, serializedActiveEventBySlot, now),
+    activeEventBySlot: {},
     characters: normalizeRestoredCharacters(parsed.characters, base.assignments, now),
   };
 }
@@ -337,6 +413,67 @@ export function officeReducer(state, action) {
       const reservations = cloneReservationMap(action.reservations);
       if (!reservations) return state;
       return { ...state, reservations };
+    }
+
+    case "CREATE_ACTIVITY_EVENT": {
+      const event = normalizeActivityEventRecord(action.event, state.workSessionId);
+      if (!event.eventId || !event.actorId) return state;
+      return {
+        ...state,
+        activityEvents: [event, ...(state.activityEvents || []).filter((item) => item.eventId !== event.eventId)],
+        activeEventBySlot: {
+          ...state.activeEventBySlot,
+          [event.actorId]: event.eventId,
+        },
+      };
+    }
+
+    case "ENRICH_ACTIVITY_EVENT": {
+      const eventIndex = (state.activityEvents || []).findIndex((event) => event.eventId === action.detail?.eventId);
+      if (eventIndex < 0) return state;
+
+      const currentEvent = state.activityEvents[eventIndex];
+      if (state.activeEventBySlot[currentEvent.actorId] !== currentEvent.eventId) return state;
+
+      const nextEvent = mergeOfficeActivityDetail(currentEvent, action.detail);
+      if (nextEvent === currentEvent) return state;
+
+      const activityEvents = [...state.activityEvents];
+      activityEvents[eventIndex] = nextEvent;
+      return {
+        ...state,
+        activityEvents,
+      };
+    }
+
+    case "COMPLETE_ACTIVITY_EVENT": {
+      const eventIndex = (state.activityEvents || []).findIndex((event) => event.eventId === action.eventId);
+      if (eventIndex < 0) return state;
+
+      const currentEvent = state.activityEvents[eventIndex];
+      const endedAt = Number.isFinite(action.endedAt) ? action.endedAt : (currentEvent.endedAt || state.now);
+      const nextEvent = endedAt === currentEvent.endedAt
+        ? currentEvent
+        : { ...currentEvent, endedAt };
+
+      let activeEventBySlot = state.activeEventBySlot;
+      if (state.activeEventBySlot[currentEvent.actorId] === currentEvent.eventId) {
+        activeEventBySlot = { ...state.activeEventBySlot };
+        delete activeEventBySlot[currentEvent.actorId];
+      }
+
+      if (nextEvent === currentEvent && activeEventBySlot === state.activeEventBySlot) return state;
+
+      const activityEvents = nextEvent === currentEvent
+        ? state.activityEvents
+        : [...state.activityEvents];
+      if (nextEvent !== currentEvent) activityEvents[eventIndex] = nextEvent;
+
+      return {
+        ...state,
+        activityEvents,
+        activeEventBySlot,
+      };
     }
 
     case "ASSIGN_PROFILE": {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createOfficeActivityEvent } from "./officeActivities.js";
 import { createOfficeState, officeReducer, restoreOfficeState, serializeOfficeState } from "./officeState.js";
 
 const slotIds = ["boss", "employee1", "employee2", "employee3", "employee4"];
@@ -190,6 +191,82 @@ test("reload closes network conversations and returns characters home", () => {
 
   assert.deepEqual(restored.conversations, {});
   assert.equal(restored.characters.employee1.phase, "idle");
+});
+
+test("stores and enriches only the active event for a slot", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const readingEvent = createOfficeActivityEvent({
+    eventId: "evt-read",
+    workSessionId: state.workSessionId,
+    actorId: "employee1",
+    participantIds: ["employee1"],
+    profileSnapshots: [assignments.employee1.profile],
+    activityType: "reading",
+    startedAt: 1000,
+    requestSequence: 1,
+  });
+
+  state = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: readingEvent });
+  assert.equal(state.activeEventBySlot.employee1, "evt-read");
+
+  state = officeReducer(state, { type: "ENRICH_ACTIVITY_EVENT", detail: {
+    eventId: "evt-read",
+    activityType: "reading",
+    requestSequence: 1,
+    title: "阅读记录",
+    subject: "《沉思录》",
+    summary: "读到自省",
+    insightOrResult: "先处理可控之事",
+  } });
+  assert.equal(state.activityEvents[0].subject, "《沉思录》");
+
+  state = officeReducer(state, { type: "COMPLETE_ACTIVITY_EVENT", eventId: "evt-read", endedAt: 5000 });
+  assert.equal(state.activeEventBySlot.employee1, undefined);
+  assert.equal(state.activityEvents[0].endedAt, 5000);
+});
+
+test("serializes only current-session events and restores in-flight records as local fallbacks", () => {
+  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
+  const inFlightEvent = createOfficeActivityEvent({
+    eventId: "evt-read",
+    workSessionId: state.workSessionId,
+    actorId: "employee1",
+    participantIds: ["employee1"],
+    profileSnapshots: [assignments.employee1.profile],
+    activityType: "reading",
+    startedAt: 1100,
+    requestSequence: 2,
+  });
+  const oldEvent = createOfficeActivityEvent({
+    eventId: "evt-old",
+    workSessionId: "old-session",
+    actorId: "employee2",
+    participantIds: ["employee2"],
+    profileSnapshots: [assignments.employee2.profile],
+    activityType: "working",
+    startedAt: 900,
+    requestSequence: 1,
+  });
+
+  state = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: inFlightEvent });
+  state = {
+    ...state,
+    activityEvents: [...state.activityEvents, oldEvent],
+  };
+
+  const snapshot = JSON.parse(serializeOfficeState(state));
+  assert.equal(snapshot.workSessionId, state.workSessionId);
+  assert.deepEqual(snapshot.activityEvents.map(({ eventId }) => eventId), ["evt-read"]);
+  assert.deepEqual(snapshot.activeEventBySlot, { employee1: "evt-read" });
+
+  const restored = restoreOfficeState(JSON.stringify(snapshot), assignments, 5000);
+  assert.equal(restored.workSessionId, state.workSessionId);
+  assert.deepEqual(restored.activeEventBySlot, {});
+  assert.equal(restored.activityEvents.length, 1);
+  assert.equal(restored.activityEvents[0].eventId, "evt-read");
+  assert.equal(restored.activityEvents[0].endedAt, 5000);
+  assert.equal(restored.activityEvents[0].detailStatus, "complete");
+  assert.match(restored.activityEvents[0].subject, /\S/u);
 });
 
 test("updates mode profile routing expiry and serialization state", () => {
