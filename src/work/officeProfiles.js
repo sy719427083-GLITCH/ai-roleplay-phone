@@ -14,31 +14,42 @@ const readObject = (storage, key) => {
   }
 };
 
-const normalizeProfile = (id, value = {}) => ({
-  ...value,
-  id,
-  name: String(value.name || "NPC"),
-  identity: String(value.identity || value.role || "角色"),
-  personality: String(value.personality || "自然"),
-  persona: String(value.persona || ""),
+export const createOfficeProfileSnapshot = (profile = {}, source = "character") => ({
+  id: String(profile.id || ""),
+  source,
+  ...(source === "character" ? { type: String(profile.type || "npc") } : {}),
+  name: String(profile.name || "NPC"),
+  identity: String(profile.identity || profile.role || "角色"),
+  ...(source === "character" ? { worldview: String(profile.worldview || "") } : {}),
+  appearance: String(profile.appearance || ""),
+  personality: String(profile.personality || "自然"),
+  persona: String(profile.persona || ""),
+  avatar: String(profile.avatar || ""),
 });
 
 export const createNpcProfile = (slotId, kind) => ({
   id: `npc-${slotId}`,
+  source: "fallback",
   name: "NPC",
   identity: kind === "boss" ? "临时老板" : "临时员工",
+  appearance: "",
   personality: "自然、友好",
   persona: "办公室临时角色",
+  avatar: "",
   generated: true,
 });
 
 export function readOfficeProfiles(storage = defaultStorage) {
+  const meProfiles = readObject(storage, "apiMeProfiles");
   const characters = readObject(storage, "apiCharacters");
-  const allProfiles = Object.entries(characters).map(([id, value]) => normalizeProfile(id, value));
 
   return {
-    bossOptions: allProfiles.filter((item) => item.type === "main" || item.type === "主角"),
-    employeeOptions: allProfiles.filter((item) => item.type !== "main" && item.type !== "主角"),
+    bossOptions: Object.entries(meProfiles).map(([id, value]) => (
+      createOfficeProfileSnapshot({ ...value, id }, "me")
+    )),
+    employeeOptions: Object.entries(characters).map(([id, value]) => (
+      createOfficeProfileSnapshot({ ...value, id }, "character")
+    )),
     relations: readObject(storage, "apiRelations"),
   };
 }
