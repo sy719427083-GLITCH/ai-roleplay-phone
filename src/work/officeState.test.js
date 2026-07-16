@@ -225,6 +225,36 @@ test("stores and enriches only the active event for a slot", () => {
   assert.equal(state.activityEvents[0].endedAt, 5000);
 });
 
+test("rejects activity events from another work session without changing state", () => {
+  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  const foreignEvent = createOfficeActivityEvent({
+    eventId: "evt-foreign",
+    workSessionId: "foreign-session",
+    actorId: "employee1",
+    participantIds: ["employee1"],
+    profileSnapshots: [assignments.employee1.profile],
+    activityType: "working",
+    startedAt: 1000,
+    requestSequence: 1,
+  });
+
+  const next = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: foreignEvent });
+
+  assert.equal(next, state);
+});
+
+test("creates unique non-empty work session IDs across isolated contexts at the same time", async () => {
+  const firstModule = await import("./officeState.js?work-session-context=first");
+  const secondModule = await import("./officeState.js?work-session-context=second");
+
+  const first = firstModule.createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
+  const second = secondModule.createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
+
+  assert.match(first.workSessionId, /\S/u);
+  assert.match(second.workSessionId, /\S/u);
+  assert.notEqual(first.workSessionId, second.workSessionId);
+});
+
 test("serializes only current-session events and restores in-flight records as local fallbacks", () => {
   let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
   const inFlightEvent = createOfficeActivityEvent({

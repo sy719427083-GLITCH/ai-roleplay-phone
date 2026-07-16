@@ -106,8 +106,6 @@ const cloneReservationMap = (reservations) => {
   }
 };
 
-let workSessionCounter = 0;
-
 const getHomeNode = (slotId) => `${slotId}-home`;
 
 const getIdleCharacter = (slotId, assignment = {}) => ({
@@ -278,9 +276,12 @@ const normalizeRestoredCharacters = (rawCharacters, assignments, now) => Object.
 );
 
 const createWorkSessionId = (now = 0) => {
-  workSessionCounter += 1;
   const timestamp = Number.isFinite(now) ? now : 0;
-  return `work-session-${timestamp}-${workSessionCounter}`;
+  const cryptoObject = globalThis.crypto;
+  const randomToken = typeof cryptoObject?.randomUUID === "function"
+    ? cryptoObject.randomUUID()
+    : `${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  return `work-session-${timestamp}-${randomToken}`;
 };
 
 const normalizeActivityEventRecord = (value, workSessionId) => {
@@ -416,6 +417,7 @@ export function officeReducer(state, action) {
     }
 
     case "CREATE_ACTIVITY_EVENT": {
+      if (action.event?.workSessionId !== state.workSessionId) return state;
       const event = normalizeActivityEventRecord(action.event, state.workSessionId);
       if (!event.eventId || !event.actorId) return state;
       return {
