@@ -36,9 +36,11 @@ test("walks to a meal, eats visible food, and returns home", () => {
   });
   assert.equal(state.characters.employee1.phase, "walkingToActivity");
   assert.equal(state.characters.employee1.status, "前往用餐");
+  assert.equal(state.characters.employee1.routeStartedAt, 1100);
+  assert.equal(state.characters.employee1.routeIndex, 0);
 
   state = officeReducer(state, {
-    type: "ARRIVE_ACTIVITY",
+    type: "COMPLETE_ROUTE",
     slotId: "employee1",
     now: 2000,
     endsAt: 9000,
@@ -51,9 +53,55 @@ test("walks to a meal, eats visible food, and returns home", () => {
     type: "START_RETURN",
     slotId: "employee1",
     route: ["break-1", "aisle", "employee1-home"],
+    now: 9100,
   });
-  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1" });
+  assert.equal(state.characters.employee1.routeStartedAt, 9100);
+  state = officeReducer(state, { type: "COMPLETE_ROUTE", slotId: "employee1" });
   assert.equal(state.characters.employee1.positionNode, "employee1-home");
+});
+
+test("complete route is the transition point for activity and return travel", () => {
+  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
+
+  state = officeReducer(state, {
+    type: "START_ACTIVITY",
+    slotId: "employee2",
+    activity: "chatting",
+    anchorId: "chat-1",
+    route: ["employee2-home", "aisle-upper", "chat-1"],
+    now: 1500,
+  });
+  state = officeReducer(state, { type: "ADVANCE_ROUTE", slotId: "employee2" });
+  assert.equal(state.characters.employee2.phase, "walkingToActivity");
+  assert.equal(state.characters.employee2.positionNode, "aisle-upper");
+
+  state = officeReducer(state, {
+    type: "COMPLETE_ROUTE",
+    slotId: "employee2",
+    now: 2500,
+    endsAt: 9000,
+    topic: "roadmap",
+  });
+  assert.equal(state.characters.employee2.phase, "chatting");
+  assert.equal(state.characters.employee2.positionNode, "chat-1");
+  assert.equal(state.characters.employee2.activityStartedAt, 2500);
+  assert.equal(state.characters.employee2.activityEndsAt, 9000);
+  assert.equal(state.characters.employee2.props.topic, "roadmap");
+  assert.deepEqual(state.characters.employee2.route, []);
+
+  state = officeReducer(state, {
+    type: "START_RETURN",
+    slotId: "employee2",
+    route: ["chat-1", "aisle-upper", "employee2-home"],
+    now: 9100,
+  });
+  assert.equal(state.characters.employee2.phase, "returning");
+  assert.equal(state.characters.employee2.routeStartedAt, 9100);
+
+  state = officeReducer(state, { type: "COMPLETE_ROUTE", slotId: "employee2" });
+  assert.equal(state.characters.employee2.phase, "idle");
+  assert.equal(state.characters.employee2.positionNode, "employee2-home");
+  assert.deepEqual(state.characters.employee2.route, []);
 });
 
 test("new desk-local activities enter their exact active statuses and keep prop variants", () => {

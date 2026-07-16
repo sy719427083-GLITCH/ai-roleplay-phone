@@ -131,6 +131,7 @@ const getIdleCharacter = (slotId, assignment = {}) => ({
   homePosition: getHomeNode(slotId),
   route: [],
   routeIndex: 0,
+  routeStartedAt: 0,
   reservedAnchorId: "",
   activityStartedAt: 0,
   activityEndsAt: 0,
@@ -227,7 +228,7 @@ const shouldResetOnRestore = (character, now) => {
   return false;
 };
 
-const startReturnCharacter = (character, route) => ({
+const startReturnCharacter = (character, route, now = 0) => ({
   ...character,
   phase: "returning",
   status: TRAVEL_STATUS.returning,
@@ -235,6 +236,7 @@ const startReturnCharacter = (character, route) => ({
   reservedAnchorId: "",
   route: Array.isArray(route) && route.length ? [...route] : buildDirectReturnRoute(character),
   routeIndex: 0,
+  routeStartedAt: Number.isFinite(now) ? now : 0,
   activityEndsAt: 0,
   props: {},
 });
@@ -247,7 +249,7 @@ const closeConversationMembers = (state, conversation, returnRoutes = {}) => {
     if (!current || current.conversationId !== conversation.id) continue;
 
     const route = returnRoutes[slotId];
-    const next = startReturnCharacter(current, route);
+    const next = startReturnCharacter(current, route, state.now);
 
     if (next !== current) {
       characters = {
@@ -278,6 +280,7 @@ const normalizeRestoredCharacters = (rawCharacters, assignments, now) => Object.
       positionNode: getHomeNode(slotId),
       route: [],
       routeIndex: 0,
+      routeStartedAt: 0,
       conversationId: "",
       reservedAnchorId: "",
     };
@@ -535,6 +538,7 @@ export function officeReducer(state, action) {
         previousActivity: character.activity,
         route: Array.isArray(action.route) ? [...action.route] : [],
         routeIndex: 0,
+        routeStartedAt: action.now ?? state.now,
         positionNode: Array.isArray(action.route) && action.route.length ? action.route[0] : character.positionNode,
         reservedAnchorId: action.anchorId || character.reservedAnchorId,
         activityStartedAt: action.now ?? state.now,
@@ -553,6 +557,28 @@ export function officeReducer(state, action) {
         };
       });
 
+    case "COMPLETE_ROUTE":
+      return withCharacter(state, action.slotId, (character) => {
+        if (character.phase === "returning") {
+          return resetCharacterHome(character, state.assignments[action.slotId]);
+        }
+
+        if (character.phase !== "walkingToActivity") return character;
+
+        return {
+          ...character,
+          phase: character.activity,
+          status: ACTIVITY_STATUS[character.activity] || ACTIVITY_STATUS.chatting,
+          route: [],
+          routeIndex: 0,
+          routeStartedAt: 0,
+          positionNode: character.reservedAnchorId || character.route?.at(-1) || character.positionNode,
+          activityStartedAt: action.now ?? state.now,
+          activityEndsAt: action.endsAt ?? 0,
+          props: sanitizeProps(action),
+        };
+      });
+
     case "ARRIVE_ACTIVITY":
       return withCharacter(state, action.slotId, (character) => ({
         ...character,
@@ -560,6 +586,7 @@ export function officeReducer(state, action) {
         status: ACTIVITY_STATUS[character.activity] || ACTIVITY_STATUS.chatting,
         route: [],
         routeIndex: 0,
+        routeStartedAt: 0,
         positionNode: character.reservedAnchorId || character.positionNode,
         activityStartedAt: action.now ?? state.now,
         activityEndsAt: action.endsAt ?? 0,
@@ -580,7 +607,7 @@ export function officeReducer(state, action) {
       return withCharacter(
         reservations === state.reservations ? state : { ...state, reservations },
         action.slotId,
-        (current) => startReturnCharacter(current, action.route),
+        (current) => startReturnCharacter(current, action.route, action.now ?? state.now),
       );
     }
 
