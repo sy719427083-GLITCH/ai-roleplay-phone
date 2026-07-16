@@ -258,7 +258,7 @@
 
 .office-speech-bubble {
   z-index: 10;
-  left: calc(50% + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px) + var(--office-bubble-viewport-offset, 0px));
+  left: calc(50% + var(--office-bubble-offset, 0px));
   bottom: 120%;
   width: max-content;
   min-width: 0;
@@ -1158,42 +1158,6 @@
   min-height: 0;
   flex: 1 1 auto;
   aspect-ratio: auto;
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="0"] .office-speech-bubble {
-  left: calc(50% - 50px + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px) + var(--office-bubble-viewport-offset, 0px));
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="0"] .office-speech-bubble::after {
-  left: calc(50% + 46px);
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="1"] .office-speech-bubble {
-  left: calc(50% - 50px + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px) + var(--office-bubble-viewport-offset, 0px));
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="1"] .office-speech-bubble::after {
-  left: calc(50% + 46px);
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="2"] .office-speech-bubble {
-  bottom: 146%;
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="3"] .office-speech-bubble {
-  left: calc(50% + 50px + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px) + var(--office-bubble-viewport-offset, 0px));
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="3"] .office-speech-bubble::after {
-  left: calc(50% - 46px);
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="4"] .office-speech-bubble {
-  left: calc(50% + 50px + var(--office-bubble-offset, 0px) + var(--office-bubble-member-offset, 0px) + var(--office-bubble-viewport-offset, 0px));
-}
-
-.work-app-screen .office-character[data-group-count="5"][data-bubble-placement="center"][data-group-index="4"] .office-speech-bubble::after {
-  left: calc(50% - 46px);
 }
 
 .office-assignment-panel {

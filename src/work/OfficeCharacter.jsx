@@ -7,6 +7,10 @@ const ATLAS_ACTIVITIES = new Set([
   "idle", "working", "slacking", "eating", "gaming", "reading",
   "watchingSeries", "watchingShortVideo", "chatting", "listening",
 ]);
+const EVENT_ACTIVITIES = new Set([
+  "working", "slacking", "eating", "gaming", "reading",
+  "watchingSeries", "watchingShortVideo", "chatting",
+]);
 const VALID_FACING = new Set(["left", "right", "front", "back"]);
 
 const STATUS_FALLBACKS = {
@@ -38,6 +42,15 @@ const SLACK_DETAILS = {
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
+
+export const getOwnedActivityEvent = (activityEvent, slotId) => {
+  if (!isRecord(activityEvent)) return null;
+  if (!cleanText(activityEvent.eventId)) return null;
+  if (cleanText(activityEvent.actorId) !== slotId) return null;
+  if (!EVENT_ACTIVITIES.has(cleanText(activityEvent.activityType))) return null;
+  if (Number(activityEvent.endedAt) > 0) return null;
+  return activityEvent;
+};
 
 const normalizeFacing = (facing) => {
   if (facing === "up") return "back";
@@ -243,22 +256,28 @@ export function OfficeCharacter({
 }) {
   const slotId = cleanText(character.slotId || assignment.slotId) || "unassigned";
   const phase = cleanText(character.phase) || "idle";
-  const activity = cleanText(activityEvent?.activityType) || cleanText(character.activity) || "idle";
-  const activitySubject = cleanText(activityEvent?.subject);
-  const propVariant = cleanText(activityEvent?.propVariant);
+  const ownedActivityEvent = getOwnedActivityEvent(activityEvent, slotId);
+  const activity = cleanText(ownedActivityEvent?.activityType) || "idle";
+  const activitySubject = cleanText(ownedActivityEvent?.subject);
+  const propVariant = cleanText(ownedActivityEvent?.propVariant);
   const profile = {
     ...(isRecord(character.profile) ? character.profile : {}),
     ...(isRecord(assignment.profile) ? assignment.profile : {}),
   };
   const name = cleanText(profile.name) || "NPC";
+  const isMoving = MOVING_PHASES.has(phase);
   const fallbackStatus = phase === "walkingToActivity"
     ? activity === "eating"
       ? "前往用餐"
       : activity === "chatting"
         ? "前往闲聊"
         : "前往工位"
-    : STATUS_FALLBACKS[phase] || STATUS_FALLBACKS[activity] || STATUS_FALLBACKS.idle;
-  const status = cleanText(activityEvent?.status) || cleanText(character.status) || fallbackStatus;
+    : phase === "returning"
+      ? STATUS_FALLBACKS.returning
+      : STATUS_FALLBACKS[activity] || STATUS_FALLBACKS.idle;
+  const status = isMoving
+    ? cleanText(character.status) || fallbackStatus
+    : cleanText(ownedActivityEvent?.status) || fallbackStatus;
   const { id: nodeId, node } = resolveNode(character, slotId);
   const layoutX = typeof sceneLayout?.x === "number" ? sceneLayout.x : Number.NaN;
   const layoutY = typeof sceneLayout?.y === "number" ? sceneLayout.y : Number.NaN;
@@ -290,8 +309,7 @@ export function OfficeCharacter({
   );
   const bubble = getOwnBubble(conversation, character, slotId);
   const currentSpeakerId = getCurrentSpeakerId(conversation, character);
-  const isAtActivity = !MOVING_PHASES.has(phase);
-  const isMoving = MOVING_PHASES.has(phase);
+  const isAtActivity = !isMoving && Boolean(ownedActivityEvent);
   const spriteActivity = isMoving
     ? "walking"
     : activity === "chatting" && currentSpeakerId && currentSpeakerId !== slotId
@@ -318,12 +336,6 @@ export function OfficeCharacter({
   const bubbleOffset = Number.isFinite(sceneLayout?.bubbleOffsetPx)
     ? sceneLayout.bubbleOffsetPx
     : 0;
-  const bubbleMemberOffset = Number.isFinite(sceneLayout?.bubbleMemberOffsetPx)
-    ? sceneLayout.bubbleMemberOffsetPx
-    : 0;
-  const bubbleViewportOffset = Number.isFinite(sceneLayout?.bubbleViewportOffsetPx)
-    ? sceneLayout.bubbleViewportOffsetPx
-    : 0;
   const bubblePlacement = cleanText(sceneLayout?.bubblePlacement) || "center";
 
   const layerStyle = {
@@ -332,8 +344,6 @@ export function OfficeCharacter({
     zIndex: 20 + Math.round(positionY * 10),
     "--office-position-duration": `${positionDuration}ms`,
     "--office-bubble-offset": `${bubbleOffset}px`,
-    "--office-bubble-member-offset": `${bubbleMemberOffset}px`,
-    "--office-bubble-viewport-offset": `${bubbleViewportOffset}px`,
   };
   const frameStyle = {
     backgroundImage: `url(${builtInAsset.src})`,

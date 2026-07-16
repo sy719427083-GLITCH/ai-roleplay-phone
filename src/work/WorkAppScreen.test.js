@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test, { after } from "node:test";
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 
 const screenPath = new URL("./WorkAppScreen.jsx", import.meta.url);
@@ -19,8 +21,13 @@ const vite = await createServer({
   server: { middlewareMode: true },
 });
 const screenModule = await vite.ssrLoadModule("/src/work/WorkAppScreen.jsx");
+const characterModule = await vite.ssrLoadModule("/src/work/OfficeCharacter.jsx");
+const sceneModule = await vite.ssrLoadModule("/src/work/OfficeScene.jsx");
+const previousReact = globalThis.React;
+globalThis.React = React;
 
 after(async () => {
+  globalThis.React = previousReact;
   await vite.close();
 });
 
@@ -185,4 +192,79 @@ test("removes hard route-step and bubble-clamp rendering", () => {
   assert.match(cssSource, /overflow-wrap:\s*anywhere/);
   assert.match(cssSource, /word-break:\s*break-word/);
   assert.doesNotMatch(cssSource, /-webkit-line-clamp/);
+});
+
+test("renders active props and atlas frames only for an exact owned activity event", () => {
+  const character = {
+    slotId: "employee1",
+    phase: "reading",
+    activity: "reading",
+    status: "看书中",
+    positionNode: "employee1-home",
+    profile: { name: "小林" },
+  };
+  const assignment = { chibiId: "employee-f-01" };
+  const renderCharacter = (activityEvent) => renderToStaticMarkup(React.createElement(
+    characterModule.OfficeCharacter,
+    { character, assignment, activityEvent, motionNow: 720 },
+  ));
+
+  for (const markup of [
+    renderCharacter(null),
+    renderCharacter({
+      eventId: "event-other",
+      actorId: "employee2",
+      activityType: "reading",
+      status: "看书中",
+      subject: "不属于小林的书",
+      propVariant: "hardcover",
+    }),
+  ]) {
+    assert.match(markup, /data-activity="idle"/);
+    assert.match(markup, /--office-frame-row:7/);
+    assert.doesNotMatch(markup, /office-book-prop/);
+    assert.match(markup, /小林，空闲中/);
+    assert.doesNotMatch(markup, /正在阅读|看书中/);
+  }
+
+  const ownedMarkup = renderCharacter({
+    eventId: "event-owned",
+    actorId: "employee1",
+    activityType: "reading",
+    status: "看书中",
+    subject: "《沉思录》",
+    propVariant: "hardcover",
+  });
+  assert.match(ownedMarkup, /data-activity="reading"/);
+  assert.match(ownedMarkup, /--office-frame-row:5/);
+  assert.match(ownedMarkup, /office-book-prop/);
+  assert.match(ownedMarkup, /正在阅读《沉思录》/);
+});
+
+test("clamps the final five-member bubble center after every placement offset", () => {
+  const { getClampedBubbleLayout } = sceneModule;
+  assert.equal(typeof getClampedBubbleLayout, "function");
+
+  const minimumCenter = 12 + 90;
+  const maximumCenter = 390 - minimumCenter;
+  for (const [groupIndex, x, bubbleOffsetPx, bubbleMemberOffsetPx, boundary] of [
+    [0, 12, -62, 19, minimumCenter],
+    [4, 88, 62, -19, maximumCenter],
+  ]) {
+    const layout = getClampedBubbleLayout({
+      x,
+      y: 50,
+      groupCount: 5,
+      groupIndex,
+      bubbleOffsetPx,
+      bubbleMemberOffsetPx,
+    });
+    const finalCenter = (layout.x * 3.9) + layout.bubbleOffsetPx;
+    assert.ok(finalCenter >= minimumCenter, `${groupIndex} crossed the left gutter`);
+    assert.ok(finalCenter <= maximumCenter, `${groupIndex} crossed the right gutter`);
+    assert.equal(Math.round(finalCenter * 10) / 10, boundary);
+    assert.equal(layout.bubbleMemberOffsetPx, 0);
+  }
+
+  assert.doesNotMatch(cssSource, /data-group-count="5"/);
 });

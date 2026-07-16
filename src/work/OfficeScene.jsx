@@ -12,6 +12,7 @@ const SCENE_PERCENT_TO_PHONE_PX = 3.9;
 const SCENE_PHONE_WIDTH_PX = 390;
 const BUBBLE_HALF_WIDTH_PX = 90;
 const BUBBLE_VIEWPORT_GUTTER_PX = 12;
+const FIVE_MEMBER_BUBBLE_OFFSETS_PX = [-50, -50, 0, 50, 50];
 
 const GROUP_OFFSETS = {
   2: [
@@ -151,18 +152,23 @@ const getConversationLayout = (character, conversation, slotId, fallbackNode) =>
   };
 };
 
-const withBubbleViewportClamp = (layout) => {
+export const getClampedBubbleLayout = (layout) => {
   if (!layout) return null;
-  const bubbleCenter = (layout.x * SCENE_PERCENT_TO_PHONE_PX)
+  const fiveMemberOffset = layout.groupCount === 5
+    ? FIVE_MEMBER_BUBBLE_OFFSETS_PX[layout.groupIndex] || 0
+    : 0;
+  const combinedOffset = fiveMemberOffset
     + (layout.bubbleOffsetPx || 0)
     + (layout.bubbleMemberOffsetPx || 0);
+  const bubbleCenter = (layout.x * SCENE_PERCENT_TO_PHONE_PX) + combinedOffset;
   const minimumCenter = BUBBLE_VIEWPORT_GUTTER_PX + BUBBLE_HALF_WIDTH_PX;
   const maximumCenter = SCENE_PHONE_WIDTH_PX - minimumCenter;
   const clampedCenter = Math.min(maximumCenter, Math.max(minimumCenter, bubbleCenter));
 
   return {
     ...layout,
-    bubbleViewportOffsetPx: roundPosition(clampedCenter - bubbleCenter),
+    bubbleOffsetPx: roundPosition(combinedOffset + clampedCenter - bubbleCenter),
+    bubbleMemberOffsetPx: 0,
   };
 };
 
@@ -290,7 +296,7 @@ export function OfficeScene({
         nodes: OFFICE_NODES,
       })
       : null;
-    const conversationLayout = withBubbleViewportClamp(
+    const conversationLayout = getClampedBubbleLayout(
       getConversationLayout(character, conversation, slotId, node),
     );
     const sceneLayout = motion || conversationLayout;
