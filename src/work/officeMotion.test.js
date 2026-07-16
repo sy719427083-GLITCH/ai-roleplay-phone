@@ -34,6 +34,69 @@ test("moves linearly through a waypoint without teleporting", () => {
   assert.equal(after.facing, "front");
 });
 
+test("completes at the exact final route boundary", () => {
+  const nodes = {
+    a: { x: 0, y: 0 },
+    b: { x: 10, y: 0 },
+  };
+
+  assert.deepEqual(sampleOfficeRoute({
+    route: ["a", "b"],
+    startedAt: 0,
+    now: 1000,
+    speed: 10,
+    nodes,
+  }), {
+    x: 10,
+    y: 0,
+    facing: "front",
+    segmentIndex: 1,
+    done: true,
+  });
+});
+
+test("enters the next segment at an exact internal waypoint", () => {
+  const nodes = {
+    a: { x: 0, y: 0 },
+    b: { x: 10, y: 0 },
+    c: { x: 10, y: 10 },
+  };
+
+  assert.deepEqual(sampleOfficeRoute({
+    route: ["a", "b", "c"],
+    startedAt: 0,
+    now: 1000,
+    speed: 10,
+    nodes,
+  }), {
+    x: 10,
+    y: 0,
+    facing: "front",
+    segmentIndex: 1,
+    done: false,
+  });
+});
+
+test("uses the safe default for zero, negative, and non-finite speeds", () => {
+  const nodes = {
+    a: { x: 0, y: 0 },
+    b: { x: 10, y: 0 },
+  };
+
+  for (const speed of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const sample = sampleOfficeRoute({
+      route: ["a", "b"],
+      startedAt: 0,
+      now: 1000,
+      speed,
+      nodes,
+    });
+
+    assert.equal(sample.done, true, `speed ${speed} should complete with the safe default`);
+    assert.deepEqual({ x: sample.x, y: sample.y }, { x: 10, y: 0 });
+  }
+});
+
 test("uses all eight walk frames at twelve fps", () => {
   assert.deepEqual(Array.from({ length: 8 }, (_, index) => (
     getWalkFrame({ startedAt: 0, now: index * 84, fps: 12 })

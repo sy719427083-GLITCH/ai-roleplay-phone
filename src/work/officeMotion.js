@@ -66,14 +66,14 @@ export function sampleOfficeRoute({
   }
 
   const elapsedMs = Math.max(0, (Number.isFinite(now) ? now : 0) - (Number.isFinite(startedAt) ? startedAt : 0));
-  let remaining = (elapsedMs / 1000) * (Number.isFinite(speed) && speed >= 0 ? speed : 18);
+  let remaining = (elapsedMs / 1000) * (Number.isFinite(speed) && speed > 0 ? speed : 18);
 
   for (let index = 0; index < segments.length; index += 1) {
     const segment = segments[index];
     const dx = segment.to.x - segment.from.x;
     const dy = segment.to.y - segment.from.y;
 
-    if (remaining <= segment.distance) {
+    if (remaining < segment.distance) {
       const progress = remaining / segment.distance;
       return {
         x: segment.from.x + dx * progress,

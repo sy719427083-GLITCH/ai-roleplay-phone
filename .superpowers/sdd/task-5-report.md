@@ -58,3 +58,46 @@ Complete.
 
 - Live rendering still uses timer/waypoint state in `WorkAppScreen.jsx` and character components. That is expected to be handled in Task 8.
 - Legacy route actions remain intentionally for migration/current UI compatibility until Task 8 removes live timer usage.
+
+## Fix Review
+
+### Status
+
+Complete.
+
+### Files Changed
+
+- `src/work/officeMotion.js`
+- `src/work/officeMotion.test.js`
+
+### Fixes
+
+- Exact segment-boundary equality now consumes the current segment. An internal waypoint is sampled as the start of the next segment with its facing, while the final endpoint returns its exact coordinates with `done: true`.
+- Route speeds are valid only when finite and greater than zero. Zero, negative, and non-finite values use the safe default speed of `18`, preventing a route from remaining permanently in progress.
+
+### RED Evidence
+
+- `node --test src/work/officeMotion.test.js`
+  - Failed as expected after adding the three focused regression tests: 4/7 passed and 3/7 failed.
+  - `completes at the exact final route boundary` returned endpoint coordinates but `done: false`, `segmentIndex: 0`, and `facing: "right"`.
+  - `enters the next segment at an exact internal waypoint` remained on segment `0` with `facing: "right"` instead of entering segment `1` with `facing: "front"`.
+  - `uses the safe default for zero, negative, and non-finite speeds` failed because `speed: 0` returned `done: false`.
+
+### GREEN Evidence
+
+- `node --test src/work/officeMotion.test.js`
+  - Passed 7/7.
+- `node --test src/work/officeMotion.test.js src/work/officeState.test.js`
+  - Passed 42/42: 7 motion tests and 35 reducer tests.
+- `npm test`
+  - Passed 149/149.
+
+### Self-Review
+
+- Confirmed the implementation uses strict `<` only for in-segment sampling, so exact equality advances without changing interpolation behavior between boundaries.
+- Confirmed speed normalization accepts only finite positive values and covers `0`, negative values, `NaN`, `Infinity`, and `-Infinity` in the focused test.
+- Confirmed no reducer files or behavior changed during this fix review.
+
+### Concerns
+
+- No new concerns. Task 8 still owns live `requestAnimationFrame` integration and removal of timer-driven waypoint dispatch.
