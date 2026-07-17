@@ -60,3 +60,5 @@ npm run build
 - Regenerated the 4x4 contact sheet from the corrected atlases.
 - Strengthened the asset test to inspect the WebP container, 1024x1024 dimensions, declared alpha channel, embedded alpha data, exact filename set, and SHA-256 uniqueness.
 - Re-ran the focused asset test, all 162 project tests, and the production build successfully.
+- A second visual review found the first male boss source had eleven sprites across its walking rows despite the 8x8 file metadata. Replaced it with a genuinely eight-column, eight-row atlas and inspected the transparent output at full resolution.
+- Added a regression test for the office background's WebP container, exact 1080x1920 dimensions, and absence of root-level legacy PNG files.

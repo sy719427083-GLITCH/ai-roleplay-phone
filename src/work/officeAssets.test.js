@@ -91,6 +91,19 @@ test("ships sixteen transparent 8x8 WebP atlases", async () => {
   assert.equal(hashes.size, OFFICE_CHIBIS.length, "every chibi atlas should be unique");
 });
 
+test("ships the 1080x1920 WebP office background without legacy PNGs", async () => {
+  const officeAssetUrl = new URL("../../public/work-office-assets/", import.meta.url);
+  const rootFiles = await readdir(officeAssetUrl);
+  const background = await readFile(new URL("office-bg.webp", officeAssetUrl));
+
+  assert.equal(rootFiles.some((file) => file.endsWith(".png")), false);
+  assert.equal(background.toString("ascii", 0, 4), "RIFF");
+  assert.equal(background.toString("ascii", 8, 12), "WEBP");
+  assert.equal(background.toString("ascii", 12, 16), "VP8 ");
+  assert.equal(background.readUInt16LE(26) & 0x3fff, 1080);
+  assert.equal(background.readUInt16LE(28) & 0x3fff, 1920);
+});
+
 test("looks up a chibi within its role and falls back within the requested role", () => {
   assert.equal(getOfficeChibi("boss-m-03", "boss").id, "boss-m-03");
   assert.equal(getOfficeChibi("employee-f-04", "employee").id, "employee-f-04");
