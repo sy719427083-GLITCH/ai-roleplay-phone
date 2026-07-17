@@ -99,9 +99,8 @@
 .office-character {
   position: absolute;
   display: block;
-  width: 23.5%;
-  max-width: 96px;
-  aspect-ratio: 1;
+  width: 104px;
+  height: 104px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -109,7 +108,7 @@
   background: transparent;
   color: var(--office-ink);
   pointer-events: none;
-  transform: translate(-50%, -80%);
+  transform: translate(-52px, -82px);
   transform-origin: 50% 80%;
   transition:
     left var(--office-position-duration, 220ms) var(--office-ease),
@@ -161,6 +160,8 @@
 }
 
 .office-character-atlas-sprite {
+  width: 104px;
+  height: 104px;
   background-repeat: no-repeat;
   image-rendering: auto;
 }
@@ -176,27 +177,32 @@
 
 .office-character[data-phase="walkingToActivity"] .office-character-motion,
 .office-character[data-phase="returning"] .office-character-motion {
-  animation: office-walk-bob 560ms ease-in-out infinite;
+  animation: office-walk-bob 1.5s ease-in-out infinite;
+  animation-duration: 1.5s;
 }
 
 .office-character[data-activity="working"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
-  animation: office-type 900ms ease-in-out infinite;
+  animation: office-type 1.45s ease-in-out infinite;
+  animation-duration: 1.45s;
 }
 
 .office-character[data-activity="slacking"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
-  animation: office-phone-tap 980ms ease-in-out infinite;
+  animation: office-phone-tap 1.6s ease-in-out infinite;
+  animation-duration: 1.6s;
 }
 
 .office-character[data-activity="gaming"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
-  animation: office-game-tap 760ms ease-in-out infinite;
+  animation: office-game-tap 1.35s ease-in-out infinite;
+  animation-duration: 1.35s;
 }
 
 .office-character[data-activity="chatting"][data-conversation-role="speaker"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
-  animation: office-talk 1000ms ease-in-out infinite;
+  animation: office-talk 1.7s ease-in-out infinite;
+  animation-duration: 1.7s;
 }
 
 .office-character.has-custom-sprite[data-phase][data-activity] .office-character-motion {
-  animation: office-custom-idle 2400ms ease-in-out infinite;
+  animation: office-custom-idle 1.6s ease-in-out infinite;
 }
 
 .office-character-name,
@@ -961,10 +967,6 @@
 }
 
 @media (max-width: 390px) {
-  .office-character {
-    width: 24%;
-  }
-
   .office-character-name {
     max-width: 98px;
     font-size: 10px;

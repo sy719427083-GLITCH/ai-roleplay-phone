@@ -97,10 +97,11 @@ test("uses the safe default for zero, negative, and non-finite speeds", () => {
   }
 });
 
-test("uses all eight walk frames at twelve fps", () => {
-  assert.deepEqual(Array.from({ length: 8 }, (_, index) => (
-    getWalkFrame({ startedAt: 0, now: index * 84, fps: 12 })
-  )), [0, 1, 2, 3, 4, 5, 6, 7]);
+test("walk frames advance every 125ms", () => {
+  assert.equal(getWalkFrame({ startedAt: 1000, now: 1124 }), 0);
+  assert.equal(getWalkFrame({ startedAt: 1000, now: 1125 }), 1);
+  assert.equal(getWalkFrame({ startedAt: 1000, now: 1999 }), 7);
+  assert.equal(getWalkFrame({ startedAt: 1000, now: 2000 }), 0);
 });
 
 test("reports total distance across valid route segments", () => {

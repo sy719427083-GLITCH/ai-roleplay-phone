@@ -42,8 +42,10 @@ const frame = (row, column) => ({
   index: (row * 8) + column,
   row,
   column,
-  backgroundSize: "800% 800%",
-  backgroundPosition: `${(column / 7) * 100}% ${(row / 7) * 100}%`,
+  frameX: column * 104,
+  frameY: row * 104,
+  backgroundWidth: 832,
+  backgroundHeight: 832,
   "--office-frame-index": (row * 8) + column,
   "--office-frame-row": row,
   "--office-frame-column": column,
@@ -131,4 +133,19 @@ test("returns background-grid values that can be spread into a sprite style", ()
   assert.deepEqual(getActivityFrame("working", 1), frame(3, 1));
 
   assert.deepEqual(getActivityFrame("unknown", 99), getActivityFrame("idle", 0));
+});
+
+test("uses integer CSS pixels for every atlas frame", () => {
+  for (let row = 0; row < 8; row += 1) {
+    for (let column = 0; column < 8; column += 1) {
+      const value = getActivityFrame(
+        row < 3 ? "walking" : "working",
+        column,
+        row === 1 ? "front" : row === 2 ? "back" : "right",
+      );
+      for (const key of ["frameX", "frameY", "backgroundWidth", "backgroundHeight"]) {
+        assert.equal(Number.isInteger(value[key]), true, `${row}:${column} ${key}`);
+      }
+    }
+  }
 });

@@ -11,7 +11,7 @@ import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
 const OFFICE_BACKGROUND = "/ai-roleplay-phone/work-office-assets/office-bg.webp";
-const OFFICE_WALK_SPEED = 18;
+const OFFICE_WALK_SPEED = 10;
 const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
 const GROUP_BOUNDS = { minX: 12, maxX: 88, minY: 18, maxY: 94 };
 const SCENE_PERCENT_TO_PHONE_PX = 3.9;

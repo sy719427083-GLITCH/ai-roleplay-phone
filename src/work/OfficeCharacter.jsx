@@ -103,7 +103,7 @@ const resolveFacing = (character, resolvedNodeId) => {
   return "right";
 };
 
-const getActiveFrame = (motionNow) => Math.floor(Math.max(0, Number(motionNow) || 0) / 180) % 4;
+const getActiveFrame = (motionNow) => Math.floor(Math.max(0, Number(motionNow) || 0) / 320) % 4;
 
 const getConversationEntry = (conversation) => {
   if (!isRecord(conversation)) return null;
@@ -273,8 +273,8 @@ export function OfficeCharacter({
   };
   const frameStyle = {
     backgroundImage: `url(${builtInAsset.src})`,
-    backgroundSize: frame.backgroundSize,
-    backgroundPosition: frame.backgroundPosition,
+    backgroundSize: `${frame.backgroundWidth}px ${frame.backgroundHeight}px`,
+    backgroundPosition: `-${frame.frameX}px -${frame.frameY}px`,
     "--office-frame-index": frame.index,
     "--office-frame-row": frame.row,
     "--office-frame-column": frame.column,

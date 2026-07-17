@@ -50,7 +50,7 @@ export function sampleOfficeRoute({
   route = [],
   startedAt = 0,
   now = 0,
-  speed = 18,
+  speed = 10,
   nodes = OFFICE_NODES,
 } = {}) {
   const segments = getRouteSegments(route, nodes);
@@ -66,7 +66,7 @@ export function sampleOfficeRoute({
   }
 
   const elapsedMs = Math.max(0, (Number.isFinite(now) ? now : 0) - (Number.isFinite(startedAt) ? startedAt : 0));
-  let remaining = (elapsedMs / 1000) * (Number.isFinite(speed) && speed > 0 ? speed : 18);
+  let remaining = (elapsedMs / 1000) * (Number.isFinite(speed) && speed > 0 ? speed : 10);
 
   for (let index = 0; index < segments.length; index += 1) {
     const segment = segments[index];
@@ -97,8 +97,7 @@ export function sampleOfficeRoute({
   };
 }
 
-export function getWalkFrame({ startedAt = 0, now = 0, fps = 12 } = {}) {
+export function getWalkFrame({ startedAt = 0, now = 0 } = {}) {
   const elapsedMs = Math.max(0, (Number.isFinite(now) ? now : 0) - (Number.isFinite(startedAt) ? startedAt : 0));
-  const framesPerSecond = Number.isFinite(fps) && fps > 0 ? fps : 12;
-  return Math.floor((elapsedMs / 1000) * framesPerSecond) % WALK_FRAME_COUNT;
+  return Math.floor(elapsedMs / 125) % WALK_FRAME_COUNT;
 }

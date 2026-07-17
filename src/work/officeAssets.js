@@ -50,6 +50,9 @@ const ACTIVITY_BLOCKS = {
   listening: { row: 7, offset: 4 },
 };
 
+export const OFFICE_FRAME_SIZE = 104;
+export const OFFICE_ATLAS_SIZE = OFFICE_FRAME_SIZE * 8;
+
 export function getActivityFrame(activity, phase = 0, facing = "front") {
   const parsedPhase = Math.abs(Number.parseInt(phase, 10) || 0);
   const isWalking = activity === "walking";
@@ -64,8 +67,10 @@ export function getActivityFrame(activity, phase = 0, facing = "front") {
     index,
     row,
     column,
-    backgroundSize: "800% 800%",
-    backgroundPosition: `${(column / 7) * 100}% ${(row / 7) * 100}%`,
+    frameX: column * OFFICE_FRAME_SIZE,
+    frameY: row * OFFICE_FRAME_SIZE,
+    backgroundWidth: OFFICE_ATLAS_SIZE,
+    backgroundHeight: OFFICE_ATLAS_SIZE,
     "--office-frame-index": index,
     "--office-frame-row": row,
     "--office-frame-column": column,

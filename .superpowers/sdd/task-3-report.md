@@ -1,101 +1,92 @@
-# Task 3 Report: Extend The Scheduler With Concrete New Activities
+# Task 3: Make Atlas Sampling Sharp And Motion Calm
 
-## Status
-
-- Completed on July 16, 2026.
-- Scope kept to the requested owned files plus this report.
-
-## Files
-
-- Modified `src/work/officeScheduler.js`
-- Modified `src/work/officeScheduler.test.js`
-- Modified `src/work/officeState.js`
-- Modified `src/work/officeState.test.js`
-- Modified `.superpowers/sdd/task-3-report.md`
+Base commit: `095be21` (`docs: record task 2 verification`).
 
 ## RED
 
-### Command
+Command run before production changes:
 
-```bash
-node --test src/work/officeScheduler.test.js src/work/officeState.test.js
+```sh
+node --test --test-reporter=spec src/work/officeAssets.test.js src/work/officeMotion.test.js
 ```
 
-### Evidence
+Exit code: `1`
 
-Initial run failed in the intended task areas:
+Exact failure summary:
 
-- `officeScheduler.test.js`
-  - `exports reachable weights for all eight activity types`
-  - `free mode selects the new desk activities with deterministic prop variants`
-  - `personality keywords shift activity selection deterministically`
-- `officeState.test.js`
-  - `new desk-local activities enter their exact active statuses and keep prop variants`
-  - `restore resets the new desk-local phases back to idle`
+```text
+✖ maps every direction and activity to the fixed atlas contract
++   backgroundPosition: '100% 0%'
++   backgroundSize: '800% 800%'
+-   backgroundHeight: 832
+-   backgroundWidth: 832
+-   frameX: 728
+-   frameY: 0
 
-Representative failures:
+✖ returns background-grid values that can be spread into a sprite style
++   backgroundPosition: '14.285714285714285% 42.857142857142854%'
++   backgroundSize: '800% 800%'
+-   backgroundHeight: 832
+-   backgroundWidth: 832
+-   frameX: 104
+-   frameY: 312
 
-- scheduler still exported the old five-activity weight tables
-- free-mode reading selection returned an old activity instead of `reading`
-- new reducer arrivals fell back to `闲聊中`
-- restore left `reading` phase characters active instead of resetting them to idle
+✖ uses integer CSS pixels for every atlas frame
+AssertionError [ERR_ASSERTION]: 0:0 frameX
+
+✖ walk frames advance every 125ms
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+1 !== 0
+
+ℹ tests 13
+ℹ pass 9
+ℹ fail 4
+```
+
+The failures prove the old percentage atlas API and 12fps cadence were present before implementation.
 
 ## GREEN
 
-### Command
+Focused command after implementation:
 
-```bash
-node --test src/work/officeScheduler.test.js src/work/officeState.test.js
+```sh
+node --test --test-reporter=spec src/work/officeAssets.test.js src/work/officeMotion.test.js
 ```
 
-### Output
+Exit code: `0`; `13` tests passed, `0` failed. This includes `uses integer CSS pixels for every atlas frame` and `walk frames advance every 125ms`.
 
-```text
-1..45
-# tests 45
-# pass 45
-# fail 0
+Full suite:
+
+```sh
+npm test
 ```
 
-## Full Suite
+Exit code: `0`; `174` tests passed, `0` failed.
 
-### Command
+Build:
 
-```bash
-node --test src/work/officeScheduler.test.js src/work/officeState.test.js && npm test
+```sh
+npm run build
 ```
 
-### Output
+Exit code: `0`; Vite built the production bundle successfully.
 
-```text
-Focused scheduler/state tests: 45 passed, 0 failed
-npm test: 135 passed, 0 failed
+Verifier unit mode:
+
+```sh
+node scripts/verify-office.mjs --probe-signal-cleanup
 ```
 
-## Implementation Summary
-
-- Expanded scheduler mode weights to the exact eight-activity 100-point tables from the task brief.
-- Added deterministic desk-local prop variants for:
-  - `reading` via `paperback` / `hardcover` / `magazine`
-  - `watchingSeries` via `phone-landscape` / `tablet` / `second-screen`
-  - `watchingShortVideo` via `phone-portrait-light` / `phone-portrait-dark`
-- Extended personality modifiers so:
-  - `自律` and `沉静` bias toward work/reading
-  - `追剧` biases toward `watchingSeries`
-  - `短视频` biases toward `watchingShortVideo`
-  - `外向` and `话多` still bias toward chat
-  - final weights clamp to at least `1`
-- Added reducer statuses for `reading`, `watchingSeries`, and `watchingShortVideo`.
-- Treated the three new activities as desk-local active phases during restore reset handling.
+Exit code: `0`; all four cleanup ownership and signal checks reported `PASS`.
 
 ## Self-Review
 
-- Re-checked the weighted-activity order against the brief. The order now matches the required selection thresholds instead of the exported activity list order.
-- Verified existing group-chat and reservation behavior stayed intact through the existing chat and anchor tests.
-- Kept the reducer changes narrow: exact statuses plus restore handling only.
-- Confirmed no unrelated files were edited.
+- Replaced percentage atlas output with integer 104px frame offsets and an 832px atlas background, without changing the 1024px asset-dimension assertions.
+- Set route speed to 10 in the scene, motion fallback, and verifier while retaining continuous route interpolation.
+- Set walking frames to 125ms and active frames to 320ms; character action loops are all within 1.3s-1.8s.
+- Used a fixed 104px sprite wrapper and `translate(-52px, -82px)` anchor; module rendering and furniture fallback remain covered by the full suite.
+- `git diff --check` completed with no output. A static scan found no remaining `800%`, `/ 180`, `speed = 18`, or `OFFICE_WALK_SPEED = 18` in office runtime code.
 
-## Concerns
+## Concern
 
-- `src/work/WorkAppScreen.jsx` still has the older `DESK_ACTIVITIES` set (`working`, `slacking`, `gaming`). That means the scheduler and reducer now understand the new desk-local activities, but the live UI will not start them until the consumer-side follow-up task lands.
-- Personality modifier magnitudes were chosen to satisfy the task intent and deterministic tests because the brief specified the direction of each bias, not exact delta values.
+The successful production build still emits the existing unresolved-at-build-time warning for `worldbook-assets/hero-worldbook-atlas.png?v=0.2.96`; it is outside this task's office scope.
