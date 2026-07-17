@@ -55,4 +55,4 @@ for (const assetDirectory of ["work-office-assets", "worldbook-assets"]) {
   await verifyMatchingFileLists(assetDirectory, source, destination);
 }
 
-await writeFile(resolve(docsDirectory, ".deploy-version"), `${packageJson.version}\n`, "utf8");
+await writeFile(resolve(docsDirectory, ".deploy-version"), packageJson.version, "utf8");

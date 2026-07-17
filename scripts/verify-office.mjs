@@ -481,12 +481,46 @@ const verifyBuiltInOfficeAssets = async (page, viewportLabel) => {
     const image = new Image();
     image.src = src;
     await image.decode();
-    return { src, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let transparentPixels = 0;
+    let opaquePixels = 0;
+    let gutterOpaquePixels = 0;
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] === 0) transparentPixels += 1;
+      if (pixels[index] === 255) opaquePixels += 1;
+    }
+    for (let boundary = 128; boundary < 1024; boundary += 128) {
+      for (let offset = -3; offset < 3; offset += 1) {
+        for (let coordinate = 0; coordinate < 1024; coordinate += 1) {
+          const verticalAlpha = pixels[((coordinate * 1024) + boundary + offset) * 4 + 3];
+          const horizontalAlpha = pixels[(((boundary + offset) * 1024) + coordinate) * 4 + 3];
+          if (verticalAlpha > 0) gutterOpaquePixels += 1;
+          if (horizontalAlpha > 0) gutterOpaquePixels += 1;
+        }
+      }
+    }
+    return {
+      src,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+      transparentPixels,
+      opaquePixels,
+      gutterOpaquePixels,
+    };
   })), sources);
   assert(decoded.length === 16, `${viewportLabel}: decoded ${decoded.length} built-in WebP assets, expected 16`);
   for (const asset of decoded) {
-    assert(asset.naturalWidth > 0 && asset.naturalHeight > 0,
-      `${viewportLabel}: Office asset has invalid dimensions: ${asset.src}`);
+    assert(asset.naturalWidth === 1024 && asset.naturalHeight === 1024,
+      `${viewportLabel}: Office asset is not 1024x1024: ${asset.src}`);
+    assert(asset.transparentPixels > 0 && asset.opaquePixels > 0,
+      `${viewportLabel}: Office asset does not contain decoded transparent and opaque pixels: ${asset.src}`);
+    assert(asset.gutterOpaquePixels === 0,
+      `${viewportLabel}: Office asset crosses a six-pixel sprite-cell gutter: ${asset.src}`);
   }
 };
 

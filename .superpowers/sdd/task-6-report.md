@@ -37,8 +37,8 @@ npm test
 npm run build
 ```
 
-- Asset tests: 4 passed, 0 failed.
-- Full suite: 162 passed, 0 failed.
+- Asset tests: 5 passed, 0 failed.
+- Full suite: 163 passed, 0 failed.
 - Vite production build: passed, 1799 modules transformed.
 - Existing unrelated worldbook atlas runtime warning remains.
 
@@ -62,3 +62,6 @@ npm run build
 - Re-ran the focused asset test, all 162 project tests, and the production build successfully.
 - A second visual review found the first male boss source had eleven sprites across its walking rows despite the 8x8 file metadata. Replaced it with a genuinely eight-column, eight-row atlas and inspected the transparent output at full resolution.
 - Added a regression test for the office background's WebP container, exact 1080x1920 dimensions, and absence of root-level legacy PNG files.
+- A deeper native-pixel review found several generated sprites still crossed nominal 128px frame boundaries. Re-generated the three malformed male boss sheets, made all four male bosses visually distinct, then normalized all sixteen atlases into isolated 128x128 cells.
+- Every atlas now has a six-pixel fully transparent gutter on every internal row and column boundary. Browser QA decodes the pixels and fails on missing transparency or any occupied gutter pixel.
+- Rebuilt and synced `docs`, removing all legacy office PNG files from both public and deployed output.
