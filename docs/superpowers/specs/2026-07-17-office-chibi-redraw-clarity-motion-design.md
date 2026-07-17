@@ -23,7 +23,10 @@ Every character must have a clearly distinct face, hairstyle, silhouette, outfit
 - Sweet, beautiful, cute, refined facial design.
 - Detailed eyes, hair strands, accessories, layered clothing, and clean hands.
 - Varied styles: elegant executive, soft romantic, modern fashion, refined creative, preppy, gentle office, chic minimalist, and graceful vintage.
+- Clothing must not default to trousers. Across the eight female characters, at least four wear clearly different skirt or dress silhouettes, including a short A-line skirt, pleated short skirt, fitted short skirt, and a dress or midi skirt. The remaining characters may use tailored trousers, shorts, or another distinct professional silhouette.
+- Skirts and dresses need clean hems, readable layering, suitable shoes, and natural fabric follow-through during walking and active poses.
 - No short hair, childlike body proportions, identical pink outfits, or repeated faces.
+- Avoid overly revealing cuts, copied school uniforms, and changing a skirt into trousers between directional or activity frames.
 
 ### Male Direction
 
@@ -39,6 +42,7 @@ Every character must have a clearly distinct face, hairstyle, silhouette, outfit
 - Clear facial features and clothing edges at mobile display size.
 - Transparent background with no text, labels, borders, UI, room scenery, or watermark.
 - Character identity must remain consistent across all sixty-four frames in an atlas.
+- Outfit category, skirt length, footwear, accessories, and major garment details must remain consistent across all sixty-four frames.
 
 ## Atlas Contract
 
@@ -61,7 +65,7 @@ Rows retain the existing runtime contract:
 7. Short-video frames 1-4, chatting frames 5-8.
 8. Idle frames 1-4, listening frames 5-8.
 
-Walking frames must show a believable alternating stride, arm swing, weight transfer, and hair or clothing follow-through. Activity frames must use visibly different poses rather than reusing one body with swapped props.
+Walking frames must show a believable alternating stride, arm swing, weight transfer, and hair or clothing follow-through. Skirt hems, dresses, coats, and long hair should move subtly without exposing or distorting the character. Activity frames must use visibly different poses rather than reusing one body with swapped props.
 
 ## Rendering Clarity
 
@@ -81,7 +85,7 @@ Walking frames must show a believable alternating stride, arm swing, weight tran
 ## Validation
 
 - Automated asset audit confirms exactly sixteen WebP atlases, correct dimensions, alpha transparency, all sixty-four populated cells, transparent gutters, and no legacy office PNGs.
-- Contact sheet is visually inspected at full resolution for identity consistency, long-haired female characters, handsome varied male characters, clean limbs, distinct outfits, and action readability.
+- Contact sheet is visually inspected at full resolution for identity consistency, long-haired female characters, the required skirt and dress variety, outfit continuity across all frames, handsome varied male characters, clean limbs, distinct outfits, and action readability.
 - Browser QA at `375 x 812` and `390 x 844` verifies sharp rendering, five visible names, no overlap, correct activity props, isolated group chats, and continuous slower walking.
 - Motion tests verify the new route speed and frame cadence.
 - Full project tests, production build, Pages sync, online version marker, new bundle, background, and all sixteen live atlases must pass before completion.
