@@ -27,7 +27,18 @@ const publicAssetUrl = (src) => new URL(
   import.meta.url,
 );
 
-test("ships all sixteen categorized chibi atlases", async () => {
+const frame = (row, column) => ({
+  index: (row * 8) + column,
+  row,
+  column,
+  backgroundSize: "800% 800%",
+  backgroundPosition: `${(column / 7) * 100}% ${(row / 7) * 100}%`,
+  "--office-frame-index": (row * 8) + column,
+  "--office-frame-row": row,
+  "--office-frame-column": column,
+});
+
+test("ships sixteen transparent 8x8 WebP atlases", async () => {
   assert.equal(OFFICE_CHIBIS.length, 16);
   assert.deepEqual(OFFICE_CHIBIS.map((item) => item.id), EXPECTED_IDS);
   assert.deepEqual(OFFICE_CHIBIS.map((item) => item.name), EXPECTED_NAMES);
@@ -41,15 +52,13 @@ test("ships all sixteen categorized chibi atlases", async () => {
   }
 
   for (const item of OFFICE_CHIBIS) {
-    assert.deepEqual(Object.keys(item), ["id", "name", "kind", "gender", "src"]);
+    assert.deepEqual(Object.keys(item), ["id", "name", "kind", "gender", "src", "columns", "rows"]);
     assert.ok(item.name.length > 0, `${item.id} should have a display name`);
-    assert.equal(
-      item.src,
-      `/ai-roleplay-phone/work-office-assets/chibi/${item.id}.png`,
-    );
+    assert.match(item.src, /\/work-office-assets\/chibi\/(boss|employee)-[fm]-\d{2}\.webp$/);
+    assert.equal(item.columns, 8);
+    assert.equal(item.rows, 8);
+    await access(publicAssetUrl(item.src));
   }
-
-  await Promise.all(OFFICE_CHIBIS.map((item) => access(publicAssetUrl(item.src))));
 });
 
 test("looks up a chibi within its role and falls back within the requested role", () => {
@@ -59,37 +68,24 @@ test("looks up a chibi within its role and falls back within the requested role"
   assert.equal(getOfficeChibi("boss-f-01", "employee").id, "employee-f-01");
 });
 
-test("maps activities and loop phases to all nine atlas cells", () => {
-  const cases = [
-    ["idle", 0, 0],
-    ["walking", 0, 1],
-    ["walking", 1, 2],
-    ["walking", 2, 1],
-    ["working", 0, 3],
-    ["working", 1, 4],
-    ["working", 2, 3],
-    ["slacking", 0, 5],
-    ["eating", 0, 6],
-    ["gaming", 0, 7],
-    ["chatting", 0, 8],
-  ];
-
-  for (const [activity, phase, expectedIndex] of cases) {
-    assert.equal(getActivityFrame(activity, phase).index, expectedIndex, `${activity}:${phase}`);
-  }
+test("maps every direction and activity to the fixed atlas contract", () => {
+  assert.deepEqual(getActivityFrame("walking", 7, "right"), frame(0, 7));
+  assert.deepEqual(getActivityFrame("walking", 7, "front"), frame(1, 7));
+  assert.deepEqual(getActivityFrame("walking", 7, "back"), frame(2, 7));
+  assert.deepEqual(getActivityFrame("working", 3, "front"), frame(3, 3));
+  assert.deepEqual(getActivityFrame("slacking", 3, "front"), frame(3, 7));
+  assert.deepEqual(getActivityFrame("eating", 3, "front"), frame(4, 3));
+  assert.deepEqual(getActivityFrame("gaming", 3, "front"), frame(4, 7));
+  assert.deepEqual(getActivityFrame("reading", 3, "front"), frame(5, 3));
+  assert.deepEqual(getActivityFrame("watchingSeries", 3, "front"), frame(5, 7));
+  assert.deepEqual(getActivityFrame("watchingShortVideo", 3, "front"), frame(6, 3));
+  assert.deepEqual(getActivityFrame("chatting", 3, "front"), frame(6, 7));
+  assert.deepEqual(getActivityFrame("idle", 3, "front"), frame(7, 3));
+  assert.deepEqual(getActivityFrame("listening", 3, "front"), frame(7, 7));
 });
 
 test("returns background-grid values that can be spread into a sprite style", () => {
-  assert.deepEqual(getActivityFrame("working", 1), {
-    index: 4,
-    row: 1,
-    column: 1,
-    backgroundSize: "300% 300%",
-    backgroundPosition: "50% 50%",
-    "--office-frame-index": 4,
-    "--office-frame-row": 1,
-    "--office-frame-column": 1,
-  });
+  assert.deepEqual(getActivityFrame("working", 1), frame(3, 1));
 
   assert.deepEqual(getActivityFrame("unknown", 99), getActivityFrame("idle", 0));
 });

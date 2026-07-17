@@ -18,7 +18,9 @@ export const OFFICE_CHIBIS = CHIBI_CATEGORIES.flatMap(({ kind, gender, prefix, l
       name: `${label} ${number}`,
       kind,
       gender,
-      src: `${ASSET_BASE}/${id}.png`,
+      src: `${ASSET_BASE}/${id}.webp`,
+      columns: 8,
+      rows: 8,
     };
   })
 ));
@@ -28,30 +30,42 @@ export function getOfficeChibi(id, kind) {
   return candidates.find((item) => item.id === id) || candidates[0] || OFFICE_CHIBIS[0];
 }
 
-const STATIC_ACTIVITY_FRAMES = {
-  idle: 0,
-  slacking: 5,
-  eating: 6,
-  gaming: 7,
-  chatting: 8,
+const WALKING_ROWS = {
+  right: 0,
+  left: 0,
+  front: 1,
+  back: 2,
 };
 
-export function getActivityFrame(activity, phase = 0) {
-  const loopPhase = Math.abs(Number.parseInt(phase, 10) || 0) % 2;
-  const index = activity === "walking"
-    ? 1 + loopPhase
-    : activity === "working"
-      ? 3 + loopPhase
-      : STATIC_ACTIVITY_FRAMES[activity] ?? STATIC_ACTIVITY_FRAMES.idle;
-  const row = Math.floor(index / 3);
-  const column = index % 3;
+const ACTIVITY_BLOCKS = {
+  working: { row: 3, offset: 0 },
+  slacking: { row: 3, offset: 4 },
+  eating: { row: 4, offset: 0 },
+  gaming: { row: 4, offset: 4 },
+  reading: { row: 5, offset: 0 },
+  watchingSeries: { row: 5, offset: 4 },
+  watchingShortVideo: { row: 6, offset: 0 },
+  chatting: { row: 6, offset: 4 },
+  idle: { row: 7, offset: 0 },
+  listening: { row: 7, offset: 4 },
+};
+
+export function getActivityFrame(activity, phase = 0, facing = "front") {
+  const parsedPhase = Math.abs(Number.parseInt(phase, 10) || 0);
+  const isWalking = activity === "walking";
+  const block = ACTIVITY_BLOCKS[activity] || ACTIVITY_BLOCKS.idle;
+  const row = isWalking ? (WALKING_ROWS[facing] ?? WALKING_ROWS.front) : block.row;
+  const column = isWalking
+    ? parsedPhase % 8
+    : block.offset + (ACTIVITY_BLOCKS[activity] ? parsedPhase % 4 : 0);
+  const index = (row * 8) + column;
 
   return {
     index,
     row,
     column,
-    backgroundSize: "300% 300%",
-    backgroundPosition: `${column * 50}% ${row * 50}%`,
+    backgroundSize: "800% 800%",
+    backgroundPosition: `${(column / 7) * 100}% ${(row / 7) * 100}%`,
     "--office-frame-index": index,
     "--office-frame-row": row,
     "--office-frame-column": column,
