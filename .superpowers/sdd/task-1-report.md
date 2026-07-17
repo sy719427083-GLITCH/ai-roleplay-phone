@@ -22,3 +22,11 @@ Scope notes:
 
 Concerns:
 - None from this task.
+
+Follow-up fix evidence:
+- RED command: `node --test src/work/officeStations.test.js`
+- RED result: `uses active shell only for a seated activity at home` failed with `Expected values to be strictly equal: + actual - expected + 'active-shell' - 'empty'` when `phase` was `listening` / `meeting`.
+- GREEN command: `node --test src/work/officeStations.test.js`
+- GREEN result: all 4 subtests passed.
+- Full verification command: `npm test`
+- Full verification result: all 172 subtests passed.

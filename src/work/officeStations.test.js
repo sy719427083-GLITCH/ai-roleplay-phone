@@ -31,7 +31,7 @@ test("uses active shell only for a seated activity at home", () => {
   assert.equal(state.stations.employee1.state, "active-shell");
   assert.equal(state.characters.employee1.furnitureReady, true);
 
-  for (const moving of ["walkingToActivity", "returning", "chatting"]) {
+  for (const moving of ["walkingToActivity", "returning", "chatting", "listening", "meeting"]) {
     const next = resolveOfficeModuleState({
       characters: { employee1: character({ phase: moving }) },
       reservations: {},

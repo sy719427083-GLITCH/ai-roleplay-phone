@@ -26,7 +26,7 @@ const isAtHome = (slotId, character) => (
 
 export function resolveStationVisualState(slotId, character = {}, loadedModuleIds = new Set()) {
   const wantsShell = isAtHome(slotId, character)
-    && !["walkingToActivity", "returning", "chatting"].includes(character.phase)
+    && !["walkingToActivity", "returning", "chatting", "listening", "meeting"].includes(character.phase)
     && SEATED_HOME_ACTIVITIES.has(character.activity || "idle");
   const shellId = `${slotId}-active-shell`;
   if (!wantsShell) return { state: "empty", furnitureReady: true };
