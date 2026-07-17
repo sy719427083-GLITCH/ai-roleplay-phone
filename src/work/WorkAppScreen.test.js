@@ -486,6 +486,26 @@ test("removes hard route-step and bubble-clamp rendering", () => {
   assert.doesNotMatch(cssSource, /-webkit-line-clamp/);
 });
 
+test("exposes the rendered motion clock for deterministic movement QA", () => {
+  const markup = renderToStaticMarkup(React.createElement(
+    characterModule.OfficeCharacter,
+    {
+      character: {
+        slotId: "employee1",
+        phase: "walkingToActivity",
+        activity: "eating",
+        routeStartedAt: 100,
+        positionNode: "employee1-home",
+        profile: { name: "小林" },
+      },
+      assignment: { chibiId: "employee-f-01" },
+      motionNow: 720,
+    },
+  ));
+
+  assert.match(markup, /data-motion-now="720"/);
+});
+
 test("renders active props and atlas frames only for an exact owned activity event", () => {
   const character = {
     slotId: "employee1",
@@ -558,5 +578,5 @@ test("clamps the final five-member bubble center after every placement offset", 
     assert.equal(layout.bubbleMemberOffsetPx, 0);
   }
 
-  assert.doesNotMatch(cssSource, /data-group-count="5"/);
+  assert.doesNotMatch(cssSource, /data-group-count="5"[^\{]*\.office-speech-bubble/);
 });

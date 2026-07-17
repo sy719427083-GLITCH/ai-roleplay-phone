@@ -327,6 +327,26 @@ test("chat events return a session whose anchor owner matches the claimed reserv
   });
 });
 
+test("keeps simultaneous conversation anchors off the same crowded row", () => {
+  const event = chooseOfficeEvent({
+    state: {
+      ...createState("free", {
+        employee4: { conversationId: "existing-chat" },
+      }),
+      reservations: {
+        "chat-1": { anchorId: "chat-1", slotId: "employee4" },
+      },
+    },
+    profiles: createProfiles(),
+    random: createSequenceRandom([0.0, 0.95, 0.0, 0.51, 0.1, 0.2]),
+    now: 3350,
+  });
+
+  assert.equal(event.activity, "chatting");
+  assert.notEqual(event.anchorId, "chat-2");
+  assert.ok(["chat-3", "chat-4"].includes(event.anchorId));
+});
+
 test("returns null when required anchors are unavailable", () => {
   const breakBlocked = chooseOfficeEvent({
     state: {

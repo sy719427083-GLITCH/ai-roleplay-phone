@@ -239,6 +239,14 @@
   background: var(--office-sage);
 }
 
+.office-character[data-group-count="3"][data-group-index="1"] .office-character-status,
+.office-character[data-group-count="4"][data-group-index="1"] .office-character-status,
+.office-character[data-group-count="4"][data-group-index="3"] .office-character-status,
+.office-character[data-group-count="5"][data-group-index="1"] .office-character-status,
+.office-character[data-group-count="5"][data-group-index="3"] .office-character-status {
+  bottom: -25px;
+}
+
 .office-character[data-activity="working"] .office-character-status i {
   background: var(--office-blue);
 }
@@ -948,7 +956,15 @@
   }
 
   .office-character-status {
+    min-width: 0;
+    gap: 2px;
+    padding: 2px 3px;
     font-size: 9px;
+  }
+
+  .office-character-status i {
+    width: 4px;
+    height: 4px;
   }
 }
 

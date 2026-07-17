@@ -1058,7 +1058,7 @@ const observeRestJourney = async (page) => {
         facing: character.getAttribute("data-facing") || "",
         left: Number.parseFloat(character.style.left),
         top: Number.parseFloat(character.style.top),
-        sampledAt: performance.now(),
+        renderedAt: Number.parseFloat(character.getAttribute("data-motion-now")),
         sceneWidth: sceneRect?.width || 0,
         sceneHeight: sceneRect?.height || 0,
         mealVisible: Boolean(mealRect && mealRect.width > 0 && mealRect.height > 0),
@@ -1071,7 +1071,9 @@ const observeRestJourney = async (page) => {
         samples += 1;
         if (sample.phase === "walkingToActivity") facings.add(sample.facing);
         if (previous) {
-          const elapsedSeconds = Math.max(0, sample.sampledAt - previous.sampledAt) / 1_000;
+          assert(Number.isFinite(sample.renderedAt) && Number.isFinite(previous.renderedAt),
+            `${trackedSlotId} is missing its rendered motion clock`);
+          const elapsedSeconds = Math.max(0, sample.renderedAt - previous.renderedAt) / 1_000;
           const deltaX = sample.left - previous.left;
           const deltaY = sample.top - previous.top;
           const distanceInSceneUnits = Math.hypot(deltaX, deltaY);
@@ -1137,10 +1139,17 @@ const collectGeometry = (page) => page.evaluate(() => {
   };
   const collect = (selector, visibleOnly = false) => [...document.querySelectorAll(selector)]
     .filter((element) => !visibleOnly || isVisible(element))
-    .map((element, index) => ({
-      label: element.textContent?.trim() || `${selector} ${index + 1}`,
-      rect: toRect(element),
-    }));
+    .map((element, index) => {
+      const character = element.closest(".office-character");
+      const slot = character?.getAttribute("data-slot") || "";
+      const groupCount = character?.getAttribute("data-group-count") || "";
+      const groupIndex = character?.getAttribute("data-group-index") || "";
+      const text = element.textContent?.trim() || `${selector} ${index + 1}`;
+      return {
+        label: `${slot || "scene"}:${text}${groupCount ? ` [${groupCount}/${groupIndex}]` : ""}`,
+        rect: toRect(element),
+      };
+    });
 
   const scene = document.querySelector(".office-scene");
   const header = document.querySelector(".work-app-header");
@@ -1159,6 +1168,7 @@ const collectGeometry = (page) => page.evaluate(() => {
     header: header ? toRect(header) : null,
     modeControl: modeControl ? toRect(modeControl) : null,
     names: collect(".office-character-name", true),
+    statuses: collect(".office-character-status", true),
     bubbles: collect(".office-speech-bubble", true),
     background: background ? {
       complete: background.complete,
@@ -1184,16 +1194,26 @@ const verifyGeometry = (geometry, viewport) => {
   "office background image did not decode");
   assert(geometry.names.length === 5,
     `${viewport.width}x${viewport.height}: expected 5 visible names, received ${geometry.names.length}`);
+  assert(geometry.statuses.length === 5,
+    `${viewport.width}x${viewport.height}: expected 5 visible statuses, received ${geometry.statuses.length}`);
   assert(geometry.bubbles.length >= 1,
     `${viewport.width}x${viewport.height}: expected at least 1 visible speech bubble`);
 
-  for (const item of [...geometry.names, ...geometry.bubbles]) {
+  for (const item of [...geometry.names, ...geometry.statuses, ...geometry.bubbles]) {
     assert(isInside(item.rect, geometry.scene),
       `${item.label} is outside the office scene: ${rectLabel(item.rect)} vs ${rectLabel(geometry.scene)}`);
     assert(!overlaps(item.rect, geometry.header),
       `${item.label} overlaps the Work header: ${rectLabel(item.rect)} vs ${rectLabel(geometry.header)}`);
     assert(!overlaps(item.rect, geometry.modeControl),
       `${item.label} overlaps the mode controls: ${rectLabel(item.rect)} vs ${rectLabel(geometry.modeControl)}`);
+  }
+
+  for (let index = 0; index < geometry.statuses.length; index += 1) {
+    for (let otherIndex = index + 1; otherIndex < geometry.statuses.length; otherIndex += 1) {
+      assert(!overlaps(geometry.statuses[index].rect, geometry.statuses[otherIndex].rect),
+        `${geometry.statuses[index].label} ${rectLabel(geometry.statuses[index].rect)} overlaps `
+        + `${geometry.statuses[otherIndex].label} ${rectLabel(geometry.statuses[otherIndex].rect)}`);
+    }
   }
 };
 

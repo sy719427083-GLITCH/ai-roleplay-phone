@@ -45,6 +45,12 @@ const ACTIVITY_ORDER = [
 ];
 const BREAK_ANCHORS = ["break-1", "break-2"];
 const CHAT_ANCHORS = ["chat-1", "chat-2", "chat-3", "chat-4"];
+const CHAT_ANCHOR_CONFLICTS = {
+  "chat-1": new Set(["chat-2"]),
+  "chat-2": new Set(["chat-1"]),
+  "chat-3": new Set(["chat-4"]),
+  "chat-4": new Set(["chat-3"]),
+};
 const MEALS = ["bento", "rice", "noodles", "sandwich"];
 const BOOK_PROPS = ["paperback", "hardcover", "magazine"];
 const SERIES_PROPS = ["phone-landscape", "tablet", "second-screen"];
@@ -268,7 +274,18 @@ export function buildConversationSession({ memberIds, anchorId, now, random }) {
 const buildChatEvent = ({ state, eligibleIds, primarySlotId, random, now }) => {
   if (eligibleIds.length < 2) return null;
 
-  const claim = getAvailableAnchorClaim(CHAT_ANCHORS, state.reservations, primarySlotId, random);
+  const reservedChatAnchors = CHAT_ANCHORS.filter((anchorId) => state.reservations?.[anchorId]);
+  const spacedChatAnchors = CHAT_ANCHORS.filter((anchorId) => (
+    reservedChatAnchors.every((reservedAnchorId) => (
+      !CHAT_ANCHOR_CONFLICTS[reservedAnchorId]?.has(anchorId)
+    ))
+  ));
+  const claim = getAvailableAnchorClaim(
+    spacedChatAnchors,
+    state.reservations,
+    primarySlotId,
+    random,
+  );
   if (!claim) return null;
 
   const maxGroupSize = Math.min(5, eligibleIds.length);

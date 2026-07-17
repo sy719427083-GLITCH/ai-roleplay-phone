@@ -388,6 +388,7 @@ export function OfficeCharacter({
       data-group-index={groupIndex ?? undefined}
       data-group-count={groupCount ?? undefined}
       data-bubble-placement={bubblePlacement}
+      data-motion-now={motionNow}
       style={layerStyle}
     >
       <button

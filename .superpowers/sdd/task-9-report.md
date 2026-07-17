@@ -39,12 +39,12 @@ Command:
 npm test && npm run deploy:pages && npm run verify:office
 ```
 
-Result: PASS. All 163 tests passed, Pages output built and synced successfully, and both mobile browser checks passed.
+Result: PASS. All 165 tests passed, Pages output built and synced successfully, and both mobile browser checks passed.
 
 Final browser evidence:
 
-- `375x812`: 5 characters, 16 decoded WebPs, 8 prop/status pairs, 103 samples at 50 ms during a multi-node walk, 2 isolated conversations, 2 bubbles, assignment coverage, activity-filter coverage, 11 expected mocked API calls, and a 334,072-byte scene capture.
-- `390x844`: 5 characters, 16 decoded WebPs, 1 meeting conversation and bubble, 2 expected mocked API calls, and a 364,489-byte scene capture.
+- `375x812`: 5 characters, 16 decoded WebPs, 8 prop/status pairs, 103 samples at 50 ms during a multi-node walk, 2 isolated conversations, 2 bubbles, assignment coverage, activity-filter coverage, 11 expected mocked API calls, and a 339,345-byte scene capture.
+- `390x844`: 5 characters, 16 decoded WebPs, 1 meeting conversation and bubble, 2 expected mocked API calls, and a 363,815-byte scene capture.
 - Both runs reported zero console errors, page errors, failed asset requests, and unexpected API requests.
 
 ## Release Output
@@ -53,11 +53,18 @@ Final browser evidence:
 - `docs/work-office-assets/chibi`: 16 WebP files and 0 PNG files.
 - Final `boss-m-01.webp` public/docs SHA-256: `05d5be30a996b38219bd9e0f05ca6202c111afd99749164d640d41dad18bbf71`.
 - The post-review art normalization is included in the final release output and verified by decoded pixel gutters.
-- Final JS bundle: `docs/assets/index-tYI6W66v.js`.
-- Final CSS bundle: `docs/assets/index-BHd9CkgF.css`.
+- Final JS bundle: `docs/assets/index-BeazfP7z.js`.
+- Final CSS bundle: `docs/assets/index-1mEZ60LS.css`.
 - Screenshot: `docs/superpowers/qa/office-375x812.png`.
 - Screenshot: `docs/superpowers/qa/office-390x844.png`.
 - Visual inspection: PASS at both sizes; scene framing, safe-area tools, labels, bubbles, and long-number wrapping are contained and legible.
+
+## Review Follow-up
+
+- Movement QA now reads the exact `motionNow` value used to render each position instead of comparing an asynchronously committed position against a later DOM-read timestamp.
+- The 50 ms journey gate passed four consecutive post-fix browser runs, with maximum observed jumps between 8.57px and 8.69px.
+- Concurrent conversations cannot reserve the two adjacent anchors on the same office row, keeping their members, bubbles, and status labels spatially separate.
+- Three-, four-, and five-person status labels use compact mobile styling and staggered rows; browser geometry now checks all five labels for mutual overlap and scene/header containment.
 
 ## Handoff
 
