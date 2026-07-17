@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { access } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, readFile, readdir } from "node:fs/promises";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   OFFICE_CHIBIS,
   getActivityFrame,
@@ -27,6 +29,15 @@ const publicAssetUrl = (src) => new URL(
   import.meta.url,
 );
 
+const chibiAssetDirectory = fileURLToPath(new URL(
+  "../../public/work-office-assets/chibi/",
+  import.meta.url,
+));
+
+const readUint24LE = (buffer, offset) => (
+  buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16)
+);
+
 const frame = (row, column) => ({
   index: (row * 8) + column,
   row,
@@ -51,6 +62,13 @@ test("ships sixteen transparent 8x8 WebP atlases", async () => {
     );
   }
 
+  const assetFiles = (await readdir(chibiAssetDirectory)).sort();
+  const expectedFiles = OFFICE_CHIBIS.map(({ id }) => `${id}.webp`).sort();
+  const hashes = new Set();
+
+  assert.deepEqual(assetFiles, expectedFiles);
+  assert.equal(assetFiles.some((file) => file.endsWith(".png")), false);
+
   for (const item of OFFICE_CHIBIS) {
     assert.deepEqual(Object.keys(item), ["id", "name", "kind", "gender", "src", "columns", "rows"]);
     assert.ok(item.name.length > 0, `${item.id} should have a display name`);
@@ -58,7 +76,19 @@ test("ships sixteen transparent 8x8 WebP atlases", async () => {
     assert.equal(item.columns, 8);
     assert.equal(item.rows, 8);
     await access(publicAssetUrl(item.src));
+
+    const asset = await readFile(publicAssetUrl(item.src));
+    assert.equal(asset.toString("ascii", 0, 4), "RIFF", `${item.id} should be RIFF WebP`);
+    assert.equal(asset.toString("ascii", 8, 12), "WEBP", `${item.id} should be WebP`);
+    assert.equal(asset.toString("ascii", 12, 16), "VP8X", `${item.id} should use extended WebP`);
+    assert.ok(asset[20] & 0x10, `${item.id} should declare an alpha channel`);
+    assert.ok(asset.includes(Buffer.from("ALPH")), `${item.id} should contain alpha data`);
+    assert.equal(readUint24LE(asset, 24) + 1, 1024, `${item.id} should be 1024px wide`);
+    assert.equal(readUint24LE(asset, 27) + 1, 1024, `${item.id} should be 1024px tall`);
+    hashes.add(createHash("sha256").update(asset).digest("hex"));
   }
+
+  assert.equal(hashes.size, OFFICE_CHIBIS.length, "every chibi atlas should be unique");
 });
 
 test("looks up a chibi within its role and falls back within the requested role", () => {
