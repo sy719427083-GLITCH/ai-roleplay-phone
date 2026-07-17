@@ -1,97 +1,50 @@
-# Task 2 Report: Add The Authoritative Activity Event Model
+# Task 2 Report: Render Architecture, Modules, And Furniture-Safe Characters
 
-## Files changed
-- `src/work/officeActivities.js`
-- `src/work/officeActivities.test.js`
-- `src/work/officeState.js`
-- `src/work/officeState.test.js`
+## Scope
 
-## RED
-- `node --test src/work/officeActivities.test.js`
-  - Failed with `ERR_MODULE_NOT_FOUND` for `src/work/officeActivities.js`.
-- `node --test src/work/officeState.test.js`
-  - Failed in the new reducer specs with `Cannot read properties of undefined (reading 'employee1')` and `state.activityEvents is not iterable`.
+- Commit: `22a8e10 feat: render furniture-safe office modules`
+- Changed only the Task 2 implementation and contract-test files:
+  - `src/work/OfficeScene.jsx`
+  - `src/work/OfficeCharacter.jsx`
+  - `src/work/WorkAppScreen.test.js`
+  - `src/work/office.css`
+- Did not change atlas dimensions, animation cadence/speed, generated art, package version, or deployment version.
 
-## GREEN
-- `node --test src/work/officeActivities.test.js`
-  - `1..6`, `# pass 6`, `# fail 0`
-- `node --test src/work/officeActivities.test.js src/work/officeState.test.js`
-  - `1..33`, `# pass 33`, `# fail 0`
+## RED Evidence
 
-## Full suite
-- `npm test`
-  - `1..127`, `# pass 127`, `# fail 0`
+1. Added the required source-contract test named `renders architecture and dynamic furniture below furniture-safe characters` before implementation.
+2. Ran `node --test src/work/WorkAppScreen.test.js`.
+3. Result: 21 passing, 1 failing. The new test failed at `assert.match(sceneSource, /resolveOfficeModuleState/)`, because `OfficeScene.jsx` did not yet import or use the Task 1 module resolver. This was the expected feature-missing failure.
 
-## Self-review
-- Added the exact exported activity type/definition contract, immutable detail merge, local fallback detail generation, and session-scoped filtering in `officeActivities.js`.
-- Extended the reducer with `workSessionId`, `activityEvents`, and `activeEventBySlot` while preserving the existing conversation counter and reservation safety behavior.
-- Restore now keeps only current-session events, converts in-flight records into completed local fallbacks, and clears live ownership after reload.
+## Implementation
 
-## Concerns (initial implementation)
-- The initial `workSessionId` generator was reducer-local (`work-session-${now}-${counter}`); the Fix Review below replaces it with UUID/random uniqueness.
+- `OfficeScene` imports and uses the Task 1 interfaces exactly: `OFFICE_STATION_ASSETS`, `OFFICE_BREAK_ASSETS`, and `resolveOfficeModuleState`.
+- A hidden preload bank requests all 14 module assets (ten station states and four break states), avoiding the unloaded-active-shell resolver/render deadlock.
+- The selected five station modules and selected break module render in `.office-module-layer` between the background and existing furniture hit areas. Each image exposes `data-module-id` and `data-module-state` and updates the loaded-module set on load/error.
+- Existing station hit areas remain in `.office-furniture-layer`; character sorting remains based on final Y position.
+- Each `OfficeCharacter` receives furniture readiness from the resolved module state and exposes `data-furniture-ready`.
+- Chair-bearing idle/activity frames fall back to the listening frame while their shell is unavailable. Concrete CSS prop renderers for work, slack, games, meals, books, series, and short videos were removed; semantic `data-prop` and chat/listen indicators remain.
+- Conversation event ownership, profile naming, speech bubbles, and conversation isolation paths were retained.
 
-## Fix Review
+## GREEN Evidence
 
-### Files changed
-- `src/work/officeState.js`
-- `src/work/officeState.test.js`
+- Focused: `node --test src/work/WorkAppScreen.test.js`
+  - Result: 22 passing, 0 failing.
+  - Includes behavioral coverage for semantic activity data and the furniture-unready listening-frame fallback.
+- Full: `npm test`
+  - Result: 173 passing, 0 failing.
+- Build: `npm run build`
+  - Result: passed.
+  - Vite retained an existing runtime-resolution warning for `/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.96`; it is unrelated to this task.
+- Diff integrity: `git diff --check` passed before commit.
 
-### RED
-- `node --test src/work/officeState.test.js`
-  - `1..29`, `# pass 27`, `# fail 2`
-  - `rejects activity events from another work session without changing state` failed because `evt-foreign` was stored and marked active.
-  - `creates unique non-empty work session IDs across isolated contexts at the same time` failed because both IDs were `work-session-1000-1`.
+## Self-Review
 
-### GREEN
-- `node --test src/work/officeState.test.js`
-  - `1..29`, `# pass 29`, `# fail 0`
-- `node --test src/work/officeActivities.test.js src/work/officeState.test.js`
-  - `1..35`, `# pass 35`, `# fail 0`
-- `npm test`
-  - `1..129`, `# pass 129`, `# fail 0`
+- Confirmed the scene preloads all fourteen module entries independent of resolver selection.
+- Confirmed module layer z-index is 1, existing furniture/hit-area layer remains 2, and the character layer remains 3.
+- Confirmed only the specified four implementation/test files are in the feature commit.
+- Confirmed the pre-existing modified `.superpowers/sdd/progress.md` was not staged or changed by this task.
 
-### Self-review
-- `CREATE_ACTIVITY_EVENT` now returns the original state before normalization when the event belongs to another work session.
-- New sessions use `globalThis.crypto.randomUUID()` when available and a dependency-free random fallback otherwise; the cross-context regression test no longer depends on a module counter.
-- Restore still reuses `parsed.workSessionId`, and its existing persistence assertion passes.
-- `WorkAppScreen` was not changed; event runtime wiring remains Task 8 as directed.
-- `git diff --check` passed with no output, and the diff stays within Task 2 ownership plus this report.
+## Concerns
 
-### Concerns
-- No remaining Task 2 concerns. Runtime creation/enrichment/completion wiring is intentionally deferred to Task 8 and cannot be verified in this task.
-
-## Secure Random Fix Re-Review
-
-### Files changed
-- `src/work/officeState.js`
-- `src/work/officeState.test.js`
-
-### RED
-- `node --test src/work/officeState.test.js`
-  - `1..32`, `# pass 30`, `# fail 2`
-  - `uses getRandomValues when randomUUID is unavailable` failed because `createWorkSessionId` was not exported.
-  - `throws clearly when secure work session ID generation is unavailable` failed for the same missing helper contract.
-  - `restore reuses the persisted work session ID` passed as a characterization guard.
-
-### Integration finding
-- `node --test src/work/officeState.test.js` after the helper implementation
-  - `1..32`, `# pass 3`, `# fail 29`
-  - The Node 18 test worker did not expose `globalThis.crypto`, so ordinary state creation correctly failed closed. The test harness now supplies Node's built-in `webcrypto`; production remains on global Web Crypto.
-
-### GREEN
-- `node --test src/work/officeState.test.js`
-  - `1..32`, `# pass 32`, `# fail 0`
-- `node --test src/work/officeActivities.test.js src/work/officeState.test.js`
-  - `1..38`, `# pass 38`, `# fail 0`
-- `npm test`
-  - `1..132`, `# pass 132`, `# fail 0`
-
-### Self-review
-- `createWorkSessionId(now, cryptoSource)` uses `crypto.randomUUID()` first, otherwise formats 16 bytes from `crypto.getRandomValues()` as a 32-character hexadecimal suffix.
-- The insecure `Math.random` fallback is removed; absence of both secure primitives throws `Secure random generation is unavailable for work session IDs.`
-- `restoreOfficeState` passes a persisted ID into `createOfficeState`, so restore reuses it without generating a replacement ID.
-- The test harness uses only Node's built-in `webcrypto`, and production remains dependency-free.
-- `git diff --check` passed with no output; no files outside Task 2 ownership and this report were changed.
-
-### Concerns
-- No remaining Task 2 defect. Creating a brand-new session in an environment without Web Crypto now intentionally fails closed.
+- None for Task 2. The unrelated Vite worldbook asset warning remains present during builds.
