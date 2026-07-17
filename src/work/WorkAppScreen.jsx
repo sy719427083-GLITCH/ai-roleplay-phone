@@ -70,8 +70,6 @@ const MODE_OPTIONS = [
   { id: "free", label: "自由行动" },
   { id: "rest", label: "休息一下" },
 ];
-const SLACK_PROPS = ["phone", "comic", "handheld"];
-
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 export function getNextOfficeRadioIndex(currentIndex, key, itemCount) {
@@ -509,6 +507,7 @@ export default function WorkAppScreen({ onClose }) {
       startedAt: now,
       requestSequence: 1,
       conversationId: event.session?.id || "",
+      conversationTopic: event.session?.topic || "",
     });
     dispatchOffice({ type: "CREATE_ACTIVITY_EVENT", event: activityEvent });
 
@@ -578,9 +577,6 @@ export default function WorkAppScreen({ onClose }) {
       ? 12_000 + Math.floor(Math.random() * 6_000)
       : 9_000 + Math.floor(Math.random() * 5_000);
     const activityProps = {
-      ...(event.activity === "slacking"
-        ? { slackProp: SLACK_PROPS[Math.floor(Math.random() * SLACK_PROPS.length)] }
-        : {}),
       ...(event.propVariant ? { propVariant: event.propVariant } : {}),
     };
 

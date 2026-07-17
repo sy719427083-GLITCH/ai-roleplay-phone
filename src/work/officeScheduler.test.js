@@ -113,6 +113,19 @@ test("free mode selects the new desk activities with deterministic prop variants
   assert.deepEqual(chooseOfficeEvent({
     state,
     profiles,
+    random: createSequenceRandom([0.0, 0.40, 0.67]),
+    now: 1500,
+  }), {
+    slotId: "employee1",
+    memberIds: ["employee1"],
+    activity: "slacking",
+    propVariant: "handheld",
+    now: 1500,
+  });
+
+  assert.deepEqual(chooseOfficeEvent({
+    state,
+    profiles,
     random: createSequenceRandom([0.0, 0.70, 0.67]),
     now: 2000,
   }), {

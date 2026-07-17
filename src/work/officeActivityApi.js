@@ -1,4 +1,4 @@
-import { createLocalActivityDetail } from "./officeActivities.js";
+import { createLocalActivityDetail, getOfficeActivityContext } from "./officeActivities.js";
 import { getOfficeEndpoint } from "./officeConversationApi.js";
 
 const MAX_DETAIL_CHARACTERS = 120;
@@ -49,17 +49,19 @@ const withFallbackStatus = (event) => ({
 
 export function buildOfficeActivityMessages(event = {}) {
   try {
+    const concreteContext = getOfficeActivityContext(event);
     const context = {
       eventId: event.eventId,
       activityType: event.activityType,
       requestSequence: event.requestSequence,
       profiles: Array.isArray(event.profileSnapshots) ? event.profileSnapshots : [],
+      concreteContext,
       requiredMeaning: DETAIL_FIELDS[event.activityType] || DETAIL_FIELDS.working,
     };
 
     return [{
       role: "system",
-      content: `根据角色档案补全当前办公室活动。内容必须符合角色性格、身份、背景和语言习惯，不得改变 activityType。只返回 eventId、activityType、requestSequence、title、subject、summary、insightOrResult 七个键的 JSON。\n${JSON.stringify(context)}`,
+      content: `根据角色档案补全当前办公室活动。内容必须符合角色性格、身份、背景和语言习惯，不得改变 activityType。concreteContext 是画面正在呈现的不可变事实，subject、summary、insightOrResult 必须与其一致，不得更换食物、道具、作品或聊天主题。只返回 eventId、activityType、requestSequence、title、subject、summary、insightOrResult 七个键的 JSON。\n${JSON.stringify(context)}`,
     }, {
       role: "user",
       content: "生成本次活动的具体记录。",
@@ -85,6 +87,11 @@ export function parseOfficeActivityReply(raw, event = {}) {
     const summary = capDetailText(parsed.summary);
     const insightOrResult = capDetailText(parsed.insightOrResult);
     if (!title || !subject || !summary || !insightOrResult) return null;
+    const concreteContext = getOfficeActivityContext(event);
+    const hasAuthoritativeContext = Boolean(
+      concreteContext.propVariant || concreteContext.conversationTopic,
+    );
+    if (hasAuthoritativeContext && !subject.includes(concreteContext.contextLabel)) return null;
 
     return {
       eventId: parsed.eventId,

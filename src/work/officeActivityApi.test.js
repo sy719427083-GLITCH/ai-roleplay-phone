@@ -60,6 +60,33 @@ test("builds a reading prompt from only the assigned profile snapshot", () => {
   assert.doesNotMatch(system.content, /未参与角色|不应进入提示词/);
 });
 
+test("binds activity prompts to the visible prop and exact conversation topic", () => {
+  const buildContent = (overrides) => buildOfficeActivityMessages({
+    ...readingEvent,
+    ...overrides,
+  })[0].content;
+
+  const rice = buildContent({ activityType: "eating", propVariant: "rice" });
+  const noodles = buildContent({ activityType: "eating", propVariant: "noodles" });
+  const projectChat = buildContent({
+    activityType: "chatting",
+    propVariant: "",
+    conversationTopic: "项目进度",
+  });
+  const weekendChat = buildContent({
+    activityType: "chatting",
+    propVariant: "",
+    conversationTopic: "周末安排",
+  });
+
+  assert.match(rice, /rice|米饭/u);
+  assert.match(noodles, /noodles|面条/u);
+  assert.notEqual(rice, noodles);
+  assert.match(projectChat, /项目进度/u);
+  assert.match(weekendChat, /周末安排/u);
+  assert.notEqual(projectChat, weekendChat);
+});
+
 test("accepts only matching event activity and sequence", () => {
   const valid = JSON.stringify({
     eventId: "evt-1",
@@ -74,6 +101,44 @@ test("accepts only matching event activity and sequence", () => {
   assert.equal(parseOfficeActivityReply(valid, readingEvent).subject, "《沉思录》");
   assert.equal(parseOfficeActivityReply(valid.replace('"reading"', '"gaming"'), readingEvent), null);
   assert.equal(parseOfficeActivityReply(valid.replace('"requestSequence":2', '"requestSequence":1'), readingEvent), null);
+});
+
+test("rejects API detail that changes an authoritative visible context", () => {
+  const riceEvent = {
+    ...readingEvent,
+    activityType: "eating",
+    propVariant: "rice",
+  };
+  const buildReply = (subject) => JSON.stringify({
+    eventId: "evt-1",
+    activityType: "eating",
+    requestSequence: 2,
+    title: "用餐记录",
+    subject,
+    summary: "认真吃完午餐",
+    insightOrResult: "补充体力后继续工作",
+  });
+
+  assert.equal(parseOfficeActivityReply(buildReply("热腾腾的面条"), riceEvent), null);
+  assert.equal(parseOfficeActivityReply(buildReply("一碗米饭"), riceEvent)?.subject, "一碗米饭");
+
+  const chatEvent = {
+    ...readingEvent,
+    activityType: "chatting",
+    conversationTopic: "项目进度",
+  };
+  const chatReply = (subject) => JSON.stringify({
+    eventId: "evt-1",
+    activityType: "chatting",
+    requestSequence: 2,
+    title: "聊天记录",
+    subject,
+    summary: "大家交换了看法",
+    insightOrResult: "明确了下一步",
+  });
+
+  assert.equal(parseOfficeActivityReply(chatReply("周末安排"), chatEvent), null);
+  assert.equal(parseOfficeActivityReply(chatReply("项目进度讨论"), chatEvent)?.subject, "项目进度讨论");
 });
 
 test("parses fenced JSON, rejects missing or extra keys, and caps human-readable fields", () => {

@@ -40,6 +40,7 @@ test("creates one event shared by animation status props and API detail", () => 
     profileSnapshots,
     activityType: "reading",
     propVariant: "paperback",
+    conversationTopic: "项目进度",
     startedAt: 1000,
     requestSequence: 1,
   });
@@ -48,9 +49,38 @@ test("creates one event shared by animation status props and API detail", () => 
   assert.equal(event.status, "看书中");
   assert.equal(event.title, "阅读记录");
   assert.equal(event.propVariant, "paperback");
+  assert.equal(event.conversationTopic, "项目进度");
   assert.equal(event.detailStatus, "pending");
   assert.deepEqual(event.participantIds, ["employee1"]);
   assert.notEqual(event.profileSnapshots, profileSnapshots);
+});
+
+test("creates context-specific local details for visible props and chat topics", () => {
+  const createDetail = (activityType, propVariant, conversationTopic = "") => (
+    createLocalActivityDetail(createOfficeActivityEvent({
+      eventId: `${activityType}-${propVariant || conversationTopic}`,
+      workSessionId: "work-1",
+      actorId: "employee1",
+      profileSnapshots: [{ name: "小林", personality: "自律" }],
+      activityType,
+      propVariant,
+      conversationTopic,
+      startedAt: 1000,
+      requestSequence: 1,
+    }))
+  );
+
+  const rice = createDetail("eating", "rice");
+  const noodles = createDetail("eating", "noodles");
+  const projectChat = createDetail("chatting", "", "项目进度");
+  const weekendChat = createDetail("chatting", "", "周末安排");
+
+  assert.match(rice.subject, /米饭/u);
+  assert.match(noodles.subject, /面条/u);
+  assert.notEqual(rice.subject, noodles.subject);
+  assert.match(projectChat.subject, /项目进度/u);
+  assert.match(weekendChat.subject, /周末安排/u);
+  assert.notEqual(projectChat.subject, weekendChat.subject);
 });
 
 test("rejects stale detail without changing the event", () => {

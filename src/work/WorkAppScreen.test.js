@@ -328,6 +328,7 @@ test("creates authoritative events and completes exact route and activity lifecy
   assert.match(source, /apiMeProfiles/);
   assert.match(source, /apiCharacters/);
   assert.match(source, /apiRelations/);
+  assert.match(source, /conversationTopic:\s*event\.session\?\.topic\s*\|\|\s*""/);
 });
 
 test("keeps safe-area tools as overlays without moving scene geometry", () => {

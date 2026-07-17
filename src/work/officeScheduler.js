@@ -52,6 +52,7 @@ const CHAT_ANCHOR_CONFLICTS = {
   "chat-4": new Set(["chat-3"]),
 };
 const MEALS = ["bento", "rice", "noodles", "sandwich"];
+const SLACK_PROPS = ["phone", "comic", "handheld"];
 const BOOK_PROPS = ["paperback", "hardcover", "magazine"];
 const SERIES_PROPS = ["phone-landscape", "tablet", "second-screen"];
 const SHORT_VIDEO_PROPS = ["phone-portrait-light", "phone-portrait-dark"];
@@ -365,6 +366,16 @@ export function chooseOfficeEvent({ state, profiles, random, now }) {
       now,
       random,
       propPool: BOOK_PROPS,
+    });
+  }
+
+  if (activity === "slacking") {
+    return buildDeskLocalEvent({
+      slotId: primarySlotId,
+      activity,
+      now,
+      random,
+      propPool: SLACK_PROPS,
     });
   }
 
