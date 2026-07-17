@@ -1,6 +1,12 @@
+import { useCallback, useState } from "react";
 import OfficeCharacter from "./OfficeCharacter.jsx";
 import { sampleOfficeRoute } from "./officeMotion.js";
 import { OFFICE_NODES } from "./officeNavigation.js";
+import {
+  OFFICE_BREAK_ASSETS,
+  OFFICE_STATION_ASSETS,
+  resolveOfficeModuleState,
+} from "./officeStations.js";
 import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
@@ -299,6 +305,22 @@ function StationHitArea({ station, onStationSelect }) {
   );
 }
 
+function OfficeModuleImage({ module, state, onLoad, onError }) {
+  return (
+    <img
+      className="office-module-image"
+      src={module.src}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      data-module-id={module.id}
+      data-module-state={state}
+      onLoad={() => onLoad(module.id)}
+      onError={() => onError(module.id)}
+    />
+  );
+}
+
 export function OfficeScene({
   state = {},
   assignments = {},
@@ -316,6 +338,17 @@ export function OfficeScene({
   const activityEvents = Array.isArray(state.activityEvents) ? state.activityEvents : [];
   const activeEventBySlot = isRecord(state.activeEventBySlot) ? state.activeEventBySlot : {};
   const activityEventById = new Map(activityEvents.map((event) => [cleanText(event?.eventId), event]));
+  const [loadedModuleIds, setLoadedModuleIds] = useState(() => new Set());
+  const markModuleLoaded = useCallback((id) => {
+    setLoadedModuleIds((current) => new Set(current).add(id));
+  }, []);
+  const markModuleFailed = useCallback((id) => {
+    setLoadedModuleIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const sceneCharacters = OFFICE_SLOT_IDS.map((slotId, slotIndex) => {
     const assignment = isRecord(suppliedAssignments[slotId])
@@ -367,6 +400,23 @@ export function OfficeScene({
       mealStage: getMealDepletionStage(character, now),
     };
   }).sort((left, right) => left.finalY - right.finalY || left.slotIndex - right.slotIndex);
+  const moduleState = resolveOfficeModuleState({
+    characters: Object.fromEntries(sceneCharacters.map(({ slotId, character }) => [slotId, character])),
+    reservations: isRecord(state.reservations) ? state.reservations : {},
+    loadedModuleIds,
+  });
+  const stationModules = OFFICE_SLOT_IDS.map((slotId) => {
+    const stationState = moduleState.stations[slotId].state;
+    return {
+      module: OFFICE_STATION_ASSETS[slotId][stationState],
+      state: stationState,
+    };
+  });
+  const breakModule = OFFICE_BREAK_ASSETS[moduleState.breakArea.state];
+  const allModules = [
+    ...Object.values(OFFICE_STATION_ASSETS).flatMap(Object.values),
+    ...Object.values(OFFICE_BREAK_ASSETS),
+  ];
 
   return (
     <section
@@ -381,6 +431,36 @@ export function OfficeScene({
         aria-hidden="true"
         draggable={false}
       />
+
+      <div className="office-module-preload" hidden aria-hidden="true">
+        {allModules.map((module) => (
+          <img
+            key={module.id}
+            src={module.src}
+            alt=""
+            onLoad={() => markModuleLoaded(module.id)}
+            onError={() => markModuleFailed(module.id)}
+          />
+        ))}
+      </div>
+
+      <div className="office-module-layer" aria-hidden="true">
+        {stationModules.map(({ module, state }) => (
+          <OfficeModuleImage
+            key={module.id}
+            module={module}
+            state={state}
+            onLoad={markModuleLoaded}
+            onError={markModuleFailed}
+          />
+        ))}
+        <OfficeModuleImage
+          module={breakModule}
+          state={moduleState.breakArea.state}
+          onLoad={markModuleLoaded}
+          onError={markModuleFailed}
+        />
+      </div>
 
       <div className="office-furniture-layer" role="group" aria-label="办公室设施与互动区域">
         {STATIONS.map((station) => (
@@ -413,6 +493,7 @@ export function OfficeScene({
             motion={motion}
             motionNow={sampledMotionNow}
             sceneLayout={sceneLayout}
+            furnitureReady={moduleState.characters[slotId]?.furnitureReady !== false}
             onSlotSelect={onSlotSelect}
             onAssetError={onAssetError}
           />

@@ -26,19 +26,6 @@ const STATUS_FALLBACKS = {
   returning: "返回工位",
 };
 
-const MEAL_DETAILS = {
-  bento: { label: "便当", utensil: "chopsticks" },
-  rice: { label: "米饭", utensil: "spoon" },
-  noodles: { label: "面条", utensil: "chopsticks" },
-  sandwich: { label: "三明治", utensil: "hands" },
-};
-
-const SLACK_DETAILS = {
-  phone: { label: "手机", className: "phone" },
-  comic: { label: "漫画", className: "comic" },
-  handheld: { label: "掌机", className: "handheld" },
-};
-
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
@@ -160,93 +147,6 @@ const getCurrentSpeakerId = (conversation, character) => {
   return "";
 };
 
-const getSlackDetail = (propVariant) => {
-  const requested = cleanText(propVariant).toLowerCase();
-  if (requested === "console" || requested === "game") return SLACK_DETAILS.handheld;
-  if (SLACK_DETAILS[requested]) return SLACK_DETAILS[requested];
-  return SLACK_DETAILS.phone;
-};
-
-function WorkProps({ subject, variant }) {
-  return (
-    <div className="office-work-props office-activity-prop" data-prop={variant} role="img" aria-label={`正在处理${subject || "工作"}`}>
-      <i className="office-work-computer computer" aria-hidden="true"><b className="screen"></b><b className="cursor"></b></i>
-      <i className="office-work-document document" aria-hidden="true"><b></b><b></b><b></b></i>
-    </div>
-  );
-}
-
-function SlackProps({ detail, subject, variant }) {
-  return (
-    <div
-      className={`office-slack-prop office-activity-prop prop-${detail.className}`}
-      data-prop={variant || detail.className}
-      role="img"
-      aria-label={`正在看${subject || detail.label}`}
-    >
-      <i className="office-slack-screen" aria-hidden="true"></i>
-      <i className="office-slack-hand" aria-hidden="true"></i>
-      <i className="office-slack-page" aria-hidden="true"></i>
-      <i className="office-slack-controls" aria-hidden="true"></i>
-    </div>
-  );
-}
-
-function GameProps({ subject, variant }) {
-  return (
-    <div className="office-game-props office-activity-prop" data-prop={variant} role="img" aria-label={`正在玩${subject || "游戏"}`}>
-      <i className="office-game-screen" aria-hidden="true"><b></b><b></b><b></b></i>
-      <i className="office-game-controller" aria-hidden="true"><b></b><b></b></i>
-    </div>
-  );
-}
-
-function MealProps({ meal, stage, subject, variant }) {
-  const detail = MEAL_DETAILS[meal] || MEAL_DETAILS.bento;
-  return (
-    <div
-      className={`office-meal office-activity-prop meal-${meal} meal-stage-${stage}`}
-      data-depletion-stage={stage}
-      data-meal={meal}
-      data-prop={variant}
-      role="img"
-      aria-label={`正在吃${subject || detail.label}`}
-    >
-      <span className="office-food food" aria-hidden="true">
-        <i className="office-food-serving"></i>
-        <i className="office-food-side"></i>
-        <i className="office-food-garnish"></i>
-      </span>
-      <i className={`office-utensil utensil utensil-${detail.utensil}`} aria-hidden="true"></i>
-      <i className="office-meal-steam steam" aria-hidden="true"><b></b><b></b></i>
-    </div>
-  );
-}
-
-function BookProps({ subject, variant }) {
-  return (
-    <div className={`office-book-prop office-activity-prop prop-${variant || "paperback"}`} data-prop={variant} role="img" aria-label={`正在阅读${subject || "书籍"}`}>
-      <i></i><i></i><b></b>
-    </div>
-  );
-}
-
-function SeriesProps({ subject, variant }) {
-  return (
-    <div className={`office-series-prop office-activity-prop prop-${variant || "tablet"}`} data-prop={variant} role="img" aria-label={`正在观看${subject || "剧集"}`}>
-      <i className="screen"></i><i className="hands"></i>
-    </div>
-  );
-}
-
-function ShortVideoProps({ subject, variant }) {
-  return (
-    <div className={`office-short-video-prop office-activity-prop prop-${variant || "phone-portrait-light"}`} data-prop={variant} role="img" aria-label={`正在看${subject || "短视频"}`}>
-      <i className="phone"></i><i className="thumb"></i>
-    </div>
-  );
-}
-
 function ConversationProps({ isSpeaker, subject, variant }) {
   if (isSpeaker) {
     return (
@@ -272,6 +172,7 @@ export function OfficeCharacter({
   motion = null,
   motionNow = 0,
   sceneLayout = null,
+  furnitureReady = true,
   onSlotSelect,
   onAssetError,
 }) {
@@ -341,11 +242,15 @@ export function OfficeCharacter({
   const framePhase = isMoving
     ? getWalkFrame({ startedAt: character.routeStartedAt, now: motionNow })
     : getActiveFrame(motionNow);
-  const frame = getActivityFrame(spriteActivity, framePhase, facing);
+  const chairBearing = !isMoving && [
+    "idle", "working", "slacking", "eating", "gaming", "reading",
+    "watchingSeries", "watchingShortVideo",
+  ].includes(spriteActivity);
+  const renderedActivity = chairBearing
+    ? furnitureReady ? spriteActivity : "listening"
+    : spriteActivity;
+  const frame = getActivityFrame(renderedActivity, framePhase, facing);
   const positionDuration = isMoving ? 0 : 220;
-  const normalizedMealStage = Math.min(3, Math.max(0, Number.parseInt(mealStage, 10) || 0));
-  const meal = MEAL_DETAILS[propVariant] ? propVariant : "bento";
-  const slackDetail = getSlackDetail(propVariant);
   const sessionId = cleanText(conversation?.id || conversation?.conversationId);
   const conversationRole = isAtActivity && activity === "chatting"
     ? currentSpeakerId === slotId
@@ -383,6 +288,8 @@ export function OfficeCharacter({
       data-activity={activity}
       data-facing={facing}
       data-node={nodeId}
+      data-prop={isAtActivity ? propVariant || undefined : undefined}
+      data-furniture-ready={furnitureReady}
       data-conversation-group={sessionId || undefined}
       data-conversation-role={conversationRole || undefined}
       data-group-index={groupIndex ?? undefined}
@@ -426,13 +333,6 @@ export function OfficeCharacter({
         )}
       </div>
 
-      {isAtActivity && activity === "working" && <WorkProps subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "slacking" && <SlackProps detail={slackDetail} subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "gaming" && <GameProps subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "eating" && <MealProps meal={meal} stage={normalizedMealStage} subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "reading" && <BookProps subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "watchingSeries" && <SeriesProps subject={activitySubject} variant={propVariant} />}
-      {isAtActivity && activity === "watchingShortVideo" && <ShortVideoProps subject={activitySubject} variant={propVariant} />}
       {isAtActivity && activity === "chatting" && (
         <ConversationProps
           isSpeaker={currentSpeakerId === slotId}

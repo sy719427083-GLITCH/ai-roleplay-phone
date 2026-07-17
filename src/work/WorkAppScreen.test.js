@@ -473,11 +473,21 @@ test("owns one upload reader per slot and aborts stale or unmounted work", () =>
   assert.equal(registry.isCurrent("employee1", second), false);
 });
 
-test("renders every concrete office action from the authoritative event", () => {
+test("keeps event ownership while modules render concrete furniture", () => {
   for (const token of [
-    "BookProps", "SeriesProps", "ShortVideoProps", "MealProps", "GameProps",
     "activityEvent", "sampleOfficeRoute", "motionNow", "getWalkFrame",
   ]) assert.ok(characterAndSceneSource.includes(token), `missing ${token}`);
+  assert.doesNotMatch(characterSource, /function (WorkProps|SlackProps|GameProps|MealProps|BookProps|SeriesProps|ShortVideoProps)/);
+  assert.match(characterSource, /ConversationProps/);
+});
+
+test("renders architecture and dynamic furniture below furniture-safe characters", () => {
+  assert.match(sceneSource, /resolveOfficeModuleState/);
+  assert.match(sceneSource, /office-module-layer/);
+  assert.match(sceneSource, /data-module-state/);
+  assert.match(sceneSource, /furnitureReady=/);
+  assert.match(characterSource, /data-furniture-ready/);
+  assert.match(characterSource, /furnitureReady \? spriteActivity : "listening"/);
 });
 
 test("removes hard route-step and bubble-clamp rendering", () => {
@@ -507,7 +517,7 @@ test("exposes the rendered motion clock for deterministic movement QA", () => {
   assert.match(markup, /data-motion-now="720"/);
 });
 
-test("renders active props and atlas frames only for an exact owned activity event", () => {
+test("renders semantic activity data and furniture-safe atlas frames only for an exact owned event", () => {
   const character = {
     slotId: "employee1",
     phase: "reading",
@@ -550,8 +560,25 @@ test("renders active props and atlas frames only for an exact owned activity eve
   });
   assert.match(ownedMarkup, /data-activity="reading"/);
   assert.match(ownedMarkup, /--office-frame-row:5/);
-  assert.match(ownedMarkup, /office-book-prop/);
-  assert.match(ownedMarkup, /正在阅读《沉思录》/);
+  assert.match(ownedMarkup, /data-prop="hardcover"/);
+  assert.doesNotMatch(ownedMarkup, /office-book-prop|正在阅读《沉思录》/);
+
+  const furnitureUnsafeMarkup = renderToStaticMarkup(React.createElement(
+    characterModule.OfficeCharacter,
+    {
+      character,
+      assignment,
+      activityEvent: {
+        eventId: "event-unsafe",
+        actorId: "employee1",
+        activityType: "reading",
+      },
+      furnitureReady: false,
+      motionNow: 720,
+    },
+  ));
+  assert.match(furnitureUnsafeMarkup, /data-furniture-ready="false"/);
+  assert.match(furnitureUnsafeMarkup, /--office-frame-row:7/);
 });
 
 test("clamps the final five-member bubble center after every placement offset", () => {
