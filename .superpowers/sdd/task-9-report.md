@@ -1,200 +1,66 @@
-# Task 9 Report: Modern Campus and Survival Route Batch
+# Task 9 Report
 
-## Status
+## Result
 
-Implemented route batch D for `hong_kong`, `modern`, `campus`, `ice_age`, and `wasteland`.
+Implemented Task 9 Steps 1 through 5 and prepared the local `0.2.96` GitHub Pages release. No remote push or live deployment verification was performed; Step 6 remains for the parent after review.
 
-All five audited maps were redrawn with the built-in `image_gen` workflow, resized to exact 9:16 PNGs, and calibrated with 25 independently authored route sample arrays. The modern cafe route now terminates at the cafe entrance, not the flower shop or a flower bed.
+## Owned Changes
 
-## Built-In Image Generation
+- `scripts/verify-office.mjs`
+  - Seeds deterministic Me and Character profiles, assignments, current-session activity records, and an isolated API configuration in `localStorage`.
+  - Mocks only the expected Office chat-completions endpoint and rejects unexpected API, console, page, and asset failures.
+  - Verifies safe-top/header geometry, the fixed 100 px office surface baseline, assignment navigation and role sources, 16 decoded WebP atlases, all eight prop/status pairs, 50 ms walk samples, disjoint conversations, 40-digit wrapping, current-session filters, and both mobile screenshots.
+- `package.json`, `package-lock.json`, `src/App.jsx`, `src/styles.css`
+  - Updated every release source from `0.2.95` to `0.2.96`.
+- `docs/**`
+  - Synced the final Vite output, replaced legacy office PNGs with the 16 WebP atlases and WebP background, set `.deploy-version` to the exact six bytes `0.2.96`, and refreshed both QA screenshots.
+- `.superpowers/sdd/task-9-report.md`
+  - Records the local release evidence and handoff boundary.
 
-- Mode: built-in `image_gen` tool only.
-- One full-map generation call per theme.
-- No SVG/manual illustration and no CLI image generation fallback.
-- Built-in source folder: `/Users/mypc/.codex/generated_images/019f5b67-da98-7ea0-bc47-2f4300120b1a/`.
-- Final normalization: `sips -z 1664 936 <source> --out <asset>` so the committed maps are exact 936x1664 portrait PNGs.
+## Verification
 
-## Redraw List
+### Pre-Version at 0.2.95
 
-- `public/work-map-assets/map-hong-kong.png`
-- `public/work-map-assets/map-modern.png`
-- `public/work-map-assets/map-campus.png`
-- `public/work-map-assets/map-ice-age.png`
-- `public/work-map-assets/map-wasteland.png`
-
-## Final Prompts
-
-### map-hong-kong.png
-
-```text
-Use case: stylized-concept
-Asset type: mobile game work-map background, final portrait map art
-Primary request: Create a clean detailed illustrated 9:16 vertical map for a Hong Kong harbor hillside work district.
-Scene/backdrop: soft watercolor-anime isometric coastal Hong Kong neighborhood with sea on the left, hills and retaining walls, warm daylight, smooth shading, controlled texture, low visual noise.
-Subject: exactly six prominent destination buildings in the upper and middle area: 1) cha chaan teng cafe with visible street-level entrance, 2) ferry pier terminal with visible boarding entrance, 3) record shop with visible shop door, 4) neon arcade with visible entrance and arcade machines seen inside, 5) rooftop laundry building with visible stair/roof access entrance, 6) one visually distinct small protagonist home with visible blue front door. Home should sit in the middle-lower road network but still above the lower scenic dock area.
-Composition/framing: full 9:16 portrait, no destructive cropping, all six buildings fully visible and separated. Keep the upper-right 12 percent by 12 percent of the canvas as scenery only: pale sky/sea/hills/trees only, absolutely no building, entrance, route junction, road fork, marker-like object, sign, or destination there. Buildings occupy upper and middle regions; lower third remains mostly scenic hillside road, water, mist, trees, and empty road space for a phone job dock.
-Road network: real visible connected roads and steps from the protagonist home door to every work building door. Include theme-appropriate curving hillside roads, stair flights, one small bridge/overpass, and a small bend/turnaround, not five direct spokes. Every building door must connect to the same visible network. Roads must be wide and readable for tracing.
-Style/medium: polished hand-painted illustration, clean linework, smooth shading, subtle texture, mobile game map background.
-Text: no text.
-Constraints: exactly six prominent buildings total, all six entrances visible, no people or characters, no UI, no labels, no text, no route overlay, no pins, no markers, no icons. Avoid any building or route junction in the upper-right clearance zone. Avoid clutter, noisy details, and ambiguous fake paths.
-```
-
-### map-modern.png
-
-```text
-Use case: stylized-concept
-Asset type: mobile game work-map background, final portrait map art
-Primary request: Create a clean detailed illustrated 9:16 vertical map for a modern neighborhood work district.
-Scene/backdrop: bright contemporary urban park district with small streets, crosswalks, storefronts, shrubs, smooth shading, controlled texture, low visual noise.
-Subject: exactly six prominent destination buildings in the upper and middle area: 1) bookstore with visible book displays and a clear front door, 2) flower shop with visible door and flower buckets, 3) clinic with visible glass entrance, 4) parcel station with visible loading entrance, 5) cafe with a visually unmistakable cafe door and outdoor table area, 6) one visually distinct small protagonist home with a visible blue front door. The cafe entrance must be a real building doorway, not a flower bed, garden, or decoration.
-Composition/framing: full 9:16 portrait, all six buildings fully visible and separated. Keep the upper-right 12 percent by 12 percent of the canvas as scenery only: treetops, sky, soft grass, or plain road edge only, absolutely no building, entrance, route junction, road fork, marker-like object, sign, or destination there. Buildings occupy upper and middle regions; lower third remains mostly scenic park grass, curving sidewalks, trees, and empty road space for a phone job dock.
-Road network: real visible connected roads and sidewalks from the protagonist home door to every work building door. Include a central roundabout park, curved side streets, crosswalks, and short garden paths connected to the street network, not five direct spokes. Every building door must connect to the same visible network. Roads and sidewalks must be wide and readable for tracing.
-Style/medium: polished hand-painted anime city-map illustration, clean linework, smooth shading, subtle texture, mobile game map background.
-Text: no text.
-Constraints: exactly six prominent buildings total, all six entrances visible, no people or characters, no UI, no labels, no readable text, no route overlay, no pins, no markers, no icons. Avoid any building or route junction in the upper-right clearance zone. Avoid clutter, noisy details, and ambiguous fake paths. Make the cafe distinct from the flower shop.
-```
-
-### map-campus.png
-
-```text
-Use case: stylized-concept
-Asset type: mobile game work-map background, final portrait map art
-Primary request: Create a clean detailed illustrated 9:16 vertical map for a modern university campus.
-Scene/backdrop: bright leafy campus with academic buildings, paths, a small lake or lawn, trees, smooth shading, controlled texture, low visual noise.
-Subject: exactly six prominent destination buildings in the upper and middle area: 1) campus library with visible main steps and entrance, 2) cafeteria/dining hall with visible entrance, 3) science lab building with visible glass entrance and small observatory dome or lab equipment detail, 4) gymnasium with visible entrance, 5) mailroom/receiving office with visible loading or service entrance, 6) one visually distinct small student home or dorm cottage with visible blue front door. All six doors must face a visible path or road.
-Composition/framing: full 9:16 portrait, all six buildings fully visible and separated. Keep the upper-right 12 percent by 12 percent of the canvas as scenery only: treetops, open sky, lawn, or lake edge only, absolutely no building, entrance, route junction, road fork, marker-like object, sign, or destination there. Buildings occupy upper and middle regions; lower third remains scenic lawn, lake edge, curving walkway, trees, and empty foreground space for a phone job dock.
-Road network: real visible connected pedestrian paths and campus roads from the protagonist home door to every work building door. Include a central quad path loop, curved lakeside path, small bridge over a stream, steps to the library, and branching sidewalks, not five direct spokes. Every building door must connect to the same visible network. Paths must be wide and readable for tracing.
-Style/medium: polished hand-painted anime campus-map illustration, clean linework, smooth shading, subtle texture, mobile game map background.
-Text: no text.
-Constraints: exactly six prominent buildings total, all six entrances visible, no people or characters, no UI, no labels, no readable text, no route overlay, no pins, no markers, no icons. Avoid any building or route junction in the upper-right clearance zone. Avoid clutter, noisy details, and ambiguous fake paths.
-```
-
-### map-ice-age.png
-
-```text
-Use case: stylized-concept
-Asset type: mobile game work-map background, final portrait map art
-Primary request: Create a clean detailed illustrated 9:16 vertical map for an ice-age settlement.
-Scene/backdrop: snowy glacial valley with blue ice cliffs, frost, steam, mammoth tracks, warm firelight accents, smooth shading, controlled texture, low visual noise.
-Subject: exactly six prominent destination structures in the upper and middle area: 1) glacier supply camp with visible tent entrance, 2) mammoth corral with visible gate entrance, 3) ice cave with visible dark cave mouth entrance, 4) hot spring shelter with visible doorway and steaming pool edge, 5) signal ridge beacon tower with visible stair/entrance, 6) one visually distinct small protagonist igloo home with visible glowing door. All six entrances must face a visible packed-snow road or ice path.
-Composition/framing: full 9:16 portrait, all six structures fully visible and separated. Keep the upper-right 12 percent by 12 percent of the canvas as scenery only: pale sky, distant ice, or empty snowy ridge only, absolutely no building, entrance, route junction, road fork, marker-like object, sign, or destination there. Buildings occupy upper and middle regions; lower third remains scenic snowfield, cracked ice stream, trees, and empty path space for a phone job dock.
-Road network: real visible connected packed-snow roads and ice bridges from the protagonist home door to every work entrance. Include curved snow tracks, one ice bridge across a chasm, stairs cut into ice, and a small round snowy fork, not five direct spokes. Every destination entrance must connect to the same visible network. Roads must be readable against the snow.
-Style/medium: polished hand-painted fantasy survival map illustration, clean linework, smooth shading, subtle texture, mobile game map background.
-Text: no text.
-Constraints: exactly six prominent structures total, all six entrances visible, no people or characters, no UI, no labels, no text, no route overlay, no pins, no markers, no icons. Avoid any building or route junction in the upper-right clearance zone. Avoid clutter, noisy details, and ambiguous fake paths.
-```
-
-### map-wasteland.png
-
-```text
-Use case: stylized-concept
-Asset type: mobile game work-map background, final portrait map art
-Primary request: Create a clean detailed illustrated 9:16 vertical map for a wasteland survival settlement.
-Scene/backdrop: sun-bleached post-apocalyptic mesa settlement with cracked asphalt, scrap metal, canyons, dust haze, sparse dry brush, smooth shading, controlled texture, low visual noise.
-Subject: exactly six prominent destination buildings in the upper and middle area: 1) reinforced shelter bunker with visible entrance, 2) supply station market with visible counter/door, 3) medical camp tent with visible entrance, 4) watch post tower with visible stair/entry, 5) repair station garage with visible open doorway and parts, 6) one visually distinct small protagonist shack/home with visible blue front door. All six entrances must face a visible cracked road or boardwalk.
-Composition/framing: full 9:16 portrait, all six buildings fully visible and separated. Keep the upper-right 12 percent by 12 percent of the canvas as scenery only: empty desert sky, far canyon wall, dust, or barren ground only, absolutely no building, entrance, route junction, road fork, marker-like object, sign, or destination there. Buildings occupy upper and middle regions; lower third remains scenic cracked road, canyon edge, wreck debris, dry shrubs, and empty foreground space for a phone job dock.
-Road network: real visible connected cracked roads and scrap-board walkways from the protagonist home door to every work building door. Include curved road bends, a small roundabout of tires, a bridge over a fissure, stairs or ramp up to the watch post, and branching streets, not five direct spokes. Every destination entrance must connect to the same visible network. Roads must be wide and readable for tracing.
-Style/medium: polished hand-painted survival map illustration, clean linework, smooth shading, subtle texture, mobile game map background.
-Text: no text.
-Constraints: exactly six prominent buildings total, all six entrances visible, no people or characters, no UI, no labels, no readable text, no route overlay, no pins, no markers, no icons. Avoid any building or route junction in the upper-right clearance zone. Avoid clutter, noisy details, and ambiguous fake paths.
-```
-
-## Route Calibration Method
-
-- Inspected the original five PNGs at original resolution before deciding; all five matched the audit's selector-clearance redraw candidates.
-- Inspected each generated final at original resolution after resizing to 936x1664.
-- Authored route coordinates in normalized 0-100 image coordinates so they remain independent of pixel size.
-- Used the route object home point as the exact first sample for every route and the destination entrance as the exact final sample/pin.
-- Traced visible roads, sidewalks, steps, bridges, roundabout edges, packed-snow tracks, and cracked asphalt/boardwalk centers. I avoided grass, water, rooftops, walls, building interiors, and decorative landscaping.
-- Built `visibleSegments` directly from the authored samples so each dashed route follows the same calibrated centerline used for motion.
-- Visual QA pass 1 found the first contact-sheet render had missing map backgrounds; regenerated it with embedded PNG data URLs.
-- Visual QA pass 2 found overly direct paths around modern's roundabout and wasteland's watch post; adjusted those samples to follow road/boardwalk centers and regenerated the contact sheet.
-
-## Independent Review Follow-Up
-
-- Moved the modern clinic pin and final samples from the road below the building to the visible glass-door threshold.
-- Moved the campus library, lab, gym, and mailroom pins to their visible door, stair, and loading-bay thresholds.
-- Routed campus library and lab approaches around the paved edges of the central planted circle.
-- Replaced the campus gym's landscaping shortcut with the connected lower junction and east branch path.
-- Moved the ice-age glacier camp and mammoth corral pins to the tent doorway and corral gate threshold.
-- Routed the hot-spring approach around the rock island at the packed-snow fork before joining the east branch.
-- Moved the wasteland medical-camp pin from the tent's left wall to its open entrance threshold.
-- Recalibrated the Hong Kong record-shop route through the lower bend and upper road so it no longer crosses the rooftop-laundry building.
-- Updated route distances where the corrected road detours materially lengthened the trip.
-- Added focused regression expectations for reviewed entrance pins and required road-network waypoints.
-
-Follow-up TDD red states:
+Command:
 
 ```bash
-node --test src/workRouteBatchD.test.js
+npm test && npm run build && npm run verify:office
 ```
 
-- First red: expected the modern clinic entrance pin at `18.5,38.8`, received the old road endpoint `18.5,43.2`.
-- Second red after enlarged visual QA: the campus library route lacked the paved-loop waypoint `60,46`.
+Result: PASS. All 163 tests passed, Vite transformed 1,799 modules and built successfully, and both `375x812` and `390x844` Office browser checks passed.
 
-## Tests
+### Final at 0.2.96
 
-TDD red state:
+Command:
 
 ```bash
-node --test src/workRouteBatchD.test.js
+npm test && npm run deploy:pages && npm run verify:office
 ```
 
-Expected failure observed before implementation: `ERR_MODULE_NOT_FOUND` for `src/workRouteBatches/batch-d.js`.
+Result: PASS. All 163 tests passed, Pages output built and synced successfully, and both mobile browser checks passed.
 
-Focused green:
+Final browser evidence:
 
-```bash
-node --test src/workRouteBatchD.test.js
-```
+- `375x812`: 5 characters, 16 decoded WebPs, 8 prop/status pairs, 103 samples at 50 ms during a multi-node walk, 2 isolated conversations, 2 bubbles, assignment coverage, activity-filter coverage, 11 expected mocked API calls, and a 335,150-byte scene capture.
+- `390x844`: 5 characters, 16 decoded WebPs, 1 meeting conversation and bubble, 2 expected mocked API calls, and a 363,640-byte scene capture.
+- Both runs reported zero console errors, page errors, failed asset requests, and unexpected API requests.
 
-Result: 5 tests passed, 0 failed.
+## Release Output
 
-Follow-up focused result: 6 tests passed, 0 failed.
+- `docs/.deploy-version`: exactly `0.2.96` with no trailing newline.
+- `docs/work-office-assets/chibi`: 16 WebP files and 0 PNG files.
+- Corrected `boss-m-01.webp` public/docs SHA-256: `6f8bdb2fa7d20330305ec2983762ae10d8d59dac52ba8143eed7145e7ff2770e`.
+- Parent art correction consumed from commit `f13026545df7f66c31e16a2c889bdccb4c07ec5c`; the public asset was not modified or staged by Task 9.
+- Final JS bundle: `docs/assets/index-tYI6W66v.js`.
+- Final CSS bundle: `docs/assets/index-BHd9CkgF.css`.
+- Screenshot: `docs/superpowers/qa/office-375x812.png`.
+- Screenshot: `docs/superpowers/qa/office-390x844.png`.
+- Visual inspection: PASS at both sizes; scene framing, safe-area tools, labels, bubbles, and long-number wrapping are contained and legible.
 
-Full suite:
+## Handoff
 
-```bash
-npm test
-```
-
-Original result: 96 tests passed, 0 failed.
-
-Follow-up result: 97 tests passed, 0 failed.
-
-## Visual Checks
-
-- Contact sheet: `docs/superpowers/qa/routes-batch-d-contact-sheet.png`.
-- Format: 5 columns x 5 rows, one panel per route.
-- Each panel includes the final map, green home marker, red destination marker, and dashed yellow path.
-- Reviewed all 25 panels after the final regeneration.
-- Modern cafe route ends at the cafe building entrance on the lower-left cafe, not at the flower shop or its flower display.
-- Upper-right selector clearance is scenery-only on all five redrawn maps.
-- Follow-up overview inspection checked all 25 regenerated panels at 1600px sheet width.
-- Follow-up enlarged inspection checked the ten affected panels individually, including all nine review groups and the separately adjusted campus gym entrance.
-- The enlarged pass found and corrected residual campus library/lab landscaping clips and the hot-spring fork's rock-island clip before the final contact sheet was generated.
-- No map redraws were required for the independent review follow-up.
-
-## Files
-
-- Created:
-  - `src/workRouteBatches/batch-d.js`
-  - `src/workRouteBatchD.test.js`
-  - `docs/superpowers/qa/routes-batch-d-contact-sheet.png`
-  - `.superpowers/sdd/task-9-report.md`
-- Modified:
-  - `public/work-map-assets/map-hong-kong.png`
-  - `public/work-map-assets/map-modern.png`
-  - `public/work-map-assets/map-campus.png`
-  - `public/work-map-assets/map-ice-age.png`
-  - `public/work-map-assets/map-wasteland.png`
-
-## Commit
-
-- Original commit: `7090ee5212897741372b256219850384e8e0f08b` (`Calibrate modern campus and survival routes`).
-- Follow-up commit SHA: recorded in the final follow-up response after commit creation.
-
-## Concerns
-
-- `WORK_ROUTE_BATCH_D` is intentionally standalone because Task 9 explicitly forbids editing `src/workRouteData.js`; integration into the live registry remains outside this batch's ownership.
-- The committed maps are exact 936x1664 outputs resampled from built-in 941x1672 sources. This avoided destructive manual cropping while satisfying exact 9:16 asset checks.
+- Release commit message: `Deploy V0.2.96`.
+- The release commit SHA is reported in the final Task 9 handoff because a commit cannot embed its own final SHA.
+- `.superpowers/sdd/task-7-report.md` and `.superpowers/sdd/task-8-report.md` remain unrelated working changes and are intentionally excluded.
+- The build retains Vite's existing warning that the versioned worldbook hero URL is resolved at runtime.
+- Remote push and GitHub Pages polling were intentionally not run.

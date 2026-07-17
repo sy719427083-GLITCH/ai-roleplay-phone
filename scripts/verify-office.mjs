@@ -12,8 +12,18 @@ const READY_TIMEOUT_MS = 30_000;
 const MEAL_TIMEOUT_MS = 20_000;
 const BUBBLE_TIMEOUT_MS = 15_000;
 const GEOMETRY_TOLERANCE_PX = 1;
+const OFFICE_WALK_SPEED = 18;
+const POSITION_SAMPLE_INTERVAL_MS = 50;
 const SCENE_SCREENSHOT_MIN_BYTES = 20_000;
 const ASSIGNMENT_STORAGE_KEY = "ccatOfficeAssignmentsV1";
+const OFFICE_STATE_STORAGE_KEY = "ccatOfficeStateV1";
+const API_CONFIG_STORAGE_KEY = "ccat-ai-api-configs";
+const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
+const CHARACTER_PROFILE_STORAGE_KEY = "apiCharacters";
+const RELATION_STORAGE_KEY = "apiRelations";
+const QA_WORK_SESSION_ID = "work-session-office-qa";
+const QA_API_URL = "https://office-qa.invalid/v1/chat/completions";
+const LONG_BUBBLE_TEXT = "1234567890".repeat(4);
 const SIGNAL_PROBE_FLAG = "--probe-signal-cleanup";
 const SIGNAL_PROBE_TARGET_ENV = "OFFICE_SIGNAL_PROBE_TARGET";
 const SIGNAL_PROBE_MODE_ENV = "OFFICE_SIGNAL_PROBE_MODE";
@@ -35,6 +45,100 @@ const VIEWPORTS = [
   { width: 375, height: 812, verifyShellRestoration: true },
   { width: 390, height: 844, verifyShellRestoration: false },
 ];
+const OFFICE_ASSET_IDS = [
+  ...Array.from({ length: 4 }, (_, index) => `boss-f-${String(index + 1).padStart(2, "0")}`),
+  ...Array.from({ length: 4 }, (_, index) => `boss-m-${String(index + 1).padStart(2, "0")}`),
+  ...Array.from({ length: 4 }, (_, index) => `employee-f-${String(index + 1).padStart(2, "0")}`),
+  ...Array.from({ length: 4 }, (_, index) => `employee-m-${String(index + 1).padStart(2, "0")}`),
+];
+const QA_ME_PROFILES = {
+  "me-owner": { name: "沈知白", identity: "公司负责人", personality: "自然" },
+  "me-founder": { name: "林见月", identity: "联合创始人", personality: "外向、果断" },
+};
+const QA_CHARACTER_PROFILES = {
+  "character-main": { name: "周予安", identity: "主角色", type: "main", personality: "沉静" },
+  "character-npc-1": { name: "程雾", identity: "NPC 角色", type: "npc", personality: "游戏、外向" },
+  "character-npc-2": { name: "许青禾", identity: "NPC 角色", type: "npc", personality: "贪吃" },
+  "character-npc-3": { name: "顾南星", identity: "NPC 角色", type: "npc", personality: "追剧、短视频" },
+};
+const QA_ASSIGNMENTS = {
+  boss: { profileId: "me-owner", chibiId: "boss-f-01", customAssetSrc: "" },
+  employee1: { profileId: "character-main", chibiId: "employee-f-01", customAssetSrc: "" },
+  employee2: { profileId: "character-npc-1", chibiId: "employee-m-01", customAssetSrc: "" },
+  employee3: { profileId: "character-npc-2", chibiId: "employee-f-02", customAssetSrc: "" },
+  employee4: { profileId: "character-npc-3", chibiId: "employee-m-02", customAssetSrc: "" },
+};
+const QA_RELATIONS = {
+  "relation-main-npc": {
+    charA: "character-main",
+    charB: "character-npc-1",
+    type: "同事",
+  },
+};
+const QA_API_CONFIG = {
+  mainConfigs: [{
+    id: "office-qa-endpoint",
+    name: "Office QA",
+    apiKey: "office-qa-key",
+    baseUrl: "https://office-qa.invalid/v1",
+    model: "office-qa-model",
+    temperature: 0,
+  }],
+  selectedMainId: "office-qa-endpoint",
+  secondaryConfigs: [],
+  selectedSecondaryId: "",
+  secondaryEnabled: false,
+  retryCount: 0,
+  failoverEnabled: false,
+};
+const QA_ACTIVITY_EVENTS = [
+  {
+    eventId: "qa-current-working",
+    workSessionId: QA_WORK_SESSION_ID,
+    actorId: "boss",
+    participantIds: ["boss"],
+    profileSnapshots: [{ name: "沈知白", personality: "自律、沉静" }],
+    activityType: "working",
+    status: "工作中",
+    title: "工作记录",
+    subject: "QA 当前工作记录",
+    summary: "只属于当前工作时段的工作事件。",
+    insightOrResult: "工作筛选应只显示这条记录。",
+    requestSequence: 1,
+    detailStatus: "complete",
+  },
+  {
+    eventId: "qa-current-reading",
+    workSessionId: QA_WORK_SESSION_ID,
+    actorId: "employee1",
+    participantIds: ["employee1"],
+    profileSnapshots: [{ name: "周予安", personality: "沉静" }],
+    activityType: "reading",
+    status: "看书中",
+    title: "阅读记录",
+    subject: "QA 当前阅读记录",
+    summary: "只属于当前工作时段的阅读事件。",
+    insightOrResult: "阅读筛选应只显示这条记录。",
+    propVariant: "hardcover",
+    requestSequence: 1,
+    detailStatus: "complete",
+  },
+  {
+    eventId: "qa-old-gaming",
+    workSessionId: "work-session-office-qa-old",
+    actorId: "employee2",
+    participantIds: ["employee2"],
+    profileSnapshots: [{ name: "程雾", personality: "游戏" }],
+    activityType: "gaming",
+    status: "游戏中",
+    title: "游戏记录",
+    subject: "QA 旧时段事件不得显示",
+    summary: "这条记录属于其他工作时段。",
+    insightOrResult: "任何筛选结果都不能包含它。",
+    requestSequence: 1,
+    detailStatus: "complete",
+  },
+];
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -54,6 +158,149 @@ const expectCount = async (locator, expected, label) => {
   const actual = await locator.count();
   assert(actual === expected, `${label}: expected ${expected}, received ${actual}`);
 };
+
+const waitForCount = async (locator, expected, label, timeoutMs = READY_TIMEOUT_MS) => {
+  const deadline = Date.now() + timeoutMs;
+  let actual = await locator.count();
+  while (actual !== expected && Date.now() < deadline) {
+    await delay(50);
+    actual = await locator.count();
+  }
+  assert(actual === expected, `${label}: expected ${expected}, received ${actual}`);
+};
+
+const isAssetUrl = (url) => {
+  try {
+    return /\.(?:avif|gif|jpe?g|png|svg|webp|woff2?)(?:$|\?)/i.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+};
+
+const parseTrailingPromptContext = (content) => {
+  const source = String(content || "");
+  const start = source.lastIndexOf("\n{");
+  if (start < 0) throw new Error("mocked Office API prompt is missing trailing JSON context");
+  return JSON.parse(source.slice(start + 1));
+};
+
+const installOfficeApiMock = async (context, apiRequests) => {
+  await context.route(QA_API_URL, async (route) => {
+    const request = route.request();
+    const body = request.postDataJSON();
+    const systemContent = body?.messages?.[0]?.content || "";
+    const promptContext = parseTrailingPromptContext(systemContent);
+    let content = "";
+
+    if (systemContent.includes("补全当前办公室活动")) {
+      const event = promptContext;
+      apiRequests.push({ type: "activity", id: event.eventId });
+      content = JSON.stringify({
+        eventId: event.eventId,
+        activityType: event.activityType,
+        requestSequence: event.requestSequence,
+        title: `QA ${event.activityType} 记录`,
+        subject: `QA ${event.activityType} 主题`,
+        summary: `QA ${event.activityType} 细节`,
+        insightOrResult: `QA ${event.activityType} 结果`,
+      });
+    } else {
+      const conversation = promptContext;
+      const speakerId = conversation.members?.[0]?.memberId || "";
+      apiRequests.push({ type: "conversation", id: conversation.conversationId });
+      content = JSON.stringify({
+        conversationId: conversation.conversationId,
+        requestSequence: conversation.requestSequence,
+        speakerId,
+        text: String(conversation.conversationId).includes("-chat-1-")
+          ? LONG_BUBBLE_TEXT
+          : "这组会话保持自己的成员和话题。",
+        end: false,
+      });
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ choices: [{ message: { content } }] }),
+    });
+  });
+};
+
+const seedOfficeQaState = async (context) => {
+  await context.addInitScript((seed) => {
+    const now = Date.now();
+    const events = seed.activityEvents.map((event, index) => ({
+      ...event,
+      startedAt: now - ((index + 1) * 60_000),
+      endedAt: now - ((index + 1) * 30_000),
+    }));
+    const officeState = {
+      mode: "free",
+      now,
+      durationMs: 8 * 60 * 60 * 1000,
+      workSessionId: seed.workSessionId,
+      conversations: {},
+      activityEvents: events,
+      activeEventBySlot: {},
+      characters: {},
+    };
+
+    localStorage.setItem(seed.keys.assignments, JSON.stringify(seed.assignments));
+    localStorage.setItem(seed.keys.officeState, JSON.stringify(officeState));
+    localStorage.setItem(seed.keys.meProfiles, JSON.stringify(seed.meProfiles));
+    localStorage.setItem(seed.keys.characterProfiles, JSON.stringify(seed.characterProfiles));
+    localStorage.setItem(seed.keys.relations, JSON.stringify(seed.relations));
+    localStorage.setItem(seed.keys.apiConfig, JSON.stringify(seed.apiConfig));
+
+    let randomScenario = {};
+    window.__setOfficeQaRandomValues = (scenario) => {
+      randomScenario = scenario && typeof scenario === "object"
+        ? {
+            ...scenario,
+            pickValues: [...(scenario.pickValues || [])],
+            sessionValues: [...(scenario.sessionValues || [])],
+          }
+        : {};
+    };
+    window.__getOfficeQaRandomValues = () => ({ ...randomScenario });
+    Math.random = () => {
+      const stack = new Error().stack || "";
+      let value = randomScenario.fallback ?? 0.35;
+      if (stack.includes("getRandomCadence")) value = 0.35;
+      else if (stack.includes("pickWeightedActivity")) value = randomScenario.activityRandom ?? value;
+      else if (stack.includes("pickIndex")) value = randomScenario.pickValues?.shift() ?? value;
+      else if (stack.includes("buildChatEvent")) value = randomScenario.groupSizeRandom ?? value;
+      else if (stack.includes("buildConversationSession")) {
+        value = randomScenario.sessionValues?.shift() ?? value;
+      } else if (stack.includes("startDeskActivity")) value = 0.2;
+      return Number.isFinite(value) ? Math.min(0.999999999, Math.max(0, value)) : 0.35;
+    };
+  }, {
+    activityEvents: QA_ACTIVITY_EVENTS,
+    apiConfig: QA_API_CONFIG,
+    assignments: QA_ASSIGNMENTS,
+    characterProfiles: QA_CHARACTER_PROFILES,
+    keys: {
+      apiConfig: API_CONFIG_STORAGE_KEY,
+      assignments: ASSIGNMENT_STORAGE_KEY,
+      characterProfiles: CHARACTER_PROFILE_STORAGE_KEY,
+      meProfiles: ME_PROFILE_STORAGE_KEY,
+      officeState: OFFICE_STATE_STORAGE_KEY,
+      relations: RELATION_STORAGE_KEY,
+    },
+    meProfiles: QA_ME_PROFILES,
+    relations: QA_RELATIONS,
+    workSessionId: QA_WORK_SESSION_ID,
+  });
+};
+
+const setOfficeQaRandomValues = (page, scenario) => page.evaluate((nextScenario) => {
+  if (typeof window.__setOfficeQaRandomValues !== "function") {
+    throw new Error("Office QA random controller is unavailable");
+  }
+  window.__setOfficeQaRandomValues(nextScenario);
+}, scenario);
 
 const rectLabel = (rect) => (
   `[${rect.left.toFixed(1)}, ${rect.top.toFixed(1)} -> ${rect.right.toFixed(1)}, ${rect.bottom.toFixed(1)}]`
@@ -174,6 +421,75 @@ const openWork = async (page) => {
   await page.getByText("工作剩余", { exact: true }).waitFor({ state: "visible" });
 };
 
+const enterOffice = async (page, { reload = false } = {}) => {
+  if (reload) await page.reload({ waitUntil: "domcontentloaded" });
+  else await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
+  const unlock = page.getByRole("button", { name: "上划解锁", exact: true });
+  if (await unlock.count()) await unlock.click();
+  await page.locator(".phone-surface").waitFor({ state: "visible" });
+  await openWork(page);
+};
+
+const verifyOfficeStructure = async (page, viewportLabel) => {
+  await expectCount(page.locator(".office-character"), 5, `${viewportLabel} office characters`);
+  await expectCount(
+    page.locator('img.office-scene-background[src$="office-bg.webp"]'),
+    1,
+    `${viewportLabel} new office background`,
+  );
+  await expectCount(page.locator(".office-character:visible"), 5, `${viewportLabel} visible characters`);
+  await expectCount(page.locator(".office-character-name:visible"), 5, `${viewportLabel} visible names`);
+
+  const shellBaseline = await page.evaluate(() => {
+    const header = document.querySelector(".work-app-header");
+    const screen = document.querySelector(".work-app-screen");
+    const surface = document.querySelector(".work-office-surface");
+    if (!header || !screen || !surface) return null;
+    const safeTopProbe = document.createElement("span");
+    safeTopProbe.style.cssText = [
+      "position:fixed",
+      "visibility:hidden",
+      "pointer-events:none",
+      "top:var(--app-safe-top-clearance)",
+    ].join(";");
+    document.body.append(safeTopProbe);
+    const safeTop = Number.parseFloat(getComputedStyle(safeTopProbe).top);
+    safeTopProbe.remove();
+    const headerRect = header.getBoundingClientRect();
+    const screenRect = screen.getBoundingClientRect();
+    const surfaceRect = surface.getBoundingClientRect();
+    return {
+      safeTop,
+      headerTop: headerRect.top - screenRect.top,
+      surfaceTop: surfaceRect.top - screenRect.top,
+      computedSurfaceTop: Number.parseFloat(getComputedStyle(surface).top),
+    };
+  });
+  assert(shellBaseline && Number.isFinite(shellBaseline.safeTop),
+    `${viewportLabel}: could not read --app-safe-top-clearance`);
+  assert(shellBaseline.headerTop + GEOMETRY_TOLERANCE_PX >= shellBaseline.safeTop,
+    `${viewportLabel}: Work header top ${shellBaseline.headerTop}px is above safe clearance ${shellBaseline.safeTop}px`);
+  assert(Math.abs(shellBaseline.computedSurfaceTop - 100) <= GEOMETRY_TOLERANCE_PX,
+    `${viewportLabel}: .work-office-surface computed top is ${shellBaseline.computedSurfaceTop}px, expected 100px`);
+  assert(Math.abs(shellBaseline.surfaceTop - 100) <= GEOMETRY_TOLERANCE_PX,
+    `${viewportLabel}: .work-office-surface baseline is ${shellBaseline.surfaceTop}px, expected 100px`);
+};
+
+const verifyBuiltInOfficeAssets = async (page, viewportLabel) => {
+  const sources = OFFICE_ASSET_IDS.map((id) => `${APP_URL}work-office-assets/chibi/${id}.webp`);
+  const decoded = await page.evaluate(async (assetSources) => Promise.all(assetSources.map(async (src) => {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    return { src, naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+  })), sources);
+  assert(decoded.length === 16, `${viewportLabel}: decoded ${decoded.length} built-in WebP assets, expected 16`);
+  for (const asset of decoded) {
+    assert(asset.naturalWidth > 0 && asset.naturalHeight > 0,
+      `${viewportLabel}: Office asset has invalid dimensions: ${asset.src}`);
+  }
+};
+
 const verifyWorkShellRoundTrip = async (page, viewport) => {
   const phoneSurface = page.locator(".phone-surface");
   const workScreen = page.locator(".work-app-screen");
@@ -230,10 +546,10 @@ const verifyAssignmentWorkflow = async (page) => {
   await opener.click();
 
   const dialog = page.getByRole("dialog", { name: "员工安排", exact: true });
-  const closeButton = page.getByRole("button", { name: "关闭员工安排", exact: true });
+  const overviewBackButton = dialog.getByRole("button", { name: "返回办公室", exact: true });
   await dialog.waitFor({ state: "visible" });
   await page.waitForFunction(() => document.activeElement?.matches("[data-office-dialog-close]"));
-  assert(await closeButton.evaluate((element) => document.activeElement === element),
+  assert(await overviewBackButton.evaluate((element) => document.activeElement === element),
     "assignment dialog did not move focus to its close button");
 
   const inertState = await page.evaluate(() => Object.fromEntries([
@@ -272,10 +588,51 @@ const verifyAssignmentWorkflow = async (page) => {
 
   await opener.click();
   await dialog.waitFor({ state: "visible" });
-  const bossRow = dialog.locator(".office-assignment-row").filter({ hasText: "老板" }).first();
-  const uploadInput = bossRow.getByLabel("老板上传形象", { exact: true });
-  const urlInput = bossRow.getByLabel("老板形象地址", { exact: true });
-  const bossAlert = bossRow.getByRole("alert");
+  await dialog.locator(".office-assignment-overview button").filter({ hasText: "老板" }).click();
+  const selectionBackButton = dialog.getByRole("button", { name: "返回员工安排", exact: true });
+  await selectionBackButton.waitFor({ state: "visible" });
+  const bossProfileOptions = await dialog.getByLabel("老板角色", { exact: true }).evaluate((select) => (
+    [...select.options].filter((option) => option.value).map((option) => ({
+      label: option.textContent?.trim() || "",
+      value: option.value,
+    }))
+  ));
+  assert(JSON.stringify(bossProfileOptions.map((option) => option.value)) === JSON.stringify(Object.keys(QA_ME_PROFILES)),
+    `boss options are not limited to Me profiles: ${JSON.stringify(bossProfileOptions)}`);
+
+  await selectionBackButton.click();
+  await overviewBackButton.waitFor({ state: "visible" });
+  await dialog.locator(".office-assignment-overview button").filter({ hasText: "员工一" }).click();
+  await selectionBackButton.waitFor({ state: "visible" });
+  const employeeProfileOptions = await dialog.getByLabel("员工一角色", { exact: true }).evaluate((select) => (
+    [...select.options].filter((option) => option.value).map((option) => ({
+      label: option.textContent?.trim() || "",
+      value: option.value,
+    }))
+  ));
+  assert(
+    JSON.stringify(employeeProfileOptions.map((option) => option.value))
+      === JSON.stringify(Object.keys(QA_CHARACTER_PROFILES)),
+    `employee options do not contain exactly the Character profiles: ${JSON.stringify(employeeProfileOptions)}`,
+  );
+  assert(employeeProfileOptions.some((option) => option.value === "character-main" && option.label.includes("周予安")),
+    "employee options are missing the main Character profile");
+  assert(employeeProfileOptions.some((option) => option.value.startsWith("character-npc-") && option.label.includes("程雾")),
+    "employee options are missing an NPC Character profile");
+
+  await selectionBackButton.click();
+  await overviewBackButton.waitFor({ state: "visible" });
+  await overviewBackButton.click();
+  await dialog.waitFor({ state: "detached" });
+  await page.locator(".office-scene").waitFor({ state: "visible" });
+
+  await opener.click();
+  await dialog.waitFor({ state: "visible" });
+  await dialog.locator(".office-assignment-overview button").filter({ hasText: "老板" }).click();
+  await selectionBackButton.waitFor({ state: "visible" });
+  const uploadInput = dialog.getByLabel("老板上传形象", { exact: true });
+  const urlInput = dialog.getByLabel("老板形象地址", { exact: true });
+  const bossAlert = dialog.getByRole("alert");
   const bossSprite = page.locator('.office-character[data-slot="boss"] .office-character-custom-sprite');
   const tinyPng = {
     name: "office-qa-1x1.png",
@@ -378,18 +735,279 @@ const verifyAssignmentWorkflow = async (page) => {
   }, ASSIGNMENT_STORAGE_KEY);
   await expectCount(bossSprite, 0, "custom boss sprites after assignment cleanup");
 
-  await closeButton.click();
+  await selectionBackButton.click();
+  await overviewBackButton.waitFor({ state: "visible" });
+  await overviewBackButton.click();
   await dialog.waitFor({ state: "detached" });
-  return { oversized: true, upload: true, fallback: true, quotaRollback: true };
+  await page.locator(".office-scene").waitFor({ state: "visible" });
+  return {
+    assignmentBack: true,
+    fallback: true,
+    profileSources: true,
+    quotaRollback: true,
+    upload: true,
+  };
 };
 
-const observeRestJourney = async (page, initialTargets) => {
+const verifyActivityFilters = async (page) => {
+  await page.getByRole("button", { name: "活动记录", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "活动记录", exact: true });
+  await dialog.waitFor({ state: "visible" });
+
+  const entries = dialog.locator(".office-activity-entry");
+  await waitForCount(entries, 2, "current-session activity entries");
+  await expectCount(dialog.getByText("QA 当前工作记录", { exact: true }), 1, "seeded current work event");
+  await expectCount(dialog.getByText("QA 当前阅读记录", { exact: true }), 1, "seeded current reading event");
+  await expectCount(dialog.getByText("QA 旧时段事件不得显示", { exact: true }), 0, "old-session events");
+
+  const actorFilter = dialog.getByLabel("按角色筛选", { exact: true });
+  const activityFilter = dialog.getByLabel("按活动筛选", { exact: true });
+  await actorFilter.selectOption("boss");
+  await waitForCount(entries, 1, "boss-filtered current-session activity entries");
+  await expectCount(dialog.getByText("QA 当前工作记录", { exact: true }), 1, "boss-filtered work event");
+  await expectCount(dialog.getByText("QA 当前阅读记录", { exact: true }), 0, "boss-filtered reading events");
+
+  await actorFilter.selectOption("");
+  await activityFilter.selectOption("reading");
+  await waitForCount(entries, 1, "reading-filtered current-session activity entries");
+  await expectCount(dialog.getByText("QA 当前阅读记录", { exact: true }), 1, "reading-filtered event");
+  await expectCount(dialog.getByText("QA 当前工作记录", { exact: true }), 0, "reading-filtered work events");
+
+  await dialog.getByRole("button", { name: "关闭活动记录", exact: true }).click();
+  await dialog.waitFor({ state: "detached" });
+  await page.locator(".office-scene").waitFor({ state: "visible" });
+  return { actor: true, activity: true, currentSessionOnly: true };
+};
+
+const triggerScheduledActivity = async (page, {
+  activity,
+  activityRandom,
+  propSelector,
+  status,
+}) => {
+  await setOfficeQaRandomValues(page, {
+    activityRandom,
+    fallback: 0.2,
+    pickValues: [0, 0.2],
+  });
+  await page.getByRole("button", { name: "休息一下", exact: true }).click();
+  const character = page.locator(`.office-character:has(${propSelector})`).first();
+  try {
+    await character.waitFor({ state: "visible", timeout: 6_000 });
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      activeMode: document.querySelector('.work-mode-control button[data-active="true"]')?.textContent?.trim() || "",
+      characters: [...document.querySelectorAll(".office-character")].map((element) => ({
+        activity: element.getAttribute("data-activity"),
+        phase: element.getAttribute("data-phase"),
+        slot: element.getAttribute("data-slot"),
+        status: element.querySelector(".office-character-status span")?.textContent?.trim() || "",
+      })),
+      randomValues: window.__getOfficeQaRandomValues?.() || [],
+    }));
+    throw new Error(`scheduled ${activity} did not render ${propSelector}: ${JSON.stringify(diagnostics)}`, {
+      cause: error,
+    });
+  }
+  const rendered = await character.evaluate((element, selector) => ({
+    activity: element.getAttribute("data-activity") || "",
+    propVisible: Boolean(element.querySelector(selector)?.getBoundingClientRect().width),
+    status: element.querySelector(".office-character-status span")?.textContent?.trim() || "",
+  }), propSelector);
+  assert(rendered.activity === activity,
+    `${propSelector} appeared under ${rendered.activity || "no activity"}, expected ${activity}`);
+  assert(rendered.status === status,
+    `${propSelector} appeared under ${JSON.stringify(rendered.status)}, expected ${JSON.stringify(status)}`);
+  assert(rendered.propVisible, `${propSelector} is present but not visibly rendered`);
+  return character.getAttribute("data-slot");
+};
+
+const verifyDeskActivityProps = async (page) => {
+  const cases = [
+    { activity: "working", activityRandom: 0.01, propSelector: ".office-work-props", status: "工作中" },
+    { activity: "slacking", activityRandom: 0.25, propSelector: ".office-slack-prop", status: "摸鱼中" },
+    { activity: "gaming", activityRandom: 0.55, propSelector: ".office-game-props", status: "游戏中" },
+    { activity: "reading", activityRandom: 0.1, propSelector: ".office-book-prop", status: "看书中" },
+    { activity: "watchingSeries", activityRandom: 0.68, propSelector: ".office-series-prop", status: "刷剧中" },
+    {
+      activity: "watchingShortVideo",
+      activityRandom: 0.8,
+      propSelector: ".office-short-video-prop",
+      status: "看抖音中",
+    },
+  ];
+  const covered = [];
+  for (const activityCase of cases) {
+    await enterOffice(page, { reload: true });
+    await triggerScheduledActivity(page, activityCase);
+    covered.push(activityCase.activity);
+  }
+  return covered;
+};
+
+const verifyMealAndWalk = async (page) => {
+  await enterOffice(page, { reload: true });
+  await setOfficeQaRandomValues(page, {
+    activityRandom: 0.35,
+    fallback: 0.2,
+    pickValues: [0, 0, 0.35],
+  });
+  await page.getByRole("button", { name: "休息一下", exact: true }).click();
+  const journey = await observeRestJourney(page);
+  assert(journey.slotId === "boss", `deterministic meal walk tracked ${journey.slotId}, expected boss`);
+
+  const character = page.locator(`.office-character[data-slot="${journey.slotId}"]`);
+  const meal = character.locator(".office-meal");
+  await meal.waitFor({ state: "visible", timeout: MEAL_TIMEOUT_MS });
+  const mealState = await character.evaluate((element) => ({
+    activity: element.getAttribute("data-activity") || "",
+    meal: element.querySelector(".office-meal")?.getAttribute("data-meal") || "",
+    status: element.querySelector(".office-character-status span")?.textContent?.trim() || "",
+  }));
+  assert(mealState.meal === "rice", `deterministic meal is ${mealState.meal || "missing"}, expected rice`);
+  assert(mealState.activity === "eating" && mealState.status === "吃饭中",
+    `meal prop appeared under ${mealState.activity}/${mealState.status}, expected eating/吃饭中`);
+  return journey;
+};
+
+const verifyTwoConversationCoverage = async (page) => {
+  await enterOffice(page, { reload: true });
+  await setOfficeQaRandomValues(page, {
+    activityRandom: 0.92,
+    fallback: 0.2,
+    groupSizeRandom: 0,
+    pickValues: [0, 0, 0.1],
+    sessionValues: [0.1],
+  });
+  await page.getByRole("button", { name: "休息一下", exact: true }).click();
+  await waitForCount(
+    page.locator('.office-character[data-activity="chatting"]'),
+    2,
+    "first conversation members",
+    MEAL_TIMEOUT_MS,
+  );
+
+  await setOfficeQaRandomValues(page, {
+    activityRandom: 0.92,
+    fallback: 0.2,
+    groupSizeRandom: 0,
+    pickValues: [0, 0, 0.2],
+    sessionValues: [0.2],
+  });
+  await page.getByRole("button", { name: "休息一下", exact: true }).click();
+  await waitForCount(
+    page.locator('.office-character[data-activity="chatting"]'),
+    4,
+    "two disjoint conversation member sets",
+    MEAL_TIMEOUT_MS,
+  );
+
+  const bubbles = page.locator(".office-speech-bubble:visible");
+  await waitForCount(bubbles, 2, "two disjoint conversation bubbles", BUBBLE_TIMEOUT_MS);
+  await waitForCount(page.locator(".office-chat-prop:visible"), 2, "chat props", BUBBLE_TIMEOUT_MS);
+  const conversationStatusCount = await page.locator('.office-character[data-activity="chatting"] .office-character-status span')
+    .evaluateAll((statuses) => statuses.filter((status) => status.textContent?.trim() === "闲聊中").length);
+  assert(conversationStatusCount === 4,
+    `chat/listen props are not all under 闲聊中 status (${conversationStatusCount}/4)`);
+
+  const isolation = await page.evaluate((longText) => {
+    const groups = {};
+    for (const character of document.querySelectorAll(".office-character[data-conversation-group]")) {
+      const conversationId = character.getAttribute("data-conversation-group") || "";
+      const slotId = character.getAttribute("data-slot") || "";
+      if (!groups[conversationId]) groups[conversationId] = [];
+      groups[conversationId].push(slotId);
+    }
+    const bubbleRecords = [...document.querySelectorAll(".office-speech-bubble")].map((bubble) => ({
+      conversationId: bubble.getAttribute("data-conversation-id") || "",
+      slotId: bubble.closest(".office-character")?.getAttribute("data-slot") || "",
+      text: bubble.textContent?.trim() || "",
+    }));
+    const longBubble = [...document.querySelectorAll(".office-speech-bubble")]
+      .find((bubble) => bubble.textContent?.trim() === longText);
+    const sceneRect = document.querySelector(".office-scene")?.getBoundingClientRect();
+    const bubbleRect = longBubble?.getBoundingClientRect();
+    const bubbleStyle = longBubble ? getComputedStyle(longBubble) : null;
+    let contentScrollHeight = 0;
+    if (longBubble) {
+      const measurementStyle = document.createElement("style");
+      measurementStyle.textContent = `
+        .office-speech-bubble[data-office-qa-measure-content="true"]::after {
+          display: none !important;
+        }
+      `;
+      longBubble.setAttribute("data-office-qa-measure-content", "true");
+      document.head.append(measurementStyle);
+      contentScrollHeight = longBubble.scrollHeight;
+      measurementStyle.remove();
+      longBubble.removeAttribute("data-office-qa-measure-content");
+    }
+    return {
+      groups,
+      bubbleRecords,
+      longBubble: longBubble && sceneRect && bubbleRect && bubbleStyle ? {
+        clientHeight: longBubble.clientHeight,
+        clientWidth: longBubble.clientWidth,
+        insideScene: bubbleRect.left >= sceneRect.left - 1
+          && bubbleRect.right <= sceneRect.right + 1
+          && bubbleRect.top >= sceneRect.top - 1
+          && bubbleRect.bottom <= sceneRect.bottom + 1,
+        lineHeight: Number.parseFloat(bubbleStyle.lineHeight),
+        rectHeight: bubbleRect.height,
+        contentScrollHeight,
+        scrollHeight: longBubble.scrollHeight,
+        scrollWidth: longBubble.scrollWidth,
+      } : null,
+    };
+  }, LONG_BUBBLE_TEXT);
+
+  const conversationIds = Object.keys(isolation.groups);
+  assert(conversationIds.length === 2,
+    `expected two conversation IDs, received ${JSON.stringify(conversationIds)}`);
+  const firstMembers = new Set(isolation.groups[conversationIds[0]]);
+  const secondMembers = isolation.groups[conversationIds[1]];
+  assert(secondMembers.every((slotId) => !firstMembers.has(slotId)),
+    `conversation member sets overlap: ${JSON.stringify(isolation.groups)}`);
+  assert(isolation.bubbleRecords.length === 2,
+    `expected two member bubbles, received ${JSON.stringify(isolation.bubbleRecords)}`);
+  for (const bubble of isolation.bubbleRecords) {
+    assert(isolation.groups[bubble.conversationId]?.includes(bubble.slotId),
+      `bubble leaked across conversations: ${JSON.stringify(bubble)}`);
+  }
+
+  const longBubble = isolation.longBubble;
+  assert(longBubble, "the mocked 40-digit conversation bubble was not rendered");
+  assert(longBubble.insideScene, "the 40-digit conversation bubble extends outside the office scene");
+  assert(longBubble.rectHeight > longBubble.lineHeight * 1.5,
+    "the 40-digit conversation bubble did not wrap onto multiple lines");
+  assert(longBubble.scrollWidth <= longBubble.clientWidth + GEOMETRY_TOLERANCE_PX,
+    `the 40-digit bubble overflows horizontally (${longBubble.scrollWidth}/${longBubble.clientWidth})`);
+  assert(longBubble.contentScrollHeight === longBubble.clientHeight,
+    `the 40-digit bubble clips vertically (${longBubble.contentScrollHeight}/${longBubble.clientHeight}); `
+    + `decorated scrollHeight=${longBubble.scrollHeight}`);
+  return { conversationIds, longBubble: true };
+};
+
+const prepareMeetingScreenshot = async (page) => {
+  await setOfficeQaRandomValues(page, {
+    fallback: 0.2,
+    pickValues: [0.1],
+    sessionValues: [0.1],
+  });
+  await page.getByRole("button", { name: "开会", exact: true }).click();
+  const bubble = page.locator(".office-speech-bubble:visible").first();
+  await bubble.waitFor({ state: "visible", timeout: BUBBLE_TIMEOUT_MS });
+  await page.locator(".office-chat-prop:visible").first().waitFor({ state: "visible", timeout: BUBBLE_TIMEOUT_MS });
+};
+
+const observeRestJourney = async (page) => {
   const deadline = Date.now() + MEAL_TIMEOUT_MS;
-  const routeNodes = new Set();
+  const facings = new Set();
   let trackedSlotId = "";
   let previous = null;
-  let horizontalStep = null;
+  let maximumJumpPx = 0;
   let positionChangedBeforeEating = false;
+  let samples = 0;
 
   while (Date.now() < deadline) {
     const sample = await page.evaluate((slotId) => {
@@ -399,12 +1017,16 @@ const observeRestJourney = async (page, initialTargets) => {
       if (!character) return null;
       const meal = character.querySelector(".office-meal");
       const mealRect = meal?.getBoundingClientRect();
+      const sceneRect = document.querySelector(".office-scene")?.getBoundingClientRect();
       return {
         slotId: character.getAttribute("data-slot") || "",
-        node: character.getAttribute("data-node") || "",
         phase: character.getAttribute("data-phase") || "",
         facing: character.getAttribute("data-facing") || "",
-        leftTarget: Number.parseFloat(character.style.left),
+        left: Number.parseFloat(character.style.left),
+        top: Number.parseFloat(character.style.top),
+        sampledAt: performance.now(),
+        sceneWidth: sceneRect?.width || 0,
+        sceneHeight: sceneRect?.height || 0,
         mealVisible: Boolean(mealRect && mealRect.width > 0 && mealRect.height > 0),
       };
     }, trackedSlotId);
@@ -412,41 +1034,49 @@ const observeRestJourney = async (page, initialTargets) => {
     if (sample) {
       if (!trackedSlotId) trackedSlotId = sample.slotId;
       if (sample.slotId === trackedSlotId) {
-        if (!previous && initialTargets[sample.slotId]) previous = initialTargets[sample.slotId];
-        routeNodes.add(`${sample.node}:${sample.leftTarget}`);
-        if (previous && sample.node !== previous.node) {
-          if (sample.phase === "walkingToActivity") positionChangedBeforeEating = true;
-          const deltaX = sample.leftTarget - previous.leftTarget;
-          if (Math.abs(deltaX) > 0.01 && !horizontalStep) {
-            const expectedFacing = deltaX > 0 ? "right" : "left";
-            assert(sample.facing === expectedFacing,
-              `${trackedSlotId} moved from ${previous.leftTarget}% to ${sample.leftTarget}% `
-              + `but faced ${sample.facing}, expected ${expectedFacing}`);
-            horizontalStep = {
-              from: previous.leftTarget,
-              to: sample.leftTarget,
-              facing: sample.facing,
-            };
+        samples += 1;
+        if (sample.phase === "walkingToActivity") facings.add(sample.facing);
+        if (previous) {
+          const elapsedSeconds = Math.max(0, sample.sampledAt - previous.sampledAt) / 1_000;
+          const deltaX = sample.left - previous.left;
+          const deltaY = sample.top - previous.top;
+          const distanceInSceneUnits = Math.hypot(deltaX, deltaY);
+          const constrainingSceneDimension = Math.min(sample.sceneWidth, sample.sceneHeight);
+          const onePixelInSceneUnits = constrainingSceneDimension > 0
+            ? 100 / constrainingSceneDimension
+            : 0;
+          const maximumDistance = (OFFICE_WALK_SPEED * elapsedSeconds) + onePixelInSceneUnits;
+          const jumpPx = Math.hypot(
+            (deltaX / 100) * sample.sceneWidth,
+            (deltaY / 100) * sample.sceneHeight,
+          );
+          maximumJumpPx = Math.max(maximumJumpPx, jumpPx);
+          assert(distanceInSceneUnits <= maximumDistance,
+            `${trackedSlotId} jumped ${jumpPx.toFixed(2)}px across a ${Math.round(elapsedSeconds * 1_000)}ms sample; `
+            + `expected at most OFFICE_WALK_SPEED * elapsed + 1px`);
+          if (sample.phase === "walkingToActivity" && distanceInSceneUnits > 0.01) {
+            positionChangedBeforeEating = true;
           }
         }
         previous = sample;
 
-        if (sample.mealVisible && horizontalStep && positionChangedBeforeEating && routeNodes.size >= 2) {
+        if (sample.mealVisible && positionChangedBeforeEating && facings.size >= 2 && samples >= 3) {
           return {
             slotId: trackedSlotId,
-            horizontalStep,
-            routePositions: routeNodes.size,
+            directions: [...facings],
+            maximumJumpPx,
+            samples,
           };
         }
       }
     }
 
-    await delay(80);
+    await delay(POSITION_SAMPLE_INTERVAL_MS);
   }
 
   throw new Error(
-    `meal journey did not prove walking direction and route movement within ${MEAL_TIMEOUT_MS}ms `
-    + `(slot=${trackedSlotId || "none"}, positions=${routeNodes.size}, horizontal=${Boolean(horizontalStep)})`,
+    `meal journey did not prove a smooth multi-node walk within ${MEAL_TIMEOUT_MS}ms `
+    + `(slot=${trackedSlotId || "none"}, samples=${samples}, directions=${[...facings].join(",") || "none"})`,
   );
 };
 
@@ -536,37 +1166,46 @@ const verifyGeometry = (geometry, viewport) => {
 const verifyViewport = async (browser, viewport) => {
   const viewportLabel = `${viewport.width}x${viewport.height}`;
   const browserErrors = [];
+  const failedAssetRequests = [];
+  const unexpectedApiRequests = [];
+  const apiRequests = [];
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
     reducedMotion: "reduce",
   });
-  await context.addInitScript(() => {
-    Math.random = () => 0.35;
-  });
+  await seedOfficeQaState(context);
+  await installOfficeApiMock(context, apiRequests);
   const page = await context.newPage();
   page.on("console", (message) => {
     if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
   });
   page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.stack || error.message}`));
+  page.on("requestfailed", (request) => {
+    if (isAssetUrl(request.url())) {
+      failedAssetRequests.push(`${request.url()}: ${request.failure()?.errorText || "request failed"}`);
+    }
+  });
+  page.on("response", (response) => {
+    if (isAssetUrl(response.url()) && !response.ok()) {
+      failedAssetRequests.push(`${response.url()}: HTTP ${response.status()}`);
+    }
+  });
+  page.on("request", (request) => {
+    if (!["fetch", "xhr"].includes(request.resourceType())) return;
+    if (request.url() === QA_API_URL && request.method() === "POST") return;
+    unexpectedApiRequests.push(`${request.method()} ${request.url()}`);
+  });
 
   try {
-    await page.goto(APP_URL, { waitUntil: "domcontentloaded" });
-    const unlock = page.getByRole("button", { name: "上划解锁", exact: true });
-    if (await unlock.count()) await unlock.click();
-    await page.locator(".phone-surface").waitFor({ state: "visible" });
-    await openWork(page);
+    await enterOffice(page);
 
     if (viewport.verifyShellRestoration) {
       await verifyWorkShellRoundTrip(page, viewport);
     }
 
-    const assignmentEvidence = viewport.verifyShellRestoration
-      ? await verifyAssignmentWorkflow(page)
-      : null;
-
-    await expectCount(page.locator(".office-character:visible"), 5, `${viewportLabel} visible characters`);
-    await expectCount(page.locator(".office-character-name:visible"), 5, `${viewportLabel} visible names`);
+    await verifyOfficeStructure(page, viewportLabel);
+    await verifyBuiltInOfficeAssets(page, viewportLabel);
 
     const timer = page.getByRole("timer");
     await expectCount(timer, 1, `${viewportLabel} timers`);
@@ -574,43 +1213,20 @@ const verifyViewport = async (browser, viewport) => {
     assert(/^工作剩余 \d{2}:\d{2}:\d{2}$/.test(timerText),
       `${viewportLabel}: invalid timer text ${JSON.stringify(timerText)}`);
 
-    const initialRouteTargets = await page.locator(".office-character").evaluateAll((characters) => (
-      Object.fromEntries(characters.map((character) => [character.getAttribute("data-slot"), {
-        node: character.getAttribute("data-node") || "",
-        leftTarget: Number.parseFloat(character.style.left),
-      }]))
-    ));
-    await page.getByRole("button", { name: "休息一下", exact: true }).click();
-    const journey = await observeRestJourney(page, initialRouteTargets);
-    const meal = page.locator(`.office-character[data-slot="${journey.slotId}"] .office-meal`);
-    await meal.waitFor({ state: "visible", timeout: MEAL_TIMEOUT_MS });
-    const mealState = await meal.evaluate((element) => {
-      const character = element.closest(".office-character");
-      const food = element.querySelector(".office-food");
-      const foodRect = food?.getBoundingClientRect();
-      return {
-        activity: character?.getAttribute("data-activity"),
-        phase: character?.getAttribute("data-phase"),
-        meal: element.getAttribute("data-meal"),
-        label: element.getAttribute("aria-label"),
-        foodVisible: Boolean(foodRect && foodRect.width > 0 && foodRect.height > 0),
-      };
-    });
-    assert(mealState.meal === "rice",
-      `${viewportLabel}: Math.random=0.35 produced ${mealState.meal || "no meal"}, expected rice`);
-    assert(mealState.activity === "eating" && mealState.phase === "eating",
-      `${viewportLabel}: meal is attached to ${mealState.phase}/${mealState.activity}, expected eating/eating`);
-    assert(mealState.foodVisible && mealState.label?.includes("米饭"),
-      `${viewportLabel}: concrete rice meal is not visibly rendered`);
-
-    const meeting = page.getByRole("button", { name: "开会", exact: true });
-    assert(await meeting.isEnabled(), `${viewportLabel}: meeting was not available after one member started eating`);
-    await meeting.click();
-    const visibleBubbles = page.locator(".office-speech-bubble:visible");
-    await visibleBubbles.first().waitFor({ state: "visible", timeout: BUBBLE_TIMEOUT_MS });
-    const bubbleCount = await visibleBubbles.count();
-    assert(bubbleCount >= 1, `${viewportLabel}: meeting produced no visible speech bubble`);
-    assert(await meal.isVisible(), `${viewportLabel}: meal disappeared before the meeting bubble became visible`);
+    let assignmentEvidence = null;
+    let activityFilterEvidence = null;
+    let conversationEvidence = null;
+    let deskActivities = [];
+    let journey = null;
+    if (viewport.verifyShellRestoration) {
+      assignmentEvidence = await verifyAssignmentWorkflow(page);
+      activityFilterEvidence = await verifyActivityFilters(page);
+      deskActivities = await verifyDeskActivityProps(page);
+      journey = await verifyMealAndWalk(page);
+      conversationEvidence = await verifyTwoConversationCoverage(page);
+    } else {
+      await prepareMeetingScreenshot(page);
+    }
 
     await page.locator(".office-scene-background").evaluate((image) => image.decode());
     const geometry = await collectGeometry(page);
@@ -649,17 +1265,29 @@ const verifyViewport = async (browser, viewport) => {
 
     assert(browserErrors.length === 0,
       `${viewportLabel}: browser errors:\n${browserErrors.join("\n")}`);
+    assert(failedAssetRequests.length === 0,
+      `${viewportLabel}: failed asset requests:\n${failedAssetRequests.join("\n")}`);
+    assert(unexpectedApiRequests.length === 0,
+      `${viewportLabel}: unexpected API requests:\n${unexpectedApiRequests.join("\n")}`);
+    assert(apiRequests.length > 0, `${viewportLabel}: the isolated Office API mock received no requests`);
     console.log(
-      `[office QA] ${viewportLabel}: 5 characters, 5 names, meal=${mealState.meal}, `
-      + `walk=${journey.horizontalStep.from}->${journey.horizontalStep.to}/${journey.horizontalStep.facing}, `
-      + `bubbles=${geometry.bubbles.length}, assignments=${assignmentEvidence ? "covered" : "n/a"}, `
+      `[office QA] ${viewportLabel}: 5 characters, 16 WebPs, props=${deskActivities.length + (journey ? 2 : 0)}, `
+      + `walk=${journey ? `${journey.samples}x50ms/${journey.maximumJumpPx.toFixed(2)}px` : "n/a"}, `
+      + `bubbles=${geometry.bubbles.length}, conversations=${conversationEvidence ? "2 isolated" : "1 meeting"}, `
+      + `assignments=${assignmentEvidence ? "covered" : "n/a"}, `
+      + `filters=${activityFilterEvidence ? "covered" : "n/a"}, apiMocks=${apiRequests.length}, `
       + `scene=${sceneBuffer.length} bytes`,
     );
   } catch (error) {
-    const browserErrorDetail = browserErrors.length
-      ? `\nBrowser errors:\n${browserErrors.join("\n")}`
-      : "";
-    throw new Error(`[office QA ${viewportLabel}] ${error.message}${browserErrorDetail}`, { cause: error });
+    const diagnostics = [
+      browserErrors.length ? `Browser errors:\n${browserErrors.join("\n")}` : "",
+      failedAssetRequests.length ? `Failed assets:\n${failedAssetRequests.join("\n")}` : "",
+      unexpectedApiRequests.length ? `Unexpected APIs:\n${unexpectedApiRequests.join("\n")}` : "",
+    ].filter(Boolean).join("\n");
+    throw new Error(
+      `[office QA ${viewportLabel}] ${error.message}${diagnostics ? `\n${diagnostics}` : ""}`,
+      { cause: error },
+    );
   } finally {
     await context.close();
   }
