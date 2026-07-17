@@ -1,125 +1,149 @@
-# Task 7 Report: Mystic and Western Fantasy Route Batch
+# Task 7 Report
 
-## Status
+## Result
 
-- Implemented `WORK_ROUTE_BATCH_B` for exactly five themes: `mystic_realm`, `underworld`, `medieval`, `western_fantasy`, and `fantasy`.
-- Calibrated 25 routes with authored `home`, `pin`, `distanceMeters`, 12+ normalized road-center `samples`, and uppercase `M`/`L` visible SVG segments.
-- Generated `docs/superpowers/qa/routes-batch-b-contact-sheet.png` as a 5x5 route QA sheet with home markers, destination markers, and dashed paths.
-- Applied the independent-review follow-up: corrected three home-door origins, recalibrated four reviewed routes, and cleared the fantasy upper-right selector area.
-- Final commit SHA is reported in the task response. Embedding the SHA in this committed report would change the SHA.
+Implemented smooth office route rendering, authoritative activity-event action rendering, directional atlas frames, static custom-image handling, and complete speech bubbles.
 
-## Redraw Decisions
+## TDD Evidence
 
-- Redrawn with built-in `image_gen`: `mystic_realm`, `underworld`, `fantasy`.
-- Kept and exact-ratio normalized only: `medieval`, `western_fantasy`.
-- All five owned map PNGs were normalized to exact 9:16 at 945x1680.
+### Red
 
-## Image Generation Workflow
+Command:
 
-- Used the built-in `image_gen` tool, one full map per call.
-- Did not use SVG, Canvas, manual illustration, or CLI fallback for redraws.
-- Copied selected generated outputs from `/Users/mypc/.codex/generated_images/019f5b67-da15-71f1-9d88-290eefed3075/` into `public/work-map-assets/`.
-- Resampled with `sips -z 1680 945` to preserve the full image without cropping while making the ratio exact.
-
-## Follow-up Image Edit
-
-- Edited `fantasy` with built-in `image_gen` to remove the moon, bright star points, and distant floating-island focal object from the upper-right selector-clearance area.
-- Copied the selected edit from `/Users/mypc/.codex/generated_images/019f5b67-da15-71f1-9d88-290eefed3075/exec-27f37bc1-95f3-4339-966d-e131ada02bdd.png`.
-- Normalized the selected edit to the required exact 945x1680 output.
-
-```text
-Use case: precise-object-edit
-Asset type: 9:16 mobile game work-route map background
-Input image: Image 1 is the edit target.
-Primary request: Edit only the upper-right approximately 12% width by 12% height selector-clearance area. Remove the bright moon, bright star points, and any small floating-island focal object from that clearance area. Replace them with quiet low-contrast blue sky and soft diffuse cloud texture that matches the surrounding illustration.
-Invariants: Preserve the exact portrait composition, dimensions, style, colors, lighting, all six buildings, every visible door, all roads, bridges, islands, crystals, waterfalls, flowers, and all content outside the upper-right clearance area. Do not move, redraw, crop, resize, or restyle any map destination or route surface.
-Constraints: The upper-right 12% x 12% must contain scenery-only quiet sky/clouds with no bright moon, focal object, building, door, destination, marker, route junction, or high-contrast isolated light. No text, labels, UI, markers, route overlays, characters, creatures, logos, or watermark.
-Avoid: changing any route geometry; altering building entrances; adding objects; destructive cropping; changing the 9:16 framing.
+```bash
+node --test src/work/WorkAppScreen.test.js
 ```
 
-## Redraw Prompts
+Result: exit 1, 7 passed and 2 failed.
 
-### mystic_realm
+- `renders every concrete office action from the authoritative event` failed with `missing BookProps`.
+- `removes hard route-step and bubble-clamp rendering` failed because `routeStepDurationMs` was still present.
+- The failures were caused by the missing Task 7 behavior, not a test setup or syntax error.
 
-```text
-Use case: stylized-concept
-Asset type: 9:16 mobile game work-route map background
-Primary request: Redraw the mystic_realm work map as a clean detailed illustrated vertical fantasy realm map for Ccat OS.
-Scene/backdrop: floating stone terraces, ancient luminous ruins, soft mist, waterfalls, crystal plants, and pale mountain voids; lower 20% must be scenic road/flowers/waterfall background with no destination building for the job dock.
-Subject: exactly six prominent destinations total: five work buildings plus one visually distinct protagonist home. Place the visible doors/entrances at these approximate normalized map coordinates: protagonist home door at 50%,36%; realm gate door at 15%,15%; crystal grotto entrance at 50%,12%; floating bridge maintenance pavilion entrance at 82%,15%; relic vault door at 17%,43%; mist pond shrine entrance at 84%,43%.
-Style/medium: polished hand-painted isometric mobile game map illustration, smooth shading, low noise, controlled fine texture, readable roads.
-Composition/framing: portrait 9:16, buildings in upper and middle map only, top-down/isometric view; preserve full map without UI. Upper-right 12% width by 12% height must be scenery-only empty sky/cliff/mist: no building, door, route junction, marker destination, bridge endpoint, or focal object there.
-Road network: real visible connected pale stone roads from home door to every work door. Use a shared curving terrace road with arches, bridges, steps, a small circular plaza, and gentle switchbacks; do not make five direct spokes. Every road must visibly touch each door/entrance.
-Constraints: exactly six prominent buildings/structures, all six doors visible, no text, no labels, no UI, no markers, no route overlays, no characters or creatures, no watermark. Avoid clutter, noisy textures, tiny unreadable destinations, cropped buildings, hidden doors, disconnected roads, and any destination in the upper-right clearance zone.
+### Green
+
+Command:
+
+```bash
+node --test src/work/WorkAppScreen.test.js
 ```
 
-### underworld
+Result: exit 0, 9 passed and 0 failed.
 
-```text
-Use case: stylized-concept
-Asset type: 9:16 mobile game work-route map background
-Primary request: Redraw the underworld work map as a clean detailed illustrated vertical ghostly underworld route map for Ccat OS.
-Scene/backdrop: dark blue-violet underworld river valley with mist, lanterns, stone bridges, cliffs, ghost-fire flowers, and layered temple platforms; lower 20% must be scenic foggy riverbank and road only with no destination building for the job dock.
-Subject: exactly six prominent destinations total: five work buildings plus one visually distinct protagonist home. Place the visible doors/entrances at these approximate normalized map coordinates: protagonist home door at 18%,21%; ghost gate door at 49%,8%; judgment hall door at 78%,22%; forgotten river ferry entrance/dock at 15%,47%; spirit registry archive door at 52%,39%; Mengpo soup pavilion entrance at 84%,47%.
-Style/medium: polished hand-painted isometric mobile game map illustration, smooth shading, low noise, controlled texture, readable stone roads and bridges.
-Composition/framing: portrait 9:16, buildings in upper and middle map only, top-down/isometric view; preserve full map without UI. Upper-right 12% width by 12% height must be scenery-only empty mist/night sky: no building, door, route junction, marker destination, bridge endpoint, or focal object there.
-Road network: real visible connected pale stone roads from home door to every work door. Use curved roads, arched bridges over the river, short stair sections, a small lantern roundabout, and shared branches; do not make five direct spokes. Every road must visibly touch each door/entrance.
-Constraints: exactly six prominent buildings/structures, all six doors visible, no text, no labels, no UI, no markers, no route overlays, no characters or creatures, no watermark. Avoid missing buildings, extra prominent buildings, hidden entrances, disconnected roads, direct spokes, clutter, noisy texture, and any destination in the upper-right clearance zone.
+Final combined verification:
+
+```bash
+node --test src/work/WorkAppScreen.test.js && npm test && npm run build
 ```
 
-### fantasy
+Result: exit 0.
 
-```text
-Use case: stylized-concept
-Asset type: 9:16 mobile game work-route map background
-Primary request: Redraw the fantasy work map as a clean detailed illustrated vertical floating-island fantasy route map for Ccat OS.
-Scene/backdrop: bright dreamlike sky archipelago with floating grassy islands, clouds, waterfalls, glowing crystals, moonwell water, and graceful bridges; lower 20% must be scenic clouds, crystals, flowers, and a road approach only with no destination building for the job dock.
-Subject: exactly six prominent destinations total: five work buildings plus one visually distinct protagonist home. Place the visible doors/entrances at these approximate normalized map coordinates: protagonist home door at 70%,34%; dragon library door at 22%,11%; sky harbor dock entrance at 55%,14%; enchantment market entrance at 81%,10%; ranger lodge door at 30%,31%; moonwell shrine entrance at 50%,47%.
-Style/medium: polished hand-painted isometric mobile game map illustration, smooth shading, low noise, controlled texture, readable glowing roads and bridges.
-Composition/framing: portrait 9:16, buildings in upper and middle map only, top-down/isometric view; preserve full map without UI. Upper-right 12% width by 12% height must be scenery-only empty sky/cloud/moonlight: no building, door, route junction, marker destination, bridge endpoint, or focal object there.
-Road network: real visible connected luminous stone roads from home door to every work door. Use sweeping S-curves, floating bridges, stair steps, a small circular island junction, and shared branches; do not make five direct spokes. Every road must visibly touch each door/entrance.
-Constraints: exactly six prominent buildings/structures, all six doors visible, no text, no labels, no UI, no markers, no route overlays, no characters or creatures, no watermark. Avoid palette-swapping the mystic map, avoid top-right destination intrusion, avoid hidden doors, disconnected bridges, direct spokes, extra prominent buildings, and noisy overdetail.
-```
-
-## Route Calibration Method
-
-- Inspected each original map at full resolution before deciding which maps to redraw.
-- Re-inspected the final 945x1680 assets before route calibration.
-- Authored route samples in normalized percentage coordinates over the final PNGs.
-- Used actual visible doors or road-mouth entrances for `home` and each route `pin`, then traced the visible road center through curves, bridges, stairs, loops, and shared road portions.
-- Follow-up home-door anchors are `medieval (24,32)`, `western_fantasy (78,42)`, and `fantasy (71,64)`.
-- Recalibrated `medieval/watchtower` through the central plaza branch and recalibrated `western_fantasy` guild, magic academy, and potion shop around buildings and walls on visible roads.
-- Added split `visibleSegments` where bridge, ledge, gate, or foreground occlusion should interrupt the route overlay.
-- Did not copy legacy/generated `placeMeta.route` arrays.
-
-## Tests
-
-- `node --test src/workRouteBatchB.test.js`: 5 tests passed.
-- `npm test`: 96 tests passed.
-
-## Visual QA
-
-- Contact sheet: `docs/superpowers/qa/routes-batch-b-contact-sheet.png`.
-- Inspected all 25 panels.
-- Corrected underworld dock/registry/pavilion routes to follow the bridge and lantern-roundabout road network.
-- Corrected the medieval stable route to travel through the plaza/gate road instead of cutting across the wall area.
-- Re-inspected all 25 regenerated panels after the follow-up and corrected the reviewed medieval and western paths.
-- Confirmed the fantasy upper-right approximately 12% x 12% contains only quiet sky/cloud scenery.
+- Focused test: 9 passed, 0 failed.
+- Full test suite: 151 passed, 0 failed.
+- Production build: 1,796 modules transformed; Vite build completed in 977 ms.
+- Built bundle contains the new office background and chibi asset references.
 
 ## Files
 
-- Added `src/workRouteBatches/batch-b.js`.
-- Added `src/workRouteBatchB.test.js`.
-- Added `docs/superpowers/qa/routes-batch-b-contact-sheet.png`.
-- Replaced or normalized:
-  - `public/work-map-assets/map-mystic-realm.png`
-  - `public/work-map-assets/map-underworld.png`
-  - `public/work-map-assets/map-medieval.png`
-  - `public/work-map-assets/map-western-fantasy.png`
-  - `public/work-map-assets/map-fantasy.png`
-- Added this report: `.superpowers/sdd/task-7-report.md`.
+- `src/work/OfficeCharacter.jsx`
+  - Uses `getWalkFrame` for eight-frame walking and a supplied `motionNow` four-frame active clock.
+  - Renders built-in atlas actions for all eight activity types.
+  - Adds `BookProps`, `SeriesProps`, and `ShortVideoProps`.
+  - Supplies event subject and prop variant to work, slack, meal, game, reading, video, and chat props.
+  - Mirrors only left-facing built-in sprites; uploaded images remain static assets with subtle idle motion.
+  - Removes hard route-step-duration positioning.
+- `src/work/OfficeScene.jsx`
+  - Samples moving routes from `routeStartedAt` and supplied `motionNow` at `OFFICE_WALK_SPEED`.
+  - Resolves the active event through `activeEventBySlot` and `activityEvents` with actor ownership validation.
+  - Passes `motion`, `motionNow`, and `activityEvent` to each character.
+  - Uses `/ai-roleplay-phone/work-office-assets/office-bg.webp`.
+  - Adds viewport-aware bubble center clamping while preserving group offsets and ownership.
+- `src/work/office.css`
+  - Adds purpose-specific book, series, and short-video prop styling.
+  - Removes line clamping and the fixed five-member bubble width.
+  - Allows complete wrapping with `overflow-wrap: anywhere` and `word-break: break-word`.
+  - Keeps conversation-specific placements and applies the viewport clamp to five-member overrides.
+- `src/work/WorkAppScreen.test.js`
+  - Adds the required action/source contract and route-step/bubble contract tests.
+
+## Commit
+
+- SHA: `48ca54a`
+- Message: `feat: render smooth office actions and bubbles`
+- Commit contents: exactly the four owned Task 7 files.
+
+## Self-Review
+
+- Confirmed Task 7 adds no timer or `requestAnimationFrame`; `motionNow` is supplied externally with `state.now` only as the compatibility fallback until Task 8.
+- Confirmed moving positions come directly from `sampleOfficeRoute` and use zero-duration CSS position updates.
+- Confirmed active event lookup rejects an event owned by another slot.
+- Confirmed all prop labels and variants use the matching activity event when present and no longer choose random render-time props.
+- Confirmed custom uploads do not use atlas frames or left-facing mirroring.
+- Confirmed `git diff --check` passes.
+- Confirmed unrelated Task 6 changes and public assets were not staged or committed.
 
 ## Concerns
 
-- `WORK_ROUTE_BATCH_B` is standalone by design because this task forbids edits to `workRouteData.js`.
-- `medieval` retains non-human stable animals from the pre-existing passing map; there are no baked UI elements or human characters.
+- No Task 7 implementation concerns.
+- The build emits an existing warning for `/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.2.95`, which is left for runtime resolution. It is unrelated to office assets and does not fail the build.
+- Task 8 still owns the live animation clock and route-completion dispatch as required.
+
+## Fix Follow-up
+
+### Review Findings Addressed
+
+- Active props, status labels, and activity atlas rows now require a non-ended event with an event ID, supported activity type, and exact `actorId` match. Absent or unowned events render idle state; moving characters continue to render the walk atlas and their travel status.
+- Bubble placement now combines conversation placement, member compensation, and the five-member `-50/0/+50` spread in `getClampedBubbleLayout` before applying the viewport clamp. CSS receives one final offset and contains no five-member positional overrides.
+- Tests now server-render absent, unowned, and owned event cases and execute the final five-member clamp with nonzero placement/member offsets at both viewport boundaries.
+
+### Red Evidence
+
+Command:
+
+```bash
+node --test src/work/WorkAppScreen.test.js
+```
+
+Result after correcting the SSR test harness: exit 1, 9 passed and 2 failed.
+
+- The event-authority render contract received `data-activity="reading"`, atlas row 5, and `office-book-prop` without an event instead of idle rendering.
+- The final-clamp contract failed because `getClampedBubbleLayout` was not yet exported or implemented.
+
+### Verification
+
+Commands:
+
+```bash
+node --test src/work/WorkAppScreen.test.js
+npm test
+npm run build
+```
+
+Results:
+
+- Focused test: 11 passed, 0 failed, exit 0.
+- Full test suite: 153 passed, 0 failed, exit 0.
+- Production build: exit 0; 1,796 modules transformed; built in 1.04 seconds.
+- The existing unrelated worldbook runtime-asset warning remains; no office asset import was unresolved.
+
+### Files
+
+- `src/work/OfficeCharacter.jsx`: added defensive exact event ownership validation and removed stale character activity/status fallback from active rendering.
+- `src/work/OfficeScene.jsx`: exported the executable final-clamp helper and collapsed all bubble placement offsets into its result.
+- `src/work/office.css`: reduced bubble placement to one JS-provided CSS variable and removed five-member positional selectors.
+- `src/work/WorkAppScreen.test.js`: added executable server-render and pure-helper regressions.
+
+### Commit
+
+- SHA: `da02eaf`
+- Message: `fix: enforce authoritative office rendering`
+- Commit contents: exactly the four owned Task 7 source/test files.
+
+### Self-Review
+
+- Verified absent, unowned, ended, malformed, or unsupported events cannot select active props or active atlas rows; the executable regression directly covers absent and wrong-owner cases.
+- Verified moving characters do not require an activity event to retain walk frames and travel status.
+- Verified five-member offsets are applied once in JS and removed from CSS.
+- Verified the clamp test includes base placement, member compensation, and five-member offsets before asserting exact left and right boundaries.
+- Verified `git diff --check` and staged-path checks pass.
+- Verified Task 6 `officeAssets` changes and public WebP assets were neither edited nor staged by this follow-up.
