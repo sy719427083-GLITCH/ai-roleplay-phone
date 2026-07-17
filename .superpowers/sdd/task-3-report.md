@@ -90,3 +90,45 @@ Exit code: `0`; all four cleanup ownership and signal checks reported `PASS`.
 ## Concern
 
 The successful production build still emits the existing unresolved-at-build-time warning for `worldbook-assets/hero-worldbook-atlas.png?v=0.2.96`; it is outside this task's office scope.
+
+## Review Follow-Up: Active And Prop Loop Timing
+
+### RED
+
+Command run before changing the timing declarations:
+
+```sh
+node --test --test-reporter=spec src/work/WorkAppScreen.test.js
+```
+
+Exit code: `1`
+
+Exact failure summary:
+
+```text
+✔ uses a 320ms active atlas cadence
+✖ keeps every infinite office animation between 1.3s and 1.8s
+AssertionError [ERR_ASSERTION]: duration must be 1.3s-1.8s: office-type 720ms steps(2, end) infinite
+
+ℹ tests 24
+ℹ pass 23
+ℹ fail 1
+```
+
+### GREEN
+
+Focused command after updating all infinite body and prop loops:
+
+```sh
+node --test --test-reporter=spec src/work/WorkAppScreen.test.js src/work/officeAssets.test.js src/work/officeMotion.test.js
+```
+
+Exit code: `0`; `37` tests passed, `0` failed. The source-contract assertions confirm the `/ 320` active cadence and that every CSS `animation` declaration ending in `infinite` is 1.3s-1.8s.
+
+Full suite:
+
+```sh
+npm test
+```
+
+Exit code: `0`; `176` tests passed, `0` failed.

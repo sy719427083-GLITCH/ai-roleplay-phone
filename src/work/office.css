@@ -178,27 +178,22 @@
 .office-character[data-phase="walkingToActivity"] .office-character-motion,
 .office-character[data-phase="returning"] .office-character-motion {
   animation: office-walk-bob 1.5s ease-in-out infinite;
-  animation-duration: 1.5s;
 }
 
 .office-character[data-activity="working"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
   animation: office-type 1.45s ease-in-out infinite;
-  animation-duration: 1.45s;
 }
 
 .office-character[data-activity="slacking"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
   animation: office-phone-tap 1.6s ease-in-out infinite;
-  animation-duration: 1.6s;
 }
 
 .office-character[data-activity="gaming"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
   animation: office-game-tap 1.35s ease-in-out infinite;
-  animation-duration: 1.35s;
 }
 
 .office-character[data-activity="chatting"][data-conversation-role="speaker"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"]) .office-character-motion {
   animation: office-talk 1.7s ease-in-out infinite;
-  animation-duration: 1.7s;
 }
 
 .office-character.has-custom-sprite[data-phase][data-activity] .office-character-motion {
@@ -370,7 +365,7 @@
   width: 42%;
   height: 2px;
   background: #516b76;
-  animation: office-type 720ms steps(2, end) infinite;
+  animation: office-type 1.45s steps(2, end) infinite;
 }
 
 .office-work-document {
@@ -384,7 +379,7 @@
   border-radius: 2px;
   background: #fffdf8;
   transform: rotate(-7deg);
-  animation: office-paper 1240ms var(--office-ease) infinite;
+  animation: office-paper 1.4s var(--office-ease) infinite;
 }
 
 .office-work-document b {
@@ -400,7 +395,7 @@
   width: 27%;
   height: 28%;
   transform-origin: center bottom;
-  animation: office-phone-tap 860ms ease-in-out infinite;
+  animation: office-phone-tap 1.6s ease-in-out infinite;
 }
 
 .office-slack-screen,
@@ -499,7 +494,7 @@
   width: 43%;
   height: 27%;
   transform: rotate(-5deg);
-  animation: office-paper 1240ms var(--office-ease) infinite;
+  animation: office-paper 1.4s var(--office-ease) infinite;
 }
 
 .office-book-prop i {
@@ -587,7 +582,7 @@
   bottom: 17%;
   width: 28%;
   height: 34%;
-  animation: office-phone-tap 860ms ease-in-out infinite;
+  animation: office-phone-tap 1.6s ease-in-out infinite;
 }
 
 .office-short-video-prop .phone {
@@ -664,7 +659,7 @@
   border: 1px solid #455256;
   border-radius: 7px;
   background: #edf0ec;
-  animation: office-game-tap 680ms ease-in-out infinite;
+  animation: office-game-tap 1.35s ease-in-out infinite;
 }
 
 .office-game-controller b {
@@ -813,7 +808,7 @@
   background: #765e45;
   transform: rotate(-33deg);
   transform-origin: left center;
-  animation: office-eat-bite 900ms ease-in-out infinite;
+  animation: office-eat-bite 1.5s ease-in-out infinite;
 }
 
 .office-utensil.utensil-chopsticks {
@@ -874,7 +869,7 @@
 }
 
 .office-chat-prop {
-  animation: office-talk 820ms ease-in-out infinite;
+  animation: office-talk 1.7s ease-in-out infinite;
 }
 
 .office-chat-prop i {
@@ -892,7 +887,7 @@
 .office-chat-prop i:nth-child(3) { top: 74%; transform: rotate(24deg); }
 
 .office-listen-prop {
-  animation: office-listen 1200ms ease-in-out infinite;
+  animation: office-listen 1.4s ease-in-out infinite;
 }
 
 .office-listen-prop i {

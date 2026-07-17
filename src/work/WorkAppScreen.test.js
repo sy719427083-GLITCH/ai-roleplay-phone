@@ -66,6 +66,29 @@ test("ships safe-area tools assignment back navigation and activity history", ()
   assert.doesNotMatch(source, /setInterval\(advanceRoutes/);
 });
 
+test("uses a 320ms active atlas cadence", () => {
+  assert.match(
+    characterSource,
+    /const getActiveFrame = \(motionNow\) => Math\.floor\(Math\.max\(0, Number\(motionNow\) \|\| 0\) \/ 320\) % 4;/,
+  );
+});
+
+test("keeps every infinite office animation between 1.3s and 1.8s", () => {
+  const infiniteAnimations = [...cssSource.matchAll(/animation:\s*([^;]*\binfinite)\s*;/g)]
+    .map(([, declaration]) => declaration.trim());
+
+  assert.ok(infiniteAnimations.length > 0, "office CSS should define infinite animations");
+  for (const declaration of infiniteAnimations) {
+    const duration = declaration.match(/(?:^|\s)(\d+(?:\.\d+)?)(ms|s)(?=\s|$)/);
+    assert.ok(duration, `missing duration: ${declaration}`);
+    const milliseconds = Number(duration[1]) * (duration[2] === "s" ? 1_000 : 1);
+    assert.ok(
+      milliseconds >= 1_300 && milliseconds <= 1_800,
+      `duration must be 1.3s-1.8s: ${declaration}`,
+    );
+  }
+});
+
 test("implements two-level assignments with five slots and eight role-compatible chibis", () => {
   for (const token of [
     "返回办公室", "返回员工安排", "selectedSlotId", "onOpenSlot",
