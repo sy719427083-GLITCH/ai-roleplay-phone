@@ -437,6 +437,24 @@ const verifyOfficeStructure = async (page, viewportLabel) => {
     1,
     `${viewportLabel} new office background`,
   );
+  const selectedModules = page.locator(".office-module-layer > img.office-module-image");
+  await expectCount(selectedModules, 6, `${viewportLabel} selected office modules`);
+  const moduleInventory = await selectedModules.evaluateAll(async (images) => Promise.all(images.map(async (image) => {
+    await image.decode();
+    return {
+      id: image.getAttribute("data-module-id") || "",
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    };
+  })));
+  assert(moduleInventory.filter(({ id }) => id.startsWith("break-")).length === 1,
+    `${viewportLabel}: expected one selected break module`);
+  assert(moduleInventory.filter(({ id }) => !id.startsWith("break-")).length === 5,
+    `${viewportLabel}: expected five selected station modules`);
+  assert(new Set(moduleInventory.map(({ id }) => id)).size === 6,
+    `${viewportLabel}: selected office modules should be unique`);
+  assert(moduleInventory.every(({ width, height }) => width === 1080 && height === 1920),
+    `${viewportLabel}: selected office modules should decode at 1080x1920`);
   await expectCount(page.locator(".office-character:visible"), 5, `${viewportLabel} visible characters`);
   await expectCount(page.locator(".office-character-name:visible"), 5, `${viewportLabel} visible names`);
 
@@ -1325,7 +1343,7 @@ const verifyViewport = async (browser, viewport) => {
       `${viewportLabel}: unexpected API requests:\n${unexpectedApiRequests.join("\n")}`);
     assert(apiRequests.length > 0, `${viewportLabel}: the isolated Office API mock received no requests`);
     console.log(
-      `[office QA] ${viewportLabel}: 5 characters, 16 WebPs, props=${deskActivities.length + (journey ? 2 : 0)}, `
+      `[office QA] ${viewportLabel}: 5 characters, 16 chibi WebPs, 6 selected modules, props=${deskActivities.length + (journey ? 2 : 0)}, `
       + `walk=${journey ? `${journey.samples}x50ms/${journey.maximumJumpPx.toFixed(2)}px` : "n/a"}, `
       + `bubbles=${geometry.bubbles.length}, conversations=${conversationEvidence ? "2 isolated" : "1 meeting"}, `
       + `assignments=${assignmentEvidence ? "covered" : "n/a"}, `
