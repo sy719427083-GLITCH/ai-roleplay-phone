@@ -449,7 +449,15 @@ const verifyOfficeStructure = async (page, viewportLabel) => {
   const selectedModules = page.locator(".office-module-layer > img.office-module-image");
   await expectCount(selectedModules, 6, `${viewportLabel} selected office modules`);
   const moduleInventory = await selectedModules.evaluateAll(async (images) => Promise.all(images.map(async (image) => {
-    await image.decode();
+    try {
+      await image.decode();
+    } catch (error) {
+      throw new Error(
+        `could not decode office module ${image.getAttribute("data-module-id") || "unknown"} `
+        + `from ${image.currentSrc || image.src} (complete=${image.complete}, `
+        + `natural=${image.naturalWidth}x${image.naturalHeight}): ${error.message}`,
+      );
+    }
     return {
       id: image.getAttribute("data-module-id") || "",
       width: image.naturalWidth,
@@ -504,44 +512,58 @@ const verifyOfficeStructure = async (page, viewportLabel) => {
 
 const verifyBuiltInOfficeAssets = async (page, viewportLabel) => {
   const sources = OFFICE_ASSET_IDS.map((id) => `${APP_URL}work-office-assets/chibi/${id}.webp`);
-  const decoded = await page.evaluate(async (assetSources) => Promise.all(assetSources.map(async (src) => {
-    const image = new Image();
-    image.src = src;
-    await image.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    context.drawImage(image, 0, 0);
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let transparentPixels = 0;
-    let opaquePixels = 0;
-    let gutterOpaquePixels = 0;
-    for (let index = 3; index < pixels.length; index += 4) {
-      if (pixels[index] === 0) transparentPixels += 1;
-      if (pixels[index] === 255) opaquePixels += 1;
-    }
-    const atlasSize = image.naturalWidth;
-    const cellSize = atlasSize / 8;
-    for (let boundary = cellSize; boundary < atlasSize; boundary += cellSize) {
-      for (let offset = -12; offset < 12; offset += 1) {
-        for (let coordinate = 0; coordinate < atlasSize; coordinate += 1) {
-          const verticalAlpha = pixels[((coordinate * atlasSize) + boundary + offset) * 4 + 3];
-          const horizontalAlpha = pixels[(((boundary + offset) * atlasSize) + coordinate) * 4 + 3];
-          if (verticalAlpha > 0) gutterOpaquePixels += 1;
-          if (horizontalAlpha > 0) gutterOpaquePixels += 1;
+  const decoded = await page.evaluate(async (assetSources) => {
+    const results = [];
+    for (const src of assetSources) {
+      const image = new Image();
+      image.src = src;
+      try {
+        await image.decode();
+      } catch (error) {
+        throw new Error(
+          `could not decode chibi atlas ${src} (complete=${image.complete}, `
+          + `natural=${image.naturalWidth}x${image.naturalHeight}): ${error.message}`,
+        );
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let transparentPixels = 0;
+      let opaquePixels = 0;
+      let gutterOpaquePixels = 0;
+      for (let index = 3; index < pixels.length; index += 4) {
+        if (pixels[index] === 0) transparentPixels += 1;
+        if (pixels[index] === 255) opaquePixels += 1;
+      }
+      const atlasSize = image.naturalWidth;
+      const cellSize = atlasSize / 8;
+      for (let boundary = cellSize; boundary < atlasSize; boundary += cellSize) {
+        for (let offset = -12; offset < 12; offset += 1) {
+          for (let coordinate = 0; coordinate < atlasSize; coordinate += 1) {
+            const verticalAlpha = pixels[((coordinate * atlasSize) + boundary + offset) * 4 + 3];
+            const horizontalAlpha = pixels[(((boundary + offset) * atlasSize) + coordinate) * 4 + 3];
+            if (verticalAlpha > 0) gutterOpaquePixels += 1;
+            if (horizontalAlpha > 0) gutterOpaquePixels += 1;
+          }
         }
       }
+      results.push({
+        src,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        transparentPixels,
+        opaquePixels,
+        gutterOpaquePixels,
+      });
+      canvas.width = 0;
+      canvas.height = 0;
+      image.src = "";
     }
-    return {
-      src,
-      naturalWidth: image.naturalWidth,
-      naturalHeight: image.naturalHeight,
-      transparentPixels,
-      opaquePixels,
-      gutterOpaquePixels,
-    };
-  })), sources);
+    return results;
+  }, sources);
   assert(decoded.length === 16, `${viewportLabel}: decoded ${decoded.length} built-in WebP assets, expected 16`);
   for (const asset of decoded) {
     assert(asset.naturalWidth === 2048 && asset.naturalHeight === 2048,
@@ -1338,7 +1360,16 @@ const verifyViewport = async (browser, viewport) => {
       await prepareMeetingScreenshot(page);
     }
 
-    await page.locator(".office-scene-background").evaluate((image) => image.decode());
+    await page.locator(".office-scene-background").evaluate(async (image) => {
+      try {
+        await image.decode();
+      } catch (error) {
+        throw new Error(
+          `could not decode office background ${image.currentSrc || image.src} `
+          + `(complete=${image.complete}, natural=${image.naturalWidth}x${image.naturalHeight}): ${error.message}`,
+        );
+      }
+    });
     const geometry = await collectGeometry(page);
     verifyGeometry(geometry, viewport);
 
