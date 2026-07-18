@@ -55,6 +55,37 @@ const isLegalPoint = (point, colliders, radius) => (
   && !colliders.some((collider) => isInsideExpandedCollider(point, collider, radius))
 );
 
+const segmentIntersectsExpandedCollider = (from, to, collider, radius) => {
+  const bounds = {
+    minX: collider.x - radius,
+    maxX: collider.x + collider.width + radius,
+    minY: collider.y - radius,
+    maxY: collider.y + collider.height + radius,
+  };
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  let entry = 0;
+  let exit = 1;
+
+  for (const [start, delta, minimum, maximum] of [
+    [from.x, dx, bounds.minX, bounds.maxX],
+    [from.y, dy, bounds.minY, bounds.maxY],
+  ]) {
+    if (delta === 0) {
+      if (start < minimum || start > maximum) return false;
+      continue;
+    }
+
+    const first = (minimum - start) / delta;
+    const second = (maximum - start) / delta;
+    entry = Math.max(entry, Math.min(first, second));
+    exit = Math.min(exit, Math.max(first, second));
+    if (entry > exit) return false;
+  }
+
+  return true;
+};
+
 const worldToGridPoint = (point) => ({
   x: Math.floor(point.x / NAVIGATION_GRID_SIZE),
   y: Math.floor(point.y / NAVIGATION_GRID_SIZE),
@@ -65,7 +96,9 @@ const gridToWorldPoint = ([x, y]) => ({
   y: (y * NAVIGATION_GRID_SIZE) + (NAVIGATION_GRID_SIZE / 2),
 });
 
-const sampleSegment = (from, to, isLegal) => {
+const sampleSegment = (from, to, isLegal, colliders, radius) => {
+  if (colliders.some((collider) => segmentIntersectsExpandedCollider(from, to, collider, radius))) return false;
+
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
   const sampleCount = Math.max(1, Math.ceil(distance / PATH_SEGMENT_SAMPLE_INTERVAL));
 
@@ -80,8 +113,8 @@ const sampleSegment = (from, to, isLegal) => {
   return true;
 };
 
-const hasLegalSegments = (path, isLegal) => path.every((point, index) => (
-  index === 0 || sampleSegment(path[index - 1], point, isLegal)
+const hasLegalSegments = (path, isLegal, colliders, radius) => path.every((point, index) => (
+  index === 0 || sampleSegment(path[index - 1], point, isLegal, colliders, radius)
 ));
 
 const hasSamePoint = (first, second) => first.x === second.x && first.y === second.y;
@@ -93,7 +126,7 @@ const withExactEndpoints = (points, start, destination) => {
   return [start, ...points.slice(1, -1), destination];
 };
 
-const createSafelySmoothedPath = (cells, start, destination, isLegal) => {
+const createSafelySmoothedPath = (cells, start, destination, isLegal, colliders, radius) => {
   const rawPath = withExactEndpoints(cells.map(gridToWorldPoint), start, destination);
   const path = [rawPath[0]];
   let fromIndex = 0;
@@ -102,11 +135,11 @@ const createSafelySmoothedPath = (cells, start, destination, isLegal) => {
     let destinationIndex = rawPath.length - 1;
     while (
       destinationIndex > fromIndex + 1
-      && !sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal)
+      && !sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal, colliders, radius)
     ) {
       destinationIndex -= 1;
     }
-    if (!sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal)) return [];
+    if (!sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal, colliders, radius)) return [];
     path.push(rawPath[destinationIndex]);
     fromIndex = destinationIndex;
   }
@@ -174,13 +207,31 @@ export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
   const cells = finder.findPath(startCell.x, startCell.y, endCell.x, endCell.y, grid.clone());
   if (cells.length === 0) return [];
 
-  const smoothedPath = withExactEndpoints(
-    PF.Util.smoothenPath(grid, cells).map(gridToWorldPoint),
-    start,
-    destination,
-  );
-  if (hasLegalSegments(smoothedPath, isLegal)) return smoothedPath;
+  const createLegalPath = (pathCells) => {
+    const smoothedPath = withExactEndpoints(
+      PF.Util.smoothenPath(grid, pathCells).map(gridToWorldPoint),
+      start,
+      destination,
+    );
+    if (hasLegalSegments(smoothedPath, isLegal, colliders, CHARACTER_CAPSULE_RADIUS)) return smoothedPath;
 
-  const safelySmoothedPath = createSafelySmoothedPath(cells, start, destination, isLegal);
-  return hasLegalSegments(safelySmoothedPath, isLegal) ? safelySmoothedPath : [];
+    const safelySmoothedPath = createSafelySmoothedPath(
+      pathCells,
+      start,
+      destination,
+      isLegal,
+      colliders,
+      CHARACTER_CAPSULE_RADIUS,
+    );
+    return hasLegalSegments(safelySmoothedPath, isLegal, colliders, CHARACTER_CAPSULE_RADIUS)
+      ? safelySmoothedPath
+      : [];
+  };
+
+  const path = createLegalPath(cells);
+  if (path.length) return path;
+
+  const orthogonalCells = new PF.AStarFinder({ allowDiagonal: false })
+    .findPath(startCell.x, startCell.y, endCell.x, endCell.y, grid.clone());
+  return orthogonalCells.length ? createLegalPath(orthogonalCells) : [];
 }

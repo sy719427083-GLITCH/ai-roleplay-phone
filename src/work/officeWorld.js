@@ -1,10 +1,11 @@
-import { OFFICE_DOOR_PAIRS, getSceneAnchor } from "./officeSceneManifest.js";
+import { OFFICE_DOOR_PAIRS, OFFICE_WORLD_SIZE, getSceneAnchor } from "./officeSceneManifest.js";
 import { findScenePath, isLegalCharacterPosition } from "./officePathfinding.js";
 
 export const ACTOR_SEPARATION_DISTANCE = 52;
 export const WORLD_ROUTE_ANCHOR_EPSILON = 0.001;
 
 const DEFAULT_SPEED = 10;
+const WAIT_POSITION_SEARCH_LIMIT = Math.max(OFFICE_WORLD_SIZE.width, OFFICE_WORLD_SIZE.height);
 
 const isFinitePoint = (point) => (
   point
@@ -176,10 +177,45 @@ const getResolvedActors = (owners, separated, throughIndex, excludedIndex) => (
     .map(({ index }) => separated[index])
 );
 
-const waitAtPreviousPosition = (actor) => {
-  const point = getActorPoint(actor);
-  const previous = getPreviousActorPoint(actor, point);
-  return withActorPoint(actor, previous, true);
+const getWaitingOrigins = (actor) => {
+  const current = getActorPoint(actor);
+  const previous = getPreviousActorPoint(actor, current);
+  return [previous, current].filter((point, index, points) => (
+    isFinitePoint(point)
+    && points.findIndex((candidate) => candidate.x === point.x && candidate.y === point.y) === index
+  ));
+};
+
+const getWaitingPosition = (actor, resolvedActors) => {
+  const origins = getWaitingOrigins(actor);
+  for (const origin of origins) {
+    if (isSafeAgainstResolvedActors(origin, actor.sceneId, resolvedActors)) return origin;
+  }
+
+  for (let radius = 1; radius <= WAIT_POSITION_SEARCH_LIMIT; radius += 1) {
+    for (const origin of origins) {
+      for (let x = -radius; x <= radius; x += 1) {
+        for (const y of [-radius, radius]) {
+          const candidate = { x: origin.x + x, y: origin.y + y };
+          if (isSafeAgainstResolvedActors(candidate, actor.sceneId, resolvedActors)) return candidate;
+        }
+      }
+      for (let y = -radius + 1; y < radius; y += 1) {
+        for (const x of [-radius, radius]) {
+          const candidate = { x: origin.x + x, y: origin.y + y };
+          if (isSafeAgainstResolvedActors(candidate, actor.sceneId, resolvedActors)) return candidate;
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+const waitAtPreviousPosition = (actor, resolvedActors) => {
+  const position = getWaitingPosition(actor, resolvedActors);
+  if (!position) throw new Error("Unable to find a safe actor waiting position");
+  return withActorPoint(actor, position, true);
 };
 
 export function buildWorldRoute({ from, to } = {}) {
@@ -218,7 +254,8 @@ export function sampleWorldRoute({ route = [], startedAt = 0, now = 0, speed = D
     return { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true };
   }
   if (!isValidWorldRoute(route)) {
-    return { sceneId: start.sceneId, x: start.x, y: start.y, facing: "front", segmentIndex: 0, done: true };
+    const safeStart = findNearestLegalPoint(start.sceneId, start) ?? start;
+    return { sceneId: start.sceneId, x: safeStart.x, y: safeStart.y, facing: "front", segmentIndex: 0, done: true };
   }
 
   let current = { ...start };
@@ -308,7 +345,7 @@ export function separateActors(actors = []) {
         continue;
       }
 
-      separated[rightOwner.index] = waitAtPreviousPosition(right);
+      separated[rightOwner.index] = waitAtPreviousPosition(right, resolvedActors);
     }
   }
 
@@ -318,7 +355,7 @@ export function separateActors(actors = []) {
     const earlierActors = getResolvedActors(owners, separated, rightIndex, rightOwner.index);
     const point = getActorPoint(right);
     if (!point || earlierActors.every((actor) => hasSeparationFrom(point, actor, right.sceneId))) continue;
-    separated[rightOwner.index] = waitAtPreviousPosition(right);
+    separated[rightOwner.index] = waitAtPreviousPosition(right, earlierActors);
   }
 
   return separated;

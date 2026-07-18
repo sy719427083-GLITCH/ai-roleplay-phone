@@ -6,6 +6,7 @@ import {
   sampleWorldRoute,
   separateActors,
 } from "./officeWorld.js";
+import { isLegalCharacterPosition } from "./officePathfinding.js";
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 
@@ -72,6 +73,20 @@ test("samples movement continuously and carries remaining distance through a doo
   });
 });
 
+test("keeps every dense cross-scene sample outside furniture", () => {
+  const route = buildWorldRoute({
+    from: { sceneId: "office", x: 250, y: 980 },
+    to: { sceneId: "lounge", x: 540, y: 820 },
+  });
+  const times = new Set(Array.from({ length: 4_001 }, (_, index) => index * 5));
+  times.add(14_500);
+
+  for (const now of times) {
+    const sample = sampleWorldRoute({ route, startedAt: 0, now, speed: 92 });
+    assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true, `illegal sample at ${now}ms`);
+  }
+});
+
 test("rejects direct and forged cross-scene route entries at the stable first coordinate", () => {
   const first = { sceneId: "office", x: 940, y: 1770 };
   const routes = [
@@ -97,15 +112,27 @@ test("rejects direct and forged cross-scene route entries at the stable first co
   ];
 
   for (const route of routes) {
-    assert.deepEqual(sampleWorldRoute({ route, startedAt: 0, now: 10_000, speed: 100 }), {
-      sceneId: route[0].sceneId,
-      x: route[0].x,
-      y: route[0].y,
-      facing: "front",
-      segmentIndex: 0,
-      done: true,
-    });
+    const sample = sampleWorldRoute({ route, startedAt: 0, now: 10_000, speed: 100 });
+    assert.equal(sample.sceneId, route[0].sceneId);
+    assert.equal(sample.facing, "front");
+    assert.equal(sample.segmentIndex, 0);
+    assert.equal(sample.done, true);
+    assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
   }
+});
+
+test("normalizes an illegal invalid-route fallback before returning it", () => {
+  const sample = sampleWorldRoute({
+    route: [
+      { sceneId: "office", x: 900, y: 1770 },
+      { sceneId: "lounge", x: 130, y: 1710 },
+    ],
+    startedAt: 0,
+    now: 10_000,
+  });
+
+  assert.equal(sample.done, true);
+  assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
 });
 
 test("separates moving actors in one scene and holds the later owner at an illegal sidestep", () => {
@@ -181,6 +208,31 @@ test("keeps all three moving actors separated and makes the latest owner wait de
     y: 650,
     waiting: true,
   });
+});
+
+test("finds legal waiting positions when previous positions are occupied", () => {
+  const groups = [
+    [
+      { id: "first", sceneId: "office", x: 520, y: 620, moving: true, routeStartedAt: 1, facing: "right" },
+      { id: "later", sceneId: "office", x: 540, y: 620, previousPosition: { x: 520, y: 620 }, moving: true, routeStartedAt: 2, facing: "right" },
+    ],
+    [
+      { id: "first", sceneId: "office", x: 520, y: 620, moving: true, routeStartedAt: 1, facing: "right" },
+      { id: "second", sceneId: "office", x: 540, y: 620, previousPosition: { x: 520, y: 620 }, moving: true, routeStartedAt: 2, facing: "right" },
+      { id: "third", sceneId: "office", x: 560, y: 620, previousPosition: { x: 520, y: 620 }, moving: true, routeStartedAt: 3, facing: "right" },
+    ],
+  ];
+
+  for (const actors of groups) {
+    const separated = separateActors(actors);
+    for (let left = 0; left < separated.length; left += 1) {
+      assert.equal(isLegalCharacterPosition(separated[left].sceneId, separated[left]), true);
+      for (let right = left + 1; right < separated.length; right += 1) {
+        assert.ok(distance(separated[left], separated[right]) >= 52);
+      }
+    }
+    assert.equal(separated.at(-1).waiting, true);
+  }
 });
 
 test("creates a serializable overlay snapshot for only the visible scene", () => {

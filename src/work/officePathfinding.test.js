@@ -91,3 +91,16 @@ test("routes through a safe orthogonal detour when a diagonal clips an expanded 
     }
   }
 });
+
+test("rejects a narrow sofa-corner crossing that falls between ten-pixel samples", () => {
+  const from = { x: 75, y: 1575 };
+  const to = { x: 45, y: 1545 };
+  const path = findScenePath({ sceneId: "lounge", from, to });
+
+  assert.notDeepEqual(path, [from, to]);
+  for (let index = 1; index < path.length; index += 1) {
+    for (const point of sampleSegment(path[index - 1], path[index], 0.1)) {
+      assert.equal(isLegalCharacterPosition("lounge", point), true);
+    }
+  }
+});
