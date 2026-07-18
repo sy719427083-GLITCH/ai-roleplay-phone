@@ -1,3 +1,5 @@
+export const DEFAULT_RESERVATION_TTL_MS = 5 * 60 * 1_000;
+
 const cloneReservation = (reservation) => (
   reservation && typeof reservation === "object" ? { ...reservation } : reservation
 );
@@ -19,6 +21,18 @@ const hasUniqueAnchorIds = (anchorIds) => (
   && new Set(anchorIds).size === anchorIds.length
 );
 
+const getReservationClock = (now) => (Number.isFinite(now) ? now : Date.now());
+
+const removeExpiredReservations = (reservations, now) => {
+  const next = cloneReservations(reservations);
+  for (const [anchorId, reservation] of Object.entries(next)) {
+    if (Number.isFinite(reservation?.expiresAt) && reservation.expiresAt <= now) {
+      delete next[anchorId];
+    }
+  }
+  return next;
+};
+
 export function reserveAnchors(reservations, request = {}) {
   const anchorIds = request?.anchorIds;
   if (
@@ -28,18 +42,23 @@ export function reserveAnchors(reservations, request = {}) {
     || !hasUniqueAnchorIds(anchorIds)
   ) return null;
 
-  const current = cloneReservations(reservations);
+  const now = getReservationClock(request.now);
+  const hasRequestedExpiry = Object.hasOwn(request, "expiresAt") && Number.isFinite(request.expiresAt);
+  if (hasRequestedExpiry && request.expiresAt <= now) return null;
+
+  const current = removeExpiredReservations(reservations, now);
   if (hasReservationForSlot(current, request.slotId)) return null;
   if (anchorIds.some((anchorId) => Object.hasOwn(current, anchorId))) return null;
 
   const next = cloneReservations(current);
+  const expiresAt = hasRequestedExpiry ? request.expiresAt : now + DEFAULT_RESERVATION_TTL_MS;
   for (const anchorId of anchorIds) {
     next[anchorId] = {
       anchorId,
       slotId: request.slotId,
       reservationGroupId: request.reservationGroupId,
       sceneId: request.sceneId,
-      expiresAt: request.expiresAt,
+      expiresAt,
     };
   }
   return next;

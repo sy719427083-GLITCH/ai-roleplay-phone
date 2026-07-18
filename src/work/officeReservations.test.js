@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_RESERVATION_TTL_MS,
   releaseReservationGroup,
   reserveAnchors,
 } from "./officeReservations.js";
@@ -35,6 +36,7 @@ test("clones inputs and stores complete reservation records", () => {
     slotId: "employee1",
     anchorIds: ["employee2:visitor-front", "employee2:visitor-left"],
     expiresAt: 1_780_000_100_000,
+    now: 1_779_000_000_000,
   };
   const claimed = reserveAnchors(reservations, request);
 
@@ -93,5 +95,76 @@ test("rejects duplicate owners and occupied anchors without partial writes", () 
     ...request,
     anchorIds: ["employee1:visitor-front"],
     slotId: "employee2",
+  }), null);
+});
+
+test("allows an expired reservation to be taken over", () => {
+  const now = 1_780_000_000_000;
+  const reservations = {
+    "employee2:visitor-front": {
+      anchorId: "employee2:visitor-front",
+      slotId: "employee2",
+      reservationGroupId: "chat-2",
+      sceneId: "office",
+      expiresAt: now - 1,
+    },
+  };
+
+  const claimed = reserveAnchors(reservations, {
+    sceneId: "office",
+    reservationGroupId: "chat-1",
+    slotId: "employee1",
+    anchorIds: ["employee2:visitor-front"],
+    now,
+  });
+
+  assert.equal(claimed["employee2:visitor-front"].slotId, "employee1");
+  assert.equal(reservations["employee2:visitor-front"].slotId, "employee2");
+});
+
+test("keeps an unexpired reservation occupied", () => {
+  const now = 1_780_000_000_000;
+  const reservations = {
+    "employee2:visitor-front": {
+      anchorId: "employee2:visitor-front",
+      slotId: "employee2",
+      reservationGroupId: "chat-2",
+      sceneId: "office",
+      expiresAt: now + 1,
+    },
+  };
+
+  assert.equal(reserveAnchors(reservations, {
+    sceneId: "office",
+    reservationGroupId: "chat-1",
+    slotId: "employee1",
+    anchorIds: ["employee2:visitor-front"],
+    now,
+  }), null);
+});
+
+test("assigns a finite default expiry from the deterministic request clock", () => {
+  const now = 1_780_000_000_000;
+  const claimed = reserveAnchors({}, {
+    sceneId: "office",
+    reservationGroupId: "chat-1",
+    slotId: "employee1",
+    anchorIds: ["employee2:visitor-front"],
+    now,
+  });
+
+  assert.equal(claimed["employee2:visitor-front"].expiresAt, now + DEFAULT_RESERVATION_TTL_MS);
+});
+
+test("rejects a requested expiry that has already elapsed", () => {
+  const now = 1_780_000_000_000;
+
+  assert.equal(reserveAnchors({}, {
+    sceneId: "office",
+    reservationGroupId: "chat-1",
+    slotId: "employee1",
+    anchorIds: ["employee2:visitor-front"],
+    expiresAt: now,
+    now,
   }), null);
 });

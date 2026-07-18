@@ -84,16 +84,29 @@ const hasLegalSegments = (path, isLegal) => path.every((point, index) => (
   index === 0 || sampleSegment(path[index - 1], point, isLegal)
 ));
 
-const createSafelySmoothedPath = (cells, isLegal) => {
-  const rawPath = cells.map(gridToWorldPoint);
+const hasSamePoint = (first, second) => first.x === second.x && first.y === second.y;
+
+const withExactEndpoints = (points, start, destination) => {
+  if (points.length === 0) return [];
+  if (points.length === 1) return hasSamePoint(start, destination) ? [start] : [start, destination];
+
+  return [start, ...points.slice(1, -1), destination];
+};
+
+const createSafelySmoothedPath = (cells, start, destination, isLegal) => {
+  const rawPath = withExactEndpoints(cells.map(gridToWorldPoint), start, destination);
   const path = [rawPath[0]];
   let fromIndex = 0;
 
   while (fromIndex < rawPath.length - 1) {
     let destinationIndex = rawPath.length - 1;
-    while (!sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal)) {
+    while (
+      destinationIndex > fromIndex + 1
+      && !sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal)
+    ) {
       destinationIndex -= 1;
     }
+    if (!sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal)) return [];
     path.push(rawPath[destinationIndex]);
     fromIndex = destinationIndex;
   }
@@ -151,17 +164,23 @@ export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
   if (
     !isGridPointInside(grid, startCell)
     || !isGridPointInside(grid, endCell)
-    || !grid.isWalkableAt(startCell.x, startCell.y)
-    || !grid.isWalkableAt(endCell.x, endCell.y)
   ) return [];
+
+  // World-coordinate legality is authoritative for endpoints near a grid-cell edge.
+  grid.setWalkableAt(startCell.x, startCell.y, true);
+  grid.setWalkableAt(endCell.x, endCell.y, true);
 
   const finder = new PF.AStarFinder({ allowDiagonal: true, dontCrossCorners: true });
   const cells = finder.findPath(startCell.x, startCell.y, endCell.x, endCell.y, grid.clone());
   if (cells.length === 0) return [];
 
-  const smoothedPath = PF.Util.smoothenPath(grid, cells).map(gridToWorldPoint);
+  const smoothedPath = withExactEndpoints(
+    PF.Util.smoothenPath(grid, cells).map(gridToWorldPoint),
+    start,
+    destination,
+  );
   if (hasLegalSegments(smoothedPath, isLegal)) return smoothedPath;
 
-  const safelySmoothedPath = createSafelySmoothedPath(cells, isLegal);
+  const safelySmoothedPath = createSafelySmoothedPath(cells, start, destination, isLegal);
   return hasLegalSegments(safelySmoothedPath, isLegal) ? safelySmoothedPath : [];
 }

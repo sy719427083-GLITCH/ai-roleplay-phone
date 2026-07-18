@@ -43,6 +43,22 @@ test("builds a 30-pixel grid with 26-pixel capsule-expanded colliders", () => {
   assert.equal(isLegalCharacterPosition("office", { x: 555, y: 617 }), true);
 });
 
+test("routes from a legal endpoint even when its grid-cell center is blocked", () => {
+  const from = { x: 555, y: 617 };
+  const to = { x: 940, y: 1770 };
+  const path = findScenePath({ sceneId: "office", from, to });
+
+  assert.equal(isLegalCharacterPosition("office", from), true);
+  assert.ok(path.length > 1);
+  assert.deepEqual(path[0], from);
+  assert.deepEqual(path.at(-1), to);
+  for (let index = 1; index < path.length; index += 1) {
+    for (const point of sampleSegment(path[index - 1], path[index])) {
+      assert.equal(isLegalCharacterPosition("office", point), true);
+    }
+  }
+});
+
 test("rejects expanded-collider endpoints and dynamic-obstacle endpoints", () => {
   assert.deepEqual(findScenePath({
     sceneId: "office",
