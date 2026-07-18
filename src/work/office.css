@@ -24,6 +24,33 @@
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
 }
 
+.office-canvas-host,
+.office-scene-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.office-canvas-host {
+  z-index: 0;
+}
+
+.office-canvas-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.office-scene-overlay {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.office-overlay-snapshot {
+  display: none;
+}
+
 .office-scene *,
 .office-scene *::before,
 .office-scene *::after {
