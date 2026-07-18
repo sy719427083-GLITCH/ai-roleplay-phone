@@ -1,106 +1,173 @@
-import { Application, Assets, Container } from "pixi.js";
 import { OFFICE_WORLD_SIZE } from "../officeSceneManifest.js";
-import { OfficeSceneView } from "./OfficeSceneView.js";
 import { getCharacterActionStripAliases } from "./officeAssetManifest.js";
+
+const hostOwners = new WeakMap();
 
 const getHostSize = (host) => ({
   width: host.clientWidth || host.offsetWidth || 1,
   height: host.clientHeight || host.offsetHeight || 1,
 });
 
-const getScreenTransform = (host) => {
+const getTransform = (host) => {
   const { width, height } = getHostSize(host);
   const scale = Math.min(width / OFFICE_WORLD_SIZE.width, height / OFFICE_WORLD_SIZE.height);
-
   return {
     scale,
-    offsetX: (width - (OFFICE_WORLD_SIZE.width * scale)) / 2,
-    offsetY: (height - (OFFICE_WORLD_SIZE.height * scale)) / 2,
+    x: (width - (OFFICE_WORLD_SIZE.width * scale)) / 2,
+    y: (height - (OFFICE_WORLD_SIZE.height * scale)) / 2,
   };
 };
 
-const hasKnownActionStrip = (alias) => getCharacterActionStripAliases().includes(alias);
+const applyRootTransform = (root, transform) => {
+  root.x = transform.x;
+  root.y = transform.y;
+  if (typeof root.scale?.set === "function") root.scale.set(transform.scale);
+  else if (root.scale) {
+    root.scale.x = transform.scale;
+    root.scale.y = transform.scale;
+  }
+};
 
-export async function createOfficeRenderer({ host, onFrame, onDoorSelect, onActorSelect }) {
+const isKnownActionStrip = (alias) => getCharacterActionStripAliases().includes(alias);
+
+export const isExpectedCancellation = (error) => error?.name === "AbortError";
+
+export function applyOfficeRendererUpdate(renderer, {
+  world,
+  visibleSceneId,
+  onError,
+  isCancelled = false,
+} = {}) {
+  if (!renderer || isCancelled) return false;
+  try {
+    renderer.sync(world);
+    renderer.setVisibleScene(visibleSceneId);
+    return true;
+  } catch (error) {
+    if (!isExpectedCancellation(error)) onError?.(error);
+    return false;
+  }
+}
+
+export async function createOfficeRenderer({
+  host,
+  onFrame,
+  onDoorSelect,
+  onActorSelect,
+  getCallbacks,
+  signal,
+  shouldAttach,
+  runtime,
+  devicePixelRatio = globalThis.devicePixelRatio || 1,
+}) {
+  const pixi = runtime || await import("pixi.js");
+  const { Application, Assets, Container } = pixi;
+  const SceneView = pixi.SceneView || (await import("./OfficeSceneView.js")).OfficeSceneView;
+  const owner = {};
+  hostOwners.set(host, owner);
   const app = new Application();
   let destroyed = false;
-  const loadedCharacterActionStrips = new Set();
-
-  await app.init({
-    resizeTo: host,
-    autoDensity: true,
-    resolution: Math.min(2, Math.max(1, globalThis.devicePixelRatio || 1)),
-    antialias: true,
-    backgroundAlpha: 0,
-    preference: "webgl",
-  });
-
-  if (destroyed) {
+  let tickerCallback = null;
+  const ownedActionStrips = new Set();
+  const isCurrentOwner = () => (
+    !destroyed
+    && !signal?.aborted
+    && hostOwners.get(host) === owner
+    && shouldAttach?.() !== false
+  );
+  const destroyApp = () => {
+    if (destroyed) return;
+    destroyed = true;
+    if (tickerCallback) app.ticker.remove(tickerCallback);
+    tickerCallback = null;
+    const aliases = [...ownedActionStrips];
+    ownedActionStrips.clear();
+    if (aliases.length > 0) void Assets.unload(aliases).catch(() => {});
+    if (app.canvas.parentNode === host) host.removeChild(app.canvas);
+    if (hostOwners.get(host) === owner) hostOwners.delete(host);
     app.destroy(true, { children: true, texture: true });
+  };
+
+  try {
+    await app.init({
+      resizeTo: host,
+      autoDensity: true,
+      resolution: Math.min(2, Math.max(1, devicePixelRatio)),
+      antialias: true,
+      backgroundAlpha: 0,
+      preference: "webgl",
+    });
+  } catch (error) {
+    destroyApp();
+    throw error;
+  }
+
+  if (!isCurrentOwner()) {
+    destroyApp();
     return null;
   }
 
   app.canvas.dataset.officeRenderer = "pixi";
   host.replaceChildren(app.canvas);
 
+  const registerLoadedActionStrip = (alias) => {
+    if (isKnownActionStrip(alias)) ownedActionStrips.add(alias);
+  };
   const office = new Container();
   const lounge = new Container();
   const sceneViews = new Map([
-    ["office", new OfficeSceneView("office")],
-    ["lounge", new OfficeSceneView("lounge")],
+    ["office", new SceneView("office", { registerLoadedActionStrip, getCallbacks })],
+    ["lounge", new SceneView("lounge", { registerLoadedActionStrip, getCallbacks })],
   ]);
   office.addChild(sceneViews.get("office"));
   lounge.addChild(sceneViews.get("lounge"));
   app.stage.addChild(office, lounge);
+  const rootByScene = new Map([["office", office], ["lounge", lounge]]);
+  let transform = getTransform(host);
 
-  const rootByScene = new Map([
-    ["office", office],
-    ["lounge", lounge],
-  ]);
-
+  const refreshTransform = () => {
+    transform = getTransform(host);
+    for (const root of rootByScene.values()) applyRootTransform(root, transform);
+    return transform;
+  };
   const setVisibleScene = (sceneId) => {
     const activeSceneId = rootByScene.has(sceneId) ? sceneId : "office";
     for (const [id, root] of rootByScene) {
-      const isVisible = id === activeSceneId;
-      root.visible = isVisible;
-      root.eventMode = isVisible ? "static" : "none";
+      const active = id === activeSceneId;
+      root.visible = active;
+      root.eventMode = active ? "static" : "none";
     }
   };
-
-  const tickerCallback = () => {
-    onFrame?.(app.ticker.lastTime);
+  const getLatestCallbacks = () => getCallbacks?.() || { onFrame, onDoorSelect, onActorSelect };
+  tickerCallback = () => {
+    refreshTransform();
+    getLatestCallbacks().onFrame?.(app.ticker.lastTime);
   };
   app.ticker.add(tickerCallback);
+  refreshTransform();
   setVisibleScene("office");
 
   return {
     sync(world = {}) {
+      refreshTransform();
       for (const [sceneId, sceneView] of sceneViews) {
-        sceneView.sync(world.scenes?.[sceneId] ?? { id: sceneId });
-      }
-      for (const alias of world.loadedCharacterActionStrips ?? []) {
-        if (hasKnownActionStrip(alias)) loadedCharacterActionStrips.add(alias);
+        sceneView.sync({
+          sceneId,
+          scene: world.scenes?.[sceneId] ?? null,
+          actors: (world.actors || []).filter((actor) => actor.sceneId === sceneId),
+          moduleState: world.moduleState ?? null,
+        });
       }
     },
     setVisibleScene,
     worldToScreen(point = {}) {
-      const { scale, offsetX, offsetY } = getScreenTransform(host);
+      refreshTransform();
       return {
-        x: offsetX + ((Number(point.x) || 0) * scale),
-        y: offsetY + ((Number(point.y) || 0) * scale),
+        x: transform.x + ((Number(point.x) || 0) * transform.scale),
+        y: transform.y + ((Number(point.y) || 0) * transform.scale),
       };
     },
-    destroy() {
-      if (destroyed) return;
-      destroyed = true;
-      app.ticker.remove(tickerCallback);
-      const strips = [...loadedCharacterActionStrips];
-      loadedCharacterActionStrips.clear();
-      if (strips.length > 0) {
-        void Assets.unload(strips).catch(() => {});
-      }
-      app.destroy(true, { children: true, texture: true });
-    },
+    destroy: destroyApp,
   };
 }
 

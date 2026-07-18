@@ -1,17 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
+const isExpectedCancellation = (error) => error?.name === "AbortError";
+
 export default function OfficeCanvas({ world, visibleSceneId, onFrame, onDoorSelect, onActorSelect, onReady, onError }) {
   const [host, setHost] = useState(null);
   const rendererRef = useRef(null);
-  const latestPropsRef = useRef({
-    world,
-    visibleSceneId,
-    onFrame,
-    onDoorSelect,
-    onActorSelect,
-    onReady,
-    onError,
-  });
+  const generationRef = useRef(0);
+  const latestPropsRef = useRef(null);
   latestPropsRef.current = {
     world,
     visibleSceneId,
@@ -24,45 +19,58 @@ export default function OfficeCanvas({ world, visibleSceneId, onFrame, onDoorSel
 
   useEffect(() => {
     if (!host) return undefined;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    const controller = new AbortController();
     let cancelled = false;
 
     const setup = async () => {
       try {
-        const { createOfficeRenderer } = await import("./createOfficeRenderer.js");
+        const { applyOfficeRendererUpdate, createOfficeRenderer } = await import("./createOfficeRenderer.js");
         const renderer = await createOfficeRenderer({
           host,
-          onFrame: (time) => latestPropsRef.current.onFrame?.(time),
-          onDoorSelect: (door) => latestPropsRef.current.onDoorSelect?.(door),
-          onActorSelect: (actor) => latestPropsRef.current.onActorSelect?.(actor),
+          signal: controller.signal,
+          shouldAttach: () => !cancelled && generationRef.current === generation,
+          getCallbacks: () => latestPropsRef.current,
         });
-        if (!renderer) return;
-        if (cancelled) {
-          renderer.destroy();
+        if (!renderer || cancelled || generationRef.current !== generation) {
+          renderer?.destroy();
           return;
         }
-        rendererRef.current = renderer;
-        renderer.sync(latestPropsRef.current.world);
-        renderer.setVisibleScene(latestPropsRef.current.visibleSceneId);
-        latestPropsRef.current.onReady?.(renderer);
+        rendererRef.current = { generation, renderer, applyOfficeRendererUpdate };
+        const ready = applyOfficeRendererUpdate(renderer, {
+          world: latestPropsRef.current.world,
+          visibleSceneId: latestPropsRef.current.visibleSceneId,
+          onError: latestPropsRef.current.onError,
+        });
+        if (ready && !cancelled && generationRef.current === generation) {
+          latestPropsRef.current.onReady?.(renderer);
+        }
       } catch (error) {
-        if (!cancelled) latestPropsRef.current.onError?.(error);
+        if (!cancelled && !isExpectedCancellation(error)) latestPropsRef.current.onError?.(error);
       }
     };
 
     void setup();
     return () => {
       cancelled = true;
-      const renderer = rendererRef.current;
-      rendererRef.current = null;
-      renderer?.destroy();
+      controller.abort();
+      const current = rendererRef.current;
+      if (current?.generation === generation) {
+        rendererRef.current = null;
+        current.renderer.destroy();
+      }
     };
   }, [host]);
 
   useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.sync(world);
-    renderer.setVisibleScene(visibleSceneId);
+    const current = rendererRef.current;
+    if (!current) return;
+    current.applyOfficeRendererUpdate(current.renderer, {
+      world,
+      visibleSceneId,
+      onError: latestPropsRef.current.onError,
+    });
   }, [world, visibleSceneId]);
 
   return <div ref={setHost} className="office-canvas-host" aria-hidden="true" />;

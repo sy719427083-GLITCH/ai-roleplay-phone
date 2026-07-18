@@ -1,14 +1,15 @@
 import { Container } from "pixi.js";
 
 export class OfficeSceneView extends Container {
-  constructor(sceneId) {
+  constructor(sceneId, { registerLoadedActionStrip } = {}) {
     super();
     this.sceneId = sceneId;
     this.eventMode = "none";
-    this.world = null;
+    this.snapshot = null;
+    this.registerLoadedActionStrip = registerLoadedActionStrip;
   }
 
-  sync(world) {
-    this.world = world;
+  sync(snapshot) {
+    this.snapshot = snapshot;
   }
 }

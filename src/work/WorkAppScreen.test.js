@@ -73,20 +73,12 @@ test("uses a 320ms active atlas cadence", () => {
   );
 });
 
-test("keeps every infinite office animation between 1.3s and 1.8s", () => {
-  const infiniteAnimations = [...cssSource.matchAll(/animation:\s*([^;]*\binfinite)\s*;/g)]
-    .map(([, declaration]) => declaration.trim());
-
-  assert.ok(infiniteAnimations.length > 0, "office CSS should define infinite animations");
-  for (const declaration of infiniteAnimations) {
-    const duration = declaration.match(/(?:^|\s)(\d+(?:\.\d+)?)(ms|s)(?=\s|$)/);
-    assert.ok(duration, `missing duration: ${declaration}`);
-    const milliseconds = Number(duration[1]) * (duration[2] === "s" ? 1_000 : 1);
-    assert.ok(
-      milliseconds >= 1_300 && milliseconds <= 1_800,
-      `duration must be 1.3s-1.8s: ${declaration}`,
-    );
-  }
+test("removes legacy DOM sprite and activity-prop CSS while keeping a pointer-safe overlay", () => {
+  for (const legacySelector of [
+    "office-character", "office-activity-prop", "office-module-layer", "office-scene-background",
+  ]) assert.doesNotMatch(cssSource, new RegExp(legacySelector));
+  assert.match(cssSource, /\.office-scene-overlay\s*\{[^}]*pointer-events:\s*none/s);
+  assert.match(cssSource, /\.office-actor-overlay\s*\{[^}]*pointer-events:\s*auto/s);
 });
 
 test("implements two-level assignments with five slots and eight role-compatible chibis", () => {
@@ -260,9 +252,10 @@ test("shares one conversation event with exact participants across rendering and
     assignments: {},
     motionNow: 720,
   }));
+  assert.equal((sceneMarkup.match(/data-office-actor-overlay=/g) || []).length, 4);
   assert.equal((sceneMarkup.match(/data-activity="chatting"/g) || []).length, 4);
-  assert.equal((sceneMarkup.match(/data-conversation-role="speaker"/g) || []).length, 2);
-  assert.equal((sceneMarkup.match(/data-conversation-role="listener"/g) || []).length, 2);
+  assert.match(sceneMarkup, /周末去看展吗？|第二组正在聊/);
+  assert.match(sceneSource, /onClick=\{\(\) => onSelect\?\.\(snapshot\.id\)\}/);
 
   assert.deepEqual(activitiesModule.filterOfficeActivityEvents(activityEvents, {
     actorId: "employee2",
@@ -504,19 +497,21 @@ test("keeps event ownership while modules render concrete furniture", () => {
   assert.match(characterSource, /ConversationProps/);
 });
 
-test("renders architecture and dynamic furniture below furniture-safe characters", () => {
+test("renders only the Pixi bridge and React actor overlays, without legacy DOM scene layers", () => {
   assert.match(sceneSource, /resolveOfficeModuleState/);
-  assert.match(sceneSource, /office-module-layer/);
-  assert.match(sceneSource, /data-module-state/);
-  assert.match(sceneSource, /furnitureReady=/);
-  assert.match(characterSource, /data-furniture-ready/);
-  assert.match(characterSource, /furnitureReady \? spriteActivity : "listening"/);
+  assert.match(sceneSource, /OfficeCanvas/);
+  assert.match(sceneSource, /office-actor-overlay/);
+  for (const legacyLayer of [
+    "OfficeCharacter", "office-module-layer", "office-scene-background", "office-character-layer", "office-furniture-layer",
+  ]) assert.doesNotMatch(sceneSource, new RegExp(legacyLayer));
+  assert.match(sceneSource, /onError=\{setRendererError\}/);
+  assert.doesNotMatch(sceneSource, /onError=\{onAssetError\}/);
 });
 
 test("removes hard route-step and bubble-clamp rendering", () => {
   assert.doesNotMatch(characterAndSceneSource, /routeStepDurationMs/);
   assert.match(cssSource, /overflow-wrap:\s*anywhere/);
-  assert.match(cssSource, /word-break:\s*break-word/);
+  assert.match(cssSource, /\.office-actor-bubble/);
   assert.doesNotMatch(cssSource, /-webkit-line-clamp/);
 });
 

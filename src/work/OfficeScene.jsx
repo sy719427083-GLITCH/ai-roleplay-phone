@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import OfficeCanvas from "./pixi/OfficeCanvas.jsx";
 import { OFFICE_SCENES, OFFICE_WORLD_SIZE } from "./officeSceneManifest.js";
 import { sampleOfficeRoute } from "./officeMotion.js";
@@ -17,7 +17,6 @@ const FIVE_MEMBER_BUBBLE_OFFSETS_PX = [-50, -50, 0, 50, 50];
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
-
 const roundPosition = (value) => Math.round(value * 10) / 10;
 
 export const getClampedBubbleLayout = (layout) => {
@@ -59,14 +58,11 @@ export function resolveOfficeActivityEventForCharacter({
     if (directlyOwnedEvent.activityType !== "chatting") return directlyOwnedEvent;
     const eventConversationId = cleanText(directlyOwnedEvent.conversationId);
     const characterConversationId = cleanText(character.conversationId);
-    if (!characterConversationId) {
-      return character.phase === "walkingToActivity" ? directlyOwnedEvent : null;
-    }
+    if (!characterConversationId) return character.phase === "walkingToActivity" ? directlyOwnedEvent : null;
     const participantIds = Array.isArray(directlyOwnedEvent.participantIds)
       ? directlyOwnedEvent.participantIds.map(String)
       : [];
-    if (eventConversationId === characterConversationId
-      && participantIds.includes(normalizedSlotId)) return directlyOwnedEvent;
+    if (eventConversationId === characterConversationId && participantIds.includes(normalizedSlotId)) return directlyOwnedEvent;
   }
 
   const characterConversationId = cleanText(character.conversationId);
@@ -74,13 +70,10 @@ export function resolveOfficeActivityEventForCharacter({
   for (const event of eventById.values()) {
     if (cleanText(event?.activityType) !== "chatting") continue;
     if (cleanText(event?.conversationId) !== characterConversationId) continue;
-    const participantIds = Array.isArray(event?.participantIds)
-      ? event.participantIds.map(String)
-      : [];
+    const participantIds = Array.isArray(event?.participantIds) ? event.participantIds.map(String) : [];
     if (!participantIds.includes(normalizedSlotId)) continue;
     const ownerId = cleanText(event?.actorId);
-    if (!ownerId || cleanText(activeEventBySlot?.[ownerId]) !== cleanText(event?.eventId)) continue;
-    return event;
+    if (ownerId && cleanText(activeEventBySlot?.[ownerId]) === cleanText(event?.eventId)) return event;
   }
   return null;
 }
@@ -104,7 +97,6 @@ export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {
   const characters = isRecord(state.characters) ? state.characters : {};
   const now = Number.isFinite(motionNow) ? motionNow : Number(state.now) || 0;
   const visibleSceneId = OFFICE_SCENES[state.visibleSceneId] ? state.visibleSceneId : "office";
-  // The former office-module-layer/data-module-state DOM contract is carried as Pixi world metadata.
   const moduleState = resolveOfficeModuleState({
     characters,
     reservations: isRecord(state.reservations) ? state.reservations : {},
@@ -112,24 +104,16 @@ export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {
   const actors = OFFICE_SLOT_IDS.map((slotId) => {
     const character = isRecord(characters[slotId]) ? characters[slotId] : { slotId };
     const motion = MOVING_PHASES.has(character.phase)
-      ? sampleOfficeRoute({
-        route: character.route,
-        startedAt: character.routeStartedAt,
-        now,
-        speed: OFFICE_WALK_SPEED,
-        nodes: OFFICE_NODES,
-      })
+      ? sampleOfficeRoute({ route: character.route, startedAt: character.routeStartedAt, now, speed: OFFICE_WALK_SPEED, nodes: OFFICE_NODES })
       : null;
-    const point = motion || getCharacterNode(character, slotId);
     const assignment = isRecord(assignments[slotId]) ? assignments[slotId] : {};
-
     return {
       id: slotId,
       sceneId: OFFICE_SCENES[character.sceneId] ? character.sceneId : "office",
-      ...legacyPointToWorld(point),
+      ...legacyPointToWorld(motion || getCharacterNode(character, slotId)),
       facing: motion?.facing || character.facing || "front",
       status: cleanText(character.status),
-      profile: isRecord(assignment.profile) ? assignment.profile : null,
+      profile: isRecord(assignment.profile) ? assignment.profile : isRecord(character.profile) ? character.profile : null,
       furnitureReady: moduleState.characters[slotId]?.furnitureReady !== false,
     };
   });
@@ -137,82 +121,73 @@ export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {
   return { scenes: OFFICE_SCENES, actors, visibleSceneId, moduleState };
 }
 
-const getOverlaySnapshots = (state, world) => {
+const getOverlaySnapshots = (state, world, renderer) => {
   const characters = isRecord(state.characters) ? state.characters : {};
   const conversations = isRecord(state.conversations) ? state.conversations : {};
   const activityEvents = Array.isArray(state.activityEvents) ? state.activityEvents : [];
   const activeEventBySlot = isRecord(state.activeEventBySlot) ? state.activeEventBySlot : {};
 
-  return world.actors.map((actor) => {
+  return world.actors.flatMap((actor) => {
+    if (actor.sceneId !== world.visibleSceneId || (!actor.profile && !characters[actor.id])) return [];
     const character = isRecord(characters[actor.id]) ? characters[actor.id] : {};
-    const activityEvent = resolveOfficeActivityEventForCharacter({
-      slotId: actor.id,
-      character,
-      activityEvents,
-      activeEventBySlot,
-    });
+    const event = resolveOfficeActivityEventForCharacter({ slotId: actor.id, character, activityEvents, activeEventBySlot });
     const conversation = conversations[character.conversationId];
-    const speakerId = conversation?.bubbleQueue?.[0]?.speakerId;
-    const conversationRole = character.phase === "chatting"
-      ? (speakerId === actor.id ? "speaker" : "listener")
-      : "";
+    const bubble = event?.activityType === "chatting" ? cleanText(conversation?.bubbleQueue?.[0]?.text) : "";
+    const point = renderer?.worldToScreen(actor);
+    const position = point
+      ? { left: `${point.x}px`, top: `${point.y}px` }
+      : { left: `${(actor.x / OFFICE_WORLD_SIZE.width) * 100}%`, top: `${(actor.y / OFFICE_WORLD_SIZE.height) * 100}%` };
+    const name = cleanText(actor.profile?.name) || cleanText(character.profile?.name) || actor.id;
+    const status = cleanText(event?.status) || cleanText(actor.status) || cleanText(character.status) || "空闲中";
 
-    return {
-      id: actor.id,
-      activity: activityEvent?.activityType || character.activity || "idle",
-      conversationRole,
-      furnitureReady: actor.furnitureReady,
-    };
+    return [{ id: actor.id, activity: event?.activityType || character.activity || "idle", name, status, bubble, position }];
   });
 };
 
-function OfficeOverlaySnapshot({ snapshot, furnitureReady }) {
+function OfficeActorOverlay({ snapshot, onSelect }) {
   return (
-    <span
-      className="office-overlay-snapshot"
-      data-actor-id={snapshot.id}
+    <button
+      type="button"
+      className="office-actor-overlay"
+      data-office-actor-overlay={snapshot.id}
       data-activity={snapshot.activity}
-      data-conversation-role={snapshot.conversationRole || undefined}
-      data-furniture-ready={furnitureReady}
-    />
+      style={snapshot.position}
+      aria-label={`${snapshot.name}，${snapshot.status}`}
+      onClick={() => onSelect?.(snapshot.id)}
+    >
+      {snapshot.bubble && <span className="office-actor-bubble">{snapshot.bubble}</span>}
+      <span className="office-actor-name">{snapshot.name}</span>
+      <span className="office-actor-status">{snapshot.status}</span>
+    </button>
   );
 }
 
-export function OfficeScene({
-  state = {},
-  assignments = {},
-  motionNow,
-  onSlotSelect,
-  onStationSelect,
-  onAssetError,
-}) {
-  const world = useMemo(
-    () => buildOfficeWorld({ state, assignments, motionNow }),
-    [state, assignments, motionNow],
-  );
-  const overlaySnapshots = useMemo(() => getOverlaySnapshots(state, world), [state, world]);
+export function OfficeScene({ state = {}, assignments = {}, motionNow, onSlotSelect, onStationSelect, onAssetError }) {
+  const [renderer, setRenderer] = useState(null);
+  const [rendererError, setRendererError] = useState(null);
+  const [, setOverlayRevision] = useState(0);
+  const world = useMemo(() => buildOfficeWorld({ state, assignments, motionNow }), [state, assignments, motionNow]);
+  const onFrame = useCallback(() => setOverlayRevision((revision) => revision + 1), []);
+  const onReady = useCallback((nextRenderer) => {
+    setRenderer(nextRenderer);
+    setRendererError(null);
+  }, []);
+  const overlaySnapshots = getOverlaySnapshots(state, world, renderer);
 
   return (
-    <section
-      className="office-scene"
-      aria-label="办公室动态场景"
-      data-character-count={world.actors.length}
-    >
+    <section className="office-scene" aria-label="办公室动态场景" data-character-count={overlaySnapshots.length}>
       <OfficeCanvas
         world={world}
         visibleSceneId={world.visibleSceneId}
+        onFrame={onFrame}
         onDoorSelect={onStationSelect}
         onActorSelect={onSlotSelect}
-        onError={onAssetError}
+        onReady={onReady}
+        onError={setRendererError}
       />
       <div className="office-scene-overlay" aria-live="polite">
-        {overlaySnapshots.map((snapshot) => (
-          <OfficeOverlaySnapshot
-            key={snapshot.id}
-            snapshot={snapshot}
-            furnitureReady={snapshot.furnitureReady}
-          />
-        ))}
+        {overlaySnapshots.map((snapshot) => <OfficeActorOverlay key={snapshot.id} snapshot={snapshot} onSelect={onSlotSelect} />)}
+        {rendererError && <p className="office-renderer-error" role="alert">场景暂时无法加载</p>}
       </div>
     </section>
   );
