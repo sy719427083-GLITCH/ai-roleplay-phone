@@ -268,6 +268,39 @@ test("shares one conversation event with exact participants across rendering and
   }), []);
 });
 
+test("renders a conversation bubble only for its active speaker overlay", () => {
+  const conversation = {
+    id: "conversation-a",
+    bubbleQueue: [{ conversationId: "conversation-a", speakerId: "employee1", text: "只显示一次" }],
+  };
+  const event = {
+    eventId: "event-conversation-a",
+    actorId: "employee1",
+    participantIds: ["employee1", "employee2"],
+    activityType: "chatting",
+    conversationId: "conversation-a",
+    status: "闲聊中",
+  };
+  const markup = renderToStaticMarkup(React.createElement(sceneModule.OfficeScene, {
+    state: {
+      activityEvents: [event],
+      activeEventBySlot: { employee1: event.eventId },
+      conversations: { "conversation-a": conversation },
+      characters: Object.fromEntries(["employee1", "employee2"].map((slotId) => [slotId, {
+        slotId,
+        phase: "chatting",
+        activity: "chatting",
+        conversationId: "conversation-a",
+        positionNode: `${slotId}-home`,
+        profile: { name: slotId },
+      }])),
+    },
+  }));
+
+  assert.equal((markup.match(/office-actor-bubble/g) || []).length, 1);
+  assert.equal((markup.match(/只显示一次/g) || []).length, 1);
+});
+
 test("renders persisted assignment errors while preserving a valid custom draft", () => {
   const renderError = (message) => renderToStaticMarkup(
     React.createElement(assignmentFlowModule.default, {

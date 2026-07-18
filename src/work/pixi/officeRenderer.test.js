@@ -33,7 +33,7 @@ function createHost({ width = 390, height = 744 } = {}) {
   };
 }
 
-function createFakePixi({ init } = {}) {
+function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
   const applications = [];
   const unloaded = [];
 
@@ -50,12 +50,24 @@ function createFakePixi({ init } = {}) {
     addChild(...children) {
       this.children.push(...children);
     }
+
+    destroy() {
+      this.destroyCalls = (this.destroyCalls || 0) + 1;
+    }
   }
 
   class Application {
     constructor() {
-      this.canvas = { dataset: {}, parentNode: null, width: 0, height: 0 };
       this.stage = new Container();
+      this.destroyCalls = 0;
+      if (resourceTiming === "constructor") this.createRendererResources();
+      if (resourceTiming === "renderer-only") this.renderer = {};
+      applications.push(this);
+    }
+
+    createRendererResources() {
+      this.renderer = {};
+      this.canvas = { dataset: {}, parentNode: null, width: 0, height: 0 };
       this.ticker = {
         lastTime: 123,
         callbacks: new Set(),
@@ -63,13 +75,12 @@ function createFakePixi({ init } = {}) {
         remove: (callback) => this.ticker.callbacks.delete(callback),
         emit: () => [...this.ticker.callbacks].forEach((callback) => callback()),
       };
-      this.destroyCalls = 0;
-      applications.push(this);
     }
 
     async init(options) {
       this.initOptions = options;
       if (init) await init(this, options);
+      if (resourceTiming === "after-init") this.createRendererResources();
       this.canvas.width = (options.resizeTo.clientWidth || 1) * options.resolution;
       this.canvas.height = (options.resizeTo.clientHeight || 1) * options.resolution;
     }
@@ -217,6 +228,44 @@ test("cleans up a rejected initialization exactly once", async () => {
   assert.equal(fake.applications[0].destroyCalls, 1);
 });
 
+test("preserves the original early init error while cleaning a stage-only application without touching the host", async () => {
+  const { createOfficeRenderer } = await loadRenderer();
+  const boom = new Error("early init failed");
+  const fake = createFakePixi({
+    resourceTiming: "never",
+    init: async () => { throw boom; },
+  });
+  const host = createHost();
+  const newerCanvas = { parentNode: null };
+  host.replaceChildren(newerCanvas);
+
+  await assert.rejects(
+    createOfficeRenderer({ host, runtime: fake.runtime }),
+    (error) => error === boom,
+  );
+
+  assert.equal(fake.applications[0].destroyCalls, 0);
+  assert.equal(fake.applications[0].stage.destroyCalls, 1);
+  assert.equal(host.children[0], newerCanvas);
+});
+
+test("cleans a partial renderer initialization without requiring a canvas or ticker", async () => {
+  const { createOfficeRenderer } = await loadRenderer();
+  const boom = new Error("partial init failed");
+  const fake = createFakePixi({
+    resourceTiming: "renderer-only",
+    init: async () => { throw boom; },
+  });
+  const host = createHost();
+  const newerCanvas = { parentNode: null };
+  host.replaceChildren(newerCanvas);
+
+  await assert.rejects(createOfficeRenderer({ host, runtime: fake.runtime }), (error) => error === boom);
+
+  assert.equal(fake.applications[0].destroyCalls, 1);
+  assert.equal(host.children[0], newerCanvas);
+});
+
 test("prevents stale and cancelled initializers from replacing or removing a newer canvas", async () => {
   const { createOfficeRenderer } = await loadRenderer();
   const firstGate = deferred();
@@ -269,6 +318,23 @@ test("routes update failures to the latest error callback while ignoring expecte
     isCancelled: true,
   }), false);
   assert.deepEqual(errors, ["sync failed"]);
+});
+
+test("routes a visibility update error after a successful sync to the latest error callback", async () => {
+  const { applyOfficeRendererUpdate } = await loadRenderer();
+  const visibilityError = new Error("visibility failed");
+  const errors = [];
+  const renderer = {
+    sync() {},
+    setVisibleScene() { throw visibilityError; },
+  };
+
+  assert.equal(applyOfficeRendererUpdate(renderer, {
+    world: {},
+    visibleSceneId: "lounge",
+    onError: (error) => errors.push(error),
+  }), false);
+  assert.deepEqual(errors, [visibilityError]);
 });
 
 test("mounts one Pixi canvas with a backing-to-CSS ratio capped at two", async () => {

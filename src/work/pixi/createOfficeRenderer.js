@@ -78,14 +78,15 @@ export async function createOfficeRenderer({
   const destroyApp = () => {
     if (destroyed) return;
     destroyed = true;
-    if (tickerCallback) app.ticker.remove(tickerCallback);
+    if (tickerCallback) app.ticker?.remove?.(tickerCallback);
     tickerCallback = null;
     const aliases = [...ownedActionStrips];
     ownedActionStrips.clear();
     if (aliases.length > 0) void Assets.unload(aliases).catch(() => {});
-    if (app.canvas.parentNode === host) host.removeChild(app.canvas);
+    if (app.canvas?.parentNode === host) host.removeChild?.(app.canvas);
     if (hostOwners.get(host) === owner) hostOwners.delete(host);
-    app.destroy(true, { children: true, texture: true });
+    if (app.renderer) app.destroy?.(true, { children: true, texture: true });
+    else app.stage?.destroy?.({ children: true });
   };
 
   try {
@@ -98,7 +99,11 @@ export async function createOfficeRenderer({
       preference: "webgl",
     });
   } catch (error) {
-    destroyApp();
+    try {
+      destroyApp();
+    } catch {
+      // Init errors take precedence over best-effort partial cleanup failures.
+    }
     throw error;
   }
 

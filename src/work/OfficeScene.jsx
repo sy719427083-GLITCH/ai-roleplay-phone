@@ -131,8 +131,12 @@ const getOverlaySnapshots = (state, world, renderer) => {
     if (actor.sceneId !== world.visibleSceneId || (!actor.profile && !characters[actor.id])) return [];
     const character = isRecord(characters[actor.id]) ? characters[actor.id] : {};
     const event = resolveOfficeActivityEventForCharacter({ slotId: actor.id, character, activityEvents, activeEventBySlot });
-    const conversation = conversations[character.conversationId];
-    const bubble = event?.activityType === "chatting" ? cleanText(conversation?.bubbleQueue?.[0]?.text) : "";
+    const conversationId = cleanText(character.conversationId);
+    const conversation = conversations[conversationId];
+    const activeBubble = event?.activityType === "chatting" && cleanText(event.conversationId) === conversationId
+      ? conversation?.bubbleQueue?.[0]
+      : null;
+    const bubble = cleanText(activeBubble?.speakerId) === actor.id ? cleanText(activeBubble?.text) : "";
     const point = renderer?.worldToScreen(actor);
     const position = point
       ? { left: `${point.x}px`, top: `${point.y}px` }
