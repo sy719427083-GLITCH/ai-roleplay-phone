@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildNavigationGrid,
   findScenePath,
+  isLegalCharacterSegment,
   isLegalCharacterPosition,
 } from "./officePathfinding.js";
 import { OFFICE_SCENES } from "./officeSceneManifest.js";
@@ -103,4 +104,23 @@ test("rejects a narrow sofa-corner crossing that falls between ten-pixel samples
       assert.equal(isLegalCharacterPosition("lounge", point), true);
     }
   }
+});
+
+test("checks every character segment continuously against static and dynamic colliders", () => {
+  assert.equal(isLegalCharacterSegment(
+    "lounge",
+    { x: 75, y: 1575 },
+    { x: 45, y: 1545 },
+  ), false);
+  assert.equal(isLegalCharacterSegment(
+    "office",
+    { x: 540, y: 650 },
+    { x: 540, y: 750 },
+    [{ x: 520, y: 680, width: 40, height: 20 }],
+  ), false);
+  assert.equal(isLegalCharacterSegment(
+    "office",
+    { x: 250, y: 1015 },
+    { x: 280, y: 1010 },
+  ), true);
 });

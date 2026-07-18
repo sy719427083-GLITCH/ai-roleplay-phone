@@ -42,7 +42,7 @@ test("keeps same-scene routes as coordinate entries without a transition", () =>
 
 test("samples movement continuously and carries remaining distance through a door", () => {
   const route = [
-    { sceneId: "office", x: 900, y: 1770 },
+    { sceneId: "office", x: 927, y: 1770 },
     { sceneId: "office", x: 940, y: 1770 },
     {
       transition: true,
@@ -50,7 +50,7 @@ test("samples movement continuously and carries remaining distance through a doo
       to: { sceneId: "lounge", anchorId: "entry" },
     },
     { sceneId: "lounge", x: 130, y: 1710 },
-    { sceneId: "lounge", x: 230, y: 1710 },
+    { sceneId: "lounge", x: 130, y: 1610 },
   ];
   const samples = Array.from({ length: 90 }, (_, index) => sampleWorldRoute({
     route,
@@ -65,9 +65,9 @@ test("samples movement continuously and carries remaining distance through a doo
   assert.ok(Math.max(...loungeSamples.slice(1).map((sample, index) => distance(sample, loungeSamples[index]))) < 4);
   assert.deepEqual(sampleWorldRoute({ route, startedAt: 0, now: 500, speed: 100 }), {
     sceneId: "lounge",
-    x: 140,
-    y: 1710,
-    facing: "right",
+    x: 130,
+    y: 1673,
+    facing: "back",
     segmentIndex: 1,
     done: false,
   });
@@ -101,7 +101,7 @@ test("rejects direct and forged cross-scene route entries at the stable first co
       { sceneId: "lounge", x: 90, y: 1780 },
     ],
     [
-      { sceneId: "office", x: 900, y: 1770 },
+      { sceneId: "office", x: 927, y: 1770 },
       {
         transition: true,
         from: { sceneId: "office", anchorId: "exit" },
@@ -133,6 +133,60 @@ test("normalizes an illegal invalid-route fallback before returning it", () => {
 
   assert.equal(sample.done, true);
   assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
+});
+
+test("rejects physically illegal same-scene routes at a stable legal fallback", () => {
+  const endpoint = { sceneId: "office", x: 500, y: 500 };
+  const sample = sampleWorldRoute({
+    route: [
+      { sceneId: "office", x: 250, y: 1015 },
+      endpoint,
+    ],
+    startedAt: 0,
+    now: 10_000,
+    speed: 100,
+  });
+
+  assert.equal(sample.sceneId, "office");
+  assert.equal(sample.done, true);
+  assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
+  assert.notDeepEqual({ x: sample.x, y: sample.y }, { x: endpoint.x, y: endpoint.y });
+
+  const segmentEnd = { sceneId: "office", x: 285, y: 1485 };
+  const segmentSample = sampleWorldRoute({
+    route: [
+      { sceneId: "office", x: 255, y: 1455 },
+      segmentEnd,
+    ],
+    startedAt: 0,
+    now: 10_000,
+    speed: 100,
+  });
+
+  assert.equal(segmentSample.sceneId, "office");
+  assert.equal(segmentSample.done, true);
+  assert.equal(isLegalCharacterPosition(segmentSample.sceneId, segmentSample), true);
+  assert.notDeepEqual(
+    { x: segmentSample.x, y: segmentSample.y },
+    { x: segmentEnd.x, y: segmentEnd.y },
+  );
+});
+
+test("finds a guaranteed legal fallback for far-invalid first coordinates", () => {
+  const first = { sceneId: "office", x: -1000, y: -1000 };
+  const sample = sampleWorldRoute({
+    route: [first, { sceneId: "office", x: 250, y: 1015 }],
+    startedAt: 0,
+    now: 0,
+  });
+
+  assert.equal(sample.sceneId, "office");
+  assert.equal(sample.done, true);
+  assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
+  assert.notDeepEqual({ x: sample.x, y: sample.y }, { x: first.x, y: first.y });
+  assert.deepEqual(sampleWorldRoute({
+    route: [{ sceneId: "unknown", x: 500, y: 500 }],
+  }), { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true });
 });
 
 test("separates moving actors in one scene and holds the later owner at an illegal sidestep", () => {

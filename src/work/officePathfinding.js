@@ -97,6 +97,7 @@ const gridToWorldPoint = ([x, y]) => ({
 });
 
 const sampleSegment = (from, to, isLegal, colliders, radius) => {
+  if (!hasFinitePoint(from) || !hasFinitePoint(to)) return false;
   if (colliders.some((collider) => segmentIntersectsExpandedCollider(from, to, collider, radius))) return false;
 
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
@@ -113,8 +114,8 @@ const sampleSegment = (from, to, isLegal, colliders, radius) => {
   return true;
 };
 
-const hasLegalSegments = (path, isLegal, colliders, radius) => path.every((point, index) => (
-  index === 0 || sampleSegment(path[index - 1], point, isLegal, colliders, radius)
+const hasLegalSegments = (path, isLegalSegment) => path.every((point, index) => (
+  index === 0 || isLegalSegment(path[index - 1], point)
 ));
 
 const hasSamePoint = (first, second) => first.x === second.x && first.y === second.y;
@@ -126,7 +127,7 @@ const withExactEndpoints = (points, start, destination) => {
   return [start, ...points.slice(1, -1), destination];
 };
 
-const createSafelySmoothedPath = (cells, start, destination, isLegal, colliders, radius) => {
+const createSafelySmoothedPath = (cells, start, destination, isLegalSegment) => {
   const rawPath = withExactEndpoints(cells.map(gridToWorldPoint), start, destination);
   const path = [rawPath[0]];
   let fromIndex = 0;
@@ -135,11 +136,11 @@ const createSafelySmoothedPath = (cells, start, destination, isLegal, colliders,
     let destinationIndex = rawPath.length - 1;
     while (
       destinationIndex > fromIndex + 1
-      && !sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal, colliders, radius)
+      && !isLegalSegment(rawPath[fromIndex], rawPath[destinationIndex])
     ) {
       destinationIndex -= 1;
     }
-    if (!sampleSegment(rawPath[fromIndex], rawPath[destinationIndex], isLegal, colliders, radius)) return [];
+    if (!isLegalSegment(rawPath[fromIndex], rawPath[destinationIndex])) return [];
     path.push(rawPath[destinationIndex]);
     fromIndex = destinationIndex;
   }
@@ -178,6 +179,20 @@ export function isLegalCharacterPosition(sceneId, point) {
   return Boolean(scene) && isLegalPoint(point, getColliders(scene), CHARACTER_CAPSULE_RADIUS);
 }
 
+export function isLegalCharacterSegment(sceneId, from, to, dynamicObstacles = []) {
+  const scene = OFFICE_SCENES[sceneId];
+  if (!scene || !hasFinitePoint(from) || !hasFinitePoint(to)) return false;
+
+  const colliders = [...getColliders(scene), ...getDynamicColliders(dynamicObstacles)];
+  return sampleSegment(
+    from,
+    to,
+    (point) => isLegalPoint(point, colliders, CHARACTER_CAPSULE_RADIUS),
+    colliders,
+    CHARACTER_CAPSULE_RADIUS,
+  );
+}
+
 export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
   const scene = OFFICE_SCENES[sceneId];
   const start = resolveScenePoint(sceneId, from);
@@ -186,6 +201,12 @@ export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
 
   const colliders = [...getColliders(scene), ...getDynamicColliders(dynamicObstacles)];
   const isLegal = (point) => isLegalPoint(point, colliders, CHARACTER_CAPSULE_RADIUS);
+  const isLegalSegment = (startPoint, endPoint) => isLegalCharacterSegment(
+    sceneId,
+    startPoint,
+    endPoint,
+    dynamicObstacles,
+  );
   if (!isLegal(start) || !isLegal(destination)) return [];
 
   const navigationScene = colliders.length === getColliders(scene).length
@@ -213,17 +234,15 @@ export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
       start,
       destination,
     );
-    if (hasLegalSegments(smoothedPath, isLegal, colliders, CHARACTER_CAPSULE_RADIUS)) return smoothedPath;
+    if (hasLegalSegments(smoothedPath, isLegalSegment)) return smoothedPath;
 
     const safelySmoothedPath = createSafelySmoothedPath(
       pathCells,
       start,
       destination,
-      isLegal,
-      colliders,
-      CHARACTER_CAPSULE_RADIUS,
+      isLegalSegment,
     );
-    return hasLegalSegments(safelySmoothedPath, isLegal, colliders, CHARACTER_CAPSULE_RADIUS)
+    return hasLegalSegments(safelySmoothedPath, isLegalSegment)
       ? safelySmoothedPath
       : [];
   };

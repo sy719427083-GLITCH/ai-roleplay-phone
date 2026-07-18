@@ -1,11 +1,29 @@
-import { OFFICE_DOOR_PAIRS, OFFICE_WORLD_SIZE, getSceneAnchor } from "./officeSceneManifest.js";
-import { findScenePath, isLegalCharacterPosition } from "./officePathfinding.js";
+import {
+  OFFICE_DOOR_PAIRS,
+  OFFICE_SCENES,
+  OFFICE_WORLD_SIZE,
+  getSceneAnchor,
+} from "./officeSceneManifest.js";
+import {
+  NAVIGATION_GRID_SIZE,
+  findScenePath,
+  isLegalCharacterPosition,
+  isLegalCharacterSegment,
+} from "./officePathfinding.js";
 
 export const ACTOR_SEPARATION_DISTANCE = 52;
 export const WORLD_ROUTE_ANCHOR_EPSILON = 0.001;
 
 const DEFAULT_SPEED = 10;
 const WAIT_POSITION_SEARCH_LIMIT = Math.max(OFFICE_WORLD_SIZE.width, OFFICE_WORLD_SIZE.height);
+const EMPTY_ROUTE_SAMPLE = Object.freeze({
+  sceneId: null,
+  x: 0,
+  y: 0,
+  facing: "front",
+  segmentIndex: 0,
+  done: true,
+});
 
 const isFinitePoint = (point) => (
   point
@@ -56,13 +74,21 @@ const hasSamePoint = (left, right) => (
 );
 
 const isValidWorldRoute = (route) => {
-  if (!Array.isArray(route) || !isCoordinateEntry(route[0])) return false;
+  if (
+    !Array.isArray(route)
+    || !isCoordinateEntry(route[0])
+    || !isLegalCharacterPosition(route[0].sceneId, route[0])
+  ) return false;
 
   let current = { ...route[0] };
   for (let index = 1; index < route.length; index += 1) {
     const entry = route[index];
     if (isCoordinateEntry(entry)) {
-      if (entry.sceneId !== current.sceneId) return false;
+      if (
+        entry.sceneId !== current.sceneId
+        || !isLegalCharacterPosition(entry.sceneId, entry)
+        || !isLegalCharacterSegment(current.sceneId, current, entry)
+      ) return false;
       current = { ...entry };
       continue;
     }
@@ -77,10 +103,11 @@ const isValidWorldRoute = (route) => {
       || entry.to.sceneId !== expectedDestination.sceneId
       || entry.to.anchorId !== expectedDestination.anchorId
       || !hasSamePoint(current, sourceAnchor)
+      || !isLegalCharacterPosition(current.sceneId, current)
     ) return false;
 
     const destination = getTransitionDestination(entry);
-    if (!destination) return false;
+    if (!destination || !isLegalCharacterPosition(destination.sceneId, destination)) return false;
     current = destination;
   }
 
@@ -103,6 +130,33 @@ const findNearestLegalPoint = (sceneId, point) => {
   }
 
   return null;
+};
+
+const findGuaranteedLegalPoint = (sceneId) => {
+  const scene = OFFICE_SCENES[sceneId];
+  if (!scene) return null;
+
+  const anchorIds = [
+    "entry",
+    ...Object.keys(scene.anchors).filter((anchorId) => anchorId !== "entry"),
+  ];
+  for (const anchorId of anchorIds) {
+    const anchor = getSceneAnchor(sceneId, anchorId);
+    if (isLegalCharacterPosition(sceneId, anchor)) return { x: anchor.x, y: anchor.y };
+  }
+
+  for (let y = NAVIGATION_GRID_SIZE / 2; y < OFFICE_WORLD_SIZE.height; y += NAVIGATION_GRID_SIZE) {
+    for (let x = NAVIGATION_GRID_SIZE / 2; x < OFFICE_WORLD_SIZE.width; x += NAVIGATION_GRID_SIZE) {
+      if (isLegalCharacterPosition(sceneId, { x, y })) return { x, y };
+    }
+  }
+
+  return null;
+};
+
+const getSafeRouteFallback = (start) => {
+  if (!isCoordinateEntry(start) || !OFFICE_SCENES[start.sceneId]) return null;
+  return findNearestLegalPoint(start.sceneId, start) ?? findGuaranteedLegalPoint(start.sceneId);
 };
 
 const findWorldScenePath = ({ sceneId, from, to }) => {
@@ -248,13 +302,14 @@ export function sampleWorldRoute({ route = [], startedAt = 0, now = 0, speed = D
 
   const start = route[0];
   if (!start) {
-    return { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true };
+    return { ...EMPTY_ROUTE_SAMPLE };
   }
   if (!isCoordinateEntry(start)) {
-    return { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true };
+    return { ...EMPTY_ROUTE_SAMPLE };
   }
   if (!isValidWorldRoute(route)) {
-    const safeStart = findNearestLegalPoint(start.sceneId, start) ?? start;
+    const safeStart = getSafeRouteFallback(start);
+    if (!safeStart) return { ...EMPTY_ROUTE_SAMPLE };
     return { sceneId: start.sceneId, x: safeStart.x, y: safeStart.y, facing: "front", segmentIndex: 0, done: true };
   }
 
