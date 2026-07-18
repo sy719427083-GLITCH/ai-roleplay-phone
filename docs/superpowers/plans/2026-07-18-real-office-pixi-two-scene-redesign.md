@@ -159,13 +159,13 @@ export const OFFICE_SCENES = Object.freeze({
         colliders: [{ x: index % 2 ? 610 : 90, y: index < 2 ? 790 : 1180, width: 380, height: 170 }],
       })),
     ]),
-    anchors: Object.freeze({ entry: { x: 900, y: 1710 }, exit: { x: 940, y: 1770 } }),
+    anchors: Object.freeze({ entry: { x: 940, y: 1700 }, exit: { x: 940, y: 1770 } }),
   }),
   lounge: Object.freeze({
     id: "lounge",
     backgroundAssetId: "scene-lounge",
     objects: Object.freeze([]),
-    anchors: Object.freeze({ entry: { x: 130, y: 1720 }, exit: { x: 80, y: 1780 } }),
+    anchors: Object.freeze({ entry: { x: 130, y: 1710 }, exit: { x: 90, y: 1780 } }),
   }),
 });
 
