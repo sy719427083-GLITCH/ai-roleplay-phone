@@ -67,7 +67,7 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
 
     createRendererResources() {
       this.renderer = {};
-      this.canvas = { dataset: {}, parentNode: null, width: 0, height: 0 };
+      this._canvas = { dataset: {}, parentNode: null, width: 0, height: 0 };
       this.ticker = {
         lastTime: 123,
         callbacks: new Set(),
@@ -75,6 +75,12 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
         remove: (callback) => this.ticker.callbacks.delete(callback),
         emit: () => [...this.ticker.callbacks].forEach((callback) => callback()),
       };
+    }
+
+    get canvas() {
+      this.canvasReadCount = (this.canvasReadCount || 0) + 1;
+      if (!this.renderer) throw new Error("canvas requires a renderer");
+      return this._canvas;
     }
 
     async init(options) {
@@ -228,8 +234,8 @@ test("cleans up a rejected initialization exactly once", async () => {
   assert.equal(fake.applications[0].destroyCalls, 1);
 });
 
-test("preserves the original early init error while cleaning a stage-only application without touching the host", async () => {
-  const { createOfficeRenderer } = await loadRenderer();
+test("preserves the original early init error while cleaning a stage-only application without touching canvas or host ownership", async () => {
+  const { createOfficeRenderer, __hasOfficeRendererHostOwner } = await loadRenderer();
   const boom = new Error("early init failed");
   const fake = createFakePixi({
     resourceTiming: "never",
@@ -246,6 +252,8 @@ test("preserves the original early init error while cleaning a stage-only applic
 
   assert.equal(fake.applications[0].destroyCalls, 0);
   assert.equal(fake.applications[0].stage.destroyCalls, 1);
+  assert.equal(fake.applications[0].canvasReadCount || 0, 0);
+  assert.equal(__hasOfficeRendererHostOwner(host), false);
   assert.equal(host.children[0], newerCanvas);
 });
 

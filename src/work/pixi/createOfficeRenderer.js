@@ -3,6 +3,8 @@ import { getCharacterActionStripAliases } from "./officeAssetManifest.js";
 
 const hostOwners = new WeakMap();
 
+export const __hasOfficeRendererHostOwner = (host) => hostOwners.has(host);
+
 const getHostSize = (host) => ({
   width: host.clientWidth || host.offsetWidth || 1,
   height: host.clientHeight || host.offsetHeight || 1,
@@ -78,15 +80,38 @@ export async function createOfficeRenderer({
   const destroyApp = () => {
     if (destroyed) return;
     destroyed = true;
-    if (tickerCallback) app.ticker?.remove?.(tickerCallback);
-    tickerCallback = null;
-    const aliases = [...ownedActionStrips];
-    ownedActionStrips.clear();
-    if (aliases.length > 0) void Assets.unload(aliases).catch(() => {});
-    if (app.canvas?.parentNode === host) host.removeChild?.(app.canvas);
-    if (hostOwners.get(host) === owner) hostOwners.delete(host);
-    if (app.renderer) app.destroy?.(true, { children: true, texture: true });
-    else app.stage?.destroy?.({ children: true });
+    const renderer = app.renderer;
+    let cleanupError = null;
+    const runCleanup = (callback) => {
+      try {
+        callback();
+      } catch (error) {
+        cleanupError ||= error;
+      }
+    };
+
+    try {
+      if (renderer) {
+        if (tickerCallback) runCleanup(() => app.ticker?.remove?.(tickerCallback));
+        tickerCallback = null;
+        const aliases = [...ownedActionStrips];
+        ownedActionStrips.clear();
+        if (aliases.length > 0) runCleanup(() => void Promise.resolve(Assets.unload(aliases)).catch(() => {}));
+        runCleanup(() => {
+          const canvas = app.canvas;
+          if (canvas?.parentNode === host) host.removeChild?.(canvas);
+        });
+        runCleanup(() => app.destroy?.(true, { children: true, texture: true }));
+      } else {
+        tickerCallback = null;
+        ownedActionStrips.clear();
+        runCleanup(() => app.stage?.destroy?.({ children: true }));
+      }
+    } finally {
+      if (hostOwners.get(host) === owner) hostOwners.delete(host);
+    }
+
+    if (cleanupError) throw cleanupError;
   };
 
   try {
