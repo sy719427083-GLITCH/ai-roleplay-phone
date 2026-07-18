@@ -97,11 +97,9 @@ test("uses the safe default for zero, negative, and non-finite speeds", () => {
   }
 });
 
-test("walk frames advance every 125ms", () => {
-  assert.equal(getWalkFrame({ startedAt: 1000, now: 1124 }), 0);
-  assert.equal(getWalkFrame({ startedAt: 1000, now: 1125 }), 1);
-  assert.equal(getWalkFrame({ startedAt: 1000, now: 1999 }), 7);
-  assert.equal(getWalkFrame({ startedAt: 1000, now: 2000 }), 0);
+test("walk frames advance at 9 FPS through eight frames", () => {
+  assert.deepEqual([0, 112, 223, 334].map((now) => getWalkFrame({ startedAt: 0, now })), [0, 1, 2, 3]);
+  assert.equal(getWalkFrame({ startedAt: 0, now: 889 }), 0);
 });
 
 test("reports total distance across valid route segments", () => {

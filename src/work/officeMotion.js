@@ -2,6 +2,7 @@ import { OFFICE_NODES } from "./officeNavigation.js";
 
 const DEFAULT_POSITION = Object.freeze({ x: 50, y: 50 });
 const WALK_FRAME_COUNT = 8;
+export const WALK_FRAME_MS = 1000 / 9;
 
 const isFinitePoint = (point) => (
   point
@@ -99,5 +100,5 @@ export function sampleOfficeRoute({
 
 export function getWalkFrame({ startedAt = 0, now = 0 } = {}) {
   const elapsedMs = Math.max(0, (Number.isFinite(now) ? now : 0) - (Number.isFinite(startedAt) ? startedAt : 0));
-  return Math.floor(elapsedMs / 125) % WALK_FRAME_COUNT;
+  return Math.floor(elapsedMs / WALK_FRAME_MS) % WALK_FRAME_COUNT;
 }
