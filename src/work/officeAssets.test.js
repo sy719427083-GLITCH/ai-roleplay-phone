@@ -91,8 +91,8 @@ test("ships sixteen transparent 8x8 WebP atlases", async () => {
     assert.equal(asset.toString("ascii", 12, 16), "VP8X", `${item.id} should use extended WebP`);
     assert.ok(asset[20] & 0x10, `${item.id} should declare an alpha channel`);
     assert.ok(asset.includes(Buffer.from("ALPH")), `${item.id} should contain alpha data`);
-    assert.equal(readUint24LE(asset, 24) + 1, 1024, `${item.id} should be 1024px wide`);
-    assert.equal(readUint24LE(asset, 27) + 1, 1024, `${item.id} should be 1024px tall`);
+    assert.equal(readUint24LE(asset, 24) + 1, 2048, `${item.id} should be 2048px wide`);
+    assert.equal(readUint24LE(asset, 27) + 1, 2048, `${item.id} should be 2048px tall`);
     hashes.add(createHash("sha256").update(asset).digest("hex"));
   }
 
@@ -148,6 +148,89 @@ const inspectDecodedAsset = async (page, buffer, rectangle = null) => page.evalu
     transparentPixels,
   };
 }, { base64: buffer.toString("base64"), rectangle });
+
+const inspectDecodedAtlas = async (page, buffer, columns = 8, rows = 8, gutter = 12) => page.evaluate(async (spec) => {
+  const image = new Image();
+  image.src = `data:image/webp;base64,${spec.base64}`;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0);
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const cellWidth = canvas.width / spec.columns;
+  const cellHeight = canvas.height / spec.rows;
+  let populatedCells = 0;
+  let gutterOpaquePixels = 0;
+  let chromaFringePixels = 0;
+  for (let row = 0; row < spec.rows; row += 1) {
+    for (let column = 0; column < spec.columns; column += 1) {
+      let opaquePixels = 0;
+      for (let y = row * cellHeight; y < (row + 1) * cellHeight; y += 1) {
+        for (let x = column * cellWidth; x < (column + 1) * cellWidth; x += 1) {
+          const offset = ((y * canvas.width) + x) * 4;
+          const red = data[offset];
+          const green = data[offset + 1];
+          const blue = data[offset + 2];
+          const alpha = data[offset + 3];
+          if (alpha > 16) {
+            opaquePixels += 1;
+            const localX = x - (column * cellWidth);
+            const localY = y - (row * cellHeight);
+            if (
+              localX < spec.gutter
+              || localY < spec.gutter
+              || localX >= cellWidth - spec.gutter
+              || localY >= cellHeight - spec.gutter
+            ) gutterOpaquePixels += 1;
+          }
+          if (alpha > 0 && green > 180 && red < 100 && blue < 130) chromaFringePixels += 1;
+        }
+      }
+      if (opaquePixels > 100) populatedCells += 1;
+    }
+  }
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    cellWidth,
+    cellHeight,
+    populatedCells,
+    gutterOpaquePixels,
+    chromaFringePixels,
+    corners: [
+      data[3],
+      data[((canvas.width - 1) * 4) + 3],
+      data[(((canvas.height - 1) * canvas.width) * 4) + 3],
+      data[(((canvas.height * canvas.width) - 1) * 4) + 3],
+    ],
+  };
+}, {
+  base64: buffer.toString("base64"),
+  columns,
+  rows,
+  gutter,
+});
+
+test("populates every 2048 atlas cell with transparent twelve-pixel gutters", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    for (const item of OFFICE_CHIBIS) {
+      const asset = await readFile(publicAssetUrl(item.src));
+      const decoded = await inspectDecodedAtlas(page, asset);
+      assert.deepEqual([decoded.width, decoded.height], [2048, 2048], `${item.id} dimensions`);
+      assert.deepEqual([decoded.cellWidth, decoded.cellHeight], [256, 256], `${item.id} cell size`);
+      assert.equal(decoded.populatedCells, 64, `${item.id} populated cells`);
+      assert.equal(decoded.gutterOpaquePixels, 0, `${item.id} transparent gutters`);
+      assert.equal(decoded.chromaFringePixels, 0, `${item.id} green-key fringe`);
+      assert.deepEqual(decoded.corners, [0, 0, 0, 0], `${item.id} transparent corners`);
+    }
+  } finally {
+    await browser.close();
+  }
+});
 
 test("ships one opaque background and fourteen unique transparent office modules", async () => {
   const officeAssetUrl = new URL("../../public/work-office-assets/", import.meta.url);

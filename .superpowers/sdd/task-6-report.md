@@ -1,67 +1,27 @@
-# Task 6 Report: Office Art Library
+# Task 6 Report: High-Resolution Office Character Library
 
 ## Result
 
-- Replaced the previous 3x3 PNG library with exactly sixteen unique 8x8 WebP atlases.
-- Replaced the office PNG with a 1080x1920 WebP background.
-- Removed every old office PNG after validating the replacements.
-- Added a 4x4 contact sheet at `docs/superpowers/qa/office-chibis-contact-sheet.webp`.
+- Replaced all sixteen office characters with new 2048x2048 WebP atlases.
+- Female bosses and employees all use detailed long hairstyles with varied dresses, skirts, shorts, trousers, jackets, and accessories.
+- Male bosses and employees cover executive, intellectual, creative, relaxed, streetwear, technical, and artistic styles.
+- Every atlas follows the same 8x8 contract: right/front/back walking, work/slack, eat/game, read/series, short-video/chat, and idle/listen.
 
-## Art Direction
+## Image Pipeline
 
-- Female characters are all long-haired, sweet, polished, and highly detailed. Hairstyles include long waves, a high ponytail, twin tails, a waist-length braid, a side braid, and long gradient braids.
-- Male characters cover cool executive, creative director, startup, lifestyle, business-casual, tech, warm designer, and fashion-forward styles. Every face was generated to read as handsome at chibi scale.
-- Every atlas uses the same row contract: right/front/back walks; work/slack; eat/game; read/series; short-video/chat; idle/listen.
-- The office background is pearl and fog white with pale gray wood/hardware and restrained dusty rose accents. It preserves the boss desk, four employee desks, central aisle, and visible meal area without people or UI.
+- Used the built-in image generator once per identity on a flat chroma background.
+- Removed chroma locally, detected uneven generated row/column layouts, and regridded every pose into 256px production cells.
+- Preserved a twelve-pixel transparent gutter around every cell and cleared faint chroma pixels before WebP encoding.
+- Runtime sampling remains a sharp integer 104px frame while using the 2x atlas source.
 
-## Image Generation
+## Visual QA
 
-- Used the built-in `image_gen` tool, one distinct atlas per character.
-- Generated each atlas on a flat chroma background, removed it with the installed `remove_chroma_key.py` helper, then resized to exact 1024x1024 WebP with alpha.
-- The first parallel generation attempt stalled and was discarded. No CLI model fallback was used.
-- Prompt variants kept the exact shared 8x8 action specification while changing hair, face, clothing, accessories, and boss/employee styling per character.
+- Added `scripts/build-office-chibi-contact-sheet.mjs`.
+- Rebuilt `docs/superpowers/qa/office-chibis-contact-sheet.webp` with walk, work, and chat samples for all sixteen identities.
+- The contact sheet caught one malformed boss work frame; its source row was regridded and the sheet regenerated.
 
-## Validation
+## Verification
 
-- Exactly 16 chibi WebPs.
-- Every atlas is 1024x1024, RGBA, and has transparent corner pixels.
-- All 16 SHA-256 hashes are unique.
-- Background is 1080x1920 WebP.
-- No `public/work-office-assets/**/*.png` files remain.
-
-## Tests
-
-```bash
-node --test src/work/officeAssets.test.js
-npm test
-npm run build
-```
-
-- Asset tests: 5 passed, 0 failed.
-- Full suite: 163 passed, 0 failed.
-- Vite production build: passed, 1799 modules transformed.
-- Existing unrelated worldbook atlas runtime warning remains.
-
-## Files
-
-- Modified `src/work/officeAssets.js`.
-- Modified `src/work/officeAssets.test.js`.
-- Replaced `public/work-office-assets/office-bg.png` with `office-bg.webp`.
-- Replaced sixteen `public/work-office-assets/chibi/*.png` files with sixteen unique `*.webp` files.
-- Added `docs/superpowers/qa/office-chibis-contact-sheet.webp`.
-
-## Concerns
-
-- None. The generated contact sheet and individual atlas inspections show all requested directions and distinct action rows.
-
-## Review Follow-up
-
-- Corrected `boss-f-01` row 7, columns 5-8 so all four frames show face-to-face conversation gestures without a monitor or popcorn prop.
-- Regenerated the 4x4 contact sheet from the corrected atlases.
-- Strengthened the asset test to inspect the WebP container, 1024x1024 dimensions, declared alpha channel, embedded alpha data, exact filename set, and SHA-256 uniqueness.
-- Re-ran the focused asset test, all 162 project tests, and the production build successfully.
-- A second visual review found the first male boss source had eleven sprites across its walking rows despite the 8x8 file metadata. Replaced it with a genuinely eight-column, eight-row atlas and inspected the transparent output at full resolution.
-- Added a regression test for the office background's WebP container, exact 1080x1920 dimensions, and absence of root-level legacy PNG files.
-- A deeper native-pixel review found several generated sprites still crossed nominal 128px frame boundaries. Re-generated the three malformed male boss sheets, made all four male bosses visually distinct, then normalized all sixteen atlases into isolated 128x128 cells.
-- Every atlas now has a six-pixel fully transparent gutter on every internal row and column boundary. Browser QA decodes the pixels and fails on missing transparency or any occupied gutter pixel.
-- Rebuilt and synced `docs`, removing all legacy office PNG files from both public and deployed output.
+- `node --test --test-reporter=spec scripts/office-art-spec.test.mjs src/work/officeAssets.test.js`: 22 passed.
+- All sixteen atlases decode at 2048x2048, contain 64 populated cells, preserve transparent corners and twelve-pixel gutters, and contain no green fringe.
+- `npm run verify:office`: passed at 375x812 and 390x844, including continuous 50ms walk sampling, six desk activities, eating, two isolated chats, and long bubble wrapping.

@@ -53,11 +53,11 @@ const BUBBLE_PLACEMENTS = {
 };
 
 const STATIONS = [
-  { id: "boss-desk", label: "老板工位", left: 32, top: 16, width: 36, height: 14 },
-  { id: "employee1-desk", label: "一号员工工位", left: 8, top: 39, width: 32, height: 15 },
-  { id: "employee2-desk", label: "二号员工工位", left: 60, top: 39, width: 32, height: 15 },
-  { id: "employee3-desk", label: "三号员工工位", left: 8, top: 58, width: 32, height: 15 },
-  { id: "employee4-desk", label: "四号员工工位", left: 60, top: 58, width: 32, height: 15 },
+  { id: "boss-desk", label: "老板工位", left: 32, top: 20.5, width: 36, height: 14 },
+  { id: "employee1-desk", label: "一号员工工位", left: 9.25, top: 35, width: 32, height: 15 },
+  { id: "employee2-desk", label: "二号员工工位", left: 58.7, top: 35, width: 32, height: 15 },
+  { id: "employee3-desk", label: "三号员工工位", left: 9.25, top: 56.25, width: 32, height: 15 },
+  { id: "employee4-desk", label: "四号员工工位", left: 58.7, top: 56.25, width: 32, height: 15 },
   { id: "meal-pickup", label: "取餐架", left: 4, top: 76, width: 36, height: 9 },
   { id: "break-area", label: "休息用餐区", left: 3, top: 84, width: 42, height: 13 },
   { id: "meeting-area", label: "中央交流区", left: 40, top: 49, width: 20, height: 24 },

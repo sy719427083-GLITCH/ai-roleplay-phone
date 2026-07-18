@@ -51,6 +51,15 @@ const OFFICE_ASSET_IDS = [
   ...Array.from({ length: 4 }, (_, index) => `employee-f-${String(index + 1).padStart(2, "0")}`),
   ...Array.from({ length: 4 }, (_, index) => `employee-m-${String(index + 1).padStart(2, "0")}`),
 ];
+const ACTIVITY_FRAME_CONTRACT = Object.freeze({
+  working: { row: 3, minColumn: 0, maxColumn: 3 },
+  slacking: { row: 3, minColumn: 4, maxColumn: 7 },
+  eating: { row: 4, minColumn: 0, maxColumn: 3 },
+  gaming: { row: 4, minColumn: 4, maxColumn: 7 },
+  reading: { row: 5, minColumn: 0, maxColumn: 3 },
+  watchingSeries: { row: 5, minColumn: 4, maxColumn: 7 },
+  watchingShortVideo: { row: 6, minColumn: 0, maxColumn: 3 },
+});
 const QA_ME_PROFILES = {
   "me-owner": { name: "沈知白", identity: "公司负责人", personality: "自然" },
   "me-founder": { name: "林见月", identity: "联合创始人", personality: "外向、果断" },
@@ -512,11 +521,13 @@ const verifyBuiltInOfficeAssets = async (page, viewportLabel) => {
       if (pixels[index] === 0) transparentPixels += 1;
       if (pixels[index] === 255) opaquePixels += 1;
     }
-    for (let boundary = 128; boundary < 1024; boundary += 128) {
-      for (let offset = -3; offset < 3; offset += 1) {
-        for (let coordinate = 0; coordinate < 1024; coordinate += 1) {
-          const verticalAlpha = pixels[((coordinate * 1024) + boundary + offset) * 4 + 3];
-          const horizontalAlpha = pixels[(((boundary + offset) * 1024) + coordinate) * 4 + 3];
+    const atlasSize = image.naturalWidth;
+    const cellSize = atlasSize / 8;
+    for (let boundary = cellSize; boundary < atlasSize; boundary += cellSize) {
+      for (let offset = -12; offset < 12; offset += 1) {
+        for (let coordinate = 0; coordinate < atlasSize; coordinate += 1) {
+          const verticalAlpha = pixels[((coordinate * atlasSize) + boundary + offset) * 4 + 3];
+          const horizontalAlpha = pixels[(((boundary + offset) * atlasSize) + coordinate) * 4 + 3];
           if (verticalAlpha > 0) gutterOpaquePixels += 1;
           if (horizontalAlpha > 0) gutterOpaquePixels += 1;
         }
@@ -533,12 +544,12 @@ const verifyBuiltInOfficeAssets = async (page, viewportLabel) => {
   })), sources);
   assert(decoded.length === 16, `${viewportLabel}: decoded ${decoded.length} built-in WebP assets, expected 16`);
   for (const asset of decoded) {
-    assert(asset.naturalWidth === 1024 && asset.naturalHeight === 1024,
-      `${viewportLabel}: Office asset is not 1024x1024: ${asset.src}`);
+    assert(asset.naturalWidth === 2048 && asset.naturalHeight === 2048,
+      `${viewportLabel}: Office asset is not 2048x2048: ${asset.src}`);
     assert(asset.transparentPixels > 0 && asset.opaquePixels > 0,
       `${viewportLabel}: Office asset does not contain decoded transparent and opaque pixels: ${asset.src}`);
     assert(asset.gutterOpaquePixels === 0,
-      `${viewportLabel}: Office asset crosses a six-pixel sprite-cell gutter: ${asset.src}`);
+      `${viewportLabel}: Office asset crosses a twelve-pixel sprite-cell gutter: ${asset.src}`);
   }
 };
 
@@ -834,7 +845,6 @@ const verifyActivityFilters = async (page) => {
 const triggerScheduledActivity = async (page, {
   activity,
   activityRandom,
-  propSelector,
   status,
 }) => {
   await setOfficeQaRandomValues(page, {
@@ -843,7 +853,9 @@ const triggerScheduledActivity = async (page, {
     pickValues: [0, 0.2],
   });
   await page.getByRole("button", { name: "休息一下", exact: true }).click();
-  const character = page.locator(`.office-character:has(${propSelector})`).first();
+  const character = page.locator(
+    `.office-character[data-activity="${activity}"]:not([data-phase="walkingToActivity"]):not([data-phase="returning"])`,
+  ).first();
   try {
     await character.waitFor({ state: "visible", timeout: 6_000 });
   } catch (error) {
@@ -857,34 +869,50 @@ const triggerScheduledActivity = async (page, {
       })),
       randomValues: window.__getOfficeQaRandomValues?.() || [],
     }));
-    throw new Error(`scheduled ${activity} did not render ${propSelector}: ${JSON.stringify(diagnostics)}`, {
+    throw new Error(`scheduled ${activity} did not reach its atlas action: ${JSON.stringify(diagnostics)}`, {
       cause: error,
     });
   }
-  const rendered = await character.evaluate((element, selector) => ({
+  const rendered = await character.evaluate((element) => {
+    const sprite = element.querySelector(".office-character-atlas-sprite");
+    const rect = sprite?.getBoundingClientRect();
+    return {
     activity: element.getAttribute("data-activity") || "",
-    propVisible: Boolean(element.querySelector(selector)?.getBoundingClientRect().width),
+    frameRow: Number.parseInt(sprite?.style.getPropertyValue("--office-frame-row") || "-1", 10),
+    frameColumn: Number.parseInt(sprite?.style.getPropertyValue("--office-frame-column") || "-1", 10),
+    spriteVisible: Boolean(rect && rect.width > 0 && rect.height > 0),
     status: element.querySelector(".office-character-status span")?.textContent?.trim() || "",
-  }), propSelector);
+    };
+  });
+  const frameContract = ACTIVITY_FRAME_CONTRACT[activity];
   assert(rendered.activity === activity,
-    `${propSelector} appeared under ${rendered.activity || "no activity"}, expected ${activity}`);
+    `atlas action appeared under ${rendered.activity || "no activity"}, expected ${activity}`);
   assert(rendered.status === status,
-    `${propSelector} appeared under ${JSON.stringify(rendered.status)}, expected ${JSON.stringify(status)}`);
-  assert(rendered.propVisible, `${propSelector} is present but not visibly rendered`);
-  return character.getAttribute("data-slot");
+    `${activity} appeared under ${JSON.stringify(rendered.status)}, expected ${JSON.stringify(status)}`);
+  assert(rendered.spriteVisible, `${activity} atlas sprite is present but not visibly rendered`);
+  assert(frameContract && rendered.frameRow === frameContract.row,
+    `${activity} rendered atlas row ${rendered.frameRow}, expected ${frameContract?.row}`);
+  assert(rendered.frameColumn >= frameContract.minColumn && rendered.frameColumn <= frameContract.maxColumn,
+    `${activity} rendered atlas column ${rendered.frameColumn}, expected ${frameContract.minColumn}-${frameContract.maxColumn}`);
+  const slotId = await character.getAttribute("data-slot");
+  await expectCount(
+    page.locator(`.office-module-image[data-module-id="${slotId}-active-shell"]`),
+    1,
+    `${activity} active-shell module`,
+  );
+  return slotId;
 };
 
 const verifyDeskActivityProps = async (page) => {
   const cases = [
-    { activity: "working", activityRandom: 0.01, propSelector: ".office-work-props", status: "工作中" },
-    { activity: "slacking", activityRandom: 0.25, propSelector: ".office-slack-prop", status: "摸鱼中" },
-    { activity: "gaming", activityRandom: 0.55, propSelector: ".office-game-props", status: "游戏中" },
-    { activity: "reading", activityRandom: 0.1, propSelector: ".office-book-prop", status: "看书中" },
-    { activity: "watchingSeries", activityRandom: 0.68, propSelector: ".office-series-prop", status: "刷剧中" },
+    { activity: "working", activityRandom: 0.01, status: "工作中" },
+    { activity: "slacking", activityRandom: 0.25, status: "摸鱼中" },
+    { activity: "gaming", activityRandom: 0.55, status: "游戏中" },
+    { activity: "reading", activityRandom: 0.1, status: "看书中" },
+    { activity: "watchingSeries", activityRandom: 0.68, status: "刷剧中" },
     {
       activity: "watchingShortVideo",
       activityRandom: 0.8,
-      propSelector: ".office-short-video-prop",
       status: "看抖音中",
     },
   ];
@@ -909,16 +937,20 @@ const verifyMealAndWalk = async (page) => {
   assert(journey.slotId === "boss", `deterministic meal walk tracked ${journey.slotId}, expected boss`);
 
   const character = page.locator(`.office-character[data-slot="${journey.slotId}"]`);
-  const meal = character.locator(".office-meal");
-  await meal.waitFor({ state: "visible", timeout: MEAL_TIMEOUT_MS });
   const mealState = await character.evaluate((element) => ({
     activity: element.getAttribute("data-activity") || "",
-    meal: element.querySelector(".office-meal")?.getAttribute("data-meal") || "",
+    frameRow: Number.parseInt(element.querySelector(".office-character-atlas-sprite")?.style
+      .getPropertyValue("--office-frame-row") || "-1", 10),
+    frameColumn: Number.parseInt(element.querySelector(".office-character-atlas-sprite")?.style
+      .getPropertyValue("--office-frame-column") || "-1", 10),
     status: element.querySelector(".office-character-status span")?.textContent?.trim() || "",
   }));
-  assert(mealState.meal === "rice", `deterministic meal is ${mealState.meal || "missing"}, expected rice`);
   assert(mealState.activity === "eating" && mealState.status === "吃饭中",
-    `meal prop appeared under ${mealState.activity}/${mealState.status}, expected eating/吃饭中`);
+    `meal atlas appeared under ${mealState.activity}/${mealState.status}, expected eating/吃饭中`);
+  assert(mealState.frameRow === 4 && mealState.frameColumn >= 0 && mealState.frameColumn <= 3,
+    `meal atlas rendered row/column ${mealState.frameRow}/${mealState.frameColumn}, expected row 4 columns 0-3`);
+  assert(await page.locator('.office-module-image[data-module-id^="break-"]:not([data-module-state="both-empty"])').count() === 1,
+    "meal did not switch the break counter to an occupied state");
   return journey;
 };
 
@@ -1067,9 +1099,10 @@ const observeRestJourney = async (page) => {
         ? document.querySelector(`.office-character[data-slot="${CSS.escape(slotId)}"]`)
         : document.querySelector('.office-character[data-phase="walkingToActivity"][data-activity="eating"]');
       if (!character) return null;
-      const meal = character.querySelector(".office-meal");
-      const mealRect = meal?.getBoundingClientRect();
       const sceneRect = document.querySelector(".office-scene")?.getBoundingClientRect();
+      const sprite = character.querySelector(".office-character-atlas-sprite");
+      const frameRow = Number.parseInt(sprite?.style.getPropertyValue("--office-frame-row") || "-1", 10);
+      const frameColumn = Number.parseInt(sprite?.style.getPropertyValue("--office-frame-column") || "-1", 10);
       return {
         slotId: character.getAttribute("data-slot") || "",
         phase: character.getAttribute("data-phase") || "",
@@ -1079,7 +1112,12 @@ const observeRestJourney = async (page) => {
         renderedAt: Number.parseFloat(character.getAttribute("data-motion-now")),
         sceneWidth: sceneRect?.width || 0,
         sceneHeight: sceneRect?.height || 0,
-        mealVisible: Boolean(mealRect && mealRect.width > 0 && mealRect.height > 0),
+        mealVisible: character.getAttribute("data-activity") === "eating"
+          && character.getAttribute("data-phase") !== "walkingToActivity"
+          && character.getAttribute("data-phase") !== "returning"
+          && frameRow === 4
+          && frameColumn >= 0
+          && frameColumn <= 3,
       };
     }, trackedSlotId);
 
