@@ -188,3 +188,29 @@ test("stores exactly two opaque 2160 by 3840 scene masters and transparent furni
     await browser.close();
   }
 });
+
+test("defines the body-only character prompt and normalization contract", async () => {
+  const { OFFICE_V2_CHARACTER_CONTRACT } = await import("./office-v2-art-spec.mjs");
+
+  assert.equal(OFFICE_V2_CHARACTER_CONTRACT.bodyOnly, true);
+  assert.match(OFFICE_V2_CHARACTER_CONTRACT.prompt, /body only/i);
+  assert.match(OFFICE_V2_CHARACTER_CONTRACT.prompt, /transparent background/i);
+  assert.deepEqual(OFFICE_V2_CHARACTER_CONTRACT.forbiddenBakedSubjects, [
+    "desk", "chair", "sofa", "table", "meal", "phone", "book", "screen",
+    "computer", "food", "tray", "document", "parcel", "whiteboard", "furniture", "prop",
+  ]);
+  assert.deepEqual(OFFICE_V2_CHARACTER_CONTRACT.normalization, {
+    cellSize: 384,
+    feetAnchor: { x: 192, y: 359 },
+    transparentEdgePadding: 24,
+    sharpening: {
+      method: "edge-preserving-unsharp-mask",
+      radius: 0.6,
+      amount: 0.35,
+      threshold: 8,
+    },
+    output: { format: "webp", quality: 95 },
+  });
+});
+
+test.todo("ships all Task 7-10 character strips with verified dimensions, alpha gutters, and body-only pixels");

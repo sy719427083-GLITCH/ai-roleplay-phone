@@ -15,6 +15,58 @@ export const OFFICE_V2_PROP_IDS = Object.freeze([
   "desk-organizer", "utensils",
 ]);
 
+const CHARACTER_FORBIDDEN_BAKED_SUBJECTS = Object.freeze([
+  "desk", "chair", "sofa", "table", "meal", "phone", "book", "screen",
+  "computer", "food", "tray", "document", "parcel", "whiteboard", "furniture", "prop",
+]);
+
+const CHARACTER_NORMALIZATION = Object.freeze({
+  cellSize: 384,
+  feetAnchor: Object.freeze({ x: 192, y: 359 }),
+  transparentEdgePadding: 24,
+  sharpening: Object.freeze({
+    method: "edge-preserving-unsharp-mask",
+    radius: 0.6,
+    amount: 0.35,
+    threshold: 8,
+  }),
+  output: Object.freeze({ format: "webp", quality: 95 }),
+});
+
+const CHARACTER_PROMPT = `Use case: stylized-concept
+Asset type: body-only office character animation master on a transparent background
+Primary request: Draw one consistent adult chibi office character with a stable face, hairstyle,
+outfit, proportions, and scale across every frame. Locomotion masters use an exact 8-column by
+4-row grid with front, left, right, and back walking rows. Action masters use an exact 4-column by
+1-row grid. Walking must show alternating legs, opposing arm swing, weight transfer, and stable
+foot contact. Seated poses use the same body and foot anchors without drawing the seat.
+Composition/framing: center the character's feet on the shared frame anchor. Keep the complete hair,
+hands, clothing, and shoes inside every cell with at least 24 transparent pixels on every edge.
+Style/medium: polished Japanese mobile-game chibi, crisp anime line art, restrained cel shading,
+detailed readable facial and garment edges, no soft focus.
+Constraints: body only. All interaction objects are separate runtime layers. Do not bake a desk,
+chair, sofa, table, meal, phone, book, screen, computer, food, tray, document, parcel, whiteboard,
+furniture, prop, floor, room scenery, cast shadow, text, border, grid line, or watermark into a frame.
+Normalization: slice the transparent grid cells, align every pair of feet to x 192 and baseline y
+359, preserve a 24-pixel transparent gutter on all sides, apply restrained edge-preserving unsharp
+mask sharpening, and encode lossless-alpha WebP at quality 95.`;
+
+export const OFFICE_V2_CHARACTER_CONTRACT = Object.freeze({
+  bodyOnly: true,
+  prompt: CHARACTER_PROMPT,
+  forbiddenBakedSubjects: CHARACTER_FORBIDDEN_BAKED_SUBJECTS,
+  masters: Object.freeze({
+    locomotion: Object.freeze({ width: 3072, height: 1536, columns: 8, rows: 4 }),
+    action: Object.freeze({ width: 1536, height: 384, columns: 4, rows: 1 }),
+  }),
+  source: Object.freeze({
+    background: "transparent",
+    sliceMode: "fixed-grid-cells",
+    acceptsGeneratedMasters: true,
+  }),
+  normalization: CHARACTER_NORMALIZATION,
+});
+
 const STYLE = `polished Japanese mobile-game environment illustration, hand-drawn clean 2D line
 art, high near-orthographic camera with a straight front-facing layout, simplified planar geometry,
 precise outlines, flat color shapes, restrained two-step cel shading, sharp readable edges,
