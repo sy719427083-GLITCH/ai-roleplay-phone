@@ -1,11 +1,18 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path, { dirname, extname } from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { OFFICE_V2_ART_SPEC } from "./office-v2-art-spec.mjs";
+import { resolveOfficeV2ArtPaths } from "./office-v2-art-paths.mjs";
 
-const sourceRoot = path.resolve(process.argv[2] || "tmp/office-v2-source");
-const outputRoot = path.resolve(process.argv[3] || "public/work-office-v2");
+const repoRoot = path.resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const { sourceRoot, outputRoot } = resolveOfficeV2ArtPaths({
+  repoRoot,
+  cwd: process.cwd(),
+  sourceArg: process.argv[2] || "tmp/office-v2-source",
+  outputArg: process.argv[3] || "public/work-office-v2",
+});
 const QA_ROOT = path.join(sourceRoot, "qa");
 
 const sceneObjects = {
@@ -24,10 +31,10 @@ const sceneObjects = {
     ["objects/pantry.webp", 90, 250, 900, 280],
     ["furniture/dining-table-rear.webp", 260, 720, 560, 330],
     ["furniture/dining-table-front.webp", 260, 720, 560, 330],
-    ["furniture/sofa-rear.webp", 90, 1240, 570, 300],
-    ["furniture/sofa-front.webp", 90, 1240, 570, 300],
-    ["furniture/coffee-table.webp", 270, 1510, 330, 170],
-    ["furniture/television.webp", 790, 1260, 210, 240],
+    ["furniture/television.webp", 435, 1120, 210, 240],
+    ["furniture/coffee-table.webp", 375, 1400, 330, 170],
+    ["furniture/sofa-rear.webp", 255, 1600, 570, 280],
+    ["furniture/sofa-front.webp", 255, 1600, 570, 280],
     ["furniture/lounge-door.webp", 35, 1640, 170, 280],
   ],
 };

@@ -66,7 +66,7 @@ const FURNITURE_SUBJECTS = Object.freeze({
   "lounge-door": "one real open return door and slim pearl-white frame viewed from inside, hinged on the left, no surrounding wall",
   pantry: "one continuous workplace pantry unit with pearl-white cabinets, sink, compact refrigerator, coffee machine, water dispenser, storage and clear pickup counter",
   "dining-table": "one real four-seat workplace dining table with white-oak top and four matching light-gray dining chairs, empty tabletop",
-  sofa: "one elegant three-seat low-profile mist-blue and pearl-gray workplace sofa",
+  sofa: "one elegant three-seat low-profile mist-blue and pearl-gray workplace sofa viewed strictly from the back, with a continuous rear shell and the seat hidden",
   "coffee-table": "one low oval pearl-white and white-oak coffee table, empty surface",
   television: "one slim television on a pearl-white low media cabinet, blank dark screen",
 });

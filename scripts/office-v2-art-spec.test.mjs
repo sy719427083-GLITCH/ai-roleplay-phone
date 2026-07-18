@@ -3,9 +3,66 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { resolveOfficeV2ArtPaths } from "./office-v2-art-paths.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_ROOT = path.join(ROOT, "public", "work-office-v2");
+
+test("normalizer resolves only the repository office-v2 output", () => {
+  assert.deepEqual(resolveOfficeV2ArtPaths({
+    repoRoot: ROOT,
+    cwd: ROOT,
+    sourceArg: "tmp/office-v2-source",
+    outputArg: "public/work-office-v2",
+  }), {
+    sourceRoot: path.join(ROOT, "tmp", "office-v2-source"),
+    outputRoot: PUBLIC_ROOT,
+  });
+});
+
+test("normalizer rejects destructive or out-of-scope output paths", () => {
+  const rejectedOutputs = [
+    ".",
+    ROOT,
+    path.parse(ROOT).root,
+    path.join(ROOT, "public"),
+    path.join(ROOT, "public", "other-assets"),
+    path.join(path.dirname(ROOT), "outside-office-v2"),
+  ];
+
+  for (const outputArg of rejectedOutputs) {
+    assert.throws(
+      () => resolveOfficeV2ArtPaths({
+        repoRoot: ROOT,
+        cwd: ROOT,
+        sourceArg: "tmp/office-v2-source",
+        outputArg,
+      }),
+      /output must be exactly the repository public\/work-office-v2 directory/,
+      outputArg,
+    );
+  }
+});
+
+test("normalizer rejects source and output overlap in either direction", () => {
+  for (const sourceArg of [
+    PUBLIC_ROOT,
+    path.join(PUBLIC_ROOT, "source"),
+    path.join(ROOT, "public"),
+    ROOT,
+  ]) {
+    assert.throws(
+      () => resolveOfficeV2ArtPaths({
+        repoRoot: ROOT,
+        cwd: ROOT,
+        sourceArg,
+        outputArg: PUBLIC_ROOT,
+      }),
+      /source and output directories must not overlap/,
+      sourceArg,
+    );
+  }
+});
 
 const SCENE_IDS = ["scene-office", "scene-lounge"];
 const FURNITURE_IDS = [
