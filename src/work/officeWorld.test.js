@@ -72,6 +72,42 @@ test("samples movement continuously and carries remaining distance through a doo
   });
 });
 
+test("rejects direct and forged cross-scene route entries at the stable first coordinate", () => {
+  const first = { sceneId: "office", x: 940, y: 1770 };
+  const routes = [
+    [first, { sceneId: "lounge", x: 130, y: 1710 }],
+    [
+      first,
+      {
+        transition: true,
+        from: { sceneId: "office", anchorId: "exit" },
+        to: { sceneId: "lounge", anchorId: "exit" },
+      },
+      { sceneId: "lounge", x: 90, y: 1780 },
+    ],
+    [
+      { sceneId: "office", x: 900, y: 1770 },
+      {
+        transition: true,
+        from: { sceneId: "office", anchorId: "exit" },
+        to: { sceneId: "lounge", anchorId: "entry" },
+      },
+      { sceneId: "lounge", x: 130, y: 1710 },
+    ],
+  ];
+
+  for (const route of routes) {
+    assert.deepEqual(sampleWorldRoute({ route, startedAt: 0, now: 10_000, speed: 100 }), {
+      sceneId: route[0].sceneId,
+      x: route[0].x,
+      y: route[0].y,
+      facing: "front",
+      segmentIndex: 0,
+      done: true,
+    });
+  }
+});
+
 test("separates moving actors in one scene and holds the later owner at an illegal sidestep", () => {
   const separated = separateActors([
     { id: "first", sceneId: "office", x: 500, y: 650, moving: true, routeStartedAt: 1, facing: "right" },
@@ -97,6 +133,52 @@ test("separates moving actors in one scene and holds the later owner at an illeg
   assert.deepEqual({ x: waiting[1].x, y: waiting[1].y, waiting: waiting[1].waiting }, {
     x: 600,
     y: 620,
+    waiting: true,
+  });
+});
+
+test("keeps all three moving actors separated and makes the latest owner wait deterministically", () => {
+  const separated = separateActors([
+    {
+      id: "first",
+      sceneId: "office",
+      x: 500,
+      y: 650,
+      previousPosition: { x: 450, y: 650 },
+      moving: true,
+      routeStartedAt: 1,
+      facing: "right",
+    },
+    {
+      id: "second",
+      sceneId: "office",
+      x: 520,
+      y: 650,
+      previousPosition: { x: 520, y: 720 },
+      moving: true,
+      routeStartedAt: 2,
+      facing: "right",
+    },
+    {
+      id: "third",
+      sceneId: "office",
+      x: 540,
+      y: 650,
+      previousPosition: { x: 700, y: 650 },
+      moving: true,
+      routeStartedAt: 3,
+      facing: "right",
+    },
+  ]);
+
+  for (let left = 0; left < separated.length; left += 1) {
+    for (let right = left + 1; right < separated.length; right += 1) {
+      assert.ok(distance(separated[left], separated[right]) >= 52);
+    }
+  }
+  assert.deepEqual({ x: separated[2].x, y: separated[2].y, waiting: separated[2].waiting }, {
+    x: 700,
+    y: 650,
     waiting: true,
   });
 });

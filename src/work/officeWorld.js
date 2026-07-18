@@ -2,6 +2,7 @@ import { OFFICE_DOOR_PAIRS, getSceneAnchor } from "./officeSceneManifest.js";
 import { findScenePath, isLegalCharacterPosition } from "./officePathfinding.js";
 
 export const ACTOR_SEPARATION_DISTANCE = 52;
+export const WORLD_ROUTE_ANCHOR_EPSILON = 0.001;
 
 const DEFAULT_SPEED = 10;
 
@@ -46,6 +47,45 @@ const getTransitionDestination = (entry) => {
   return isFinitePoint(point) ? toScenePoint(entry.to.sceneId, point) : null;
 };
 
+const hasSamePoint = (left, right) => (
+  isFinitePoint(left)
+  && isFinitePoint(right)
+  && Math.abs(left.x - right.x) <= WORLD_ROUTE_ANCHOR_EPSILON
+  && Math.abs(left.y - right.y) <= WORLD_ROUTE_ANCHOR_EPSILON
+);
+
+const isValidWorldRoute = (route) => {
+  if (!Array.isArray(route) || !isCoordinateEntry(route[0])) return false;
+
+  let current = { ...route[0] };
+  for (let index = 1; index < route.length; index += 1) {
+    const entry = route[index];
+    if (isCoordinateEntry(entry)) {
+      if (entry.sceneId !== current.sceneId) return false;
+      current = { ...entry };
+      continue;
+    }
+    if (!isTransitionEntry(entry)) return false;
+
+    const expectedDestination = OFFICE_DOOR_PAIRS[`${current.sceneId}:exit`];
+    const sourceAnchor = getSceneAnchor(current.sceneId, "exit");
+    if (
+      !expectedDestination
+      || entry.from.sceneId !== current.sceneId
+      || entry.from.anchorId !== "exit"
+      || entry.to.sceneId !== expectedDestination.sceneId
+      || entry.to.anchorId !== expectedDestination.anchorId
+      || !hasSamePoint(current, sourceAnchor)
+    ) return false;
+
+    const destination = getTransitionDestination(entry);
+    if (!destination) return false;
+    current = destination;
+  }
+
+  return true;
+};
+
 const findNearestLegalPoint = (sceneId, point) => {
   if (!isFinitePoint(point)) return null;
   if (isLegalCharacterPosition(sceneId, point)) return { x: point.x, y: point.y };
@@ -73,8 +113,6 @@ const findWorldScenePath = ({ sceneId, from, to }) => {
   if (!isFinitePoint(start) || !isFinitePoint(destination)) return [];
   return findScenePath({ sceneId, from: start, to: destination });
 };
-
-const getRouteStart = (route) => route.find(isCoordinateEntry) ?? null;
 
 const getRouteEnd = (route) => {
   for (let index = route.length - 1; index >= 0; index -= 1) {
@@ -119,6 +157,31 @@ const getLateralOffset = (left, right) => {
 
 const isLegalAdjustedPoint = (sceneId, point) => isLegalCharacterPosition(sceneId, point);
 
+const hasSeparationFrom = (point, actor, sceneId) => {
+  const otherPoint = getActorPoint(actor);
+  return actor.sceneId !== sceneId
+    || !isMoving(actor)
+    || !otherPoint
+    || Math.hypot(point.x - otherPoint.x, point.y - otherPoint.y) >= ACTOR_SEPARATION_DISTANCE;
+};
+
+const isSafeAgainstResolvedActors = (point, sceneId, actors) => (
+  isLegalAdjustedPoint(sceneId, point)
+  && actors.every((actor) => hasSeparationFrom(point, actor, sceneId))
+);
+
+const getResolvedActors = (owners, separated, throughIndex, excludedIndex) => (
+  owners.slice(0, throughIndex)
+    .filter(({ index }) => index !== excludedIndex)
+    .map(({ index }) => separated[index])
+);
+
+const waitAtPreviousPosition = (actor) => {
+  const point = getActorPoint(actor);
+  const previous = getPreviousActorPoint(actor, point);
+  return withActorPoint(actor, previous, true);
+};
+
 export function buildWorldRoute({ from, to } = {}) {
   if (!isCoordinateEntry(from) || !isCoordinateEntry(to)) return [];
 
@@ -147,16 +210,22 @@ export function buildWorldRoute({ from, to } = {}) {
 export function sampleWorldRoute({ route = [], startedAt = 0, now = 0, speed = DEFAULT_SPEED } = {}) {
   if (!Array.isArray(route)) route = [];
 
-  const start = getRouteStart(route);
+  const start = route[0];
   if (!start) {
     return { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true };
+  }
+  if (!isCoordinateEntry(start)) {
+    return { sceneId: null, x: 0, y: 0, facing: "front", segmentIndex: 0, done: true };
+  }
+  if (!isValidWorldRoute(route)) {
+    return { sceneId: start.sceneId, x: start.x, y: start.y, facing: "front", segmentIndex: 0, done: true };
   }
 
   let current = { ...start };
   let remaining = getElapsedDistance({ startedAt, now, speed });
   let segmentIndex = 0;
 
-  for (let index = route.indexOf(start) + 1; index < route.length; index += 1) {
+  for (let index = 1; index < route.length; index += 1) {
     const entry = route[index];
     if (isTransitionEntry(entry)) {
       const destination = getTransitionDestination(entry);
@@ -229,14 +298,27 @@ export function separateActors(actors = []) {
       if (!offset) continue;
       const adjustedLeft = { x: leftPoint.x - offset.x, y: leftPoint.y - offset.y };
       const adjustedRight = { x: rightPoint.x + offset.x, y: rightPoint.y + offset.y };
-      if (isLegalAdjustedPoint(left.sceneId, adjustedLeft) && isLegalAdjustedPoint(right.sceneId, adjustedRight)) {
+      const resolvedActors = getResolvedActors(owners, separated, rightIndex, leftOwner.index);
+      if (
+        isSafeAgainstResolvedActors(adjustedLeft, left.sceneId, resolvedActors)
+        && isSafeAgainstResolvedActors(adjustedRight, right.sceneId, resolvedActors)
+      ) {
         separated[leftOwner.index] = withActorPoint(left, adjustedLeft);
         separated[rightOwner.index] = withActorPoint(right, adjustedRight);
         continue;
       }
 
-      separated[rightOwner.index] = withActorPoint(right, getPreviousActorPoint(right, rightPoint), true);
+      separated[rightOwner.index] = waitAtPreviousPosition(right);
     }
+  }
+
+  for (let rightIndex = 1; rightIndex < owners.length; rightIndex += 1) {
+    const rightOwner = owners[rightIndex];
+    const right = separated[rightOwner.index];
+    const earlierActors = getResolvedActors(owners, separated, rightIndex, rightOwner.index);
+    const point = getActorPoint(right);
+    if (!point || earlierActors.every((actor) => hasSeparationFrom(point, actor, right.sceneId))) continue;
+    separated[rightOwner.index] = waitAtPreviousPosition(right);
   }
 
   return separated;
