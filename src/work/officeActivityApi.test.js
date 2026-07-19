@@ -33,6 +33,12 @@ const emptySemanticFallback = {
   insightOrResult: "形成下一步",
 };
 
+const createRevokedProxy = () => {
+  const { proxy, revoke } = Proxy.revocable({}, {});
+  revoke();
+  return proxy;
+};
+
 test("returns no messages for null and non-object events", () => {
   for (const invalidEvent of [null, undefined, 42, "invalid", []]) {
     assert.deepEqual(buildOfficeActivityMessages(invalidEvent), []);
@@ -43,6 +49,64 @@ test("resolves invalid request options to the safe four-key semantic fallback", 
   for (const invalidOptions of [null, undefined, 42, "invalid", []]) {
     assert.deepEqual(await requestOfficeActivityDetail(invalidOptions), emptySemanticFallback);
   }
+});
+
+test("contains throwing event accessors without building messages or reading fetch", async () => {
+  const hostileEvent = Object.defineProperty({}, "semanticContext", {
+    get() {
+      throw new Error("hostile semantic context");
+    },
+  });
+  assert.deepEqual(buildOfficeActivityMessages(hostileEvent), []);
+
+  let fetchReads = 0;
+  const hostileOptions = Object.defineProperties({}, {
+    event: {
+      get() {
+        throw new Error("hostile event");
+      },
+    },
+    fetchImpl: {
+      get() {
+        fetchReads += 1;
+        return async () => { throw new Error("must not fetch"); };
+      },
+    },
+  });
+  assert.deepEqual(await requestOfficeActivityDetail(hostileOptions), emptySemanticFallback);
+  assert.equal(fetchReads, 0);
+});
+
+test("contains hostile profile access while preserving the semantic fallback", async () => {
+  const hostileProfile = Object.defineProperties({}, {
+    name: { get() { throw new Error("hostile name"); } },
+    personality: { get() { throw new Error("hostile personality"); } },
+  });
+  const hostileProfileEvent = {
+    semanticContext: {
+      eventId: "hostile-profile-event",
+      semanticFallback: { subject: "本地主题", summary: "本地摘要", insightOrResult: "本地结果" },
+    },
+    profileSnapshots: [hostileProfile],
+  };
+  assert.deepEqual(await requestOfficeActivityDetail({ event: hostileProfileEvent }), {
+    eventId: "hostile-profile-event",
+    subject: "本地主题",
+    summary: "本地摘要",
+    insightOrResult: "本地结果",
+  });
+});
+
+test("contains revoked proxies at every public activity API entry", async () => {
+  assert.deepEqual(buildOfficeActivityMessages(createRevokedProxy()), []);
+  assert.equal(parseOfficeActivityReply(createRevokedProxy(), event), null);
+  assert.equal(parseOfficeActivityReply(JSON.stringify({
+    eventId: "",
+    subject: "主题",
+    summary: "摘要",
+    insightOrResult: "结果",
+  }), createRevokedProxy()), null);
+  assert.deepEqual(await requestOfficeActivityDetail(createRevokedProxy()), emptySemanticFallback);
 });
 
 test("builds prompts from assigned profiles and immutable semantic context", () => {
