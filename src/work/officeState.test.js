@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
 import test from "node:test";
-import { createOfficeActivityEvent } from "./officeActivities.js";
+import { getSceneAnchor } from "./officeSceneManifest.js";
+import { buildWorldRoute, sampleWorldRoute } from "./officeWorld.js";
 import {
   createOfficeState,
   createWorkSessionId,
@@ -18,1068 +19,416 @@ if (!globalThis.crypto) {
 }
 
 const slotIds = ["boss", "employee1", "employee2", "employee3", "employee4"];
-
 const assignments = Object.fromEntries(slotIds.map((id) => [id, {
   profileId: id,
   profile: { id, name: id },
 }]));
 
-test("walks to a meal, eats visible food, and returns home", () => {
-  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "START_ACTIVITY",
-    slotId: "employee1",
-    activity: "eating",
-    anchorId: "break-1",
-    route: ["employee1-exit", "aisle", "break-1"],
-    now: 1100,
-  });
-  assert.equal(state.characters.employee1.phase, "walkingToActivity");
-  assert.equal(state.characters.employee1.status, "前往用餐");
-  assert.equal(state.characters.employee1.routeStartedAt, 1100);
-  assert.equal(state.characters.employee1.routeIndex, 0);
+const pointAt = (sceneId, anchorId) => {
+  const anchor = getSceneAnchor(sceneId, anchorId);
+  return { sceneId, x: anchor.x, y: anchor.y };
+};
 
-  state = officeReducer(state, {
-    type: "COMPLETE_ROUTE",
-    slotId: "employee1",
-    now: 2000,
-    endsAt: 9000,
-    meal: "noodles",
-  });
-  assert.equal(state.characters.employee1.activity, "eating");
-  assert.equal(state.characters.employee1.props.meal, "noodles");
+const startEvent = ({
+  slotId = "employee1",
+  activityId = "eating",
+  sceneId = "lounge",
+  targetAnchorId = "dining:seat-1",
+  now = 1_100,
+  endsAt = 9_000,
+  reservationGroupId = "group-meal",
+} = {}) => {
+  const from = pointAt("office", `${slotId}:seat-approach`);
+  const to = pointAt(sceneId, targetAnchorId);
+  return {
+    type: "START_WORLD_ROUTE",
+    slotId,
+    activityId,
+    route: buildWorldRoute({ from, to }),
+    targetAnchorId,
+    reservationGroupId,
+    propState: { category: "meal", variant: "noodles", actorRoles: { [slotId]: "actor" } },
+    semanticContext: {
+      eventId: `event-${activityId}`,
+      activityId,
+      status: "用餐中",
+      semanticFallback: { subject: "午餐", summary: "吃午餐", insightOrResult: "恢复精力" },
+    },
+    travelStatus: "前往休息区",
+    activeStatus: "用餐中",
+    now,
+    endsAt,
+  };
+};
 
-  state = officeReducer(state, {
-    type: "START_RETURN",
-    slotId: "employee1",
-    route: ["break-1", "aisle", "employee1-home"],
-    now: 9100,
-  });
-  assert.equal(state.characters.employee1.routeStartedAt, 9100);
-  state = officeReducer(state, { type: "COMPLETE_ROUTE", slotId: "employee1" });
-  assert.equal(state.characters.employee1.positionNode, "employee1-home");
-});
+test("fresh state places all five actors at exact legal office home anchors", () => {
+  const state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
 
-test("complete route is the transition point for activity and return travel", () => {
-  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-
-  state = officeReducer(state, {
-    type: "START_ACTIVITY",
-    slotId: "employee2",
-    activity: "chatting",
-    anchorId: "chat-1",
-    route: ["employee2-home", "aisle-upper", "chat-1"],
-    now: 1500,
-  });
-  state = officeReducer(state, { type: "ADVANCE_ROUTE", slotId: "employee2" });
-  assert.equal(state.characters.employee2.phase, "walkingToActivity");
-  assert.equal(state.characters.employee2.positionNode, "aisle-upper");
-
-  state = officeReducer(state, {
-    type: "COMPLETE_ROUTE",
-    slotId: "employee2",
-    now: 2500,
-    endsAt: 9000,
-    topic: "roadmap",
-  });
-  assert.equal(state.characters.employee2.phase, "chatting");
-  assert.equal(state.characters.employee2.positionNode, "chat-1");
-  assert.equal(state.characters.employee2.activityStartedAt, 2500);
-  assert.equal(state.characters.employee2.activityEndsAt, 9000);
-  assert.equal(state.characters.employee2.props.topic, "roadmap");
-  assert.deepEqual(state.characters.employee2.route, []);
-
-  state = officeReducer(state, {
-    type: "START_RETURN",
-    slotId: "employee2",
-    route: ["chat-1", "aisle-upper", "employee2-home"],
-    now: 9100,
-  });
-  assert.equal(state.characters.employee2.phase, "returning");
-  assert.equal(state.characters.employee2.routeStartedAt, 9100);
-
-  state = officeReducer(state, { type: "COMPLETE_ROUTE", slotId: "employee2" });
-  assert.equal(state.characters.employee2.phase, "idle");
-  assert.equal(state.characters.employee2.positionNode, "employee2-home");
-  assert.deepEqual(state.characters.employee2.route, []);
-});
-
-test("new desk-local activities enter their exact active statuses and keep prop variants", () => {
-  const cases = [
-    { activity: "reading", status: "看书中", propVariant: "hardcover" },
-    { activity: "watchingSeries", status: "刷剧中", propVariant: "tablet" },
-    { activity: "watchingShortVideo", status: "看抖音中", propVariant: "phone-portrait-dark" },
-  ];
-
-  for (const { activity, status, propVariant } of cases) {
-    let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-    state = officeReducer(state, {
-      type: "START_ACTIVITY",
-      slotId: "employee1",
-      activity,
-      anchorId: "employee1-home",
-      route: ["employee1-home"],
-      now: 1100,
+  assert.equal(state.visibleSceneId, "office");
+  for (const slotId of slotIds) {
+    const homeAnchorId = `${slotId}:seat-approach`;
+    const anchor = getSceneAnchor("office", homeAnchorId);
+    assert.deepEqual(state.characters[slotId], {
+      slotId,
+      profileId: slotId,
+      profile: { id: slotId, name: slotId },
+      sceneId: "office",
+      position: { x: anchor.x, y: anchor.y },
+      homeAnchorId,
+      targetAnchorId: "",
+      phase: "idle",
+      activity: "idle",
+      status: "空闲中",
+      conversationId: "",
+      route: [],
+      routeSegmentIndex: 0,
+      routeStartedAt: 0,
+      reservationGroupId: "",
+      activityStartedAt: 0,
+      activityEndsAt: 0,
+      propState: null,
+      semanticContext: null,
     });
-    state = officeReducer(state, {
-      type: "ARRIVE_ACTIVITY",
-      slotId: "employee1",
-      now: 1200,
-      endsAt: 9200,
-      propVariant,
-    });
-
-    assert.equal(state.characters.employee1.phase, activity);
-    assert.equal(state.characters.employee1.activity, activity);
-    assert.equal(state.characters.employee1.status, status);
-    assert.equal(state.characters.employee1.props.propVariant, propVariant);
   }
 });
 
-test("keeps simultaneous conversation transcripts isolated", () => {
+test("changing the visible scene leaves both simulations and routes untouched", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = officeReducer(state, startEvent());
+  const characters = state.characters;
+  const route = state.characters.employee1.route;
+  const startedAt = state.characters.employee1.routeStartedAt;
+
+  state = officeReducer(state, { type: "SET_VISIBLE_SCENE", sceneId: "lounge" });
+
+  assert.equal(state.visibleSceneId, "lounge");
+  assert.strictEqual(state.characters, characters);
+  assert.strictEqual(state.characters.employee1.route, route);
+  assert.equal(state.characters.employee1.routeStartedAt, startedAt);
+  assert.equal(state.characters.employee1.sceneId, "office");
+  assert.deepEqual(state.characters.employee1.position, getSceneAnchor("office", "employee1:seat-approach"));
+  assert.strictEqual(officeReducer(state, { type: "SET_VISIBLE_SCENE", sceneId: "missing" }), state);
+});
+
+test("world route actions preserve exact samples, timing, activity context, and door continuity", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  const action = startEvent();
+  state = officeReducer(state, action);
+  const started = state.characters.employee1;
+
+  assert.equal(started.phase, "walkingToActivity");
+  assert.equal(started.activity, "eating");
+  assert.equal(started.status, "前往休息区");
+  assert.equal(started.routeStartedAt, 1_100);
+  assert.equal(started.targetAnchorId, "dining:seat-1");
+  assert.equal(started.reservationGroupId, "group-meal");
+  assert.deepEqual(started.position, { x: action.route[0].x, y: action.route[0].y });
+  assert.deepEqual(started.propState, action.propState);
+  assert.deepEqual(started.semanticContext, action.semanticContext);
+  assert.notStrictEqual(started.route, action.route);
+
+  const officeSample = sampleWorldRoute({ route: action.route, startedAt: 1_100, now: 1_200, speed: 100 });
+  assert.equal(officeSample.sceneId, "office");
+  state = officeReducer(state, {
+    type: "ADVANCE_WORLD_ROUTE",
+    slotId: "employee1",
+    position: officeSample,
+    segmentIndex: officeSample.segmentIndex,
+  });
+  assert.equal(state.characters.employee1.sceneId, "office");
+  assert.deepEqual(state.characters.employee1.position, { x: officeSample.x, y: officeSample.y });
+
+  let loungeSample = null;
+  for (let now = 20_000; now < 80_000; now += 100) {
+    const sample = sampleWorldRoute({ route: action.route, startedAt: 1_100, now, speed: 100 });
+    if (sample.sceneId === "lounge" && !sample.done) {
+      loungeSample = sample;
+      break;
+    }
+  }
+  assert.ok(loungeSample, "route must cross through the paired lounge door before arrival");
+  const transition = action.route.find((entry) => entry.transition === true);
+  state = officeReducer(state, {
+    type: "CROSS_SCENE_DOOR",
+    slotId: "employee1",
+    transition,
+    position: loungeSample,
+    segmentIndex: loungeSample.segmentIndex,
+  });
+  assert.equal(state.characters.employee1.sceneId, "lounge");
+  assert.deepEqual(state.characters.employee1.position, { x: loungeSample.x, y: loungeSample.y });
+  assert.equal(state.characters.employee1.routeStartedAt, 1_100, "door crossing must not restart the route clock");
+  assert.deepEqual(state.characters.employee1.route, action.route, "door crossing must retain remaining route distance");
+  assert.deepEqual(state.characters.employee1.semanticContext, action.semanticContext);
+
+  const arrival = sampleWorldRoute({ route: action.route, startedAt: 1_100, now: 200_000, speed: 100 });
+  state = officeReducer(state, {
+    type: "ARRIVE_ACTIVITY",
+    slotId: "employee1",
+    position: arrival,
+    now: 200_000,
+  });
+  assert.equal(state.characters.employee1.phase, "eating");
+  assert.equal(state.characters.employee1.status, "用餐中");
+  assert.equal(state.characters.employee1.sceneId, "lounge");
+  assert.deepEqual(state.characters.employee1.position, { x: arrival.x, y: arrival.y });
+  assert.equal(state.characters.employee1.activityEndsAt, 9_000);
+  assert.deepEqual(state.characters.employee1.route, []);
+});
+
+test("door actions require the transition stored in the active world route", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = officeReducer(state, startEvent());
+  const before = state;
+  const entry = pointAt("lounge", "entry");
+
+  state = officeReducer(state, {
+    type: "CROSS_SCENE_DOOR",
+    slotId: "employee1",
+    transition: { transition: true, from: { sceneId: "office", anchorId: "fake" }, to: { sceneId: "lounge", anchorId: "entry" } },
+    position: entry,
+  });
+
+  assert.strictEqual(state, before);
+});
+
+test("return actions release only owned reservations and finish at the exact home anchor", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "dining:seat-1": { anchorId: "dining:seat-1", slotId: "employee1", reservationGroupId: "group-meal", sceneId: "lounge", expiresAt: 20_000 },
+      "printer:front": { anchorId: "printer:front", slotId: "employee2", reservationGroupId: "group-print", sceneId: "office", expiresAt: 20_000 },
+    },
+  };
+  state = officeReducer(state, startEvent());
+  const arrival = pointAt("lounge", "dining:seat-1");
+  state = officeReducer(state, { type: "ARRIVE_ACTIVITY", slotId: "employee1", position: arrival, now: 2_000 });
+  const home = pointAt("office", "employee1:seat-approach");
+  const returnRoute = buildWorldRoute({ from: arrival, to: home });
+
+  state = officeReducer(state, {
+    type: "START_RETURN",
+    slotId: "employee1",
+    route: returnRoute,
+    position: arrival,
+    now: 9_100,
+  });
+  assert.equal(state.characters.employee1.phase, "returning");
+  assert.equal(state.characters.employee1.activity, "returning");
+  assert.equal(state.characters.employee1.status, "返回工位");
+  assert.equal(state.characters.employee1.targetAnchorId, "employee1:seat-approach");
+  assert.equal(state.characters.employee1.routeStartedAt, 9_100);
+  assert.equal(state.reservations["dining:seat-1"], undefined);
+  assert.equal(state.reservations["printer:front"].reservationGroupId, "group-print");
+
+  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1", position: home });
+  assert.equal(state.characters.employee1.phase, "idle");
+  assert.equal(state.characters.employee1.sceneId, "office");
+  assert.deepEqual(state.characters.employee1.position, getSceneAnchor("office", "employee1:seat-approach"));
+  assert.equal(state.characters.employee1.propState, null);
+  assert.equal(state.characters.employee1.semanticContext, null);
+  assert.equal(state.characters.employee1.reservationGroupId, "");
+});
+
+test("rejecting an invalid return route does not release its reservation group", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "dining:seat-1": { anchorId: "dining:seat-1", slotId: "employee1", reservationGroupId: "group-meal", sceneId: "lounge", expiresAt: 20_000 },
+    },
+  };
+  state = officeReducer(state, startEvent());
+  const arrival = pointAt("lounge", "dining:seat-1");
+  state = officeReducer(state, { type: "ARRIVE_ACTIVITY", slotId: "employee1", position: arrival, now: 2_000 });
+  const before = state;
+
+  state = officeReducer(state, { type: "START_RETURN", slotId: "employee1", route: [], position: arrival, now: 9_100 });
+
+  assert.strictEqual(state, before);
+  assert.equal(state.reservations["dining:seat-1"].reservationGroupId, "group-meal");
+});
+
+test("conversation groups remain isolated and release only their own reservation on close", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "a",
-      memberIds: ["employee1", "employee2"],
-      transcript: [],
-      promptContext: { summary: "组A", members: ["employee1", "employee2"] },
-      lastResponse: { speakerId: "employee1", text: "上一句A" },
+  state = {
+    ...state,
+    reservations: {
+      "whiteboard:1": { anchorId: "whiteboard:1", slotId: "employee1", reservationGroupId: "group-a", sceneId: "office", expiresAt: 50_000 },
+      "whiteboard:2": { anchorId: "whiteboard:2", slotId: "employee3", reservationGroupId: "group-b", sceneId: "office", expiresAt: 50_000 },
     },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "b",
-      memberIds: ["employee3", "employee4"],
-      transcript: [],
-      promptContext: { summary: "组B", members: ["employee3", "employee4"] },
-      lastResponse: { speakerId: "employee3", text: "上一句B" },
+    characters: {
+      ...state.characters,
+      employee1: { ...state.characters.employee1, position: { ...getSceneAnchor("office", "whiteboard:1") } },
+      employee2: { ...state.characters.employee2, position: { ...getSceneAnchor("office", "whiteboard:2") } },
     },
-  });
-  state = officeReducer(state, {
-    type: "APPEND_CONVERSATION",
-    conversationId: "a",
-    entry: { speakerId: "employee1", text: "A组" },
-  });
-  state = officeReducer(state, {
-    type: "UPDATE_CONVERSATION_IO",
-    conversationId: "a",
-    promptContext: { summary: "组A-更新", members: ["employee1", "employee2"], turn: 2 },
-    lastResponse: { speakerId: "employee2", text: "只更新A" },
-  });
+  };
+  for (const session of [{
+    id: "a", memberIds: ["employee1", "employee2"], reservationGroupId: "group-a", sceneId: "office",
+    targetAnchorIds: ["whiteboard:1"], transcript: [], promptContext: { summary: "A" },
+  }, {
+    id: "b", memberIds: ["employee3", "employee4"], reservationGroupId: "group-b", sceneId: "office",
+    targetAnchorIds: ["whiteboard:2"], transcript: [], promptContext: { summary: "B" },
+  }]) state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+
+  state = officeReducer(state, { type: "APPEND_CONVERSATION", conversationId: "a", entry: { speakerId: "employee1", text: "only A" } });
+  state = officeReducer(state, { type: "QUEUE_BUBBLE", conversationId: "b", bubble: { speakerId: "employee4", text: "only B" } });
   assert.equal(state.conversations.a.transcript.length, 1);
   assert.equal(state.conversations.b.transcript.length, 0);
-  assert.equal(state.conversations.a.promptContext.summary, "组A-更新");
-  assert.equal(state.conversations.b.promptContext.summary, "组B");
-  assert.equal(state.conversations.a.lastResponse.text, "只更新A");
-  assert.equal(state.conversations.b.lastResponse.text, "上一句B");
+  assert.equal(state.conversations.a.bubbleQueue.length, 0);
+  assert.equal(state.conversations.b.bubbleQueue.length, 1);
+
+  const home1 = pointAt("office", "employee1:seat-approach");
+  const home2 = pointAt("office", "employee2:seat-approach");
+  state = officeReducer(state, {
+    type: "CLOSE_CONVERSATION",
+    conversationId: "a",
+    now: 2_000,
+    returnRoutes: {
+      employee1: buildWorldRoute({ from: pointAt("office", "whiteboard:1"), to: home1 }),
+      employee2: buildWorldRoute({ from: pointAt("office", "whiteboard:2"), to: home2 }),
+    },
+  });
+  assert.equal(state.conversations.a, undefined);
+  assert.ok(state.conversations.b);
+  assert.equal(state.characters.employee1.phase, "returning");
+  assert.equal(state.characters.employee3.conversationId, "b");
+  assert.equal(state.reservations["whiteboard:1"], undefined);
+  assert.equal(state.reservations["whiteboard:2"].reservationGroupId, "group-b");
 });
 
-test("updates sequence and turn counters only for the targeted conversation", () => {
+test("closing a conversation without supplied routes builds exact direct world returns", () => {
   let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "whiteboard:1": { anchorId: "whiteboard:1", slotId: "employee1", reservationGroupId: "group-chat", sceneId: "office", expiresAt: 50_000 },
+    },
+    characters: {
+      ...state.characters,
+      employee1: { ...state.characters.employee1, position: { ...getSceneAnchor("office", "whiteboard:1") } },
+      employee2: { ...state.characters.employee2, position: { ...getSceneAnchor("office", "whiteboard:2") } },
+    },
+  };
   state = officeReducer(state, {
     type: "OPEN_CONVERSATION",
-    session: {
-      id: "a",
-      memberIds: ["employee1", "employee2"],
-      requestSequence: 0,
-      turnIndex: 0,
-      transcript: [],
-    },
+    session: { id: "chat", memberIds: ["employee1", "employee2"], reservationGroupId: "group-chat" },
   });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "b",
-      memberIds: ["employee3", "employee4"],
-      requestSequence: 7,
-      turnIndex: 8,
-      transcript: [],
-    },
-  });
-  const untouchedConversation = state.conversations.b;
 
-  state = officeReducer(state, {
-    type: "UPDATE_CONVERSATION_IO",
-    conversationId: "a",
-    requestSequence: 1,
-  });
-  assert.equal(state.conversations.a.requestSequence, 1);
-  assert.equal(state.conversations.a.turnIndex, 0);
-  assert.equal(state.conversations.b, untouchedConversation);
+  state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "chat", now: 2_000 });
 
-  state = officeReducer(state, {
-    type: "UPDATE_CONVERSATION_IO",
-    conversationId: "a",
-    turnIndex: 1,
-    promptContext: { stage: "reply" },
-    lastResponse: { speakerId: "employee1", text: "收到" },
-  });
-  assert.equal(state.conversations.a.requestSequence, 1);
-  assert.equal(state.conversations.a.turnIndex, 1);
-  assert.equal(state.conversations.a.promptContext.stage, "reply");
-  assert.equal(state.conversations.a.lastResponse.text, "收到");
-  assert.equal(state.conversations.b, untouchedConversation);
-  assert.equal(state.conversations.b.requestSequence, 7);
-  assert.equal(state.conversations.b.turnIndex, 8);
-});
-
-test("ignores malformed or regressive conversation counters independently", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "a",
-      memberIds: ["employee1", "employee2"],
-      requestSequence: 3,
-      turnIndex: 4,
-      transcript: [],
-    },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "b",
-      memberIds: ["employee3", "employee4"],
-      requestSequence: 9,
-      turnIndex: 10,
-      transcript: [],
-    },
-  });
-  const untouchedConversation = state.conversations.b;
-
-  for (const update of [
-    { requestSequence: 2, turnIndex: 3 },
-    { requestSequence: -1, turnIndex: -1 },
-    { requestSequence: 3.5, turnIndex: "5" },
-    { requestSequence: Number.NaN, turnIndex: Number.POSITIVE_INFINITY },
-  ]) {
-    state = officeReducer(state, {
-      type: "UPDATE_CONVERSATION_IO",
-      conversationId: "a",
-      ...update,
-    });
-    assert.equal(state.conversations.a.requestSequence, 3);
-    assert.equal(state.conversations.a.turnIndex, 4);
-    assert.equal(state.conversations.b, untouchedConversation);
+  assert.equal(state.conversations.chat, undefined);
+  assert.equal(state.reservations["whiteboard:1"], undefined);
+  for (const slotId of ["employee1", "employee2"]) {
+    assert.equal(state.characters[slotId].phase, "returning");
+    assert.equal(state.characters[slotId].conversationId, "");
+    assert.ok(state.characters[slotId].route.length > 0);
+    assert.equal(state.characters[slotId].route.at(-1).sceneId, "office");
+    assert.deepEqual(
+      { x: state.characters[slotId].route.at(-1).x, y: state.characters[slotId].route.at(-1).y },
+      getSceneAnchor("office", `${slotId}:seat-approach`),
+    );
   }
-
-  state = officeReducer(state, {
-    type: "UPDATE_CONVERSATION_IO",
-    conversationId: "a",
-    requestSequence: 4,
-    turnIndex: 3,
-  });
-  assert.equal(state.conversations.a.requestSequence, 4);
-  assert.equal(state.conversations.a.turnIndex, 4);
-  assert.equal(state.conversations.b, untouchedConversation);
 });
 
-test("reload closes network conversations and returns characters home", () => {
-  const restored = restoreOfficeState(JSON.stringify({
-    conversations: { a: { id: "a" } },
-    characters: { employee1: { phase: "chatting" } },
-  }), assignments, 5000);
+test("conversation counters reject regressions without changing another session", () => {
+  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
+  for (const session of [
+    { id: "a", memberIds: ["employee1", "employee2"], requestSequence: 3, turnIndex: 4 },
+    { id: "b", memberIds: ["employee3", "employee4"], requestSequence: 9, turnIndex: 10 },
+  ]) state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+  const untouched = state.conversations.b;
 
+  state = officeReducer(state, { type: "UPDATE_CONVERSATION_IO", conversationId: "a", requestSequence: 2, turnIndex: 5 });
+  assert.equal(state.conversations.a.requestSequence, 3);
+  assert.equal(state.conversations.a.turnIndex, 5);
+  assert.strictEqual(state.conversations.b, untouched);
+});
+
+test("restore migrates every legacy or transient actor to its exact safe home anchor", () => {
+  const restored = restoreOfficeState(JSON.stringify({
+    visibleSceneId: "lounge",
+    activityEvents: [{ eventId: "legacy-summary", summary: "must disappear" }],
+    activeEventBySlot: { employee1: "legacy-summary" },
+    characters: {
+      boss: { positionNode: "boss-home", route: ["boss-home", "meeting-1"], phase: "walkingToActivity" },
+      employee1: { sceneId: "office", position: { x: -100, y: -100 }, route: [{ sceneId: "legacy", x: 1, y: 2 }], phase: "returning" },
+      employee2: { sceneId: "lounge", position: { x: 670, y: 1710 }, phase: "eating", semanticContext: { summary: "transient" } },
+    },
+  }), assignments, 5_000);
+
+  assert.equal(restored.visibleSceneId, "office");
+  assert.equal(restored.activityEvents, undefined);
+  assert.equal(restored.activeEventBySlot, undefined);
+  for (const slotId of slotIds) {
+    assert.equal(restored.characters[slotId].sceneId, "office");
+    assert.deepEqual(restored.characters[slotId].position, getSceneAnchor("office", `${slotId}:seat-approach`));
+    assert.deepEqual(restored.characters[slotId].route, []);
+    assert.equal(restored.characters[slotId].phase, "idle");
+    assert.equal(restored.characters[slotId].semanticContext, null);
+  }
+});
+
+test("serialization excludes transient routes, props, and every non-conversation activity summary", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = officeReducer(state, startEvent());
+  state = {
+    ...state,
+    activityEvents: [{ eventId: "legacy", subject: "do not persist" }],
+    activeEventBySlot: { employee1: "legacy" },
+  };
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: { id: "chat", memberIds: ["employee3", "employee4"], transcript: [{ text: "keep conversation semantics" }] },
+  });
+
+  const serialized = serializeOfficeState(state);
+  const snapshot = JSON.parse(serialized);
+  assert.equal(snapshot.activityEvents, undefined);
+  assert.equal(snapshot.activeEventBySlot, undefined);
+  assert.doesNotMatch(serialized, /do not persist|semanticContext|semanticFallback|propState|routesByActor/u);
+  assert.match(serialized, /keep conversation semantics/u);
+  assert.equal(snapshot.visibleSceneId, "office");
+
+  const restored = restoreOfficeState(serialized, assignments, 5_000);
   assert.deepEqual(restored.conversations, {});
   assert.equal(restored.characters.employee1.phase, "idle");
 });
 
-test("restore resets the new desk-local phases back to idle", () => {
-  const restored = restoreOfficeState(JSON.stringify({
-    characters: {
-      employee1: {
-        phase: "reading",
-        activity: "reading",
-        status: "看书中",
-        activityEndsAt: 9000,
-        props: { propVariant: "paperback" },
-      },
-      employee2: {
-        phase: "watchingSeries",
-        activity: "watchingSeries",
-        status: "刷剧中",
-        activityEndsAt: 9000,
-        props: { propVariant: "tablet" },
-      },
-      employee3: {
-        phase: "watchingShortVideo",
-        activity: "watchingShortVideo",
-        status: "看抖音中",
-        activityEndsAt: 9000,
-        props: { propVariant: "phone-portrait-light" },
-      },
-    },
-  }), assignments, 5000);
-
-  assert.equal(restored.characters.employee1.phase, "idle");
-  assert.equal(restored.characters.employee1.activity, "idle");
-  assert.equal(restored.characters.employee1.status, "空闲中");
-  assert.equal(restored.characters.employee2.phase, "idle");
-  assert.equal(restored.characters.employee3.phase, "idle");
-});
-
-test("stores and enriches only the active event for a slot", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const readingEvent = createOfficeActivityEvent({
-    eventId: "evt-read",
-    workSessionId: state.workSessionId,
-    actorId: "employee1",
-    participantIds: ["employee1"],
-    profileSnapshots: [assignments.employee1.profile],
-    activityType: "reading",
-    startedAt: 1000,
-    requestSequence: 1,
-  });
-
-  state = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: readingEvent });
-  assert.equal(state.activeEventBySlot.employee1, "evt-read");
-
-  state = officeReducer(state, { type: "ENRICH_ACTIVITY_EVENT", detail: {
-    eventId: "evt-read",
-    activityType: "reading",
-    requestSequence: 1,
-    title: "阅读记录",
-    subject: "《沉思录》",
-    summary: "读到自省",
-    insightOrResult: "先处理可控之事",
-  } });
-  assert.equal(state.activityEvents[0].subject, "《沉思录》");
-
-  state = officeReducer(state, { type: "COMPLETE_ACTIVITY_EVENT", eventId: "evt-read", endedAt: 5000 });
-  assert.equal(state.activeEventBySlot.employee1, undefined);
-  assert.equal(state.activityEvents[0].endedAt, 5000);
-});
-
-test("rejects activity events from another work session without changing state", () => {
+test("set reservations installs a validated deep-cloned map", () => {
   const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const foreignEvent = createOfficeActivityEvent({
-    eventId: "evt-foreign",
-    workSessionId: "foreign-session",
-    actorId: "employee1",
-    participantIds: ["employee1"],
-    profileSnapshots: [assignments.employee1.profile],
-    activityType: "working",
-    startedAt: 1000,
-    requestSequence: 1,
-  });
+  const reservations = Object.create(null);
+  reservations["printer:front"] = {
+    anchorId: "printer:front",
+    slotId: "employee1",
+    reservationGroupId: "group-print",
+    sceneId: "office",
+    expiresAt: 1_000,
+  };
 
-  const next = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: foreignEvent });
-
-  assert.equal(next, state);
+  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
+  reservations["printer:front"].slotId = "employee2";
+  assert.equal(next.reservations["printer:front"].slotId, "employee1");
+  assert.notStrictEqual(next.reservations, reservations);
+  assert.strictEqual(officeReducer(next, { type: "SET_RESERVATIONS", reservations: [] }), next);
 });
 
-test("creates unique non-empty work session IDs across isolated contexts at the same time", async () => {
-  const firstModule = await import("./officeState.js?work-session-context=first");
-  const secondModule = await import("./officeState.js?work-session-context=second");
-
-  const first = firstModule.createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-  const second = secondModule.createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-
-  assert.match(first.workSessionId, /\S/u);
-  assert.match(second.workSessionId, /\S/u);
-  assert.notEqual(first.workSessionId, second.workSessionId);
-});
-
-test("uses getRandomValues when randomUUID is unavailable", () => {
+test("creates secure unique work session ids and restores an existing id", () => {
   let seed = 0;
   const cryptoSource = {
     getRandomValues(bytes) {
-      for (let index = 0; index < bytes.length; index += 1) {
-        bytes[index] = seed + index;
-      }
+      for (let index = 0; index < bytes.length; index += 1) bytes[index] = seed + index;
       seed += bytes.length;
       return bytes;
     },
   };
-
-  const first = createWorkSessionId(1000, cryptoSource);
-  const second = createWorkSessionId(1000, cryptoSource);
-
-  assert.equal(first, "work-session-1000-000102030405060708090a0b0c0d0e0f");
-  assert.equal(second, "work-session-1000-101112131415161718191a1b1c1d1e1f");
+  const first = createWorkSessionId(1_000, cryptoSource);
+  const second = createWorkSessionId(1_000, cryptoSource);
   assert.match(first, /^work-session-1000-[0-9a-f]{32}$/u);
   assert.notEqual(first, second);
-});
+  assert.throws(() => createWorkSessionId(1_000, {}), /Secure random generation is unavailable/u);
 
-test("throws clearly when secure work session ID generation is unavailable", () => {
-  assert.throws(
-    () => createWorkSessionId(1000, {}),
-    new Error("Secure random generation is unavailable for work session IDs."),
-  );
-});
-
-test("restore reuses the persisted work session ID", () => {
-  const persistedWorkSessionId = "work-session-persisted-existing";
-
-  const restored = restoreOfficeState(JSON.stringify({
-    workSessionId: persistedWorkSessionId,
-  }), assignments, 5000);
-
-  assert.equal(restored.workSessionId, persistedWorkSessionId);
-});
-
-test("serializes only current-session events and restores in-flight records as local fallbacks", () => {
-  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-  const inFlightEvent = createOfficeActivityEvent({
-    eventId: "evt-read",
-    workSessionId: state.workSessionId,
-    actorId: "employee1",
-    participantIds: ["employee1"],
-    profileSnapshots: [assignments.employee1.profile],
-    activityType: "reading",
-    startedAt: 1100,
-    requestSequence: 2,
-  });
-  const oldEvent = createOfficeActivityEvent({
-    eventId: "evt-old",
-    workSessionId: "old-session",
-    actorId: "employee2",
-    participantIds: ["employee2"],
-    profileSnapshots: [assignments.employee2.profile],
-    activityType: "working",
-    startedAt: 900,
-    requestSequence: 1,
-  });
-
-  state = officeReducer(state, { type: "CREATE_ACTIVITY_EVENT", event: inFlightEvent });
-  state = {
-    ...state,
-    activityEvents: [...state.activityEvents, oldEvent],
-  };
-
-  const snapshot = JSON.parse(serializeOfficeState(state));
-  assert.equal(snapshot.workSessionId, state.workSessionId);
-  assert.deepEqual(snapshot.activityEvents.map(({ eventId }) => eventId), ["evt-read"]);
-  assert.deepEqual(snapshot.activeEventBySlot, { employee1: "evt-read" });
-
-  const restored = restoreOfficeState(JSON.stringify(snapshot), assignments, 5000);
-  assert.equal(restored.workSessionId, state.workSessionId);
-  assert.deepEqual(restored.activeEventBySlot, {});
-  assert.equal(restored.activityEvents.length, 1);
-  assert.equal(restored.activityEvents[0].eventId, "evt-read");
-  assert.equal(restored.activityEvents[0].endedAt, 5000);
-  assert.equal(restored.activityEvents[0].detailStatus, "complete");
-  assert.match(restored.activityEvents[0].subject, /\S/u);
-});
-
-test("updates mode profile routing expiry and serialization state", () => {
-  let state = createOfficeState({ assignments, now: 1000, durationMs: 60_000 });
-  state = officeReducer(state, { type: "SET_MODE", mode: "rest" });
-  state = officeReducer(state, {
-    type: "ASSIGN_PROFILE",
-    slotId: "employee2",
-    assignment: {
-      profileId: "employee2-new",
-      profile: { id: "employee2-new", name: "新同事" },
-    },
-  });
-  state = officeReducer(state, {
-    type: "START_ACTIVITY",
-    slotId: "employee2",
-    activity: "eating",
-    anchorId: "break-2",
-    route: ["employee2-home", "aisle", "break-2"],
-    now: 1100,
-  });
-  state = officeReducer(state, { type: "ADVANCE_ROUTE", slotId: "employee2" });
-  assert.equal(state.characters.employee2.positionNode, "aisle");
-
-  state = officeReducer(state, {
-    type: "ARRIVE_ACTIVITY",
-    slotId: "employee2",
-    now: 1200,
-    endsAt: 1300,
-    meal: "rice",
-  });
-  state = officeReducer(state, { type: "TICK", now: 5000 });
-  state = officeReducer(state, { type: "RESET_EXPIRED", now: 5000 });
-
-  assert.equal(state.mode, "rest");
-  assert.equal(state.now, 5000);
-  assert.equal(state.characters.employee2.profileId, "employee2-new");
-  assert.equal(state.characters.employee2.phase, "idle");
-  assert.equal(state.characters.employee2.positionNode, "employee2-home");
-
-  state = { ...state, reservations: { "break-2": { slotId: "employee2", anchorId: "break-2" } } };
-  const snapshot = JSON.parse(serializeOfficeState(state));
-  assert.equal(snapshot.mode, "rest");
-  assert.equal(snapshot.durationMs, 60_000);
-  assert.equal(snapshot.characters.employee2.profileId, "employee2-new");
-  assert.equal(snapshot.reservations, undefined);
-
-  const restored = restoreOfficeState(JSON.stringify(snapshot), assignments, 6000);
-  assert.deepEqual(restored.reservations, {});
-});
-
-test("set reservations installs a deep-cloned map", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const reservations = {
-    "break-1": {
-      anchorId: "break-1",
-      slotId: "employee1",
-      details: {
-        meal: "noodles",
-        tags: ["warm", { priority: 2 }],
-        note: null,
-      },
-    },
-  };
-
-  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-
-  assert.deepEqual(next.reservations, reservations);
-  assert.notEqual(next.reservations, reservations);
-  assert.notEqual(next.reservations["break-1"], reservations["break-1"]);
-  assert.notEqual(next.reservations["break-1"].details, reservations["break-1"].details);
-  assert.notEqual(next.reservations["break-1"].details.tags, reservations["break-1"].details.tags);
-});
-
-test("set reservations accepts null-prototype maps with serializable nested metadata", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const metadata = Object.assign(Object.create(null), {
-    tags: ["quiet", { priority: 1 }],
-    enabled: true,
-    note: null,
-  });
-  const reservation = Object.assign(Object.create(null), {
-    anchorId: "break-1",
-    slotId: "employee1",
-    metadata,
-  });
-  const reservations = Object.assign(Object.create(null), { "break-1": reservation });
-
-  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-
-  assert.equal(next.reservations["break-1"].anchorId, "break-1");
-  assert.equal(next.reservations["break-1"].slotId, "employee1");
-  assert.deepEqual(next.reservations["break-1"].metadata.tags, ["quiet", { priority: 1 }]);
-  assert.equal(next.reservations["break-1"].metadata.enabled, true);
-  assert.equal(next.reservations["break-1"].metadata.note, null);
-  assert.notEqual(next.reservations, reservations);
-  assert.notEqual(next.reservations["break-1"], reservation);
-  assert.notEqual(next.reservations["break-1"].metadata, metadata);
-});
-
-test("set reservations safely rejects non-plain map inputs", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  class ReservationCollection {}
-  const classInstance = new ReservationCollection();
-  classInstance["break-1"] = { anchorId: "break-1", slotId: "employee1" };
-
-  for (const [label, reservations] of [
-    ["undefined", undefined],
-    ["null", null],
-    ["array", []],
-    ["string", "invalid"],
-    ["number", 42],
-    ["boolean", true],
-    ["bigint", 1n],
-    ["function", () => {}],
-    ["symbol", Symbol("invalid")],
-    ["date", new Date("2026-01-01T00:00:00.000Z")],
-    ["map", new Map([["break-1", { anchorId: "break-1", slotId: "employee1" }]])],
-    ["class instance", classInstance],
-  ]) {
-    assert.doesNotThrow(() => {
-      const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-      assert.equal(next, state);
-    }, label);
-  }
-});
-
-test("set reservations safely rejects cyclic and non-serializable nested values", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  class ReservationMetadata {}
-  const cyclicMap = {
-    "break-1": { anchorId: "break-1", slotId: "employee1" },
-  };
-  cyclicMap.self = cyclicMap;
-  const cyclicMetadata = {};
-  cyclicMetadata.self = cyclicMetadata;
-  const makeReservations = (metadata) => ({
-    "break-1": { anchorId: "break-1", slotId: "employee1", metadata },
-  });
-
-  for (const [label, reservations] of [
-    ["cyclic map", cyclicMap],
-    ["cyclic metadata", makeReservations(cyclicMetadata)],
-    ["bigint", makeReservations({ value: 1n })],
-    ["function", makeReservations({ value: () => {} })],
-    ["symbol", makeReservations({ value: Symbol("invalid") })],
-    ["undefined", makeReservations({ value: undefined })],
-    ["NaN", makeReservations({ value: Number.NaN })],
-    ["infinity", makeReservations({ value: Number.POSITIVE_INFINITY })],
-    ["date", makeReservations({ value: new Date("2026-01-01T00:00:00.000Z") })],
-    ["map", makeReservations({ value: new Map([["key", "value"]]) })],
-    ["class instance", makeReservations({ value: new ReservationMetadata() })],
-  ]) {
-    assert.doesNotThrow(() => {
-      const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-      assert.equal(next, state);
-    }, label);
-  }
-});
-
-test("set reservations rejects malformed or key-mismatched reservation records", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-
-  for (const reservations of [
-    { "break-1": null },
-    { "break-1": { anchorId: "break-1" } },
-    { "break-1": { slotId: "employee1" } },
-    { "break-1": { anchorId: 1, slotId: "employee1" } },
-    { "break-1": { anchorId: "break-1", slotId: 1 } },
-    { "break-1": { anchorId: "break-2", slotId: "employee1" } },
-  ]) {
-    const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-    assert.equal(next, state);
-  }
-});
-
-test("set reservations isolates state from later caller mutation", () => {
-  const state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const reservations = {
-    "break-1": {
-      anchorId: "break-1",
-      slotId: "employee1",
-      details: { meal: "rice" },
-    },
-  };
-
-  const next = officeReducer(state, { type: "SET_RESERVATIONS", reservations });
-  reservations["break-1"].slotId = "boss";
-  reservations["break-1"].details.meal = "sandwich";
-  reservations["break-2"] = { anchorId: "break-2", slotId: "employee2" };
-
-  assert.deepEqual(next.reservations, {
-    "break-1": {
-      anchorId: "break-1",
-      slotId: "employee1",
-      details: { meal: "rice" },
-    },
-  });
-});
-
-test("start return releases only the eating character's matching reservation", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "break-1": { anchorId: "break-1", slotId: "employee1" },
-      "break-2": { anchorId: "break-2", slotId: "employee2" },
-      "chat-1": { anchorId: "chat-1", slotId: "boss" },
-    },
-    characters: {
-      ...state.characters,
-      employee1: {
-        ...state.characters.employee1,
-        phase: "eating",
-        activity: "eating",
-        status: "吃饭中",
-        positionNode: "break-1",
-        reservedAnchorId: "break-1",
-        activityEndsAt: 5000,
-        props: { meal: "noodles" },
-      },
-    },
-  };
-
-  const next = officeReducer(state, {
-    type: "START_RETURN",
-    slotId: "employee1",
-    route: ["break-1", "aisle-lower", "employee1-home"],
-  });
-
-  assert.deepEqual(next.reservations, {
-    "break-2": { anchorId: "break-2", slotId: "employee2" },
-    "chat-1": { anchorId: "chat-1", slotId: "boss" },
-  });
-  assert.deepEqual(state.reservations, {
-    "break-1": { anchorId: "break-1", slotId: "employee1" },
-    "break-2": { anchorId: "break-2", slotId: "employee2" },
-    "chat-1": { anchorId: "chat-1", slotId: "boss" },
-  });
-  assert.equal(next.characters.employee1.phase, "returning");
-  assert.equal(next.characters.employee1.status, "返回工位");
-  assert.equal(next.characters.employee1.reservedAnchorId, "");
-  assert.deepEqual(next.characters.employee1.route, ["break-1", "aisle-lower", "employee1-home"]);
-  assert.equal(next.characters.employee1.routeIndex, 0);
-});
-
-test("start return preserves an active conversation owner's reservation for close", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-      "break-2": { anchorId: "break-2", slotId: "employee3" },
-    },
-  };
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "a",
-      memberIds: ["employee1", "employee2"],
-      anchorId: "chat-1",
-      anchorOwnerId: "employee1",
-      transcript: [],
-    },
-  });
-
-  state = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
-
-  assert.deepEqual(state.reservations, {
-    "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-    "break-2": { anchorId: "break-2", slotId: "employee3" },
-  });
-  assert.equal(state.conversations.a.anchorOwnerId, "employee1");
-
-  state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "a" });
-  assert.deepEqual(state.reservations, {
-    "break-2": { anchorId: "break-2", slotId: "employee3" },
-  });
-});
-
-test("start return preserves a chatting reservation without a conversation id", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-    },
-    characters: {
-      ...state.characters,
-      employee1: {
-        ...state.characters.employee1,
-        phase: "chatting",
-        activity: "chatting",
-        reservedAnchorId: "chat-1",
-      },
-    },
-  };
-
-  const next = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
-
-  assert.equal(next.reservations, state.reservations);
-  assert.equal(next.reservations["chat-1"].slotId, "employee1");
-});
-
-test("start return preserves a conversation reservation outside the chatting phase", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-    },
-    characters: {
-      ...state.characters,
-      employee1: {
-        ...state.characters.employee1,
-        phase: "eating",
-        activity: "eating",
-        conversationId: "a",
-        reservedAnchorId: "chat-1",
-      },
-    },
-  };
-
-  const next = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
-
-  assert.equal(next.reservations, state.reservations);
-  assert.equal(next.reservations["chat-1"].slotId, "employee1");
-});
-
-test("start return preserves a wrong-owner reservation and finish return still resets home", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "break-1": { anchorId: "break-1", slotId: "boss" },
-      "break-2": { anchorId: "break-2", slotId: "employee2" },
-    },
-    characters: {
-      ...state.characters,
-      employee1: {
-        ...state.characters.employee1,
-        phase: "eating",
-        activity: "eating",
-        status: "吃饭中",
-        positionNode: "break-1",
-        reservedAnchorId: "break-1",
-      },
-    },
-  };
-
-  state = officeReducer(state, { type: "START_RETURN", slotId: "employee1" });
-  assert.deepEqual(state.reservations, {
-    "break-1": { anchorId: "break-1", slotId: "boss" },
-    "break-2": { anchorId: "break-2", slotId: "employee2" },
-  });
-  assert.equal(state.characters.employee1.phase, "returning");
-  assert.deepEqual(state.characters.employee1.route, ["break-1", "employee1-home"]);
-
-  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1" });
-  assert.deepEqual(state.reservations, {
-    "break-1": { anchorId: "break-1", slotId: "boss" },
-    "break-2": { anchorId: "break-2", slotId: "employee2" },
-  });
-  assert.equal(state.characters.employee1.phase, "idle");
-  assert.equal(state.characters.employee1.activity, "idle");
-  assert.equal(state.characters.employee1.positionNode, "employee1-home");
-  assert.equal(state.characters.employee1.reservedAnchorId, "");
-});
-
-test("queues and shifts bubbles per conversation without crossing sessions", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], transcript: [] },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "b", memberIds: ["employee3", "employee4"], transcript: [] },
-  });
-  state = officeReducer(state, {
-    type: "QUEUE_BUBBLE",
-    conversationId: "a",
-    bubble: { speakerId: "employee1", text: "先说一句" },
-  });
-  state = officeReducer(state, {
-    type: "QUEUE_BUBBLE",
-    conversationId: "b",
-    bubble: { speakerId: "employee3", text: "另一组" },
-  });
-  state = officeReducer(state, { type: "SHIFT_BUBBLE", conversationId: "a" });
-
-  assert.equal(state.conversations.a.bubbleQueue.length, 0);
-  assert.equal(state.conversations.b.bubbleQueue.length, 1);
-});
-
-test("rejects opening a conversation when any member is already busy in another session", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], transcript: [] },
-  });
-
-  const next = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "b", memberIds: ["employee2", "employee3"], transcript: [] },
-  });
-
-  assert.equal(next, state);
-  assert.deepEqual(Object.keys(next.conversations), ["a"]);
-  assert.equal(next.characters.employee3.conversationId, "");
-});
-
-test("opening a conversation preserves the anchor owner from the caller session", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const session = {
-    id: "a",
-    memberIds: ["employee1", "employee2"],
-    anchorId: "chat-1",
-    anchorOwnerId: "employee1",
-    transcript: [],
-  };
-
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session,
-  });
-  session.anchorOwnerId = "employee2";
-
-  assert.equal(state.conversations.a.anchorOwnerId, "employee1");
-});
-
-test("closing one concurrent session returns only that group and leaves the other session active", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], anchorId: "chat-1", transcript: [] },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "b", memberIds: ["employee3", "employee4"], anchorId: "chat-2", transcript: [] },
-  });
-
-  state = officeReducer(state, {
-    type: "CLOSE_CONVERSATION",
-    conversationId: "a",
-    returnRoutes: {
-      employee1: ["chat-1", "aisle", "employee1-home"],
-      employee2: ["chat-1", "aisle", "employee2-home"],
-    },
-  });
-
-  assert.deepEqual(Object.keys(state.conversations), ["b"]);
-  assert.equal(state.characters.employee1.phase, "returning");
-  assert.equal(state.characters.employee1.conversationId, "");
-  assert.equal(state.characters.employee2.phase, "returning");
-  assert.equal(state.characters.employee3.phase, "chatting");
-  assert.equal(state.characters.employee3.conversationId, "b");
-  assert.equal(state.characters.employee4.conversationId, "b");
-});
-
-test("closing one conversation releases only that session reservation owner match", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-      "chat-2": { anchorId: "chat-2", slotId: "employee3" },
-      "break-1": { anchorId: "break-1", slotId: "boss" },
-    },
-  };
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], anchorId: "chat-1", anchorOwnerId: "employee1", transcript: [] },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "b", memberIds: ["employee3", "employee4"], anchorId: "chat-2", anchorOwnerId: "employee3", transcript: [] },
-  });
-
-  state = officeReducer(state, {
-    type: "CLOSE_CONVERSATION",
-    conversationId: "a",
-    returnRoutes: {
-      employee1: ["chat-1", "aisle", "employee1-home"],
-      employee2: ["chat-1", "aisle", "employee2-home"],
-    },
-  });
-
-  assert.deepEqual(state.reservations, {
-    "chat-2": { anchorId: "chat-2", slotId: "employee3" },
-    "break-1": { anchorId: "break-1", slotId: "boss" },
-  });
-  assert.deepEqual(Object.keys(state.conversations), ["b"]);
-});
-
-test("closing a conversation without supplied routes still starts a direct return trip", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: { id: "a", memberIds: ["employee1", "employee2"], anchorId: "chat-1", transcript: [] },
-  });
-  state = {
-    ...state,
-    characters: {
-      ...state.characters,
-      employee1: { ...state.characters.employee1, positionNode: "chat-1" },
-      employee2: { ...state.characters.employee2, positionNode: "chat-1-side" },
-    },
-  };
-
-  state = officeReducer(state, {
-    type: "CLOSE_CONVERSATION",
-    conversationId: "a",
-  });
-
-  assert.equal(state.characters.employee1.phase, "returning");
-  assert.equal(state.characters.employee1.status, "返回工位");
-  assert.deepEqual(state.characters.employee1.route, ["chat-1", "employee1-home"]);
-  assert.equal(state.characters.employee2.phase, "returning");
-  assert.deepEqual(state.characters.employee2.route, ["chat-1-side", "employee2-home"]);
-});
-
-test("reset expired releases only the expired session reservation owner match", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  state = {
-    ...state,
-    reservations: {
-      "chat-1": { anchorId: "chat-1", slotId: "employee1" },
-      "chat-2": { anchorId: "chat-2", slotId: "employee3" },
-      "break-1": { anchorId: "break-1", slotId: "boss" },
-    },
-  };
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "a",
-      memberIds: ["employee1", "employee2"],
-      anchorId: "chat-1",
-      anchorOwnerId: "employee1",
-      endsAt: 1000,
-      transcript: [],
-    },
-  });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "b",
-      memberIds: ["employee3", "employee4"],
-      anchorId: "chat-2",
-      anchorOwnerId: "employee3",
-      endsAt: 8000,
-      transcript: [],
-    },
-  });
-
-  state = officeReducer(state, {
-    type: "RESET_EXPIRED",
-    now: 5000,
-    returnRoutes: {
-      employee1: ["chat-1", "aisle", "employee1-home"],
-      employee2: ["chat-1", "aisle", "employee2-home"],
-    },
-  });
-
-  assert.deepEqual(state.reservations, {
-    "chat-2": { anchorId: "chat-2", slotId: "employee3" },
-    "break-1": { anchorId: "break-1", slotId: "boss" },
-  });
-  assert.deepEqual(Object.keys(state.conversations), ["b"]);
-  assert.equal(state.characters.employee3.phase, "chatting");
-});
-
-test("clones caller-owned payloads so later mutation cannot leak into reducer state", () => {
-  let state = createOfficeState({ assignments, now: 0, durationMs: 60_000 });
-  const assignment = {
-    profileId: "employee1-new",
-    profile: { id: "employee1-new", name: "初始", meta: { mood: "calm" } },
-  };
-  const session = {
-    id: "a",
-    memberIds: ["employee1", "employee2"],
-    transcript: [],
-    promptContext: { topic: "预算", detail: { stage: 1 } },
-    lastResponse: { speakerId: "employee1", text: "初始回复", extra: { tone: "flat" } },
-  };
-  const entry = { speakerId: "employee1", text: "第一句", meta: { emphasis: "low" } };
-  const bubble = { speakerId: "employee2", text: "气泡", meta: { color: "blue" } };
-  const ioUpdate = {
-    promptContext: { topic: "预算更新", detail: { stage: 2 } },
-    lastResponse: { speakerId: "employee2", text: "更新回复", extra: { tone: "warm" } },
-  };
-
-  state = officeReducer(state, { type: "ASSIGN_PROFILE", slotId: "employee1", assignment });
-  state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
-  state = officeReducer(state, { type: "APPEND_CONVERSATION", conversationId: "a", entry });
-  state = officeReducer(state, { type: "QUEUE_BUBBLE", conversationId: "a", bubble });
-  state = officeReducer(state, { type: "UPDATE_CONVERSATION_IO", conversationId: "a", ...ioUpdate });
-
-  assignment.profile.name = "被污染";
-  assignment.profile.meta.mood = "chaotic";
-  session.promptContext.detail.stage = 999;
-  session.lastResponse.extra.tone = "loud";
-  entry.text = "被改了";
-  entry.meta.emphasis = "high";
-  bubble.text = "被改了";
-  bubble.meta.color = "red";
-  ioUpdate.promptContext.detail.stage = 404;
-  ioUpdate.lastResponse.text = "串台";
-
-  assert.equal(state.assignments.employee1.profile.name, "初始");
-  assert.equal(state.assignments.employee1.profile.meta.mood, "calm");
-  assert.equal(state.conversations.a.promptContext.topic, "预算更新");
-  assert.equal(state.conversations.a.promptContext.detail.stage, 2);
-  assert.equal(state.conversations.a.lastResponse.text, "更新回复");
-  assert.equal(state.conversations.a.lastResponse.extra.tone, "warm");
-  assert.equal(state.conversations.a.transcript[0].text, "第一句");
-  assert.equal(state.conversations.a.transcript[0].meta.emphasis, "low");
-  assert.equal(state.conversations.a.bubbleQueue[0].text, "气泡");
-  assert.equal(state.conversations.a.bubbleQueue[0].meta.color, "blue");
+  const restored = restoreOfficeState(JSON.stringify({ workSessionId: first }), assignments, 5_000);
+  assert.equal(restored.workSessionId, first);
 });

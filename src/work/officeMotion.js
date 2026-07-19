@@ -1,6 +1,5 @@
-import { OFFICE_NODES } from "./officeNavigation.js";
-
 const DEFAULT_POSITION = Object.freeze({ x: 50, y: 50 });
+const OFFICE_NODES = Object.freeze({});
 const WALK_FRAME_COUNT = 8;
 export const WALK_FRAME_MS = 1000 / 9;
 

@@ -1,14 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import OfficeCanvas from "./pixi/OfficeCanvas.jsx";
+import { getActivityDefinition } from "./officeActivityManifest.js";
 import { OFFICE_SCENES, OFFICE_WORLD_SIZE } from "./officeSceneManifest.js";
-import { sampleOfficeRoute } from "./officeMotion.js";
-import { OFFICE_NODES } from "./officeNavigation.js";
 import { OFFICE_CLIP_METADATA } from "./pixi/officeCharacterClips.js";
 import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
 const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
-const OFFICE_WALK_SPEED = 10;
 const SCENE_PERCENT_TO_PHONE_PX = 3.9;
 const SCENE_PHONE_WIDTH_PX = 390;
 const BUBBLE_HALF_WIDTH_PX = 90;
@@ -39,127 +37,71 @@ export const getClampedBubbleLayout = (layout) => {
   };
 };
 
-export function resolveOfficeActivityEventForCharacter({
-  slotId,
-  character = {},
-  activityEvents = [],
-  activeEventBySlot = {},
-  activityEventById = null,
-} = {}) {
-  const normalizedSlotId = cleanText(slotId || character.slotId);
-  if (!normalizedSlotId) return null;
-  const eventById = activityEventById instanceof Map
-    ? activityEventById
-    : new Map((Array.isArray(activityEvents) ? activityEvents : [])
-      .map((event) => [cleanText(event?.eventId), event]));
-  const activeEventId = cleanText(activeEventBySlot?.[normalizedSlotId]);
-  const directlyOwnedEvent = eventById.get(activeEventId);
-  if (directlyOwnedEvent?.actorId === normalizedSlotId) {
-    if (directlyOwnedEvent.activityType !== "chatting") return directlyOwnedEvent;
-    const eventConversationId = cleanText(directlyOwnedEvent.conversationId);
-    const characterConversationId = cleanText(character.conversationId);
-    if (!characterConversationId) return character.phase === "walkingToActivity" ? directlyOwnedEvent : null;
-    const participantIds = Array.isArray(directlyOwnedEvent.participantIds)
-      ? directlyOwnedEvent.participantIds.map(String)
-      : [];
-    if (eventConversationId === characterConversationId && participantIds.includes(normalizedSlotId)) return directlyOwnedEvent;
+const getCharacterPoint = (character) => {
+  const sceneId = OFFICE_SCENES[character?.sceneId] ? character.sceneId : "office";
+  const position = character?.position;
+  if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) {
+    return { sceneId, x: position.x, y: position.y, facing: character.facing || "front" };
   }
-
-  const characterConversationId = cleanText(character.conversationId);
-  if (!characterConversationId) return null;
-  for (const event of eventById.values()) {
-    if (cleanText(event?.activityType) !== "chatting") continue;
-    if (cleanText(event?.conversationId) !== characterConversationId) continue;
-    const participantIds = Array.isArray(event?.participantIds) ? event.participantIds.map(String) : [];
-    if (!participantIds.includes(normalizedSlotId)) continue;
-    const ownerId = cleanText(event?.actorId);
-    if (ownerId && cleanText(activeEventBySlot?.[ownerId]) === cleanText(event?.eventId)) return event;
-  }
-  return null;
-}
-
-const getCharacterNode = (character, slotId) => {
-  const routeIndex = Number.isFinite(character?.routeIndex) ? character.routeIndex : 0;
-  const routeNode = Array.isArray(character?.route) ? character.route[routeIndex] : "";
-  const nodeId = cleanText(character?.positionNode)
-    || cleanText(routeNode)
-    || cleanText(character?.homeNode)
-    || `${slotId}-home`;
-  return OFFICE_NODES[nodeId] || OFFICE_NODES[`${slotId}-home`] || { x: 50, y: 50 };
+  const fallback = OFFICE_SCENES.office.anchors[`${character?.slotId}:seat-approach`]
+    || OFFICE_SCENES.office.anchors.entry;
+  return { sceneId: "office", x: fallback.x, y: fallback.y, facing: "front" };
 };
 
-const legacyPointToWorld = (point) => ({
-  x: (Number(point?.x) || 50) * (OFFICE_WORLD_SIZE.width / 100),
-  y: (Number(point?.y) || 50) * (OFFICE_WORLD_SIZE.height / 100),
-});
-
-const FURNITURE_ANCHORS = Object.freeze({
-  "boss-home": { sceneId: "office", anchorId: "boss:seat", objectId: "boss-desk" },
-  "employee1-home": { sceneId: "office", anchorId: "employee1:seat", objectId: "employee1-desk" },
-  "employee2-home": { sceneId: "office", anchorId: "employee2:seat", objectId: "employee2-desk" },
-  "employee3-home": { sceneId: "office", anchorId: "employee3:seat", objectId: "employee3-desk" },
-  "employee4-home": { sceneId: "office", anchorId: "employee4:seat", objectId: "employee4-desk" },
-  "break-1": { sceneId: "lounge", anchorId: "dining:seat-1", objectId: "dining-table" },
-  "break-2": { sceneId: "lounge", anchorId: "dining:seat-2", objectId: "dining-table" },
-});
-
-const CLIP_BY_ACTIVITY = Object.freeze({
-  idle: "idle-seated",
-  working: "working",
-  slacking: "slacking",
-  eating: "eating",
-  gaming: "gaming",
-  reading: "reading",
-  watchingSeries: "watching-series",
-  watchingShortVideo: "watching-short-video",
-  chatting: "chatting",
-  listening: "listening",
-  "watching-tv": "watching-tv",
-  "desk-rest": "desk-rest",
-});
-
-const getFurnitureAnchor = (nodeId) => FURNITURE_ANCHORS[nodeId] || null;
+const getActorClip = (character, slotId, moving) => {
+  if (moving) return "locomotion";
+  if (character.activity === "idle") return "idle-standing";
+  const definition = getActivityDefinition(character.activity);
+  const role = cleanText(character.propState?.actorRoles?.[slotId]) || "actor";
+  return definition?.clips?.[role] || definition?.clips?.actor || "idle-standing";
+};
 
 const getClipFrameIndex = (clipId, now, startedAt) => {
   const clip = OFFICE_CLIP_METADATA[clipId] || OFFICE_CLIP_METADATA["idle-standing"];
   return Math.floor(Math.max(0, now - (Number(startedAt) || 0)) / (1000 / clip.fps)) % clip.frameCount;
 };
 
-export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {}) {
+export function buildOfficeWorld({ state = {}, assignments = {}, sampledWorldActors = {}, motionNow } = {}) {
   const characters = isRecord(state.characters) ? state.characters : {};
   const now = Number.isFinite(motionNow) ? motionNow : Number(state.now) || 0;
   const visibleSceneId = OFFICE_SCENES[state.visibleSceneId] ? state.visibleSceneId : "office";
   const actors = OFFICE_SLOT_IDS.map((slotId) => {
     const character = isRecord(characters[slotId]) ? characters[slotId] : { slotId };
-    const motion = MOVING_PHASES.has(character.phase)
-      ? sampleOfficeRoute({ route: character.route, startedAt: character.routeStartedAt, now, speed: OFFICE_WALK_SPEED, nodes: OFFICE_NODES })
-      : null;
+    const sampled = isRecord(sampledWorldActors[slotId]) ? sampledWorldActors[slotId] : null;
+    const point = sampled && OFFICE_SCENES[sampled.sceneId]
+      && Number.isFinite(sampled.x) && Number.isFinite(sampled.y)
+      ? sampled
+      : getCharacterPoint(character);
+    const moving = MOVING_PHASES.has(character.phase) && Boolean(sampled);
     const assignment = isRecord(assignments[slotId]) ? assignments[slotId] : {};
-    const furnitureAnchor = motion ? null : getFurnitureAnchor(character.positionNode || character.homeNode);
-    const anchorPoint = furnitureAnchor ? OFFICE_SCENES[furnitureAnchor.sceneId].anchors[furnitureAnchor.anchorId] : null;
-    const clip = motion ? "locomotion" : CLIP_BY_ACTIVITY[character.activity] || "idle-standing";
+    const clip = getActorClip(character, slotId, moving);
     return {
       id: slotId,
       characterId: assignment.chibiId,
-      sceneId: furnitureAnchor?.sceneId || (OFFICE_SCENES[character.sceneId] ? character.sceneId : "office"),
-      ...(anchorPoint || legacyPointToWorld(motion || getCharacterNode(character, slotId))),
-      facing: motion?.facing || character.facing || "front",
-      motion,
+      sceneId: point.sceneId,
+      x: point.x,
+      y: point.y,
+      facing: point.facing || character.facing || "front",
+      motion: moving ? point : null,
       clip,
       frameIndex: getClipFrameIndex(clip, now, character.activityStartedAt || character.routeStartedAt),
-      furnitureAnchor: anchorPoint ? { ...furnitureAnchor, ...anchorPoint } : null,
+      furnitureAnchor: null,
       status: cleanText(character.status),
       profile: isRecord(assignment.profile) ? assignment.profile : isRecord(character.profile) ? character.profile : null,
       furnitureReady: true,
     };
   });
 
-  const activityStates = actors.map((actor) => ({
-    slotId: actor.id,
-    sceneId: actor.sceneId,
-    activity: actor.clip,
-    anchorId: actor.furnitureAnchor?.anchorId || "",
-  }));
+  const activityStates = actors.map((actor) => {
+    const character = characters[actor.id] || {};
+    return {
+      slotId: actor.id,
+      sceneId: actor.sceneId,
+      activity: actor.clip,
+      anchorId: character.targetAnchorId || character.homeAnchorId || "",
+      propState: character.propState || null,
+    };
+  });
 
   return { scenes: OFFICE_SCENES, actors, visibleSceneId, activityStates };
 }
@@ -167,29 +109,24 @@ export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {
 const getOverlaySnapshots = (state, world, renderer) => {
   const characters = isRecord(state.characters) ? state.characters : {};
   const conversations = isRecord(state.conversations) ? state.conversations : {};
-  const activityEvents = Array.isArray(state.activityEvents) ? state.activityEvents : [];
-  const activeEventBySlot = isRecord(state.activeEventBySlot) ? state.activeEventBySlot : {};
 
   return world.actors.flatMap((actor) => {
     if (actor.sceneId !== world.visibleSceneId || (!actor.profile && !characters[actor.id])) return [];
     const character = isRecord(characters[actor.id]) ? characters[actor.id] : {};
-    const event = resolveOfficeActivityEventForCharacter({ slotId: actor.id, character, activityEvents, activeEventBySlot });
-    const conversationId = cleanText(character.conversationId);
-    const conversation = conversations[conversationId];
-    const activeBubble = event?.activityType === "chatting" && cleanText(event.conversationId) === conversationId
-      ? conversation?.bubbleQueue?.[0]
-      : null;
+    const conversation = conversations[cleanText(character.conversationId)];
+    const activeBubble = conversation?.bubbleQueue?.[0];
     const bubble = cleanText(activeBubble?.speakerId) === actor.id ? cleanText(activeBubble?.text) : "";
     const point = renderer?.worldToScreen(actor);
     const position = point
       ? { left: `${point.x}px`, top: `${point.y}px` }
       : { left: `${(actor.x / OFFICE_WORLD_SIZE.width) * 100}%`, top: `${(actor.y / OFFICE_WORLD_SIZE.height) * 100}%` };
     const name = cleanText(actor.profile?.name) || cleanText(character.profile?.name) || actor.id;
-    const status = cleanText(event?.status) || cleanText(actor.status) || cleanText(character.status) || "空闲中";
-
-    return [{ id: actor.id, activity: event?.activityType || character.activity || "idle", name, status, bubble, position }];
+    const status = cleanText(actor.status) || cleanText(character.status) || IDLE_STATUS;
+    return [{ id: actor.id, activity: character.activity || "idle", name, status, bubble, position }];
   });
 };
+
+const IDLE_STATUS = "空闲中";
 
 function OfficeActorOverlay({ snapshot, onSelect }) {
   return (
@@ -209,11 +146,21 @@ function OfficeActorOverlay({ snapshot, onSelect }) {
   );
 }
 
-export function OfficeScene({ state = {}, assignments = {}, motionNow, onSlotSelect, onStationSelect, onAssetError }) {
+export function OfficeScene({
+  state = {},
+  assignments = {},
+  sampledWorldActors = {},
+  motionNow,
+  onSlotSelect,
+  onStationSelect,
+}) {
   const [renderer, setRenderer] = useState(null);
   const [rendererError, setRendererError] = useState(null);
   const [, setOverlayRevision] = useState(0);
-  const world = useMemo(() => buildOfficeWorld({ state, assignments, motionNow }), [state, assignments, motionNow]);
+  const world = useMemo(
+    () => buildOfficeWorld({ state, assignments, sampledWorldActors, motionNow }),
+    [state, assignments, sampledWorldActors, motionNow],
+  );
   const onFrame = useCallback(() => setOverlayRevision((revision) => revision + 1), []);
   const onReady = useCallback((nextRenderer) => {
     setRenderer(nextRenderer);

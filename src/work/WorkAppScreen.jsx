@@ -4,11 +4,11 @@ import OfficeActivityPanel from "./OfficeActivityPanel.jsx";
 import OfficeAssignmentFlow from "./OfficeAssignmentFlow.jsx";
 import OfficeScene from "./OfficeScene.jsx";
 import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
-import { createOfficeActivityEvent } from "./officeActivities.js";
 import { requestOfficeActivityDetail } from "./officeActivityApi.js";
+import { getActivityDefinition } from "./officeActivityManifest.js";
 import { requestOfficeConversationTurn } from "./officeConversationApi.js";
-import { claimAnchor, findOfficeRoute } from "./officeNavigation.js";
-import { sampleOfficeRoute } from "./officeMotion.js";
+import { getSceneAnchor } from "./officeSceneManifest.js";
+import { reserveAnchors } from "./officeReservations.js";
 import {
   createOfficeProfileSnapshot,
   normalizeOfficeAssignments,
@@ -26,6 +26,7 @@ import {
   restoreOfficeState,
   serializeOfficeState,
 } from "./officeState.js";
+import { buildWorldRoute, sampleWorldRoute } from "./officeWorld.js";
 import "./office.css";
 
 const OFFICE_STATE_KEY = "ccatOfficeStateV1";
@@ -34,6 +35,7 @@ const SCHEDULE_MIN_MS = 4_000;
 const SCHEDULE_MAX_MS = 8_000;
 const STATE_PERSIST_DEBOUNCE_MS = 1_000;
 const MODE_SCHEDULE_NUDGE_MS = 350;
+const OFFICE_WALK_SPEED = 180;
 export const MAX_CUSTOM_IMAGE_BYTES = 1024 * 1024;
 
 const RADIO_PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
@@ -56,14 +58,6 @@ const SLOT_DETAILS = [
   { id: "employee4", label: "员工四", kind: "employee", defaultChibiId: "employee-m-02" },
 ];
 
-const DESK_ACTIVITIES = new Set([
-  "working",
-  "slacking",
-  "gaming",
-  "reading",
-  "watchingSeries",
-  "watchingShortVideo",
-]);
 const AVAILABLE_PHASES = new Set(["idle", "working"]);
 const MODE_OPTIONS = [
   { id: "focus", label: "认真干活" },
@@ -315,10 +309,67 @@ const getProfileMap = (assignments) => Object.fromEntries(
   OFFICE_SLOT_IDS.map((slotId) => [slotId, assignments[slotId]]),
 );
 
-const getGraphReturnRoute = (slotId, character) => findOfficeRoute(
-  character?.positionNode || character?.reservedAnchorId || `${slotId}-home`,
-  `${slotId}-home`,
+const getCharacterWorldPoint = (character, sampledActor) => {
+  const point = sampledActor && Number.isFinite(sampledActor.x) && Number.isFinite(sampledActor.y)
+    ? sampledActor
+    : { sceneId: character?.sceneId, ...character?.position };
+  return typeof point.sceneId === "string" && Number.isFinite(point.x) && Number.isFinite(point.y)
+    ? { sceneId: point.sceneId, x: point.x, y: point.y }
+    : null;
+};
+
+const getHomeWorldPoint = (slotId) => {
+  const anchor = getSceneAnchor("office", `${slotId}:seat-approach`);
+  return anchor ? { sceneId: "office", x: anchor.x, y: anchor.y } : null;
+};
+
+const hasExactPhysicalEventContract = (event) => (
+  isRecord(event)
+  && cleanText(event.activityId)
+  && cleanText(event.sceneId)
+  && cleanText(event.reservationGroupId)
+  && Array.isArray(event.actorIds)
+  && event.actorIds.length > 0
+  && new Set(event.actorIds).size === event.actorIds.length
+  && Array.isArray(event.targetAnchors)
+  && event.targetAnchors.length === event.actorIds.length
+  && isRecord(event.routesByActor)
+  && event.actorIds.every((slotId) => Array.isArray(event.routesByActor[slotId]) && event.routesByActor[slotId].length > 0)
+  && isRecord(event.propState)
+  && isRecord(event.semanticContext)
+  && Number.isFinite(event.startedAt)
+  && Number.isFinite(event.endsAt)
 );
+
+export function createPhysicalSchedulerRuntime(event, assignments) {
+  if (!hasExactPhysicalEventContract(event) || !isRecord(assignments)) return null;
+  const definition = getActivityDefinition(event.activityId);
+  if (!definition || definition.sceneId !== event.sceneId) return null;
+  if (event.actorIds.some((slotId) => !isRecord(assignments[slotId]))) return null;
+
+  const semanticEvent = {
+    activityId: event.activityId,
+    semanticContext: JSON.parse(JSON.stringify(event.semanticContext)),
+    profileSnapshots: event.actorIds.map((slotId) => createOfficeProfileSnapshot(
+      assignments[slotId].profile,
+      slotId === "boss" ? "me" : "character",
+    )),
+  };
+  const actions = event.actorIds.map((slotId, index) => ({
+    type: "START_WORLD_ROUTE",
+    slotId,
+    activityId: event.activityId,
+    route: event.routesByActor[slotId],
+    targetAnchorId: event.targetAnchors[index],
+    reservationGroupId: event.reservationGroupId,
+    propState: event.propState,
+    semanticContext: event.semanticContext,
+    travelStatus: definition.travelStatus,
+    now: event.startedAt,
+    endsAt: event.endsAt,
+  }));
+  return { event, semanticEvent, actions };
+}
 
 const getDialogFocusableElements = (dialog) => (
   dialog
@@ -336,6 +387,7 @@ export default function WorkAppScreen({ onClose }) {
   const [selectedAssignmentSlotId, setSelectedAssignmentSlotId] = useState("");
   const [activityPanelOpen, setActivityPanelOpen] = useState(false);
   const [motionNow, setMotionNow] = useState(initialContext.now);
+  const [sampledWorldActors, setSampledWorldActors] = useState({});
   const [assignmentErrors, setAssignmentErrors] = useState({});
   const [, setCustomDrafts] = useState(() => Object.fromEntries(
     OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customAssetSrc]),
@@ -346,14 +398,14 @@ export default function WorkAppScreen({ onClose }) {
   const sessionStartedAtRef = useRef(initialContext.now);
   const nextScheduleAtRef = useRef(initialContext.now + getRandomCadence());
   const statePersistTimerRef = useRef(null);
-  const pendingActivitiesRef = useRef(new Map());
+  const pendingPhysicalEventsRef = useRef(new Map());
   const pendingConversationsRef = useRef(new Map());
-  const returningMealPropsRef = useRef(new Map());
   const activityControllersRef = useRef(new Map());
-  const activityCounterRef = useRef(initialContext.initialState.activityEvents?.length || 0);
   const conversationControllersRef = useRef(new Map());
   const conversationRuntimeRef = useRef(new Map());
   const completedRouteKeysRef = useRef(new Set());
+  const routeTransitionKeysRef = useRef(new Set());
+  const sampledWorldActorsRef = useRef({});
   const timestampOriginRef = useRef(Date.now() - (
     typeof performance !== "undefined" ? performance.now() : 0
   ));
@@ -476,60 +528,6 @@ export default function WorkAppScreen({ onClose }) {
     conversationRuntimeRef.current.delete(conversationId);
   }, []);
 
-  const completeActivityEvents = useCallback((slotIds, endedAt = Date.now()) => {
-    for (const slotId of new Set(slotIds)) {
-      const eventId = stateRef.current.activeEventBySlot?.[slotId];
-      if (!eventId) continue;
-      dispatchOffice({ type: "COMPLETE_ACTIVITY_EVENT", eventId, endedAt });
-    }
-  }, [dispatchOffice]);
-
-  const createActivityRuntime = useCallback((event) => {
-    const actorId = event.slotId || event.leaderId || event.memberIds?.[0];
-    if (!actorId || !assignmentsRef.current[actorId]) return null;
-    const participantIds = event.memberIds || [actorId];
-    const now = Number.isFinite(event.now) ? event.now : Date.now();
-    completeActivityEvents(participantIds, now);
-
-    const activityEvent = createOfficeActivityEvent({
-      eventId: `activity-${stateRef.current.workSessionId}-${activityCounterRef.current++}`,
-      workSessionId: stateRef.current.workSessionId,
-      actorId,
-      participantIds,
-      profileSnapshots: participantIds.map((slotId) => (
-        createOfficeProfileSnapshot(
-          assignmentsRef.current[slotId]?.profile,
-          slotId === "boss" ? "me" : "character",
-        )
-      )),
-      activityType: event.activity,
-      propVariant: event.meal || event.propVariant || "",
-      startedAt: now,
-      requestSequence: 1,
-      conversationId: event.session?.id || "",
-      conversationTopic: event.session?.topic || "",
-    });
-    dispatchOffice({ type: "CREATE_ACTIVITY_EVENT", event: activityEvent });
-
-    const controller = new AbortController();
-    activityControllersRef.current.set(activityEvent.eventId, controller);
-    requestOfficeActivityDetail({
-      event: activityEvent,
-      signal: controller.signal,
-      storage: initialContext.storage,
-    }).then((detail) => {
-      if (!isMountedRef.current) return;
-      if (activityControllersRef.current.get(activityEvent.eventId) !== controller) return;
-      dispatchOffice({ type: "ENRICH_ACTIVITY_EVENT", detail });
-    }).finally(() => {
-      if (activityControllersRef.current.get(activityEvent.eventId) === controller) {
-        activityControllersRef.current.delete(activityEvent.eventId);
-      }
-    });
-
-    return activityEvent;
-  }, [completeActivityEvents, dispatchOffice, initialContext.storage]);
-
   const closeConversation = useCallback((conversationId) => {
     const snapshot = stateRef.current;
     const conversation = snapshot.conversations?.[conversationId];
@@ -537,159 +535,86 @@ export default function WorkAppScreen({ onClose }) {
 
     const returnRoutes = {};
     for (const slotId of conversation.memberIds) {
-      const route = getGraphReturnRoute(slotId, snapshot.characters?.[slotId]);
+      const character = snapshot.characters?.[slotId];
+      const from = getCharacterWorldPoint(character, sampledWorldActorsRef.current[slotId]);
+      const to = getHomeWorldPoint(slotId);
+      const route = buildWorldRoute({ from, to });
       if (route.length) returnRoutes[slotId] = route;
     }
 
-    completeActivityEvents(conversation.memberIds, Date.now());
     stopConversationRuntime(conversationId);
     dispatchOffice({
       type: "CLOSE_CONVERSATION",
       conversationId,
       returnRoutes,
+      now: Date.now(),
     });
-  }, [completeActivityEvents, dispatchOffice, stopConversationRuntime]);
+  }, [dispatchOffice, stopConversationRuntime]);
 
-  const startConversationWalk = useCallback((event) => {
-    pendingConversationsRef.current.set(event.session.id, {
-      memberIds: [...event.memberIds],
-      session: event.session,
-    });
-    dispatchOffice({ type: "SET_RESERVATIONS", reservations: event.reservations });
-
-    for (const slotId of event.memberIds) {
+  const createActivityRuntime = useCallback((runtime) => {
+    const eventId = cleanText(runtime?.semanticEvent?.semanticContext?.eventId);
+    if (!eventId) return;
+    const previous = activityControllersRef.current.get(eventId);
+    previous?.abort();
+    const controller = new AbortController();
+    activityControllersRef.current.set(eventId, controller);
+    requestOfficeActivityDetail({
+      event: runtime.semanticEvent,
+      signal: controller.signal,
+      storage: initialContext.storage,
+    }).then((detail) => {
+      if (!isMountedRef.current || activityControllersRef.current.get(eventId) !== controller) return;
       dispatchOffice({
-        type: "START_ACTIVITY",
-        slotId,
-        activity: "chatting",
-        anchorId: event.anchorId,
-        route: event.routesByMember[slotId],
-        now: event.now,
+        type: "SET_ACTIVITY_SEMANTICS",
+        actorIds: runtime.event.actorIds,
+        eventId,
+        detail,
       });
-    }
-  }, [dispatchOffice]);
-
-  const startDeskActivity = useCallback((event) => {
-    const snapshot = stateRef.current;
-    const character = snapshot.characters?.[event.slotId];
-    if (!character) return;
-    const duration = event.activity === "working"
-      ? 12_000 + Math.floor(Math.random() * 6_000)
-      : 9_000 + Math.floor(Math.random() * 5_000);
-    const activityProps = {
-      ...(event.propVariant ? { propVariant: event.propVariant } : {}),
-    };
-
-    dispatchOffice({
-      type: "START_ACTIVITY",
-      slotId: event.slotId,
-      activity: event.activity,
-      anchorId: character.homeNode,
-      route: [character.homeNode],
-      now: event.now,
+    }).finally(() => {
+      if (activityControllersRef.current.get(eventId) === controller) activityControllersRef.current.delete(eventId);
     });
-    dispatchOffice({
-      type: "ARRIVE_ACTIVITY",
-      slotId: event.slotId,
-      now: event.now,
-      endsAt: event.now + duration,
-      ...activityProps,
-    });
-  }, [dispatchOffice]);
+  }, [dispatchOffice, initialContext.storage]);
 
-  const applyScheduledEvent = useCallback((event) => {
-    if (!event) return;
-    createActivityRuntime(event);
-    if (event.activity === "chatting") {
-      startConversationWalk(event);
-      return;
-    }
-    if (event.activity === "eating") {
-      pendingActivitiesRef.current.set(event.slotId, { meal: event.meal });
-      dispatchOffice({ type: "SET_RESERVATIONS", reservations: event.reservations });
-      dispatchOffice({
-        type: "START_ACTIVITY",
-        slotId: event.slotId,
-        activity: "eating",
-        anchorId: event.anchorId,
-        route: event.route,
-        now: event.now,
+  const applyScheduledEvent = useCallback((event, reservations) => {
+    const runtime = createPhysicalSchedulerRuntime(event, assignmentsRef.current);
+    if (!runtime) return false;
+    dispatchOffice({ type: "SET_RESERVATIONS", reservations });
+    pendingPhysicalEventsRef.current.set(event.reservationGroupId, event);
+    createActivityRuntime(runtime);
+
+    if (event.activityId === "chatting") {
+      const session = buildConversationSession({
+        memberIds: event.actorIds,
+        anchorId: event.targetAnchors[0],
+        now: event.startedAt,
+        random: Math.random,
       });
-      return;
+      if (session) {
+        session.reservationGroupId = event.reservationGroupId;
+        session.sceneId = event.sceneId;
+        session.targetAnchorIds = [...event.targetAnchors];
+        pendingConversationsRef.current.set(session.id, { memberIds: [...event.actorIds], session });
+      }
     }
-    if (DESK_ACTIVITIES.has(event.activity)) startDeskActivity(event);
-  }, [createActivityRuntime, dispatchOffice, startConversationWalk, startDeskActivity]);
+
+    for (const action of runtime.actions) dispatchOffice(action);
+    return true;
+  }, [createActivityRuntime, dispatchOffice]);
 
   const runScheduleAttempt = useCallback((now) => {
+    const snapshot = stateRef.current;
+    const schedulerState = {
+      ...snapshot,
+      reservations: JSON.parse(JSON.stringify(snapshot.reservations || {})),
+    };
     const event = chooseOfficeEvent({
-      state: stateRef.current,
+      state: schedulerState,
       profiles: getProfileMap(assignmentsRef.current),
       random: Math.random,
       now,
     });
-    applyScheduledEvent(event);
+    if (event) applyScheduledEvent(event, schedulerState.reservations);
   }, [applyScheduledEvent]);
-
-  const routeSamples = useMemo(() => Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => {
-    const character = state.characters?.[slotId];
-    if (!character || !["walkingToActivity", "returning"].includes(character.phase)) {
-      return [slotId, null];
-    }
-    return [slotId, sampleOfficeRoute({
-      route: character.route,
-      startedAt: character.routeStartedAt,
-      now: motionNow,
-    })];
-  })), [motionNow, state.characters]);
-
-  useEffect(() => {
-    const activeRouteKeys = new Set();
-
-    for (const slotId of OFFICE_SLOT_IDS) {
-      const character = state.characters?.[slotId];
-      const sample = routeSamples[slotId];
-      if (!character || !sample) continue;
-      const routeKey = `${slotId}:${character.routeStartedAt}`;
-      activeRouteKeys.add(routeKey);
-      if (!sample.done || completedRouteKeysRef.current.has(routeKey)) continue;
-      completedRouteKeysRef.current.add(routeKey);
-
-      const completion = { type: "COMPLETE_ROUTE", slotId, now: motionNow };
-      if (character.phase === "returning") {
-        returningMealPropsRef.current.delete(slotId);
-      } else if (character.activity === "eating") {
-        const pending = pendingActivitiesRef.current.get(slotId) || {};
-        pendingActivitiesRef.current.delete(slotId);
-        completion.endsAt = motionNow + 12_000 + Math.floor(Math.random() * 5_000);
-        completion.meal = pending.meal || "bento";
-      } else if (character.activity === "chatting") {
-        const pending = [...pendingConversationsRef.current.values()]
-          .find((entry) => entry.memberIds.includes(slotId));
-        completion.endsAt = pending?.session.endsAt || motionNow + 45_000;
-      }
-      dispatchOffice(completion);
-    }
-
-    for (const routeKey of completedRouteKeysRef.current) {
-      if (!activeRouteKeys.has(routeKey)) completedRouteKeysRef.current.delete(routeKey);
-    }
-
-    for (const [conversationId, pending] of pendingConversationsRef.current) {
-      const current = stateRef.current;
-      const allArrived = pending.memberIds.every((slotId) => {
-        const character = current.characters?.[slotId];
-        return character
-          && character.phase === "chatting"
-          && character.positionNode === pending.session.anchorId
-          && !character.conversationId;
-      });
-      if (!allArrived) continue;
-      dispatchOffice({ type: "OPEN_CONVERSATION", session: pending.session });
-      if (stateRef.current.conversations?.[conversationId]) {
-        pendingConversationsRef.current.delete(conversationId);
-      }
-    }
-  }, [dispatchOffice, motionNow, routeSamples, state.characters]);
 
   const resolveExpiredActivities = useCallback((now) => {
     const snapshot = stateRef.current;
@@ -701,23 +626,13 @@ export default function WorkAppScreen({ onClose }) {
     for (const slotId of OFFICE_SLOT_IDS) {
       const character = stateRef.current.characters?.[slotId];
       if (!character?.activityEndsAt || character.activityEndsAt > now) continue;
-
-      if (character.phase === "eating" && character.activity === "eating") {
-        const route = getGraphReturnRoute(slotId, character);
-        if (!route.length) continue;
-        completeActivityEvents([slotId], now);
-        returningMealPropsRef.current.set(slotId, character.props);
-        dispatchOffice({ type: "START_RETURN", slotId, route, now });
-        continue;
-      }
-
-      if (DESK_ACTIVITIES.has(character.activity)
-        && character.positionNode === character.homeNode) {
-        completeActivityEvents([slotId], now);
-        dispatchOffice({ type: "FINISH_RETURN", slotId });
-      }
+      if (["walkingToActivity", "returning"].includes(character.phase) || character.conversationId) continue;
+      const from = getCharacterWorldPoint(character, sampledWorldActorsRef.current[slotId]);
+      const to = getHomeWorldPoint(slotId);
+      const route = buildWorldRoute({ from, to });
+      if (route.length) dispatchOffice({ type: "START_RETURN", slotId, route, position: from, now });
     }
-  }, [closeConversation, completeActivityEvents, dispatchOffice]);
+  }, [closeConversation, dispatchOffice]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -736,12 +651,94 @@ export default function WorkAppScreen({ onClose }) {
   useEffect(() => {
     let frameId = 0;
     const frame = (timestamp) => {
-      setMotionNow(timestampOriginRef.current + timestamp);
+      const now = timestampOriginRef.current + timestamp;
+      const sampledActors = {};
+      const activeRouteKeys = new Set();
+
+      for (const slotId of OFFICE_SLOT_IDS) {
+        const character = stateRef.current.characters?.[slotId];
+        if (!character || !["walkingToActivity", "returning"].includes(character.phase) || !character.route.length) continue;
+        const sample = sampleWorldRoute({
+          route: character.route,
+          startedAt: character.routeStartedAt,
+          now,
+          speed: OFFICE_WALK_SPEED,
+        });
+        sampledActors[slotId] = sample;
+        const routeKey = `${slotId}:${character.routeStartedAt}:${character.phase}`;
+        activeRouteKeys.add(routeKey);
+
+        if (sample.sceneId && sample.sceneId !== character.sceneId) {
+          const transition = character.route.find((entry) => (
+            entry?.transition === true
+            && entry.from?.sceneId === character.sceneId
+            && entry.to?.sceneId === sample.sceneId
+          ));
+          const transitionKey = `${routeKey}:door:${transition?.from?.sceneId}:${transition?.to?.sceneId}`;
+          if (transition && !routeTransitionKeysRef.current.has(transitionKey)) {
+            routeTransitionKeysRef.current.add(transitionKey);
+            dispatchOffice({
+              type: "CROSS_SCENE_DOOR",
+              slotId,
+              transition,
+              position: sample,
+              segmentIndex: sample.segmentIndex,
+            });
+          }
+        } else if (!sample.done && sample.segmentIndex > character.routeSegmentIndex) {
+          const segmentKey = `${routeKey}:segment:${sample.segmentIndex}`;
+          if (!routeTransitionKeysRef.current.has(segmentKey)) {
+            routeTransitionKeysRef.current.add(segmentKey);
+            dispatchOffice({
+              type: "ADVANCE_WORLD_ROUTE",
+              slotId,
+              position: sample,
+              segmentIndex: sample.segmentIndex,
+            });
+          }
+        }
+
+        if (!sample.done || completedRouteKeysRef.current.has(routeKey)) continue;
+        completedRouteKeysRef.current.add(routeKey);
+        const current = stateRef.current.characters?.[slotId];
+        if (current?.phase === "returning") {
+          dispatchOffice({ type: "FINISH_RETURN", slotId, position: sample, now });
+        } else if (current?.phase === "walkingToActivity") {
+          dispatchOffice({ type: "ARRIVE_ACTIVITY", slotId, position: sample, now });
+        }
+      }
+
+      sampledWorldActorsRef.current = sampledActors;
+      setSampledWorldActors(sampledActors);
+      setMotionNow(now);
+
+      for (const routeKey of completedRouteKeysRef.current) {
+        if (!activeRouteKeys.has(routeKey)) completedRouteKeysRef.current.delete(routeKey);
+      }
+      for (const transitionKey of routeTransitionKeysRef.current) {
+        if (![...activeRouteKeys].some((routeKey) => transitionKey.startsWith(routeKey))) {
+          routeTransitionKeysRef.current.delete(transitionKey);
+        }
+      }
+      for (const [conversationId, pending] of pendingConversationsRef.current) {
+        const allArrived = pending.memberIds.every((slotId) => {
+          const character = stateRef.current.characters?.[slotId];
+          return character?.phase === "chatting" && !character.conversationId;
+        });
+        if (!allArrived) continue;
+        dispatchOffice({ type: "OPEN_CONVERSATION", session: pending.session });
+        if (stateRef.current.conversations?.[conversationId]) pendingConversationsRef.current.delete(conversationId);
+      }
+      for (const [groupId, event] of pendingPhysicalEventsRef.current) {
+        const allSettled = event.actorIds.every((slotId) => stateRef.current.characters?.[slotId]?.phase !== "walkingToActivity");
+        if (allSettled) pendingPhysicalEventsRef.current.delete(groupId);
+      }
+
       frameId = window.requestAnimationFrame(frame);
     };
     frameId = window.requestAnimationFrame(frame);
     return () => window.cancelAnimationFrame(frameId);
-  }, []);
+  }, [dispatchOffice]);
 
   useEffect(() => {
     if (statePersistTimerRef.current) return;
@@ -1085,37 +1082,52 @@ export default function WorkAppScreen({ onClose }) {
 
   const handleMeeting = useCallback(() => {
     const snapshot = stateRef.current;
-    const memberIds = getAvailableCharacterIds(snapshot).slice(0, 5);
+    const memberIds = getAvailableCharacterIds(snapshot).slice(0, 3);
     if (memberIds.length < 2) return;
 
-    const leaderId = memberIds[0];
-    const reservations = claimAnchor(snapshot.reservations, "meeting-1", leaderId);
-    if (!reservations) return;
-    const routesByMember = Object.fromEntries(memberIds.map((slotId) => [
-      slotId,
-      findOfficeRoute(snapshot.characters[slotId].positionNode, "meeting-1"),
-    ]));
-    if (Object.values(routesByMember).some((route) => !route.length)) return;
-
     const now = Date.now();
-    const session = buildConversationSession({
-      memberIds,
-      anchorId: "meeting-1",
+    const leaderId = memberIds[0];
+    const targetAnchors = memberIds.map((_, index) => `whiteboard:${index + 1}`);
+    const reservationGroupId = `office-chatting-${now}-${memberIds.join("-")}`;
+    const endsAt = now + 45_000;
+    const reservations = reserveAnchors(snapshot.reservations, {
+      sceneId: "office",
+      reservationGroupId,
+      slotId: leaderId,
+      anchorIds: targetAnchors,
       now,
-      random: Math.random,
+      expiresAt: endsAt,
     });
-    if (!session) return;
+    if (!reservations) return;
+    const routesByActor = Object.fromEntries(memberIds.map((slotId, index) => {
+      const from = getCharacterWorldPoint(snapshot.characters[slotId], sampledWorldActorsRef.current[slotId]);
+      const to = getSceneAnchor("office", targetAnchors[index]);
+      return [slotId, buildWorldRoute({ from, to: to && { sceneId: "office", x: to.x, y: to.y } })];
+    }));
+    if (Object.values(routesByActor).some((route) => !route.length)) return;
+    const definition = getActivityDefinition("chatting");
 
     applyScheduledEvent({
-      activity: "chatting",
-      anchorId: "meeting-1",
-      leaderId,
-      memberIds,
-      now,
-      reservations,
-      routesByMember,
-      session,
-    });
+      activityId: "chatting",
+      actorIds: memberIds,
+      sceneId: "office",
+      targetAnchors,
+      reservationGroupId,
+      routesByActor,
+      propState: {
+        category: definition.propState.category,
+        variant: "project",
+        actorRoles: Object.fromEntries(memberIds.map((slotId, index) => [slotId, index === 0 ? "host" : "visitor"])),
+      },
+      semanticContext: {
+        eventId: reservationGroupId,
+        activityId: "chatting",
+        status: definition.status,
+        semanticFallback: { ...definition.semanticFallback },
+      },
+      startedAt: now,
+      endsAt,
+    }, reservations);
   }, [applyScheduledEvent]);
 
   const occupiedProfiles = useMemo(() => {
@@ -1131,21 +1143,16 @@ export default function WorkAppScreen({ onClose }) {
 
   const remainingMs = getRemainingMs(state, state.now);
   const availableMeetingMembers = getAvailableCharacterIds(state).length;
+  const meetingReserved = ["whiteboard:1", "whiteboard:2", "whiteboard:3"]
+    .some((anchorId) => Boolean(state.reservations?.[anchorId]));
   const assignmentView = selectedAssignmentSlotId ? "selection" : "overview";
   const panelOpen = assignmentPanelOpen || activityPanelOpen;
-  const sceneState = useMemo(() => ({
-    ...state,
-    characters: Object.fromEntries(OFFICE_SLOT_IDS.map((slotId) => {
-      const character = state.characters[slotId];
-      const returningMealProps = returningMealPropsRef.current.get(slotId);
-      return [slotId, {
-        ...character,
-        props: returningMealProps && character.phase === "returning"
-          ? returningMealProps
-          : character.props,
-      }];
-    })),
-  }), [state]);
+  const handleVisibleSceneChange = useCallback(() => {
+    dispatchOffice({
+      type: "SET_VISIBLE_SCENE",
+      sceneId: stateRef.current.visibleSceneId === "office" ? "lounge" : "office",
+    });
+  }, [dispatchOffice]);
 
   return (
     <main className="work-app-screen">
@@ -1210,7 +1217,7 @@ export default function WorkAppScreen({ onClose }) {
         <button
           type="button"
           className="work-meeting-command"
-          disabled={availableMeetingMembers < 2 || Boolean(state.reservations?.["meeting-1"])}
+          disabled={availableMeetingMembers < 2 || meetingReserved}
           aria-label="开会"
           title={availableMeetingMembers < 2 ? "当前可用成员不足" : "开会"}
           onClick={handleMeeting}
@@ -1225,11 +1232,12 @@ export default function WorkAppScreen({ onClose }) {
         inert={panelOpen}
       >
         <OfficeScene
-          state={sceneState}
+          state={state}
           assignments={assignments}
+          sampledWorldActors={sampledWorldActors}
           motionNow={motionNow}
           onSlotSelect={openAssignmentPanel}
-          onAssetError={onAssetError}
+          onStationSelect={handleVisibleSceneChange}
         />
       </div>
 
@@ -1263,7 +1271,7 @@ export default function WorkAppScreen({ onClose }) {
 
       <OfficeActivityPanel
         open={activityPanelOpen}
-        events={state.activityEvents}
+        events={[]}
         workSessionId={state.workSessionId}
         assignments={assignments}
         onClose={() => setActivityPanelOpen(false)}
