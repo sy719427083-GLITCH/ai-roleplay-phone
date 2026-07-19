@@ -63,6 +63,90 @@ async function decodeImageDimensions(page, dataUrl) {
   }, dataUrl);
 }
 
+export function analyzeFurnitureLikeComponents({ alpha, width, height, alphaThreshold = 32 }) {
+  const visited = new Uint8Array(width * height);
+  const components = [];
+  const neighborOffsets = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+  ];
+
+  for (let start = 0; start < alpha.length; start += 1) {
+    if (visited[start] || alpha[start] <= alphaThreshold) continue;
+    const pending = [start];
+    visited[start] = 1;
+    let area = 0;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    const rows = new Map();
+
+    while (pending.length > 0) {
+      const index = pending.pop();
+      const x = index % width;
+      const y = Math.floor(index / width);
+      area += 1;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+      const row = rows.get(y) || { minX: width, maxX: -1, count: 0 };
+      row.minX = Math.min(row.minX, x);
+      row.maxX = Math.max(row.maxX, x);
+      row.count += 1;
+      rows.set(y, row);
+
+      for (const [offsetX, offsetY] of neighborOffsets) {
+        const nextX = x + offsetX;
+        const nextY = y + offsetY;
+        if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+        const next = (nextY * width) + nextX;
+        if (visited[next] || alpha[next] <= alphaThreshold) continue;
+        visited[next] = 1;
+        pending.push(next);
+      }
+    }
+
+    const componentWidth = maxX - minX + 1;
+    const componentHeight = maxY - minY + 1;
+    const density = area / (componentWidth * componentHeight);
+    const rowStats = [...rows.values()];
+    const coreRows = rowStats.filter(({ count }) => count >= componentWidth * 0.7);
+    const leftEdges = coreRows.map(({ minX: edge }) => edge);
+    const rightEdges = coreRows.map(({ maxX: edge }) => edge);
+    const rowWidths = coreRows.map(({ minX: left, maxX: right }) => right - left + 1);
+    const spread = (values) => values.length > 0 ? Math.max(...values) - Math.min(...values) : Infinity;
+    const rowFill = coreRows.length > 0
+      ? coreRows.reduce((total, row) => total + (row.count / (row.maxX - row.minX + 1)), 0) / coreRows.length
+      : 0;
+    const broad = componentWidth >= width * 0.6;
+    const sufficientlyTall = componentHeight >= height * 0.16;
+    const dense = density >= 0.78;
+    const stableEdges = spread(leftEdges) <= componentWidth * 0.06
+      && spread(rightEdges) <= componentWidth * 0.06;
+    const stableWidth = spread(rowWidths) <= componentWidth * 0.12;
+    const rectangularRows = coreRows.length >= componentHeight * 0.75 && rowFill >= 0.9;
+    const furnitureLike = broad && sufficientlyTall && dense && stableEdges && stableWidth && rectangularRows;
+    components.push({
+      area,
+      bounds: { minX, minY, maxX, maxY, width: componentWidth, height: componentHeight },
+      density,
+      coreRows: coreRows.length,
+      rowFill,
+      stableEdges,
+      stableWidth,
+      furnitureLike,
+    });
+  }
+
+  return {
+    furnitureLike: components.some((component) => component.furnitureLike),
+    components,
+  };
+}
+
 export async function writeValidatedWebPDataUrl(file, dataUrl, { expectedWidth, expectedHeight, page } = {}) {
   const buffer = decodeWebPDataUrl(dataUrl);
   if (!page) throw new Error("A browser page is required to validate encoded WebP dimensions");
@@ -95,7 +179,16 @@ export async function writeValidatedWebPDataUrl(file, dataUrl, { expectedWidth, 
 }
 
 export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "character strip" }) {
-  return page.evaluate(async ({ source, metadata, label, alphaThreshold, populatedThreshold, padding }) => {
+  return page.evaluate(async ({
+    source,
+    metadata,
+    label,
+    alphaThreshold,
+    populatedThreshold,
+    padding,
+    furnitureAnalyzerSource,
+  }) => {
+    const analyzeFurniture = Function(`return (${furnitureAnalyzerSource})`)();
     const image = new Image();
     image.src = source;
     await image.decode();
@@ -127,11 +220,12 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
         let minY = metadata.cellSize;
         let maxX = -1;
         let maxY = -1;
-        const rowCoverage = new Array(metadata.cellSize).fill(0);
+        const frameAlpha = new Uint8Array(metadata.cellSize * metadata.cellSize);
 
         for (let y = 0; y < metadata.cellSize; y += 1) {
           for (let x = 0; x < metadata.cellSize; x += 1) {
             const alpha = pixels[(((originY + y) * canvas.width) + originX + x) * 4 + 3];
+            frameAlpha[(y * metadata.cellSize) + x] = alpha;
             if (alpha <= alphaThreshold) transparent += 1;
             if (alpha > alphaThreshold) {
               minX = Math.min(minX, x);
@@ -144,17 +238,19 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
             }
             if (alpha > populatedThreshold) {
               useful += 1;
-              rowCoverage[y] += 1;
             }
           }
         }
 
         if (useful < 64) emptyFrames.push(frameIndex);
         if (gutterOpaque > 0) gutterViolations.push(frameIndex);
-        const usableWidth = metadata.cellSize - (padding * 2);
-        const fullWidthRows = rowCoverage.filter((count) => count >= usableWidth * 0.82).length;
-        const rectangularRows = rowCoverage.filter((count) => count >= usableWidth * 0.62).length;
-        const furnitureLike = fullWidthRows >= 8 || rectangularRows >= 36;
+        const furnitureDiagnostic = analyzeFurniture({
+          alpha: frameAlpha,
+          width: metadata.cellSize,
+          height: metadata.cellSize,
+          alphaThreshold: populatedThreshold,
+        });
+        const furnitureLike = furnitureDiagnostic.furnitureLike;
         if (furnitureLike) furnitureLikeFrames.push(frameIndex);
 
         let footMinX = metadata.cellSize;
@@ -176,6 +272,7 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
           transparentPixels: transparent,
           gutterOpaque,
           furnitureLike,
+          furnitureDiagnostic,
           footAnchor: {
             x: footMaxX >= footMinX ? Math.round((footMinX + footMaxX) / 2) : null,
             y: maxY >= 0 ? maxY : null,
@@ -198,6 +295,7 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
     alphaThreshold: ALPHA_THRESHOLD,
     populatedThreshold: POPULATED_ALPHA_THRESHOLD,
     padding: OFFICE_V2_CHARACTER_CONTRACT.normalization.transparentEdgePadding,
+    furnitureAnalyzerSource: analyzeFurnitureLikeComponents.toString(),
   });
 }
 
@@ -408,30 +506,86 @@ async function collectCharacterSourceInventory(sourceRoot, cohort) {
   return { characterIds, sources, missing, duplicates };
 }
 
-async function replaceCohortDirectories({ outputRoot, stageRoot, backupRoot, characterIds }) {
-  await mkdir(outputRoot, { recursive: true });
-  await mkdir(backupRoot, { recursive: true });
+const DEFAULT_INSTALL_FILE_SYSTEM = Object.freeze({ existsSync, mkdir, rename, rm });
+
+function describeErrors(errors) {
+  return errors.map((error) => error?.message || String(error)).join("; ");
+}
+
+export async function installCharacterCohort({
+  outputRoot,
+  stageRoot,
+  backupRoot,
+  characterIds,
+  fileSystem: overrides = {},
+}) {
+  const fileSystem = { ...DEFAULT_INSTALL_FILE_SYSTEM, ...overrides };
+  await fileSystem.mkdir(outputRoot, { recursive: true });
+  await fileSystem.mkdir(backupRoot, { recursive: true });
   const backedUp = [];
   const installed = [];
   try {
     for (const characterId of characterIds) {
       const destination = path.join(outputRoot, characterId);
-      if (!existsSync(destination)) continue;
-      await rename(destination, path.join(backupRoot, characterId));
+      if (!fileSystem.existsSync(destination)) continue;
+      await fileSystem.rename(destination, path.join(backupRoot, characterId));
       backedUp.push(characterId);
     }
     for (const characterId of characterIds) {
-      await rename(path.join(stageRoot, characterId), path.join(outputRoot, characterId));
+      await fileSystem.rename(path.join(stageRoot, characterId), path.join(outputRoot, characterId));
       installed.push(characterId);
     }
+  } catch (installationError) {
+    const rollbackErrors = [installationError];
+    for (const characterId of [...installed].reverse()) {
+      try {
+        await fileSystem.rm(path.join(outputRoot, characterId), { recursive: true, force: true });
+      } catch (error) {
+        rollbackErrors.push(new Error(`Could not remove installed ${characterId}: ${error.message}`, { cause: error }));
+      }
+    }
+    for (const characterId of [...backedUp].reverse()) {
+      try {
+        await fileSystem.rename(path.join(backupRoot, characterId), path.join(outputRoot, characterId));
+      } catch (error) {
+        rollbackErrors.push(new Error(`Could not restore original ${characterId}: ${error.message}`, { cause: error }));
+      }
+    }
+
+    const unrestored = backedUp.filter((characterId) => (
+      fileSystem.existsSync(path.join(backupRoot, characterId))
+      || !fileSystem.existsSync(path.join(outputRoot, characterId))
+    ));
+    if (unrestored.length > 0) {
+      rollbackErrors.push(new Error(`Unrestored original character directories: ${unrestored.join(", ")}`));
+      throw new AggregateError(
+        rollbackErrors,
+        `Character cohort installation rollback failed; backup retained at ${backupRoot}: ${describeErrors(rollbackErrors)}`,
+      );
+    }
+
+    try {
+      await fileSystem.rm(backupRoot, { recursive: true, force: true });
+    } catch (error) {
+      rollbackErrors.push(new Error(`Could not clean restored backup root: ${error.message}`, { cause: error }));
+      throw new AggregateError(
+        rollbackErrors,
+        `Character cohort installation rollback cleanup failed; backup retained at ${backupRoot}: ${describeErrors(rollbackErrors)}`,
+      );
+    }
+    throw new AggregateError(
+      rollbackErrors,
+      `Character cohort installation failed: ${describeErrors(rollbackErrors)}; rollback restored all originals`,
+    );
+  }
+
+  try {
+    await fileSystem.rm(backupRoot, { recursive: true, force: true });
   } catch (error) {
-    for (const characterId of installed.reverse()) {
-      await rm(path.join(outputRoot, characterId), { recursive: true, force: true });
-    }
-    for (const characterId of backedUp.reverse()) {
-      await rename(path.join(backupRoot, characterId), path.join(outputRoot, characterId));
-    }
-    throw error;
+    throw new AggregateError(
+      [error],
+      `Character cohort installation committed, but backup cleanup failed; backup retained at ${backupRoot}: ${error.message}`,
+    );
   }
 }
 
@@ -486,7 +640,7 @@ export async function normalizeCharacterCohort({
         hashes.set(hash, clipId);
       }
     }
-    await replaceCohortDirectories({
+    await installCharacterCohort({
       outputRoot,
       stageRoot,
       backupRoot,
@@ -497,7 +651,6 @@ export async function normalizeCharacterCohort({
       if (browser) await browser.close();
     } finally {
       await rm(stageRoot, { recursive: true, force: true });
-      await rm(backupRoot, { recursive: true, force: true });
     }
   }
   return { cohort, characters: inventory.characterIds.length, clipsPerCharacter: OFFICE_CLIP_IDS.length };

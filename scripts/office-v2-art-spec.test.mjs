@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -93,6 +95,62 @@ test("normalizer rejects source and output overlap in either direction", () => {
       /source and output directories must not overlap/,
       sourceArg,
     );
+  }
+});
+
+test("normalizer rejects source symlinks into both allowed output roots without deleting markers", async () => {
+  const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "office-v2-symlink-source-"));
+  const fixturePublicRoot = path.join(fixtureRoot, "public", "work-office-v2");
+  const characterRoot = path.join(fixturePublicRoot, "characters");
+  const environmentMarker = path.join(fixturePublicRoot, "environment-marker.txt");
+  const characterMarker = path.join(characterRoot, "character-marker.txt");
+  try {
+    await mkdir(characterRoot, { recursive: true });
+    await mkdir(path.join(fixtureRoot, "tmp"), { recursive: true });
+    await writeFile(environmentMarker, "keep environment");
+    await writeFile(characterMarker, "keep characters");
+    await symlink(fixturePublicRoot, path.join(fixtureRoot, "tmp", "environment-source"));
+    await symlink(characterRoot, path.join(fixtureRoot, "tmp", "boss-f"));
+
+    assert.throws(() => resolveOfficeV2ArtPaths({
+      repoRoot: fixtureRoot,
+      cwd: fixtureRoot,
+      sourceArg: "tmp/environment-source",
+      outputArg: "public/work-office-v2",
+    }), /source and output directories must not overlap/i);
+    assert.throws(() => resolveOfficeV2ArtPaths({
+      repoRoot: fixtureRoot,
+      cwd: fixtureRoot,
+      sourceArg: "tmp/boss-f",
+      outputArg: "public/work-office-v2/characters",
+    }), /source and output directories must not overlap/i);
+
+    assert.equal(await readFile(environmentMarker, "utf8"), "keep environment");
+    assert.equal(await readFile(characterMarker, "utf8"), "keep characters");
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("normalizer rejects an allowed lexical output alias that resolves into its source", async () => {
+  const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "office-v2-symlink-output-"));
+  const sourceRoot = path.join(fixtureRoot, "source", "boss-f");
+  const marker = path.join(sourceRoot, "source-marker.txt");
+  try {
+    await mkdir(path.join(fixtureRoot, "public"), { recursive: true });
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(marker, "keep source");
+    await symlink(sourceRoot, path.join(fixtureRoot, "public", "work-office-v2"));
+
+    assert.throws(() => resolveOfficeV2ArtPaths({
+      repoRoot: fixtureRoot,
+      cwd: fixtureRoot,
+      sourceArg: "source/boss-f",
+      outputArg: "public/work-office-v2/characters",
+    }), /source and output directories must not overlap/i);
+    assert.equal(await readFile(marker, "utf8"), "keep source");
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
   }
 });
 

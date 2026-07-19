@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -19,6 +19,28 @@ import { OFFICE_CLIP_IDS, OFFICE_CLIP_METADATA } from "../src/work/pixi/officeCh
 
 const ACTION = OFFICE_CLIP_METADATA["idle-standing"];
 const LOCOMOTION = OFFICE_CLIP_METADATA.locomotion;
+const INSTALL_CHARACTER_IDS = ["boss-f-01", "boss-f-02", "boss-f-03", "boss-f-04"];
+
+async function makeInstallFixture() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "office-v2-install-"));
+  const outputRoot = path.join(root, "characters");
+  const stageRoot = path.join(root, "stage");
+  const backupRoot = path.join(root, "backup");
+  for (const characterId of INSTALL_CHARACTER_IDS) {
+    await mkdir(path.join(outputRoot, characterId), { recursive: true });
+    await mkdir(path.join(stageRoot, characterId), { recursive: true });
+    await writeFile(path.join(outputRoot, characterId, "identity.txt"), `original:${characterId}`);
+    await writeFile(path.join(stageRoot, characterId, "identity.txt"), `new:${characterId}`);
+  }
+  return { root, outputRoot, stageRoot, backupRoot };
+}
+
+async function assertOriginalAt(directory, characterId) {
+  assert.equal(
+    await readFile(path.join(directory, characterId, "identity.txt"), "utf8"),
+    `original:${characterId}`,
+  );
+}
 
 async function makeMaster(page, metadata, { furniture = false } = {}) {
   return page.evaluate(({ columns, rows, furniture }) => {
@@ -46,6 +68,73 @@ async function makeMaster(page, metadata, { furniture = false } = {}) {
     }
     return canvas.toDataURL("image/png");
   }, { columns: metadata.columns, rows: metadata.rows, furniture });
+}
+
+async function makeBodyShapeMaster(page, metadata, shape) {
+  return page.evaluate(({ columns, rows, shape }) => {
+    const cell = 512;
+    const canvas = document.createElement("canvas");
+    canvas.width = columns * cell;
+    canvas.height = rows * cell;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "rgb(105, 92, 158)";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const x = column * cell;
+        const y = row * cell;
+        if (shape === "outstretched-arms") {
+          context.fillRect(x + 76, y + 205, 360, 18);
+          context.beginPath();
+          context.arc(x + 256, y + 115, 52, 0, Math.PI * 2);
+          context.fill();
+          context.fillRect(x + 205, y + 165, 102, 225);
+          context.fillRect(x + 205, y + 365, 42, 82);
+          context.fillRect(x + 265, y + 365, 42, 82);
+        } else if (shape === "wide-long-hair") {
+          context.beginPath();
+          context.ellipse(x + 256, y + 235, 142, 190, 0, 0, Math.PI * 2);
+          context.fill();
+          context.clearRect(x + 215, y + 175, 82, 108);
+          context.fillRect(x + 218, y + 250, 76, 175);
+          context.fillRect(x + 218, y + 395, 30, 55);
+          context.fillRect(x + 264, y + 395, 30, 55);
+        } else if (shape === "flared-dress") {
+          context.beginPath();
+          context.arc(x + 256, y + 105, 50, 0, Math.PI * 2);
+          context.fill();
+          context.beginPath();
+          context.moveTo(x + 220, y + 155);
+          context.lineTo(x + 292, y + 155);
+          context.lineTo(x + 402, y + 410);
+          context.lineTo(x + 110, y + 410);
+          context.closePath();
+          context.fill();
+          context.fillRect(x + 145, y + 400, 55, 48);
+          context.fillRect(x + 312, y + 400, 55, 48);
+        } else if (shape === "extended-limbs") {
+          context.beginPath();
+          context.arc(x + 256, y + 110, 50, 0, Math.PI * 2);
+          context.fill();
+          context.fillRect(x + 210, y + 160, 92, 190);
+          context.lineWidth = 30;
+          context.beginPath();
+          context.moveTo(x + 225, y + 190);
+          context.lineTo(x + 72, y + 315);
+          context.moveTo(x + 287, y + 190);
+          context.lineTo(x + 440, y + 80);
+          context.moveTo(x + 235, y + 335);
+          context.lineTo(x + 120, y + 448);
+          context.moveTo(x + 277, y + 335);
+          context.lineTo(x + 392, y + 448);
+          context.stroke();
+        }
+      }
+    }
+    return canvas.toDataURL("image/png");
+  }, { columns: metadata.columns, rows: metadata.rows, shape });
 }
 
 test("defines the four approved character cohorts", () => {
@@ -117,6 +206,30 @@ test("detects furniture-like rectangular masses even when frame gutters are clea
     await browser.close();
   }
 });
+
+for (const shape of ["outstretched-arms", "wide-long-hair", "flared-dress", "extended-limbs"]) {
+  test(`accepts the body-only ${shape} silhouette`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      const outputDataUrl = await normalizeCharacterMaster({
+        page,
+        sourceDataUrl: await makeBodyShapeMaster(page, ACTION, shape),
+        metadata: ACTION,
+        label: `fixture/${shape}`,
+      });
+      const inspection = await inspectCharacterStrip({
+        page,
+        dataUrl: outputDataUrl,
+        metadata: ACTION,
+        label: `fixture/${shape}.webp`,
+      });
+      assert.deepEqual(inspection.furnitureLikeFrames, []);
+    } finally {
+      await browser.close();
+    }
+  });
+}
 
 test("classifies fully absent, partial, and complete cohort inventories", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "office-v2-inventory-"));
@@ -211,6 +324,144 @@ test("rejects invalid WebP data URLs before creating an output file", async () =
     assert.equal(existsSync(output), false);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("cohort installation restores every original after an install rename fails", async () => {
+  const { installCharacterCohort } = await import("./office-v2-character-art.mjs");
+  const fixture = await makeInstallFixture();
+  let installRenames = 0;
+  try {
+    await assert.rejects(
+      installCharacterCohort({
+        ...fixture,
+        characterIds: INSTALL_CHARACTER_IDS,
+        fileSystem: {
+          rename: async (source, destination) => {
+            if (path.dirname(source) === fixture.stageRoot && ++installRenames === 3) {
+              throw new Error("injected install rename failure");
+            }
+            await rename(source, destination);
+          },
+        },
+      }),
+      /injected install rename failure/i,
+    );
+    for (const characterId of INSTALL_CHARACTER_IDS) {
+      await assertOriginalAt(fixture.outputRoot, characterId);
+    }
+    assert.equal(existsSync(fixture.backupRoot), false);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("cohort rollback retains backups and restores other originals when installed cleanup fails", async () => {
+  const { installCharacterCohort } = await import("./office-v2-character-art.mjs");
+  const fixture = await makeInstallFixture();
+  let installRenames = 0;
+  const blockedCharacter = INSTALL_CHARACTER_IDS[0];
+  try {
+    await assert.rejects(
+      installCharacterCohort({
+        ...fixture,
+        characterIds: INSTALL_CHARACTER_IDS,
+        fileSystem: {
+          rename: async (source, destination) => {
+            if (path.dirname(source) === fixture.stageRoot && ++installRenames === 3) {
+              throw new Error("injected install rename failure");
+            }
+            await rename(source, destination);
+          },
+          rm: async (target, options) => {
+            if (target === path.join(fixture.outputRoot, blockedCharacter)) {
+              throw new Error("injected installed-dir removal failure");
+            }
+            await rm(target, options);
+          },
+        },
+      }),
+      new RegExp(`rollback failed.*${fixture.backupRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
+    );
+    assert.equal(
+      await readFile(path.join(fixture.outputRoot, blockedCharacter, "identity.txt"), "utf8"),
+      `new:${blockedCharacter}`,
+    );
+    await assertOriginalAt(fixture.backupRoot, blockedCharacter);
+    for (const characterId of INSTALL_CHARACTER_IDS.slice(1)) {
+      await assertOriginalAt(fixture.outputRoot, characterId);
+    }
+    assert.equal(existsSync(fixture.backupRoot), true);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+for (const [position, failedCharacter] of [
+  ["first", INSTALL_CHARACTER_IDS[3]],
+  ["middle", INSTALL_CHARACTER_IDS[1]],
+]) {
+  test(`cohort rollback continues after the ${position} backup restoration fails`, async () => {
+    const { installCharacterCohort } = await import("./office-v2-character-art.mjs");
+    const fixture = await makeInstallFixture();
+    let installRenames = 0;
+    try {
+      await assert.rejects(
+        installCharacterCohort({
+          ...fixture,
+          characterIds: INSTALL_CHARACTER_IDS,
+          fileSystem: {
+            rename: async (source, destination) => {
+              if (path.dirname(source) === fixture.stageRoot && ++installRenames === 3) {
+                throw new Error("injected install rename failure");
+              }
+              if (source === path.join(fixture.backupRoot, failedCharacter)) {
+                throw new Error(`injected ${position} restore failure`);
+              }
+              await rename(source, destination);
+            },
+          },
+        }),
+        new RegExp(`rollback failed.*${fixture.backupRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
+      );
+      await assertOriginalAt(fixture.backupRoot, failedCharacter);
+      for (const characterId of INSTALL_CHARACTER_IDS.filter((id) => id !== failedCharacter)) {
+        await assertOriginalAt(fixture.outputRoot, characterId);
+      }
+      assert.equal(existsSync(fixture.backupRoot), true);
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test("cohort installation retains all originals when committed backup cleanup fails", async () => {
+  const { installCharacterCohort } = await import("./office-v2-character-art.mjs");
+  const fixture = await makeInstallFixture();
+  try {
+    await assert.rejects(
+      installCharacterCohort({
+        ...fixture,
+        characterIds: INSTALL_CHARACTER_IDS,
+        fileSystem: {
+          rm: async (target, options) => {
+            if (target === fixture.backupRoot) throw new Error("injected backup cleanup failure");
+            await rm(target, options);
+          },
+        },
+      }),
+      new RegExp(`installation committed.*${fixture.backupRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i"),
+    );
+    for (const characterId of INSTALL_CHARACTER_IDS) {
+      assert.equal(
+        await readFile(path.join(fixture.outputRoot, characterId, "identity.txt"), "utf8"),
+        `new:${characterId}`,
+      );
+      await assertOriginalAt(fixture.backupRoot, characterId);
+    }
+    assert.equal(existsSync(fixture.backupRoot), true);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
