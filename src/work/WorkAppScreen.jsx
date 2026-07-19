@@ -3,7 +3,7 @@ import { ArrowLeft, Ellipsis, Users } from "lucide-react";
 import OfficeActivityPanel from "./OfficeActivityPanel.jsx";
 import OfficeAssignmentFlow from "./OfficeAssignmentFlow.jsx";
 import OfficeScene from "./OfficeScene.jsx";
-import { OFFICE_CHIBIS } from "./officeAssets.js";
+import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
 import { createOfficeActivityEvent } from "./officeActivities.js";
 import { requestOfficeActivityDetail } from "./officeActivityApi.js";
 import { requestOfficeConversationTurn } from "./officeConversationApi.js";

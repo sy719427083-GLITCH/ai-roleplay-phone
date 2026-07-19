@@ -1,5 +1,4 @@
 import { OFFICE_WORLD_SIZE } from "../officeSceneManifest.js";
-import { getCharacterActionStripAliases } from "./officeAssetManifest.js";
 
 const hostOwners = new WeakMap();
 
@@ -29,8 +28,6 @@ const applyRootTransform = (root, transform) => {
     root.scale.y = transform.scale;
   }
 };
-
-const isKnownActionStrip = (alias) => getCharacterActionStripAliases().includes(alias);
 
 export const isExpectedCancellation = (error) => error?.name === "AbortError";
 
@@ -140,9 +137,7 @@ export async function createOfficeRenderer({
   app.canvas.dataset.officeRenderer = "pixi";
   host.replaceChildren(app.canvas);
 
-  const registerLoadedActionStrip = (alias) => {
-    if (isKnownActionStrip(alias)) ownedActionStrips.add(alias);
-  };
+  const registerLoadedActionStrip = (src) => ownedActionStrips.add(src);
   const office = new Container();
   const lounge = new Container();
   const sceneViews = new Map([
@@ -185,7 +180,7 @@ export async function createOfficeRenderer({
           sceneId,
           scene: world.scenes?.[sceneId] ?? null,
           actors: (world.actors || []).filter((actor) => actor.sceneId === sceneId),
-          moduleState: world.moduleState ?? null,
+          activityStates: world.activityStates || [],
         });
       }
     },

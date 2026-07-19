@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Link as LinkIcon, Upload } from "lucide-react";
-import { OFFICE_CHIBIS } from "./officeAssets.js";
+import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
 
 const RADIO_PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
 const RADIO_NEXT_KEYS = new Set(["ArrowRight", "ArrowDown"]);
@@ -98,7 +98,11 @@ function AssignmentEditor({
             onClick={() => onChibiChange(slot.id, chibi.id)}
             onKeyDown={(event) => handleChibiKeyDown(event, index)}
           >
-            <span style={{ backgroundImage: `url(${chibi.src})` }}></span>
+            <span style={{
+              backgroundImage: `url(${chibi.src})`,
+              backgroundSize: "400% 100%",
+              backgroundPosition: "0 0",
+            }}></span>
           </button>
         ))}
       </div>

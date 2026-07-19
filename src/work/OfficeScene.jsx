@@ -3,7 +3,7 @@ import OfficeCanvas from "./pixi/OfficeCanvas.jsx";
 import { OFFICE_SCENES, OFFICE_WORLD_SIZE } from "./officeSceneManifest.js";
 import { sampleOfficeRoute } from "./officeMotion.js";
 import { OFFICE_NODES } from "./officeNavigation.js";
-import { resolveOfficeModuleState } from "./officeStations.js";
+import { OFFICE_CLIP_METADATA } from "./pixi/officeCharacterClips.js";
 import "./office.css";
 
 const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
@@ -93,32 +93,75 @@ const legacyPointToWorld = (point) => ({
   y: (Number(point?.y) || 50) * (OFFICE_WORLD_SIZE.height / 100),
 });
 
+const FURNITURE_ANCHORS = Object.freeze({
+  "boss-home": { sceneId: "office", anchorId: "boss:seat", objectId: "boss-desk" },
+  "employee1-home": { sceneId: "office", anchorId: "employee1:seat", objectId: "employee1-desk" },
+  "employee2-home": { sceneId: "office", anchorId: "employee2:seat", objectId: "employee2-desk" },
+  "employee3-home": { sceneId: "office", anchorId: "employee3:seat", objectId: "employee3-desk" },
+  "employee4-home": { sceneId: "office", anchorId: "employee4:seat", objectId: "employee4-desk" },
+  "break-1": { sceneId: "lounge", anchorId: "dining:seat-1", objectId: "dining-table" },
+  "break-2": { sceneId: "lounge", anchorId: "dining:seat-2", objectId: "dining-table" },
+});
+
+const CLIP_BY_ACTIVITY = Object.freeze({
+  idle: "idle-seated",
+  working: "working",
+  slacking: "slacking",
+  eating: "eating",
+  gaming: "gaming",
+  reading: "reading",
+  watchingSeries: "watching-series",
+  watchingShortVideo: "watching-short-video",
+  chatting: "chatting",
+  listening: "listening",
+  "watching-tv": "watching-tv",
+  "desk-rest": "desk-rest",
+});
+
+const getFurnitureAnchor = (nodeId) => FURNITURE_ANCHORS[nodeId] || null;
+
+const getClipFrameIndex = (clipId, now, startedAt) => {
+  const clip = OFFICE_CLIP_METADATA[clipId] || OFFICE_CLIP_METADATA["idle-standing"];
+  return Math.floor(Math.max(0, now - (Number(startedAt) || 0)) / (1000 / clip.fps)) % clip.frameCount;
+};
+
 export function buildOfficeWorld({ state = {}, assignments = {}, motionNow } = {}) {
   const characters = isRecord(state.characters) ? state.characters : {};
   const now = Number.isFinite(motionNow) ? motionNow : Number(state.now) || 0;
   const visibleSceneId = OFFICE_SCENES[state.visibleSceneId] ? state.visibleSceneId : "office";
-  const moduleState = resolveOfficeModuleState({
-    characters,
-    reservations: isRecord(state.reservations) ? state.reservations : {},
-  });
   const actors = OFFICE_SLOT_IDS.map((slotId) => {
     const character = isRecord(characters[slotId]) ? characters[slotId] : { slotId };
     const motion = MOVING_PHASES.has(character.phase)
       ? sampleOfficeRoute({ route: character.route, startedAt: character.routeStartedAt, now, speed: OFFICE_WALK_SPEED, nodes: OFFICE_NODES })
       : null;
     const assignment = isRecord(assignments[slotId]) ? assignments[slotId] : {};
+    const furnitureAnchor = motion ? null : getFurnitureAnchor(character.positionNode || character.homeNode);
+    const anchorPoint = furnitureAnchor ? OFFICE_SCENES[furnitureAnchor.sceneId].anchors[furnitureAnchor.anchorId] : null;
+    const clip = motion ? "locomotion" : CLIP_BY_ACTIVITY[character.activity] || "idle-standing";
     return {
       id: slotId,
-      sceneId: OFFICE_SCENES[character.sceneId] ? character.sceneId : "office",
-      ...legacyPointToWorld(motion || getCharacterNode(character, slotId)),
+      characterId: assignment.chibiId,
+      sceneId: furnitureAnchor?.sceneId || (OFFICE_SCENES[character.sceneId] ? character.sceneId : "office"),
+      ...(anchorPoint || legacyPointToWorld(motion || getCharacterNode(character, slotId))),
       facing: motion?.facing || character.facing || "front",
+      motion,
+      clip,
+      frameIndex: getClipFrameIndex(clip, now, character.activityStartedAt || character.routeStartedAt),
+      furnitureAnchor: anchorPoint ? { ...furnitureAnchor, ...anchorPoint } : null,
       status: cleanText(character.status),
       profile: isRecord(assignment.profile) ? assignment.profile : isRecord(character.profile) ? character.profile : null,
-      furnitureReady: moduleState.characters[slotId]?.furnitureReady !== false,
+      furnitureReady: true,
     };
   });
 
-  return { scenes: OFFICE_SCENES, actors, visibleSceneId, moduleState };
+  const activityStates = actors.map((actor) => ({
+    slotId: actor.id,
+    sceneId: actor.sceneId,
+    activity: actor.clip,
+    anchorId: actor.furnitureAnchor?.anchorId || "",
+  }));
+
+  return { scenes: OFFICE_SCENES, actors, visibleSceneId, activityStates };
 }
 
 const getOverlaySnapshots = (state, world, renderer) => {
