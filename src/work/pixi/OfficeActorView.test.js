@@ -176,12 +176,35 @@ test("builds one object mask from every collider while preserving single-collide
   assert.deepEqual(deskOcclusion.bounds, desk.colliders[0]);
 });
 
-test("keeps left locomotion in its own row and mirrors only a single-row side action", () => {
+test("normalizes legacy navigation facings while preserving canonical rows and side-action mirroring", async () => {
   const locomotion = getActorClipSource({ characterId: "employee-f-01" }, "locomotion");
   const sideAction = getActorClipSource({ characterId: "employee-f-01" }, "phone-call");
+  const loaded = deferred();
+  let loadCount = 0;
+  const view = new OfficeActorView({
+    runtime: createActorRuntime(() => {
+      loadCount += 1;
+      return loaded.promise;
+    }),
+  });
+  const actor = { id: "employee1", characterId: "employee-f-01" };
 
+  assert.deepEqual(getActorTexturePlan(locomotion, "up"), { row: 3, scaleX: 1 });
+  assert.deepEqual(getActorTexturePlan(locomotion, "back"), { row: 3, scaleX: 1 });
+  assert.deepEqual(getActorTexturePlan(locomotion, "down"), { row: 0, scaleX: 1 });
+  assert.deepEqual(getActorTexturePlan(locomotion, "front"), { row: 0, scaleX: 1 });
   assert.deepEqual(getActorTexturePlan(locomotion, "left"), { row: 1, scaleX: 1 });
+  assert.deepEqual(getActorTexturePlan(locomotion, "right"), { row: 2, scaleX: 1 });
   assert.deepEqual(getActorTexturePlan(sideAction, "left"), { row: 0, scaleX: -1 });
+  assert.deepEqual(getActorTexturePlan(sideAction, "right"), { row: 0, scaleX: 1 });
+
+  view.sync({ actor, clip: "locomotion", motion: { facing: "up" } });
+  view.sync({ actor, clip: "locomotion", motion: { facing: "back" } });
+  loaded.resolve({ source: Texture.EMPTY.source });
+  await settle();
+
+  assert.equal(view.source.facing, "back");
+  assert.equal(loadCount, 1);
 });
 
 test("registers actor strips only after their texture load succeeds", async () => {

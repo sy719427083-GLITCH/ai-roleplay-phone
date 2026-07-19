@@ -2,6 +2,9 @@ import { AnimatedSprite, Assets, Container, Rectangle, Texture } from "pixi.js";
 import { getActorClipSource } from "./officeAssetManifest.js";
 
 const PIXI_RUNTIME = Object.freeze({ AnimatedSprite, Assets, Rectangle, Texture });
+const LEGACY_FACING_ALIASES = Object.freeze({ up: "back", down: "front" });
+
+export const normalizeActorFacing = (facing) => LEGACY_FACING_ALIASES[facing] || facing;
 
 const reportAssetError = (onAssetError, context, error) => {
   if (!onAssetError) return;
@@ -11,9 +14,10 @@ const reportAssetError = (onAssetError, context, error) => {
 };
 
 export function getActorTexturePlan(clip, facing = "front") {
+  const normalizedFacing = normalizeActorFacing(facing);
   if (clip.rowByFacing) {
     return {
-      row: clip.rowByFacing[facing] ?? clip.rowByFacing.front ?? 0,
+      row: clip.rowByFacing[normalizedFacing] ?? clip.rowByFacing.front ?? 0,
       scaleX: 1,
     };
   }
@@ -21,7 +25,7 @@ export function getActorTexturePlan(clip, facing = "front") {
   const mirrorSideAction = clip.rows === 1
     && clip.legalFacings?.includes("left")
     && clip.legalFacings?.includes("right")
-    && facing === "left";
+    && normalizedFacing === "left";
   return { row: 0, scaleX: mirrorSideAction ? -1 : 1 };
 }
 
@@ -42,7 +46,7 @@ export function loadActorFrames({
   getFrameIndex = () => frameIndex,
   context = {},
 }) {
-  const plan = getActorTexturePlan(source, facing);
+  const plan = getActorTexturePlan(source, normalizeActorFacing(facing));
   void runtime.Assets.load(source.src).then((texture) => {
     if (!isCurrent()) return;
     actorSprite.textures = textureFrames(runtime, texture, source, plan.row);
@@ -73,7 +77,7 @@ export class OfficeActorView extends Container {
   }
 
   sync({ actor = {}, motion = null, clip = "idle-standing", frameIndex = 0, furnitureAnchor = null } = {}) {
-    const facing = motion?.facing || actor.facing || "front";
+    const facing = normalizeActorFacing(motion?.facing || actor.facing || "front");
     const source = getActorClipSource(actor, clip);
     const point = getPoint(actor, furnitureAnchor);
     const plan = getActorTexturePlan(source, facing);
