@@ -95,7 +95,13 @@ export const OFFICE_CLIP_IDS = Object.freeze(Object.keys(OFFICE_CLIP_METADATA));
 const CHARACTER_ID_SET = new Set(OFFICE_CHARACTER_IDS);
 const CLIP_ID_SET = new Set(OFFICE_CLIP_IDS);
 
-export function getCharacterClipSource(characterId, clipId) {
+export function normalizeOfficeBaseUrl(baseUrl) {
+  const value = typeof baseUrl === "string" && baseUrl.trim() ? baseUrl.trim() : "/";
+  const rooted = value.startsWith("/") ? value : `/${value}`;
+  return `${rooted.replace(/\/{2,}/g, "/").replace(/\/$/, "")}/`;
+}
+
+export function getCharacterClipSource(characterId, clipId, { baseUrl = import.meta.env?.BASE_URL } = {}) {
   if (!CHARACTER_ID_SET.has(characterId)) {
     throw new Error(`Unknown office character: ${characterId}`);
   }
@@ -106,7 +112,7 @@ export function getCharacterClipSource(characterId, clipId) {
   return Object.freeze({
     characterId,
     clipId,
-    src: `/ai-roleplay-phone/work-office-v2/characters/${characterId}/${clipId}.webp`,
+    src: `${normalizeOfficeBaseUrl(baseUrl)}work-office-v2/characters/${characterId}/${clipId}.webp`,
     ...OFFICE_CLIP_METADATA[clipId],
   });
 }

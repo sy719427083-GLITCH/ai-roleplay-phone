@@ -9,7 +9,12 @@ import {
   OFFICE_CLIP_IDS,
   OFFICE_CLIP_METADATA,
   getCharacterClipSource,
+  normalizeOfficeBaseUrl,
 } from "./officeCharacterClips.js";
+import {
+  CONTACT_SHEET_MAX_DIMENSION,
+  createContactSheetPlan,
+} from "../../../scripts/build-office-v2-contact-sheets.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -97,7 +102,7 @@ test("defines every action as a lazy four-frame body-only strip with explicit pl
 
 test("resolves validated character sources with immutable frame metadata", () => {
   const source = getCharacterClipSource("boss-f-03", "working");
-  assert.equal(source.src, "/ai-roleplay-phone/work-office-v2/characters/boss-f-03/working.webp");
+  assert.equal(source.src, "/work-office-v2/characters/boss-f-03/working.webp");
   assert.equal(source.clipId, "working");
   assert.equal(source.characterId, "boss-f-03");
   assert.equal(source.frameCount, 4);
@@ -105,6 +110,36 @@ test("resolves validated character sources with immutable frame metadata", () =>
   assert.equal(Object.isFrozen(source), true);
   assert.throws(() => getCharacterClipSource("unknown", "working"), /unknown office character/i);
   assert.throws(() => getCharacterClipSource("boss-f-03", "unknown"), /unknown office character clip/i);
+});
+
+test("derives character sources from a normalized runtime base URL", () => {
+  assert.equal(normalizeOfficeBaseUrl("/preview"), "/preview/");
+  assert.equal(normalizeOfficeBaseUrl("preview//"), "/preview/");
+  assert.equal(
+    getCharacterClipSource("employee-m-02", "locomotion", { baseUrl: "/preview/" }).src,
+    "/preview/work-office-v2/characters/employee-m-02/locomotion.webp",
+  );
+});
+
+test("paginates every character frame below encoder limits", () => {
+  const cohort = createContactSheetPlan("boss-f");
+  assert.equal(cohort.output, "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp");
+  assert.equal(cohort.pages.length, 4);
+  assert.equal(cohort.missing.length, 168);
+  for (const page of cohort.pages) {
+    assert.equal(page.frameCount, 196);
+    assert.deepEqual(page.representativePairs.map(({ family, sizes }) => [family, sizes]), [
+      ["locomotion", [384, 104]],
+      ["action", [384, 104]],
+    ]);
+    assert.ok(page.width > 0 && page.width <= CONTACT_SHEET_MAX_DIMENSION);
+    assert.ok(page.height > 0 && page.height <= CONTACT_SHEET_MAX_DIMENSION);
+  }
+
+  const all = createContactSheetPlan("all");
+  assert.equal(all.pages.length, 16);
+  assert.equal(Math.max(...all.pages.map(({ width, height }) => Math.max(width, height))) <= CONTACT_SHEET_MAX_DIMENSION, true);
+  assert.equal(all.pages.some(({ output }) => output === "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp"), true);
 });
 
 test("contact-sheet CLI fails clearly for deferred assets and supports explicit allow-missing planning", () => {
@@ -128,7 +163,7 @@ test("contact-sheet CLI fails clearly for deferred assets and supports explicit 
   const plan = JSON.parse(allowed.stdout);
   assert.deepEqual(plan.characterIds, CHARACTER_IDS.slice(8, 12));
   assert.equal(plan.missing.length, 168);
-  assert.equal(plan.samplePairs.length, 168);
-  assert.deepEqual(plan.samplePairs[0].sampleSizes, [384, 104]);
+  assert.equal(plan.pages.length, 4);
+  assert.equal(plan.pages.every(({ width, height }) => width <= CONTACT_SHEET_MAX_DIMENSION && height <= CONTACT_SHEET_MAX_DIMENSION), true);
   assert.equal(plan.output, "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp");
 });

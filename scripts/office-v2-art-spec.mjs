@@ -63,6 +63,8 @@ export const OFFICE_V2_CHARACTER_CONTRACT = Object.freeze({
     background: "transparent",
     sliceMode: "fixed-grid-cells",
     acceptsGeneratedMasters: true,
+    minimumCellSize: 512,
+    layout: "<sourceRoot>/<character-id>/<clip-id>.(png|webp)",
   }),
   normalization: CHARACTER_NORMALIZATION,
 });

@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { resolveOfficeV2ArtPaths } from "./office-v2-art-paths.mjs";
+import { CHARACTER_COHORTS } from "./office-v2-character-art.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_ROOT = path.join(ROOT, "public", "work-office-v2");
@@ -15,8 +16,23 @@ test("normalizer resolves only the repository office-v2 output", () => {
     sourceArg: "tmp/office-v2-source",
     outputArg: "public/work-office-v2",
   }), {
+    mode: "environment",
     sourceRoot: path.join(ROOT, "tmp", "office-v2-source"),
     outputRoot: PUBLIC_ROOT,
+  });
+});
+
+test("normalizer resolves one validated character cohort without widening deletion scope", () => {
+  assert.deepEqual(resolveOfficeV2ArtPaths({
+    repoRoot: ROOT,
+    cwd: ROOT,
+    sourceArg: "tmp/office-v2-source/boss-f",
+    outputArg: "public/work-office-v2/characters",
+  }), {
+    mode: "characters",
+    cohort: "boss-f",
+    sourceRoot: path.join(ROOT, "tmp", "office-v2-source", "boss-f"),
+    outputRoot: path.join(PUBLIC_ROOT, "characters"),
   });
 });
 
@@ -28,6 +44,7 @@ test("normalizer rejects destructive or out-of-scope output paths", () => {
     path.join(ROOT, "public"),
     path.join(ROOT, "public", "other-assets"),
     path.join(path.dirname(ROOT), "outside-office-v2"),
+    path.join(PUBLIC_ROOT, "characters", "boss-f-01"),
   ];
 
   for (const outputArg of rejectedOutputs) {
@@ -42,6 +59,21 @@ test("normalizer rejects destructive or out-of-scope output paths", () => {
       outputArg,
     );
   }
+});
+
+test("character normalizer rejects unknown cohorts and source/output overlap", () => {
+  assert.throws(() => resolveOfficeV2ArtPaths({
+    repoRoot: ROOT,
+    cwd: ROOT,
+    sourceArg: "tmp/office-v2-source/unknown",
+    outputArg: "public/work-office-v2/characters",
+  }), /character cohort must be one of/i);
+  assert.throws(() => resolveOfficeV2ArtPaths({
+    repoRoot: ROOT,
+    cwd: ROOT,
+    sourceArg: "public/work-office-v2/characters/boss-f",
+    outputArg: "public/work-office-v2/characters",
+  }), /source and output directories must not overlap/i);
 });
 
 test("normalizer rejects source and output overlap in either direction", () => {
@@ -193,6 +225,11 @@ test("defines the body-only character prompt and normalization contract", async 
   const { OFFICE_V2_CHARACTER_CONTRACT } = await import("./office-v2-art-spec.mjs");
 
   assert.equal(OFFICE_V2_CHARACTER_CONTRACT.bodyOnly, true);
+  assert.equal(OFFICE_V2_CHARACTER_CONTRACT.source.minimumCellSize, 512);
+  assert.equal(
+    OFFICE_V2_CHARACTER_CONTRACT.source.layout,
+    "<sourceRoot>/<character-id>/<clip-id>.(png|webp)",
+  );
   assert.match(OFFICE_V2_CHARACTER_CONTRACT.prompt, /body only/i);
   assert.match(OFFICE_V2_CHARACTER_CONTRACT.prompt, /transparent background/i);
   assert.deepEqual(OFFICE_V2_CHARACTER_CONTRACT.forbiddenBakedSubjects, [
@@ -213,4 +250,10 @@ test("defines the body-only character prompt and normalization contract", async 
   });
 });
 
-test.todo("ships all Task 7-10 character strips with verified dimensions, alpha gutters, and body-only pixels");
+test("defers fully absent cohorts, rejects partial cohorts, and strictly verifies complete cohorts", async () => {
+  const { verifyCharacterCohort } = await import("./verify-office-v2-assets.mjs");
+  for (const cohort of CHARACTER_COHORTS) {
+    const result = await verifyCharacterCohort({ root: PUBLIC_ROOT, cohort, allowAbsent: true });
+    assert.ok(["absent", "complete"].includes(result.state), `${cohort}: ${result.state}`);
+  }
+});
