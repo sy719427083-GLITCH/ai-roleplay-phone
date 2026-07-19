@@ -39,13 +39,14 @@ export function loadActorFrames({
   onAssetError,
   onLoaded,
   isCurrent = () => true,
+  getFrameIndex = () => frameIndex,
   context = {},
 }) {
   const plan = getActorTexturePlan(source, facing);
   void runtime.Assets.load(source.src).then((texture) => {
     if (!isCurrent()) return;
     actorSprite.textures = textureFrames(runtime, texture, source, plan.row);
-    actorSprite.gotoAndStop(Math.abs(Number(frameIndex) || 0) % source.frameCount);
+    actorSprite.gotoAndStop(Math.abs(Number(getFrameIndex()) || 0) % source.frameCount);
     if (!isCurrent()) return;
     onLoaded?.();
   }).catch((error) => {
@@ -82,16 +83,20 @@ export class OfficeActorView extends Container {
     this.actorSprite.scale.x = plan.scaleX;
     this.actorSprite.animationSpeed = source.fps / 60;
     this.actorSprite.loop = source.loop;
-    this.actorSprite.gotoAndStop(Math.abs(Number(frameIndex) || 0) % source.frameCount);
+    const normalizedFrameIndex = Math.abs(Number(frameIndex) || 0) % source.frameCount;
 
     if (
       this.source?.src === source.src
       && this.source.facing === facing
       && ["pending", "loaded"].includes(this.source.state)
-    ) return;
+    ) {
+      this.source.frameIndex = normalizedFrameIndex;
+      if (this.source.state === "loaded") this.actorSprite.gotoAndStop(normalizedFrameIndex);
+      return;
+    }
     const version = this.loadVersion + 1;
     this.loadVersion = version;
-    this.source = { src: source.src, facing, state: "pending" };
+    this.source = { src: source.src, facing, state: "pending", frameIndex: normalizedFrameIndex };
     const isCurrent = () => (
       this.loadVersion === version
       && this.source?.src === source.src
@@ -101,7 +106,8 @@ export class OfficeActorView extends Container {
       runtime: this.runtime,
       source,
       facing,
-      frameIndex,
+      frameIndex: normalizedFrameIndex,
+      getFrameIndex: () => this.source?.frameIndex ?? normalizedFrameIndex,
       actorSprite: this.actorSprite,
       onAssetError: (error) => {
         if (!isCurrent()) return;

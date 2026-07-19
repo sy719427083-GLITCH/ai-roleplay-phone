@@ -18,9 +18,7 @@ const activityPanelSource = existsSync(activityPanelPath)
   ? readFileSync(activityPanelPath, "utf8")
   : "";
 const screenAndPanelsSource = `${source}\n${assignmentFlowSource}\n${activityPanelSource}`;
-const characterSource = readFileSync(new URL("./OfficeCharacter.jsx", import.meta.url), "utf8");
 const sceneSource = readFileSync(new URL("./OfficeScene.jsx", import.meta.url), "utf8");
-const characterAndSceneSource = `${characterSource}\n${sceneSource}`;
 const cssSource = readFileSync(new URL("./office.css", import.meta.url), "utf8");
 const vite = await createServer({
   appType: "custom",
@@ -33,7 +31,6 @@ const screenModule = await vite.ssrLoadModule("/src/work/WorkAppScreen.jsx");
 const activityPanelModule = await vite.ssrLoadModule("/src/work/OfficeActivityPanel.jsx");
 const assignmentFlowModule = await vite.ssrLoadModule("/src/work/OfficeAssignmentFlow.jsx");
 const activitiesModule = await vite.ssrLoadModule("/src/work/officeActivities.js");
-const characterModule = await vite.ssrLoadModule("/src/work/OfficeCharacter.jsx");
 const sceneModule = await vite.ssrLoadModule("/src/work/OfficeScene.jsx");
 const previousReact = globalThis.React;
 globalThis.React = React;
@@ -66,11 +63,22 @@ test("ships safe-area tools assignment back navigation and activity history", ()
   assert.doesNotMatch(source, /setInterval\(advanceRoutes/);
 });
 
-test("uses a 320ms active atlas cadence", () => {
-  assert.match(
-    characterSource,
-    /const getActiveFrame = \(motionNow\) => Math\.floor\(Math\.max\(0, Number\(motionNow\) \|\| 0\) \/ 320\) % 4;/,
-  );
+test("builds Pixi clip frames from current activity metadata", () => {
+  const world = sceneModule.buildOfficeWorld({
+    state: {
+      now: 375,
+      characters: {
+        employee1: { slotId: "employee1", activity: "working", positionNode: "employee1-home" },
+      },
+    },
+    assignments: { employee1: { chibiId: "employee-f-01" } },
+    motionNow: 375,
+  });
+  const actor = world.actors.find(({ id }) => id === "employee1");
+
+  assert.equal(actor.clip, "working");
+  assert.equal(actor.frameIndex, 3);
+  assert.equal(actor.furnitureReady, true);
 });
 
 test("removes legacy DOM sprite and activity-prop CSS while keeping a pointer-safe overlay", () => {
@@ -189,35 +197,6 @@ test("shares one conversation event with exact participants across rendering and
       text: "周末去看展吗？",
     }],
   };
-  const renderChatMember = (slotId, activityEvent = sharedEvent) => renderToStaticMarkup(
-    React.createElement(characterModule.OfficeCharacter, {
-      character: {
-        slotId,
-        phase: "chatting",
-        activity: "chatting",
-        conversationId: "conversation-a",
-        positionNode: `${slotId}-home`,
-        profile: { name: slotId },
-      },
-      assignment: { chibiId: "employee-f-01" },
-      activityEvent,
-      conversation,
-      motionNow: 720,
-    }),
-  );
-  const speakerMarkup = renderChatMember("employee1");
-  const listenerMarkup = renderChatMember("employee2");
-  const unrelatedMarkup = renderChatMember("employee4");
-  const malformedOwnerMarkup = renderChatMember("employee1", ownerMissingMembership);
-  assert.match(speakerMarkup, /data-activity="chatting"[^>]*data-conversation-role="speaker"/);
-  assert.match(speakerMarkup, /office-chat-prop/);
-  assert.match(listenerMarkup, /data-activity="chatting"[^>]*data-conversation-role="listener"/);
-  assert.match(listenerMarkup, /office-listen-prop/);
-  assert.match(listenerMarkup, /--office-frame-row:7/);
-  assert.match(unrelatedMarkup, /data-activity="idle"/);
-  assert.doesNotMatch(unrelatedMarkup, /office-chat-prop|office-listen-prop/);
-  assert.match(malformedOwnerMarkup, /data-activity="idle"/);
-
   const sceneMarkup = renderToStaticMarkup(React.createElement(sceneModule.OfficeScene, {
     state: {
       now: 720,
@@ -522,16 +501,15 @@ test("owns one upload reader per slot and aborts stale or unmounted work", () =>
   assert.equal(registry.isCurrent("employee1", second), false);
 });
 
-test("keeps event ownership while modules render concrete furniture", () => {
+test("keeps event ownership in Pixi world data and overlays", () => {
   for (const token of [
-    "activityEvent", "sampleOfficeRoute", "motionNow", "getWalkFrame",
-  ]) assert.ok(characterAndSceneSource.includes(token), `missing ${token}`);
-  assert.doesNotMatch(characterSource, /function (WorkProps|SlackProps|GameProps|MealProps|BookProps|SeriesProps|ShortVideoProps)/);
-  assert.match(characterSource, /ConversationProps/);
+    "buildOfficeWorld", "activityStates", "sampleOfficeRoute", "motionNow", "OfficeCanvas",
+  ]) assert.ok(sceneSource.includes(token), `missing ${token}`);
 });
 
 test("renders only the Pixi bridge and React actor overlays, without legacy DOM scene layers", () => {
-  assert.match(sceneSource, /resolveOfficeModuleState/);
+  assert.match(sceneSource, /buildOfficeWorld/);
+  assert.match(sceneSource, /activityStates/);
   assert.match(sceneSource, /OfficeCanvas/);
   assert.match(sceneSource, /office-actor-overlay/);
   for (const legacyLayer of [
@@ -542,94 +520,69 @@ test("renders only the Pixi bridge and React actor overlays, without legacy DOM 
 });
 
 test("removes hard route-step and bubble-clamp rendering", () => {
-  assert.doesNotMatch(characterAndSceneSource, /routeStepDurationMs/);
+  assert.doesNotMatch(sceneSource, /routeStepDurationMs/);
   assert.match(cssSource, /overflow-wrap:\s*anywhere/);
   assert.match(cssSource, /\.office-actor-bubble/);
   assert.doesNotMatch(cssSource, /-webkit-line-clamp/);
 });
 
-test("exposes the rendered motion clock for deterministic movement QA", () => {
-  const markup = renderToStaticMarkup(React.createElement(
-    characterModule.OfficeCharacter,
-    {
-      character: {
-        slotId: "employee1",
-        phase: "walkingToActivity",
-        activity: "eating",
-        routeStartedAt: 100,
-        positionNode: "employee1-home",
-        profile: { name: "小林" },
+test("exposes deterministic locomotion frames through the Pixi world", () => {
+  const world = sceneModule.buildOfficeWorld({
+    state: {
+      now: 720,
+      characters: {
+        employee1: {
+          slotId: "employee1",
+          phase: "walkingToActivity",
+          activity: "eating",
+          routeStartedAt: 100,
+          route: ["employee1-home", "employee1-exit"],
+          positionNode: "employee1-home",
+        },
       },
-      assignment: { chibiId: "employee-f-01" },
-      motionNow: 720,
     },
-  ));
+    assignments: { employee1: { chibiId: "employee-f-01" } },
+    motionNow: 720,
+  });
+  const actor = world.actors.find(({ id }) => id === "employee1");
 
-  assert.match(markup, /data-motion-now="720"/);
+  assert.equal(actor.clip, "locomotion");
+  assert.equal(actor.frameIndex, 5);
 });
 
-test("renders semantic activity data and furniture-safe atlas frames only for an exact owned event", () => {
-  const character = {
-    slotId: "employee1",
-    phase: "reading",
-    activity: "reading",
-    status: "看书中",
-    positionNode: "employee1-home",
-    profile: { name: "小林" },
-  };
-  const assignment = { chibiId: "employee-f-01" };
-  const renderCharacter = (activityEvent) => renderToStaticMarkup(React.createElement(
-    characterModule.OfficeCharacter,
-    { character, assignment, activityEvent, motionNow: 720 },
-  ));
-
-  for (const markup of [
-    renderCharacter(null),
-    renderCharacter({
-      eventId: "event-other",
-      actorId: "employee2",
-      activityType: "reading",
-      status: "看书中",
-      subject: "不属于小林的书",
-      propVariant: "hardcover",
-    }),
-  ]) {
-    assert.match(markup, /data-activity="idle"/);
-    assert.match(markup, /--office-frame-row:7/);
-    assert.doesNotMatch(markup, /office-book-prop/);
-    assert.match(markup, /小林，空闲中/);
-    assert.doesNotMatch(markup, /正在阅读|看书中/);
-  }
-
-  const ownedMarkup = renderCharacter({
-    eventId: "event-owned",
-    actorId: "employee1",
-    activityType: "reading",
-    status: "看书中",
-    subject: "《沉思录》",
-    propVariant: "hardcover",
-  });
-  assert.match(ownedMarkup, /data-activity="reading"/);
-  assert.match(ownedMarkup, /--office-frame-row:5/);
-  assert.match(ownedMarkup, /data-prop="hardcover"/);
-  assert.doesNotMatch(ownedMarkup, /office-book-prop|正在阅读《沉思录》/);
-
-  const furnitureUnsafeMarkup = renderToStaticMarkup(React.createElement(
-    characterModule.OfficeCharacter,
-    {
-      character,
-      assignment,
-      activityEvent: {
-        eventId: "event-unsafe",
-        actorId: "employee1",
-        activityType: "reading",
+test("builds physical anchors and activity state for body-only actors", () => {
+  const world = sceneModule.buildOfficeWorld({
+    state: {
+      now: 720,
+      characters: {
+        employee1: {
+          slotId: "employee1",
+          phase: "reading",
+          activity: "reading",
+          positionNode: "employee1-home",
+        },
       },
-      furnitureReady: false,
-      motionNow: 720,
     },
-  ));
-  assert.match(furnitureUnsafeMarkup, /data-furniture-ready="false"/);
-  assert.match(furnitureUnsafeMarkup, /--office-frame-row:7/);
+    assignments: { employee1: { chibiId: "employee-f-01" } },
+    motionNow: 720,
+  });
+  const actor = world.actors.find(({ id }) => id === "employee1");
+
+  assert.deepEqual(actor.furnitureAnchor, {
+    sceneId: "office",
+    anchorId: "employee1:seat",
+    objectId: "employee1-desk",
+    x: 280,
+    y: 770,
+  });
+  assert.equal(actor.clip, "reading");
+  assert.equal(actor.furnitureReady, true);
+  assert.deepEqual(world.activityStates.find(({ slotId }) => slotId === "employee1"), {
+    slotId: "employee1",
+    sceneId: "office",
+    activity: "reading",
+    anchorId: "employee1:seat",
+  });
 });
 
 test("clamps the final five-member bubble center after every placement offset", () => {

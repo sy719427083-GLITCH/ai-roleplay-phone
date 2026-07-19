@@ -87,20 +87,29 @@ export function createSprite(src, layout, {
   return sprite;
 }
 
+const getObjectOcclusionRectangles = (object) => object.colliders?.length
+  ? object.colliders.map(({ x, y, width, height }) => ({ x, y, width, height }))
+  : [{ x: object.x, y: object.y + (object.height * 0.4), width: object.width, height: object.height * 0.6 }];
+
 export const getObjectOcclusionBounds = (object) => {
-  const [collider] = object.colliders || [];
-  return collider
-    ? { x: collider.x, y: collider.y, width: collider.width, height: collider.height }
-    : { x: object.x, y: object.y + (object.height * 0.4), width: object.width, height: object.height * 0.6 };
+  const rectangles = getObjectOcclusionRectangles(object);
+  const left = Math.min(...rectangles.map(({ x }) => x));
+  const top = Math.min(...rectangles.map(({ y }) => y));
+  const right = Math.max(...rectangles.map(({ x, width }) => x + width));
+  const bottom = Math.max(...rectangles.map(({ y, height }) => y + height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
 export function createObjectOcclusion(object, frontSprite, { runtime = PIXI_RUNTIME } = {}) {
+  const rectangles = getObjectOcclusionRectangles(object);
   const bounds = getObjectOcclusionBounds(object);
-  const mask = new runtime.Graphics().rect(bounds.x, bounds.y, bounds.width, bounds.height).fill({ color: 0xffffff });
-  const frontEdgeY = bounds.y + bounds.height;
+  const mask = new runtime.Graphics();
+  for (const rectangle of rectangles) mask.rect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
+  mask.fill({ color: 0xffffff });
+  const frontEdgeY = Math.max(...rectangles.map(({ y, height }) => y + height));
   frontSprite.mask = mask;
   frontSprite.zIndex = frontEdgeY;
-  return { mask, bounds, frontEdgeY, frontSprite };
+  return { mask, bounds, rectangles, frontEdgeY, frontSprite };
 }
 
 export class OfficeSceneView extends Container {

@@ -55,7 +55,8 @@ class FakeSprite {
 
 class FakeGraphics {
   rect(x, y, width, height) {
-    this.bounds = { x, y, width, height };
+    this.rectangles ||= [];
+    this.rectangles.push({ x, y, width, height });
     return this;
   }
 
@@ -154,9 +155,25 @@ test("uses each furniture front-edge mask to order behind and in-front actors", 
   const inFrontActor = { zIndex: occlusion.frontEdgeY + 1 };
 
   assert.equal(frontSprite.mask, occlusion.mask);
-  assert.deepEqual(occlusion.mask.bounds, occlusion.bounds);
+  assert.deepEqual(occlusion.mask.rectangles, desk.colliders);
   assert.equal(behindActor.zIndex < frontSprite.zIndex, true);
   assert.equal(inFrontActor.zIndex > frontSprite.zIndex, true);
+});
+
+test("builds one object mask from every collider while preserving single-collider desks", () => {
+  const door = OFFICE_SCENES.office.objects.find(({ id }) => id === "office-door");
+  const desk = OFFICE_SCENES.office.objects.find(({ id }) => id === "employee1-desk");
+  const doorSprite = new FakeSprite({ width: 1, height: 1 });
+  const deskSprite = new FakeSprite({ width: 1, height: 1 });
+  const runtime = { runtime: createRuntime(async () => ({ width: 1, height: 1 })) };
+  const doorOcclusion = createObjectOcclusion(door, doorSprite, runtime);
+  const deskOcclusion = createObjectOcclusion(desk, deskSprite, runtime);
+
+  assert.deepEqual(doorOcclusion.mask.rectangles, door.colliders);
+  assert.deepEqual(doorOcclusion.bounds, { x: 875, y: 1640, width: 170, height: 280 });
+  assert.equal(doorSprite.mask, doorOcclusion.mask);
+  assert.deepEqual(deskOcclusion.mask.rectangles, desk.colliders);
+  assert.deepEqual(deskOcclusion.bounds, desk.colliders[0]);
 });
 
 test("keeps left locomotion in its own row and mirrors only a single-row side action", () => {
@@ -238,6 +255,25 @@ test("retries the same actor clip after its previous texture load fails", async 
   assert.equal(view.source?.state, "loaded");
   assert.equal(view.actorSprite.textures.length, source.frameCount);
   assert.deepEqual(registrations, [source.src]);
+});
+
+test("applies the latest frame index when a pending actor clip resolves", async () => {
+  const loaded = deferred();
+  let loadCount = 0;
+  const runtime = createActorRuntime(() => {
+    loadCount += 1;
+    return loaded.promise;
+  });
+  const view = new OfficeActorView({ runtime });
+  const actor = { id: "employee1", characterId: "employee-f-01" };
+
+  view.sync({ actor, clip: "working", frameIndex: 0 });
+  view.sync({ actor, clip: "working", frameIndex: 3 });
+  loaded.resolve({ source: Texture.EMPTY.source });
+  await settle();
+
+  assert.equal(loadCount, 1);
+  assert.equal(view.actorSprite.currentFrame, 3);
 });
 
 test("forwards its injected Pixi runtime to child actor views", () => {
