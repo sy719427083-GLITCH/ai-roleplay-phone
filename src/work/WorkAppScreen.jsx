@@ -26,7 +26,7 @@ import {
   restoreOfficeState,
   serializeOfficeState,
 } from "./officeState.js";
-import { buildWorldRoute, sampleWorldRoute } from "./officeWorld.js";
+import { buildWorldRoute, sampleWorldRoute, separateActors } from "./officeWorld.js";
 import "./office.css";
 
 const OFFICE_STATE_KEY = "ccatOfficeStateV1";
@@ -365,10 +365,43 @@ export function createPhysicalSchedulerRuntime(event, assignments) {
     propState: event.propState,
     semanticContext: event.semanticContext,
     travelStatus: definition.travelStatus,
+    speed: OFFICE_WALK_SPEED,
     now: event.startedAt,
     endsAt: event.endsAt,
   }));
   return { event, semanticEvent, actions };
+}
+
+export function samplePhysicalWorldFrame({ characters = {}, now = 0, previousSamples = {} } = {}) {
+  const rawSamples = {};
+  const movingActors = [];
+  for (const [slotId, character] of Object.entries(characters)) {
+    if (!character || !["walkingToActivity", "returning"].includes(character.phase) || !character.route?.length) continue;
+    const sample = sampleWorldRoute({
+      route: character.route,
+      startedAt: character.routeStartedAt,
+      now,
+      speed: Number.isFinite(character.routeSpeed) && character.routeSpeed > 0
+        ? character.routeSpeed
+        : OFFICE_WALK_SPEED,
+    });
+    rawSamples[slotId] = sample;
+    const previous = previousSamples[slotId];
+    const previousPosition = previous?.sceneId === sample.sceneId
+      && Number.isFinite(previous.x) && Number.isFinite(previous.y)
+      ? { x: previous.x, y: previous.y }
+      : { x: sample.x, y: sample.y };
+    movingActors.push({
+      ...sample,
+      id: slotId,
+      moving: true,
+      position: { x: sample.x, y: sample.y },
+      previousPosition,
+      routeStartedAt: character.routeStartedAt,
+    });
+  }
+  const renderSamples = Object.fromEntries(separateActors(movingActors).map((actor) => [actor.id, actor]));
+  return { rawSamples, renderSamples };
 }
 
 const getDialogFocusableElements = (dialog) => (
@@ -652,19 +685,18 @@ export default function WorkAppScreen({ onClose }) {
     let frameId = 0;
     const frame = (timestamp) => {
       const now = timestampOriginRef.current + timestamp;
-      const sampledActors = {};
+      const { rawSamples, renderSamples } = samplePhysicalWorldFrame({
+        characters: stateRef.current.characters,
+        now,
+        previousSamples: sampledWorldActorsRef.current,
+      });
       const activeRouteKeys = new Set();
 
       for (const slotId of OFFICE_SLOT_IDS) {
         const character = stateRef.current.characters?.[slotId];
         if (!character || !["walkingToActivity", "returning"].includes(character.phase) || !character.route.length) continue;
-        const sample = sampleWorldRoute({
-          route: character.route,
-          startedAt: character.routeStartedAt,
-          now,
-          speed: OFFICE_WALK_SPEED,
-        });
-        sampledActors[slotId] = sample;
+        const sample = rawSamples[slotId];
+        if (!sample) continue;
         const routeKey = `${slotId}:${character.routeStartedAt}:${character.phase}`;
         activeRouteKeys.add(routeKey);
 
@@ -683,6 +715,7 @@ export default function WorkAppScreen({ onClose }) {
               transition,
               position: sample,
               segmentIndex: sample.segmentIndex,
+              now,
             });
           }
         } else if (!sample.done && sample.segmentIndex > character.routeSegmentIndex) {
@@ -694,6 +727,7 @@ export default function WorkAppScreen({ onClose }) {
               slotId,
               position: sample,
               segmentIndex: sample.segmentIndex,
+              now,
             });
           }
         }
@@ -708,8 +742,8 @@ export default function WorkAppScreen({ onClose }) {
         }
       }
 
-      sampledWorldActorsRef.current = sampledActors;
-      setSampledWorldActors(sampledActors);
+      sampledWorldActorsRef.current = renderSamples;
+      setSampledWorldActors(renderSamples);
       setMotionNow(now);
 
       for (const routeKey of completedRouteKeysRef.current) {

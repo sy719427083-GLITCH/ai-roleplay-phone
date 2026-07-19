@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWorldRoute,
   createOverlaySnapshot,
+  isValidWorldRoute,
   sampleWorldRoute,
   separateActors,
 } from "./officeWorld.js";
@@ -119,6 +120,28 @@ test("rejects direct and forged cross-scene route entries at the stable first co
     assert.equal(sample.done, true);
     assert.equal(isLegalCharacterPosition(sample.sceneId, sample), true);
   }
+});
+
+test("exposes one authoritative validator for legal world routes", () => {
+  const valid = buildWorldRoute({
+    from: { sceneId: "office", x: 250, y: 1015 },
+    to: { sceneId: "lounge", x: 540, y: 820 },
+  });
+  assert.equal(isValidWorldRoute(valid), true);
+  assert.equal(isValidWorldRoute([{ sceneId: "office", x: 250, y: 1015 }]), true);
+  assert.equal(isValidWorldRoute([
+    { sceneId: "office", x: 940, y: 1770 },
+    { sceneId: "lounge", x: 130, y: 1710 },
+  ]), false);
+  assert.equal(isValidWorldRoute([
+    { sceneId: "office", x: 940, y: 1770 },
+    { transition: true, from: { sceneId: "office", anchorId: "exit" }, to: { sceneId: "lounge", anchorId: "exit" } },
+    { sceneId: "lounge", x: 90, y: 1780 },
+  ]), false);
+  assert.equal(isValidWorldRoute([
+    { sceneId: "lounge", x: 75, y: 1575 },
+    { sceneId: "lounge", x: 45, y: 1545 },
+  ]), false, "a segment through an expanded collider must be rejected");
 });
 
 test("normalizes an illegal invalid-route fallback before returning it", () => {

@@ -37,6 +37,7 @@ const startEvent = ({
   now = 1_100,
   endsAt = 9_000,
   reservationGroupId = "group-meal",
+  speed = 100,
 } = {}) => {
   const from = pointAt("office", `${slotId}:seat-approach`);
   const to = pointAt(sceneId, targetAnchorId);
@@ -56,6 +57,7 @@ const startEvent = ({
     },
     travelStatus: "前往休息区",
     activeStatus: "用餐中",
+    speed,
     now,
     endsAt,
   };
@@ -83,6 +85,7 @@ test("fresh state places all five actors at exact legal office home anchors", ()
       route: [],
       routeSegmentIndex: 0,
       routeStartedAt: 0,
+      routeSpeed: 0,
       reservationGroupId: "",
       activityStartedAt: 0,
       activityEndsAt: 0,
@@ -134,15 +137,18 @@ test("world route actions preserve exact samples, timing, activity context, and 
     slotId: "employee1",
     position: officeSample,
     segmentIndex: officeSample.segmentIndex,
+    now: 1_200,
   });
   assert.equal(state.characters.employee1.sceneId, "office");
   assert.deepEqual(state.characters.employee1.position, { x: officeSample.x, y: officeSample.y });
 
   let loungeSample = null;
+  let loungeNow = 0;
   for (let now = 20_000; now < 80_000; now += 100) {
     const sample = sampleWorldRoute({ route: action.route, startedAt: 1_100, now, speed: 100 });
     if (sample.sceneId === "lounge" && !sample.done) {
       loungeSample = sample;
+      loungeNow = now;
       break;
     }
   }
@@ -154,6 +160,7 @@ test("world route actions preserve exact samples, timing, activity context, and 
     transition,
     position: loungeSample,
     segmentIndex: loungeSample.segmentIndex,
+    now: loungeNow,
   });
   assert.equal(state.characters.employee1.sceneId, "lounge");
   assert.deepEqual(state.characters.employee1.position, { x: loungeSample.x, y: loungeSample.y });
@@ -192,6 +199,64 @@ test("door actions require the transition stored in the active world route", () 
   assert.strictEqual(state, before);
 });
 
+test("rejects routes that the authoritative world sampler cannot traverse", () => {
+  const base = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  const home = pointAt("office", "employee1:seat-approach");
+  const lounge = pointAt("lounge", "dining:seat-1");
+  const invalidRoutes = [
+    [home, lounge],
+    [
+      pointAt("office", "exit"),
+      { transition: true, from: { sceneId: "office", anchorId: "exit" }, to: { sceneId: "lounge", anchorId: "exit" } },
+      pointAt("lounge", "exit"),
+    ],
+    [
+      { sceneId: "lounge", x: 75, y: 1575 },
+      { sceneId: "lounge", x: 45, y: 1545 },
+    ],
+  ];
+
+  for (const route of invalidRoutes) {
+    const next = officeReducer(base, { ...startEvent(), route });
+    assert.strictEqual(next, base);
+  }
+});
+
+test("rejects premature door crossing and return completion", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = officeReducer(state, startEvent());
+  const transition = state.characters.employee1.route.find((entry) => entry.transition === true);
+  const beforeCross = state;
+  state = officeReducer(state, {
+    type: "CROSS_SCENE_DOOR",
+    slotId: "employee1",
+    transition,
+    position: pointAt("lounge", "dining:seat-1"),
+    segmentIndex: 99,
+    now: 1_101,
+  });
+  assert.strictEqual(state, beforeCross);
+
+  const arrival = sampleWorldRoute({
+    route: state.characters.employee1.route,
+    startedAt: state.characters.employee1.routeStartedAt,
+    now: 200_000,
+    speed: 180,
+  });
+  state = officeReducer(state, { type: "ARRIVE_ACTIVITY", slotId: "employee1", position: arrival, now: 200_000 });
+  const home = pointAt("office", "employee1:seat-approach");
+  state = officeReducer(state, {
+    type: "START_RETURN",
+    slotId: "employee1",
+    route: buildWorldRoute({ from: arrival, to: home }),
+    position: arrival,
+    now: 200_100,
+  });
+  const beforeFinish = state;
+  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1", position: home, now: 200_101 });
+  assert.strictEqual(state, beforeFinish);
+});
+
 test("return actions release only owned reservations and finish at the exact home anchor", () => {
   let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
   state = {
@@ -222,7 +287,14 @@ test("return actions release only owned reservations and finish at the exact hom
   assert.equal(state.reservations["dining:seat-1"], undefined);
   assert.equal(state.reservations["printer:front"].reservationGroupId, "group-print");
 
-  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1", position: home });
+  const returnDoneAt = 200_000;
+  const returnSample = sampleWorldRoute({
+    route: state.characters.employee1.route,
+    startedAt: state.characters.employee1.routeStartedAt,
+    now: returnDoneAt,
+    speed: state.characters.employee1.routeSpeed,
+  });
+  state = officeReducer(state, { type: "FINISH_RETURN", slotId: "employee1", position: returnSample, now: returnDoneAt });
   assert.equal(state.characters.employee1.phase, "idle");
   assert.equal(state.characters.employee1.sceneId, "office");
   assert.deepEqual(state.characters.employee1.position, getSceneAnchor("office", "employee1:seat-approach"));

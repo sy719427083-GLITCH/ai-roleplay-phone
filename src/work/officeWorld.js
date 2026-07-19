@@ -73,7 +73,7 @@ const hasSamePoint = (left, right) => (
   && Math.abs(left.y - right.y) <= WORLD_ROUTE_ANCHOR_EPSILON
 );
 
-const isValidWorldRoute = (route) => {
+export const isValidWorldRoute = (route) => {
   if (
     !Array.isArray(route)
     || !isCoordinateEntry(route[0])

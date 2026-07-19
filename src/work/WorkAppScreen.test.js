@@ -150,6 +150,51 @@ test("samples every actor on requestAnimationFrame and dispatches only meaningfu
   assert.doesNotMatch(source, /dispatchOffice\([^)]*position[^)]*\)[\s\S]{0,80}requestAnimationFrame/u);
 });
 
+test("separates crossing frame samples before they reach Pixi", () => {
+  assert.equal(typeof screenModule.samplePhysicalWorldFrame, "function");
+  const characters = {
+    employee1: {
+      slotId: "employee1",
+      sceneId: "office",
+      position: { x: 500, y: 650 },
+      phase: "walkingToActivity",
+      route: [{ sceneId: "office", x: 500, y: 650 }, { sceneId: "office", x: 700, y: 650 }],
+      routeStartedAt: 0,
+      routeSpeed: 100,
+    },
+    employee2: {
+      slotId: "employee2",
+      sceneId: "office",
+      position: { x: 700, y: 650 },
+      phase: "walkingToActivity",
+      route: [{ sceneId: "office", x: 700, y: 650 }, { sceneId: "office", x: 500, y: 650 }],
+      routeStartedAt: 0,
+      routeSpeed: 100,
+    },
+  };
+  const frame = screenModule.samplePhysicalWorldFrame({ characters, now: 1_000 });
+  assert.deepEqual({ x: frame.rawSamples.employee1.x, y: frame.rawSamples.employee1.y }, { x: 600, y: 650 });
+  assert.deepEqual({ x: frame.rawSamples.employee2.x, y: frame.rawSamples.employee2.y }, { x: 600, y: 650 });
+  assert.ok(Math.hypot(
+    frame.renderSamples.employee1.x - frame.renderSamples.employee2.x,
+    frame.renderSamples.employee1.y - frame.renderSamples.employee2.y,
+  ) >= 52);
+
+  const waitingCharacters = {
+    employee1: { ...characters.employee1, position: { x: 520, y: 620 }, route: [{ sceneId: "office", x: 520, y: 620 }], routeStartedAt: 1 },
+    employee2: { ...characters.employee2, position: { x: 540, y: 620 }, route: [{ sceneId: "office", x: 540, y: 620 }], routeStartedAt: 2 },
+  };
+  const waiting = screenModule.samplePhysicalWorldFrame({
+    characters: waitingCharacters,
+    now: 1_000,
+    previousSamples: { employee2: { sceneId: "office", x: 600, y: 620 } },
+  });
+  assert.deepEqual(
+    { x: waiting.renderSamples.employee2.x, y: waiting.renderSamples.employee2.y, waiting: waiting.renderSamples.employee2.waiting },
+    { x: 600, y: 620, waiting: true },
+  );
+});
+
 test("passes sampled positions directly into the Pixi world for hidden and visible scenes", () => {
   const sampledWorldActors = {
     employee1: { sceneId: "lounge", x: 132, y: 1712, facing: "right", segmentIndex: 8, done: false },

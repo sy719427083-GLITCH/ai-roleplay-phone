@@ -1,11 +1,13 @@
 import { OFFICE_SCENES, getSceneAnchor } from "./officeSceneManifest.js";
 import { isLegalCharacterPosition } from "./officePathfinding.js";
 import { releaseReservationGroup } from "./officeReservations.js";
-import { buildWorldRoute } from "./officeWorld.js";
+import { buildWorldRoute, isValidWorldRoute, sampleWorldRoute } from "./officeWorld.js";
 
 const OFFICE_MODE = "free";
 const IDLE_STATUS = "空闲中";
 const RETURN_STATUS = "返回工位";
+const DEFAULT_ROUTE_SPEED = 180;
+const ROUTE_SAMPLE_EPSILON = 0.01;
 const MOVING_PHASES = new Set(["walkingToActivity", "returning"]);
 
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -46,6 +48,7 @@ const getIdleCharacter = (slotId, assignment = {}) => {
     route: [],
     routeSegmentIndex: 0,
     routeStartedAt: 0,
+    routeSpeed: 0,
     reservationGroupId: "",
     activityStartedAt: 0,
     activityEndsAt: 0,
@@ -119,15 +122,7 @@ const cloneReservationMap = (reservations) => {
 const cloneWorldRoute = (route) => {
   if (!Array.isArray(route) || !route.length) return null;
   const cloned = deepClone(route);
-  if (!isWorldPoint(cloned[0]) || !isLegalCharacterPosition(cloned[0].sceneId, cloned[0])) return null;
-  for (const entry of cloned) {
-    if (entry?.transition === true) {
-      if (!hasText(entry.from?.sceneId) || !hasText(entry.from?.anchorId)
-        || !hasText(entry.to?.sceneId) || !hasText(entry.to?.anchorId)) return null;
-      continue;
-    }
-    if (!isWorldPoint(entry) || !isLegalCharacterPosition(entry.sceneId, entry)) return null;
-  }
+  if (!isValidWorldRoute(cloned)) return null;
   return cloned;
 };
 
@@ -157,6 +152,26 @@ const hasSamePoint = (left, right, epsilon = 0.001) => (
   && Math.abs(left.x - right.x) <= epsilon
   && Math.abs(left.y - right.y) <= epsilon
 );
+
+const getRouteSpeed = (value) => (
+  Number.isFinite(value) && value > 0 ? value : DEFAULT_ROUTE_SPEED
+);
+
+const getAuthoritativeActionSample = (character, action) => {
+  if (!Number.isFinite(action?.now) || !Array.isArray(character?.route) || !character.route.length) return null;
+  const sample = sampleWorldRoute({
+    route: character.route,
+    startedAt: character.routeStartedAt,
+    now: action.now,
+    speed: getRouteSpeed(character.routeSpeed),
+  });
+  const point = getActionPoint(action, sample.sceneId);
+  if (!point || !hasSamePoint(point, sample, ROUTE_SAMPLE_EPSILON)) return null;
+  if (action.segmentIndex !== undefined && (
+    !Number.isInteger(action.segmentIndex) || action.segmentIndex !== sample.segmentIndex
+  )) return null;
+  return sample;
+};
 
 const withCharacter = (state, slotId, updater) => {
   const current = state.characters[slotId];
@@ -206,7 +221,7 @@ const transitionMatches = (left, right) => (
   && left.to?.anchorId === right.to?.anchorId
 );
 
-const startReturnCharacter = (character, route, now, position, allowDirectFallback = false) => {
+const startReturnCharacter = (character, route, now, position, allowDirectFallback = false, speed) => {
   const currentPoint = position || { sceneId: character.sceneId, ...character.position };
   let clonedRoute = cloneWorldRoute(route);
   if (!clonedRoute || !hasSamePoint(clonedRoute[0], currentPoint)) {
@@ -215,6 +230,8 @@ const startReturnCharacter = (character, route, now, position, allowDirectFallba
     clonedRoute = cloneWorldRoute(buildWorldRoute({ from: currentPoint, to: home }));
     if (!clonedRoute || !hasSamePoint(clonedRoute[0], currentPoint)) return character;
   }
+  const home = getHomePoint(character.slotId);
+  if (!hasSamePoint(getRouteEnd(clonedRoute), home)) return character;
   return {
     ...character,
     sceneId: currentPoint.sceneId,
@@ -227,6 +244,7 @@ const startReturnCharacter = (character, route, now, position, allowDirectFallba
     route: clonedRoute,
     routeSegmentIndex: 0,
     routeStartedAt: Number.isFinite(now) ? now : 0,
+    routeSpeed: getRouteSpeed(speed),
     reservationGroupId: "",
     activityEndsAt: 0,
   };
@@ -350,6 +368,7 @@ export function officeReducer(state, action) {
           route,
           routeSegmentIndex: 0,
           routeStartedAt: Number.isFinite(action.now) ? action.now : state.now,
+          routeSpeed: getRouteSpeed(action.speed),
           reservationGroupId: action.reservationGroupId,
           activityStartedAt: Number.isFinite(action.now) ? action.now : state.now,
           activityEndsAt: Number.isFinite(action.endsAt) ? action.endsAt : 0,
@@ -361,10 +380,10 @@ export function officeReducer(state, action) {
     case "ADVANCE_WORLD_ROUTE":
       return withCharacter(state, action.slotId, (character) => {
         if (!MOVING_PHASES.has(character.phase)) return character;
-        const point = getActionPoint(action, character.sceneId);
-        const segmentIndex = Number.isInteger(action.segmentIndex) ? action.segmentIndex : character.routeSegmentIndex;
-        if (!point || point.sceneId !== character.sceneId || segmentIndex < character.routeSegmentIndex) return character;
-        return { ...character, position: clonePoint(point), routeSegmentIndex: segmentIndex };
+        const sample = getAuthoritativeActionSample(character, action);
+        if (!sample || sample.done || sample.sceneId !== character.sceneId
+          || sample.segmentIndex < character.routeSegmentIndex) return character;
+        return { ...character, position: clonePoint(sample), routeSegmentIndex: sample.segmentIndex };
       });
 
     case "CROSS_SCENE_DOOR":
@@ -372,27 +391,28 @@ export function officeReducer(state, action) {
         if (!MOVING_PHASES.has(character.phase)) return character;
         const transition = character.route.find((entry) => transitionMatches(entry, action.transition));
         if (!transition || transition.from.sceneId !== character.sceneId) return character;
-        const point = getActionPoint(action, transition.to.sceneId);
-        if (!point || point.sceneId !== transition.to.sceneId) return character;
-        const segmentIndex = Number.isInteger(action.segmentIndex) ? action.segmentIndex : character.routeSegmentIndex;
-        return { ...character, sceneId: point.sceneId, position: clonePoint(point), routeSegmentIndex: segmentIndex };
+        const sample = getAuthoritativeActionSample(character, action);
+        if (!sample || sample.sceneId !== transition.to.sceneId
+          || sample.segmentIndex < character.routeSegmentIndex) return character;
+        return { ...character, sceneId: sample.sceneId, position: clonePoint(sample), routeSegmentIndex: sample.segmentIndex };
       });
 
     case "ARRIVE_ACTIVITY":
       return withCharacter(state, action.slotId, (character) => {
         if (character.phase !== "walkingToActivity") return character;
-        const point = getActionPoint(action, character.sceneId);
-        const target = point && getSceneAnchor(point.sceneId, character.targetAnchorId);
-        if (!point || !target || !hasSamePoint(point, { sceneId: point.sceneId, ...target })) return character;
+        const sample = getAuthoritativeActionSample(character, action);
+        const target = sample && getSceneAnchor(sample.sceneId, character.targetAnchorId);
+        if (!sample?.done || !target || !hasSamePoint(sample, { sceneId: sample.sceneId, ...target })) return character;
         return {
           ...character,
-          sceneId: point.sceneId,
-          position: clonePoint(point),
+          sceneId: sample.sceneId,
+          position: clonePoint(sample),
           phase: character.activity,
           status: String(character.semanticContext?.status || "活动中"),
           route: [],
           routeSegmentIndex: 0,
           routeStartedAt: 0,
+          routeSpeed: 0,
           activityStartedAt: Number.isFinite(action.now) ? action.now : state.now,
         };
       });
@@ -424,7 +444,7 @@ export function officeReducer(state, action) {
       const character = state.characters[action.slotId];
       if (!character) return state;
       const point = getActionPoint(action, character.sceneId);
-      const nextCharacter = startReturnCharacter(character, action.route, action.now ?? state.now, point);
+      const nextCharacter = startReturnCharacter(character, action.route, action.now ?? state.now, point, false, action.speed);
       if (nextCharacter === character) return state;
       const reservations = character.conversationId || !character.reservationGroupId
         ? state.reservations
@@ -437,9 +457,13 @@ export function officeReducer(state, action) {
     }
 
     case "FINISH_RETURN":
-      return withCharacter(state, action.slotId, (character) => (
-        character.phase === "returning" ? getIdleCharacter(action.slotId, state.assignments[action.slotId]) : character
-      ));
+      return withCharacter(state, action.slotId, (character) => {
+        if (character.phase !== "returning") return character;
+        const sample = getAuthoritativeActionSample(character, action);
+        const home = getHomePoint(action.slotId);
+        if (!sample?.done || !hasSamePoint(sample, home)) return character;
+        return getIdleCharacter(action.slotId, state.assignments[action.slotId]);
+      });
 
     case "OPEN_CONVERSATION": {
       const conversation = normalizeConversation(action.session, state.now);
