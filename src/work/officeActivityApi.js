@@ -24,6 +24,7 @@ const getFallback = (event) => {
 const getChatCompletionsUrl = (baseUrl) => `${String(baseUrl || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "")}/v1/chat/completions`;
 
 export function buildOfficeActivityMessages(event = {}) {
+  if (!isPlainObject(event)) return [];
   const context = isPlainObject(event.semanticContext) ? event.semanticContext : {};
   const profiles = Array.isArray(event.profileSnapshots) ? event.profileSnapshots : [];
   if (!getEventId(event)) return [];
@@ -48,18 +49,19 @@ export function parseOfficeActivityReply(raw, event = {}) {
 }
 
 export async function requestOfficeActivityDetail(options = {}) {
-  const event = isPlainObject(options.event) ? options.event : {};
+  const normalizedOptions = isPlainObject(options) ? options : {};
+  const event = isPlainObject(normalizedOptions.event) ? normalizedOptions.event : {};
   const fallback = getFallback(event);
   try {
-    const endpoint = getOfficeEndpoint(options.storage);
-    const fetchImpl = options.fetchImpl === undefined ? globalThis.fetch : options.fetchImpl;
+    const endpoint = getOfficeEndpoint(normalizedOptions.storage);
+    const fetchImpl = normalizedOptions.fetchImpl === undefined ? globalThis.fetch : normalizedOptions.fetchImpl;
     const messages = buildOfficeActivityMessages(event);
     if (!endpoint || typeof fetchImpl !== "function" || !messages.length) return fallback;
     const response = await fetchImpl(getChatCompletionsUrl(endpoint.baseUrl), {
       method: "POST",
       headers: { Authorization: `Bearer ${endpoint.apiKey.trim()}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: endpoint.model, messages, temperature: Number(endpoint.temperature ?? 0.7) }),
-      signal: options.signal,
+      signal: normalizedOptions.signal,
     });
     if (!response?.ok) return fallback;
     const raw = (await response.json())?.choices?.[0]?.message?.content;

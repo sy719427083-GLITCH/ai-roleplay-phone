@@ -26,6 +26,25 @@ const event = {
   profileSnapshots: [{ id: "employee1", name: "沈知白", identity: "投资人", personality: "克制", persona: "习惯在压力下保持冷静" }],
 };
 
+const emptySemanticFallback = {
+  eventId: "",
+  subject: "当前事项",
+  summary: "正在推进当前事项",
+  insightOrResult: "形成下一步",
+};
+
+test("returns no messages for null and non-object events", () => {
+  for (const invalidEvent of [null, undefined, 42, "invalid", []]) {
+    assert.deepEqual(buildOfficeActivityMessages(invalidEvent), []);
+  }
+});
+
+test("resolves invalid request options to the safe four-key semantic fallback", async () => {
+  for (const invalidOptions of [null, undefined, 42, "invalid", []]) {
+    assert.deepEqual(await requestOfficeActivityDetail(invalidOptions), emptySemanticFallback);
+  }
+});
+
 test("builds prompts from assigned profiles and immutable semantic context", () => {
   const [system] = buildOfficeActivityMessages(event);
   assert.match(system.content, /沈知白|克制|阅读中/u);
