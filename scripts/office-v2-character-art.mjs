@@ -360,11 +360,53 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
   });
 }
 
+async function realignEncodedCharacterStrip({ page, dataUrl, metadata, frames }) {
+  const normalization = OFFICE_V2_CHARACTER_CONTRACT.normalization;
+  const shifts = Object.fromEntries(frames.map(({ index, footAnchor }) => [index, {
+    x: normalization.feetAnchor.x - footAnchor.x,
+    y: normalization.feetAnchor.y - footAnchor.y,
+  }]));
+  return page.evaluate(async ({ source, metadata, normalization, shifts }) => {
+    const image = new Image();
+    image.src = source;
+    await image.decode();
+    const output = document.createElement("canvas");
+    output.width = metadata.width;
+    output.height = metadata.height;
+    const outputContext = output.getContext("2d");
+
+    for (let row = 0; row < metadata.rows; row += 1) {
+      for (let column = 0; column < metadata.columns; column += 1) {
+        const index = (row * metadata.columns) + column;
+        const shift = shifts[index] || { x: 0, y: 0 };
+        const frame = document.createElement("canvas");
+        frame.width = metadata.cellSize;
+        frame.height = metadata.cellSize;
+        const frameContext = frame.getContext("2d");
+        frameContext.imageSmoothingEnabled = false;
+        frameContext.drawImage(
+          image,
+          column * metadata.cellSize,
+          row * metadata.cellSize,
+          metadata.cellSize,
+          metadata.cellSize,
+          shift.x,
+          shift.y,
+          metadata.cellSize,
+          metadata.cellSize,
+        );
+        outputContext.drawImage(frame, column * metadata.cellSize, row * metadata.cellSize);
+      }
+    }
+    return output.toDataURL("image/webp", normalization.output.quality / 100);
+  }, { source: dataUrl, metadata, normalization, shifts });
+}
+
 export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, label = "character master" }) {
   const dimensions = await decodeImageDimensions(page, sourceDataUrl);
   const sourceCells = validateCharacterMasterDimensions({ ...dimensions, metadata });
   const normalization = OFFICE_V2_CHARACTER_CONTRACT.normalization;
-  const outputDataUrl = await page.evaluate(async ({
+  let outputDataUrl = await page.evaluate(async ({
     source,
     metadata,
     sourceCells,
@@ -492,7 +534,20 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
   });
 
   decodeWebPDataUrl(outputDataUrl);
-  const inspection = await inspectCharacterStrip({ page, dataUrl: outputDataUrl, metadata, label });
+  let inspection = await inspectCharacterStrip({ page, dataUrl: outputDataUrl, metadata, label });
+  const encodedMisalignment = inspection.frames.filter(({ footAnchor }) => (
+    footAnchor.x !== normalization.feetAnchor.x || footAnchor.y !== normalization.feetAnchor.y
+  ));
+  if (encodedMisalignment.length > 0) {
+    outputDataUrl = await realignEncodedCharacterStrip({
+      page,
+      dataUrl: outputDataUrl,
+      metadata,
+      frames: encodedMisalignment,
+    });
+    decodeWebPDataUrl(outputDataUrl);
+    inspection = await inspectCharacterStrip({ page, dataUrl: outputDataUrl, metadata, label });
+  }
   if (inspection.emptyFrames.length > 0) throw new Error(`${label}: empty frames ${inspection.emptyFrames.join(", ")}`);
   if (inspection.gutterViolations.length > 0) {
     throw new Error(`${label}: frames violate 24px transparent gutter: ${inspection.gutterViolations.join(", ")}`);
@@ -503,7 +558,13 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
   const misaligned = inspection.frames.filter(({ footAnchor }) => (
     footAnchor.x !== normalization.feetAnchor.x || footAnchor.y !== normalization.feetAnchor.y
   ));
-  if (misaligned.length > 0) throw new Error(`${label}: encoded feet do not share the required anchor`);
+  if (misaligned.length > 0) {
+    const details = misaligned.map(({ index, footAnchor }) => `${index} (${footAnchor.x},${footAnchor.y})`).join(", ");
+    throw new Error(
+      `${label}: encoded feet do not share required anchor `
+      + `${normalization.feetAnchor.x},${normalization.feetAnchor.y}; frames ${details}`,
+    );
+  }
   return outputDataUrl;
 }
 

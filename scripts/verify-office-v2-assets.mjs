@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import {
   OFFICE_V2_ART_SPEC,
+  OFFICE_V2_CHARACTER_CONTRACT,
   OFFICE_V2_FURNITURE_IDS,
   OFFICE_V2_PROP_IDS,
   OFFICE_V2_SCENE_IDS,
@@ -157,6 +158,17 @@ export async function verifyCharacterCohort({
         ensure(
           result.frames.every(({ transparentPixels, usefulPixels }) => transparentPixels > 0 && usefulPixels > 0),
           `${characterId}/${clipId}: every frame must contain alpha and populated pixels`,
+        );
+        const requiredAnchor = OFFICE_V2_CHARACTER_CONTRACT.normalization.feetAnchor;
+        const misaligned = result.frames.filter(({ footAnchor }) => (
+          footAnchor.x !== requiredAnchor.x || footAnchor.y !== requiredAnchor.y
+        ));
+        ensure(
+          misaligned.length === 0,
+          `Required feet anchor ${requiredAnchor.x},${requiredAnchor.y} for ${characterId}/${clipId}; `
+          + `misaligned frames ${misaligned.map(({ index, footAnchor }) => (
+            `${index} (${footAnchor.x},${footAnchor.y})`
+          )).join(", ")}`,
         );
       }
     }

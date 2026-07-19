@@ -125,7 +125,7 @@ test("paginates every character frame below encoder limits", () => {
   const cohort = createContactSheetPlan("boss-f");
   assert.equal(cohort.output, "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp");
   assert.equal(cohort.pages.length, 4);
-  assert.equal(cohort.missing.length, 168);
+  assert.equal(cohort.missing.length, 0);
   for (const page of cohort.pages) {
     assert.equal(page.frameCount, 196);
     assert.deepEqual(page.representativePairs.map(({ family, sizes }) => [family, sizes]), [
@@ -142,28 +142,25 @@ test("paginates every character frame below encoder limits", () => {
   assert.equal(all.pages.some(({ output }) => output === "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp"), true);
 });
 
-test("contact-sheet CLI fails clearly for deferred assets and supports explicit allow-missing planning", () => {
+test("contact-sheet CLI plans the installed boss-f cohort and rejects an invalid cohort argument", () => {
   const script = path.join(ROOT, "scripts", "build-office-v2-contact-sheets.mjs");
-  const missing = spawnSync(process.execPath, [script, "--characters", "boss-f"], {
+  const installed = spawnSync(process.execPath, [script, "--characters", "boss-f", "--dry-run"], {
     cwd: ROOT,
     encoding: "utf8",
   });
-  assert.equal(missing.status, 1);
-  assert.match(missing.stderr, /missing 168 required character strips/i);
-  assert.match(missing.stderr, /Tasks 7-10/i);
-  assert.match(missing.stderr, /--allow-missing/i);
-
-  const allowed = spawnSync(process.execPath, [
-    script, "--characters", "boss-f", "--allow-missing", "--dry-run",
-  ], {
-    cwd: ROOT,
-    encoding: "utf8",
-  });
-  assert.equal(allowed.status, 0, allowed.stderr);
-  const plan = JSON.parse(allowed.stdout);
+  assert.equal(installed.status, 0, installed.stderr);
+  const plan = JSON.parse(installed.stdout);
   assert.deepEqual(plan.characterIds, CHARACTER_IDS.slice(8, 12));
-  assert.equal(plan.missing.length, 168);
+  assert.equal(plan.missing.length, 0);
   assert.equal(plan.pages.length, 4);
   assert.equal(plan.pages.every(({ width, height }) => width <= CONTACT_SHEET_MAX_DIMENSION && height <= CONTACT_SHEET_MAX_DIMENSION), true);
   assert.equal(plan.output, "docs/superpowers/qa/office-v2-boss-f-contact-sheet.webp");
+
+  const invalid = spawnSync(process.execPath, [script, "--characters", "deferred"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  assert.equal(invalid.status, 1);
+  assert.match(invalid.stderr, /--characters must be one of/i);
+  assert.match(invalid.stderr, /boss-f/i);
 });

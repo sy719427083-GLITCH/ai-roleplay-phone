@@ -165,6 +165,30 @@ async function makeRectangularOutputStrip(page, metadata, shape) {
   }, { metadata, shape });
 }
 
+async function makeWebPRoundingMaster(page, metadata) {
+  return page.evaluate(({ columns, rows }) => {
+    const cell = 512;
+    const canvas = document.createElement("canvas");
+    canvas.width = columns * cell;
+    canvas.height = rows * cell;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "rgb(105, 92, 158)";
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const x = column * cell;
+        const y = row * cell;
+        context.beginPath();
+        context.arc(x + 256, y + 122, 58, 0, Math.PI * 2);
+        context.fill();
+        context.fillRect(x + 190, y + 178, 120, 210);
+        context.fillRect(x + 160, y + 360, 35, 80);
+        context.fillRect(x + 240, y + 352, 38, 88);
+      }
+    }
+    return canvas.toDataURL("image/png");
+  }, { columns: metadata.columns, rows: metadata.rows });
+}
+
 test("defines the four approved character cohorts", () => {
   assert.deepEqual(CHARACTER_COHORTS, ["employee-f", "employee-m", "boss-f", "boss-m"]);
 });
@@ -211,6 +235,32 @@ test("normalizes generated cells to aligned populated 384px WebP frames", async 
     assert.equal(result.gutterViolations.length, 0);
     assert.equal(result.furnitureLikeFrames.length, 0);
     assert.equal(result.frames.every(({ footAnchor }) => footAnchor.x === 192 && footAnchor.y === 359), true);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("realigns post-WebP alpha rounding to the exact feet anchor", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const outputDataUrl = await normalizeCharacterMaster({
+      page,
+      sourceDataUrl: await makeWebPRoundingMaster(page, ACTION),
+      metadata: ACTION,
+      label: "fixture/webp-rounding",
+    });
+    const inspection = await inspectCharacterStrip({
+      page,
+      dataUrl: outputDataUrl,
+      metadata: ACTION,
+      label: "fixture/webp-rounding.webp",
+    });
+    assert.equal(
+      inspection.frames.every(({ footAnchor }) => footAnchor.x === 192 && footAnchor.y === 359),
+      true,
+    );
+    assert.deepEqual(inspection.gutterViolations, []);
   } finally {
     await browser.close();
   }
@@ -312,6 +362,7 @@ test("cohort verifier defers absent inventory, rejects partial inventory, and ch
   const root = await mkdtemp(path.join(os.tmpdir(), "office-v2-verifier-"));
   const characterRoot = path.join(root, "characters");
   let inspected = 0;
+  let anchorX = 192;
   const browserFactory = async () => ({ newPage: async () => ({}), close: async () => {} });
   const inspectStrip = async ({ metadata }) => {
     inspected += 1;
@@ -319,9 +370,11 @@ test("cohort verifier defers absent inventory, rejects partial inventory, and ch
       emptyFrames: [],
       gutterViolations: [],
       furnitureLikeFrames: [],
-      frames: Array.from({ length: metadata.columns * metadata.rows }, () => ({
+      frames: Array.from({ length: metadata.columns * metadata.rows }, (_, index) => ({
+        index,
         transparentPixels: 100,
         usefulPixels: 100,
+        footAnchor: { x: anchorX, y: 359 },
       })),
     };
   };
@@ -351,6 +404,13 @@ test("cohort verifier defers absent inventory, rejects partial inventory, and ch
     assert.equal(complete.state, "complete");
     assert.equal(complete.verifiedStrips, 168);
     assert.equal(inspected, 168);
+
+    anchorX = 193;
+    await assert.rejects(
+      verifyCharacterCohort({ root, cohort: "boss-f", browserFactory, inspectStrip }),
+      /required feet anchor 192,359.*boss-f-01\/locomotion.*frames 0/i,
+    );
+    anchorX = 192;
 
     const first = path.join(characterRoot, "boss-f-01", "locomotion.webp");
     const duplicate = path.join(characterRoot, "boss-f-01", "idle-seated.webp");
