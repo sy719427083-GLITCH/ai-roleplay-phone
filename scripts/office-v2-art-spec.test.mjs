@@ -147,8 +147,62 @@ test("normalizer rejects an allowed lexical output alias that resolves into its 
       cwd: fixtureRoot,
       sourceArg: "source/boss-f",
       outputArg: "public/work-office-v2/characters",
-    }), /source and output directories must not overlap/i);
+    }), /output path has a symlinked ancestor|source and output directories must not overlap/i);
     assert.equal(await readFile(marker, "utf8"), "keep source");
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
+test("normalizer rejects existing and missing outputs below a symlinked public ancestor", async (t) => {
+  for (const targetState of ["existing", "missing"]) {
+    await t.test(targetState, async () => {
+      const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), `office-v2-public-alias-${targetState}-`));
+      const outsideRoot = await mkdtemp(path.join(os.tmpdir(), `office-v2-public-outside-${targetState}-`));
+      const marker = path.join(outsideRoot, "outside-marker.txt");
+      try {
+        await mkdir(path.join(fixtureRoot, "source"), { recursive: true });
+        await mkdir(fixtureRoot, { recursive: true });
+        if (targetState === "existing") {
+          await mkdir(path.join(outsideRoot, "work-office-v2"), { recursive: true });
+        }
+        await writeFile(marker, `keep ${targetState}`);
+        await symlink(outsideRoot, path.join(fixtureRoot, "public"));
+
+        assert.throws(() => resolveOfficeV2ArtPaths({
+          repoRoot: fixtureRoot,
+          cwd: fixtureRoot,
+          sourceArg: "source",
+          outputArg: "public/work-office-v2",
+        }), /output path has a symlinked ancestor|output must remain inside the repository/i);
+        assert.equal(await readFile(marker, "utf8"), `keep ${targetState}`);
+      } finally {
+        await rm(fixtureRoot, { recursive: true, force: true });
+        await rm(outsideRoot, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
+test("normalizer rejects a characters output alias even when it resolves inside the repository", async () => {
+  const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "office-v2-characters-alias-"));
+  const realCharacterRoot = path.join(fixtureRoot, "stored-characters");
+  const outputParent = path.join(fixtureRoot, "public", "work-office-v2");
+  const marker = path.join(realCharacterRoot, "character-marker.txt");
+  try {
+    await mkdir(path.join(fixtureRoot, "source", "boss-f"), { recursive: true });
+    await mkdir(realCharacterRoot, { recursive: true });
+    await mkdir(outputParent, { recursive: true });
+    await writeFile(marker, "keep characters alias");
+    await symlink(realCharacterRoot, path.join(outputParent, "characters"));
+
+    assert.throws(() => resolveOfficeV2ArtPaths({
+      repoRoot: fixtureRoot,
+      cwd: fixtureRoot,
+      sourceArg: "source/boss-f",
+      outputArg: "public/work-office-v2/characters",
+    }), /output path has a symlinked ancestor/i);
+    assert.equal(await readFile(marker, "utf8"), "keep characters alias");
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
   }

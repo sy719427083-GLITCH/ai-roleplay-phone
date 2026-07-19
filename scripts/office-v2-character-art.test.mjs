@@ -137,6 +137,34 @@ async function makeBodyShapeMaster(page, metadata, shape) {
   }, { columns: metadata.columns, rows: metadata.rows, shape });
 }
 
+async function makeRectangularOutputStrip(page, metadata, shape) {
+  return page.evaluate(({ metadata, shape }) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = metadata.width;
+    canvas.height = metadata.height;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "rgb(94, 82, 150)";
+    for (let row = 0; row < metadata.rows; row += 1) {
+      for (let column = 0; column < metadata.columns; column += 1) {
+        const originX = column * metadata.cellSize;
+        const originY = row * metadata.cellSize;
+        const rectangleWidth = shape === "rectangle-220x80" ? 220 : 300;
+        const rectangleX = originX + Math.round((metadata.cellSize - rectangleWidth) / 2);
+        const rectangleY = originY + 100;
+        context.fillRect(rectangleX, rectangleY, rectangleWidth, 80);
+        if (shape === "rectangle-300x80-split") {
+          context.clearRect(originX + Math.floor(metadata.cellSize / 2), rectangleY, 1, 80);
+        }
+        if (shape === "rectangle-300x80-legs") {
+          context.fillRect(rectangleX + 48, rectangleY + 80, 2, 100);
+          context.fillRect(rectangleX + rectangleWidth - 50, rectangleY + 80, 2, 100);
+        }
+      }
+    }
+    return canvas.toDataURL("image/webp", 0.95);
+  }, { metadata, shape });
+}
+
 test("defines the four approved character cohorts", () => {
   assert.deepEqual(CHARACTER_COHORTS, ["employee-f", "employee-m", "boss-f", "boss-m"]);
 });
@@ -225,6 +253,30 @@ for (const shape of ["outstretched-arms", "wide-long-hair", "flared-dress", "ext
         label: `fixture/${shape}.webp`,
       });
       assert.deepEqual(inspection.furnitureLikeFrames, []);
+    } finally {
+      await browser.close();
+    }
+  });
+}
+
+for (const shape of [
+  "rectangle-220x80",
+  "rectangle-300x80",
+  "rectangle-300x80-split",
+  "rectangle-300x80-legs",
+]) {
+  test(`rejects the body-only bypass fixture ${shape}`, async () => {
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      const inspection = await inspectCharacterStrip({
+        page,
+        dataUrl: await makeRectangularOutputStrip(page, ACTION, shape),
+        metadata: ACTION,
+        label: `fixture/${shape}.webp`,
+      });
+      assert.deepEqual(inspection.gutterViolations, []);
+      assert.deepEqual(inspection.furnitureLikeFrames, [0, 1, 2, 3]);
     } finally {
       await browser.close();
     }

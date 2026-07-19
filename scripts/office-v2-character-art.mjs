@@ -141,9 +141,70 @@ export function analyzeFurnitureLikeComponents({ alpha, width, height, alphaThre
     });
   }
 
+  const minimumCoreWidth = Math.ceil(width * 0.57);
+  const minimumCoreHeight = Math.ceil(height * 0.16);
+  const denseRows = [];
+  for (let y = 0; y < height; y += 1) {
+    let minX = width;
+    let maxX = -1;
+    let count = 0;
+    for (let x = 0; x < width; x += 1) {
+      if (alpha[(y * width) + x] <= alphaThreshold) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      count += 1;
+    }
+    const span = maxX >= minX ? maxX - minX + 1 : 0;
+    denseRows.push(span >= minimumCoreWidth && count / span >= 0.92
+      ? { y, minX, maxX, count, span }
+      : null);
+  }
+
+  const rectangularCores = [];
+  let runStart = 0;
+  while (runStart < denseRows.length) {
+    while (runStart < denseRows.length && denseRows[runStart] === null) runStart += 1;
+    if (runStart >= denseRows.length) break;
+    let runEnd = runStart;
+    while (runEnd + 1 < denseRows.length && denseRows[runEnd + 1] !== null) runEnd += 1;
+    const rows = denseRows.slice(runStart, runEnd + 1);
+    if (rows.length >= minimumCoreHeight) {
+      const widths = rows.map(({ span }) => span).sort((left, right) => left - right);
+      const medianWidth = widths[Math.floor(widths.length / 2)];
+      const leftEdges = rows.map(({ minX }) => minX);
+      const rightEdges = rows.map(({ maxX }) => maxX);
+      const edgeTolerance = Math.max(4, medianWidth * 0.06);
+      const widthTolerance = Math.max(4, medianWidth * 0.1);
+      const leftSpread = Math.max(...leftEdges) - Math.min(...leftEdges);
+      const rightSpread = Math.max(...rightEdges) - Math.min(...rightEdges);
+      const widthSpread = Math.max(...widths) - Math.min(...widths);
+      const density = rows.reduce((total, row) => total + row.count, 0)
+        / rows.reduce((total, row) => total + row.span, 0);
+      const stableEdges = leftSpread <= edgeTolerance && rightSpread <= edgeTolerance;
+      const stableWidth = widthSpread <= widthTolerance;
+      const furnitureLike = density >= 0.94 && stableEdges && stableWidth;
+      rectangularCores.push({
+        bounds: {
+          minX: Math.min(...leftEdges),
+          minY: rows[0].y,
+          maxX: Math.max(...rightEdges),
+          maxY: rows.at(-1).y,
+        },
+        density,
+        stableEdges,
+        stableWidth,
+        furnitureLike,
+      });
+    }
+    runStart = runEnd + 1;
+  }
+
+  // Geometry rejects obvious baked furniture; contact-sheet visual QA remains the final body-only check.
   return {
-    furnitureLike: components.some((component) => component.furnitureLike),
+    furnitureLike: components.some((component) => component.furnitureLike)
+      || rectangularCores.some((core) => core.furnitureLike),
     components,
+    rectangularCores,
   };
 }
 

@@ -26,8 +26,26 @@ function canonicalizePath(candidate) {
   return path.join(realpathSync(ancestor), ...missingSegments);
 }
 
+function assertOutputAncestorsAreNotSymlinks({ canonicalRepoRoot, resolvedRepoRoot, outputRoot }) {
+  const relativeOutput = path.relative(resolvedRepoRoot, outputRoot);
+  let current = canonicalRepoRoot;
+  for (const segment of relativeOutput.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    try {
+      const stats = lstatSync(current);
+      if (stats.isSymbolicLink()) {
+        throw new Error(`office-v2 output path has a symlinked ancestor: ${current}`);
+      }
+    } catch (error) {
+      if (error.code === "ENOENT") break;
+      throw error;
+    }
+  }
+}
+
 export function resolveOfficeV2ArtPaths({ repoRoot, cwd, sourceArg, outputArg }) {
   const resolvedRepoRoot = path.resolve(repoRoot);
+  const canonicalRepoRoot = realpathSync(resolvedRepoRoot);
   const sourceRoot = path.resolve(cwd, sourceArg);
   const outputRoot = path.resolve(cwd, outputArg);
   const expectedOutputRoot = path.join(resolvedRepoRoot, "public", "work-office-v2");
@@ -40,8 +58,12 @@ export function resolveOfficeV2ArtPaths({ repoRoot, cwd, sourceArg, outputArg })
     );
   }
 
+  assertOutputAncestorsAreNotSymlinks({ canonicalRepoRoot, resolvedRepoRoot, outputRoot });
   const canonicalSourceRoot = canonicalizePath(sourceRoot);
   const canonicalOutputRoot = canonicalizePath(outputRoot);
+  if (!isSameOrDescendant(canonicalOutputRoot, canonicalRepoRoot)) {
+    throw new Error(`office-v2 output must remain inside the repository: ${canonicalRepoRoot}`);
+  }
   if (
     isSameOrDescendant(canonicalSourceRoot, canonicalOutputRoot)
     || isSameOrDescendant(canonicalOutputRoot, canonicalSourceRoot)
