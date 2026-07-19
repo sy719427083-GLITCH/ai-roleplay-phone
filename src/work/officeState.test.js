@@ -89,6 +89,7 @@ test("fresh state places all five actors at exact legal office home anchors", ()
       reservationGroupId: "",
       activityStartedAt: 0,
       activityEndsAt: 0,
+      facing: "front",
       propState: null,
       semanticContext: null,
     });
@@ -418,19 +419,89 @@ test("conversation counters reject regressions without changing another session"
   assert.strictEqual(state.conversations.b, untouched);
 });
 
+test("locks a desk host, rejects a forced open, and restores its facing after close", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  state = {
+    ...state,
+    reservations: {
+      "employee1:visitor-left": {
+        anchorId: "employee1:visitor-left", slotId: "employee1", reservationGroupId: "desk-lock-group", sceneId: "office", expiresAt: 9_000,
+      },
+    },
+  };
+  const session = {
+    id: "desk-lock", hostId: "employee1", visitorIds: ["employee2"], memberIds: ["employee1", "employee2"],
+    sceneId: "office", locationId: "employee1:desk", activityId: "chatting", reservationGroupId: "desk-lock-group",
+    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-left" },
+    targetAnchorIds: ["employee1:visitor-left"],
+    participantSnapshots: [{ memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" }],
+    topic: "项目进度", startedAt: 1_000, endsAt: 9_000,
+  };
+  state = officeReducer(state, { type: "LOCK_CONVERSATION_HOST", session });
+  assert.equal(state.characters.employee1.phase, "waitingForConversation");
+  assert.equal(state.characters.employee1.reservationGroupId, "desk-lock-group");
+
+  const forced = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+  assert.strictEqual(forced, state, "a visitor that has not arrived cannot force open a conversation");
+
+  state = {
+    ...state,
+    characters: {
+      ...state.characters,
+      employee2: {
+        ...state.characters.employee2,
+        phase: "chatting",
+        activity: "chatting",
+        reservationGroupId: "desk-lock-group",
+        targetAnchorId: "employee1:visitor-left",
+        position: { ...getSceneAnchor("office", "employee1:visitor-left") },
+      },
+    },
+  };
+  state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+  assert.equal(state.characters.employee1.phase, "chatting");
+  assert.equal(state.characters.employee1.facing, "left");
+
+  state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "desk-lock", now: 2_000 });
+  assert.equal(state.characters.employee1.phase, "idle");
+  assert.equal(state.characters.employee1.facing, "front");
+});
+
 test("closing a physical conversation records it once and persists only closed dialogue", () => {
   let state = createOfficeState({ assignments, now: 100, durationMs: 60_000, workSessionId: "work-records" });
-  state = officeReducer(state, {
-    type: "OPEN_CONVERSATION",
-    session: {
-      id: "desk-chat", workSessionId: "work-records", hostId: "employee1", visitorIds: ["employee2"],
-      memberIds: ["employee1", "employee2"], sceneId: "office", locationId: "employee1:desk",
-      anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-front" },
-      reservationGroupId: "desk-chat-group", topic: "项目进度", participantSnapshots: [
-        { memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" },
-      ], startedAt: 100,
+  const session = {
+    id: "desk-chat", workSessionId: "work-records", hostId: "employee1", visitorIds: ["employee2"],
+    memberIds: ["employee1", "employee2"], sceneId: "office", locationId: "employee1:desk",
+    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-front" }, targetAnchorIds: ["employee1:visitor-front"],
+    reservationGroupId: "desk-chat-group", topic: "项目进度", participantSnapshots: [
+      { memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" },
+    ], startedAt: 100,
+  };
+  state = {
+    ...state,
+    reservations: {
+      "employee1:visitor-front": {
+        anchorId: "employee1:visitor-front", slotId: "employee1", reservationGroupId: "desk-chat-group", sceneId: "office", expiresAt: 9_000,
+      },
     },
-  });
+  };
+  state = officeReducer(state, { type: "LOCK_CONVERSATION_HOST", session });
+  state = {
+    ...state,
+    characters: {
+      ...state.characters,
+      employee2: {
+        ...state.characters.employee2,
+        sceneId: "office",
+        position: { ...getSceneAnchor("office", "employee1:visitor-front") },
+        phase: "chatting",
+        activity: "chatting",
+        targetAnchorId: "employee1:visitor-front",
+        reservationGroupId: "desk-chat-group",
+      },
+    },
+  };
+  state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
   state = officeReducer(state, {
     type: "APPEND_CONVERSATION", conversationId: "desk-chat", entry: { speakerId: "employee1", text: "我们先看进度。" },
   });

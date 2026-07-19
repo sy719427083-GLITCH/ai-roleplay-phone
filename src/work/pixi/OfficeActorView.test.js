@@ -132,6 +132,25 @@ test("anchors simultaneous diners to their individual dining surfaces with uniqu
   assert.notEqual(getActivityPropKey(states[1], "meal-tray"), getActivityPropKey(states[2], "meal-tray"));
 });
 
+test("keeps dining and sofa conversation props on existing lounge furniture", () => {
+  const states = getActivityPropStates([
+    { slotId: "employee1", sceneId: "lounge", activity: "dining-chat", anchorId: "dining:seat-1" },
+    { slotId: "employee2", sceneId: "lounge", activity: "dining-listen", anchorId: "dining:seat-2" },
+    { slotId: "employee3", sceneId: "lounge", activity: "sofa-chat", anchorId: "sofa:visitor-2" },
+    { slotId: "employee4", sceneId: "lounge", activity: "sofa-listen", anchorId: "tv:view" },
+  ]);
+
+  assert.deepEqual(states.map(({ sceneId, objectId, anchorId }) => ({ sceneId, objectId, anchorId })), [
+    { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-1:surface" },
+    { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-2:surface" },
+    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface" },
+    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface" },
+  ]);
+  assert.deepEqual(states[0].propIds, ["meal-tray", "food-plate", "utensils"]);
+  assert.deepEqual(states[2].propIds, ["coffee-cup"]);
+  assert.equal(states.every(({ sceneId, objectId }) => OFFICE_SCENES[sceneId].objects.some((object) => object.id === objectId)), true);
+});
+
 test("preserves requested sprite layout after asynchronous texture replacement", async () => {
   const loaded = deferred();
   const sprite = createSprite("/scene.webp", { x: 12, y: 34, width: 1080, height: 1920 }, {

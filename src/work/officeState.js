@@ -53,6 +53,7 @@ const getIdleCharacter = (slotId, assignment = {}) => {
     reservationGroupId: "",
     activityStartedAt: 0,
     activityEndsAt: 0,
+    facing: "front",
     propState: null,
     semanticContext: null,
   };
@@ -258,6 +259,48 @@ const isAtHome = (character) => {
   return character.sceneId === home.sceneId && hasSamePoint({ sceneId: character.sceneId, ...character.position }, home);
 };
 
+const hasPhysicalConversationPlan = (conversation) => (
+  Boolean(conversation.reservationGroupId)
+  && conversation.targetAnchorIds.length > 0
+  && conversation.memberIds.every((slotId) => hasText(conversation.anchorByMember[slotId]))
+);
+
+const hasConversationReservations = (state, conversation) => (
+  conversation.targetAnchorIds.every((anchorId) => (
+    state.reservations[anchorId]?.reservationGroupId === conversation.reservationGroupId
+  ))
+);
+
+const isAtConversationAnchor = (character, conversation, slotId) => {
+  const anchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[slotId]);
+  return Boolean(anchor) && character.sceneId === conversation.sceneId
+    && hasSamePoint({ sceneId: character.sceneId, ...character.position }, { sceneId: conversation.sceneId, ...anchor });
+};
+
+const conversationFacing = (conversation) => {
+  const hostAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[conversation.hostId]);
+  const visitorAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[conversation.visitorIds[0]]);
+  if (!hostAnchor || !visitorAnchor) return "front";
+  const deltaX = visitorAnchor.x - hostAnchor.x;
+  const deltaY = visitorAnchor.y - hostAnchor.y;
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) return deltaX < 0 ? "left" : "right";
+  return deltaY < 0 ? "back" : "front";
+};
+
+const isConversationReady = (state, conversation) => (
+  hasConversationReservations(state, conversation)
+  && conversation.memberIds.every((slotId) => {
+    const character = state.characters[slotId];
+    const isDeskHost = conversation.locationId.endsWith(":desk") && slotId === conversation.hostId;
+    return Boolean(character)
+      && !character.conversationId
+      && character.reservationGroupId === conversation.reservationGroupId
+      && character.activity === conversation.activityId
+      && character.phase === (isDeskHost ? "waitingForConversation" : conversation.activityId)
+      && isAtConversationAnchor(character, conversation, slotId);
+  })
+);
+
 const withConversation = (state, conversationId, updater) => {
   const current = state.conversations[conversationId];
   if (!current) return state;
@@ -403,6 +446,30 @@ export function officeReducer(state, action) {
       };
     }
 
+    case "LOCK_CONVERSATION_HOST": {
+      const conversation = normalizeConversation(action.session, state.now);
+      const host = state.characters[conversation.hostId];
+      if (!conversation.id || !conversation.locationId.endsWith(":desk") || !hasPhysicalConversationPlan(conversation)
+        || !host || host.conversationId || !new Set(["idle", "working"]).has(host.phase)
+        || !hasConversationReservations(state, conversation) || !isAtConversationAnchor(host, conversation, conversation.hostId)) return state;
+      return {
+        ...state,
+        characters: {
+          ...state.characters,
+          [conversation.hostId]: {
+            ...host,
+            phase: "waitingForConversation",
+            activity: conversation.activityId,
+            status: conversation.activityStatus,
+            targetAnchorId: conversation.anchorByMember[conversation.hostId],
+            reservationGroupId: conversation.reservationGroupId,
+            activityStartedAt: conversation.startedAt,
+            activityEndsAt: conversation.endsAt,
+          },
+        },
+      };
+    }
+
     case "START_WORLD_ROUTE":
       return withCharacter(state, action.slotId, (character) => {
         if (!hasText(action.activityId) || !hasText(action.targetAnchorId) || !hasText(action.reservationGroupId)) return character;
@@ -527,6 +594,7 @@ export function officeReducer(state, action) {
       if (conversation.memberIds.length < 2 || conversation.memberIds.some((slotId) => (
         !state.characters[slotId] || state.characters[slotId].conversationId
       ))) return state;
+      if (hasPhysicalConversationPlan(conversation) && !isConversationReady(state, conversation)) return state;
       let characters = state.characters;
       for (const slotId of conversation.memberIds) {
         const current = characters[slotId];
@@ -541,6 +609,7 @@ export function officeReducer(state, action) {
             reservationGroupId: conversation.reservationGroupId || current.reservationGroupId,
             activityStartedAt: conversation.startedAt,
             activityEndsAt: conversation.endsAt,
+            facing: slotId === conversation.hostId ? conversationFacing(conversation) : current.facing || "front",
           },
         };
       }

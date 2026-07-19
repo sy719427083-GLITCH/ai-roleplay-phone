@@ -145,9 +145,33 @@ test("starts only desk visitors and retains the host at its home anchor", () => 
     endsAt: 61_000,
   };
   const runtime = screenModule.createPhysicalSchedulerRuntime(event, assignments);
+  assert.equal(runtime.hostAction.type, "LOCK_CONVERSATION_HOST");
+  assert.equal(runtime.hostAction.session.hostId, "employee1");
+  assert.equal(runtime.hostAction.session.reservationGroupId, "desk-chat");
   assert.deepEqual(runtime.actions.map(({ slotId, targetAnchorId }) => ({ slotId, targetAnchorId })), [
     { slotId: "employee2", targetAnchorId: "employee1:visitor-front" },
   ]);
+});
+
+test("keeps ordinary physical activities independent from conversation location state", () => {
+  const event = {
+    activityId: "printing",
+    actorIds: ["employee1"],
+    sceneId: "office",
+    targetAnchors: ["printer:front"],
+    reservationGroupId: "office-printing-1000-employee1",
+    routesByActor: {
+      employee1: buildWorldRoute({ from: pointAt("office", "employee1:seat-approach"), to: pointAt("office", "printer:front") }),
+    },
+    propState: { category: "documents", variant: "printout", actorRoles: { employee1: "actor" } },
+    semanticContext: { eventId: "office-printing-1000-employee1", activityId: "printing", status: "打印中", semanticFallback: {} },
+    startedAt: 1_000,
+    endsAt: 61_000,
+  };
+
+  const runtime = screenModule.createPhysicalSchedulerRuntime(event, assignments);
+  assert.equal(runtime.hostAction, null);
+  assert.deepEqual(runtime.actions.map(({ slotId }) => slotId), ["employee1"]);
 });
 
 test("rejects legacy scheduler aliases instead of reviving compatibility paths", () => {

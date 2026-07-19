@@ -230,6 +230,22 @@ test("falls back to legal shared anchors when a desk visitor anchor is occupied"
   assert.deepEqual(event.targetAnchors, ["whiteboard:1", "whiteboard:2"]);
 });
 
+test("continues from a blocked whiteboard to lounge conversation anchors", () => {
+  const state = createState({
+    forcedActivityId: "chatting",
+    characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
+    reservations: {
+      "employee1:visitor-front": { anchorId: "employee1:visitor-front", slotId: "employee4", reservationGroupId: "desk", sceneId: "office", expiresAt: 9_000 },
+      "whiteboard:1": { anchorId: "whiteboard:1", slotId: "employee3", reservationGroupId: "board", sceneId: "office", expiresAt: 9_000 },
+      "whiteboard:2": { anchorId: "whiteboard:2", slotId: "employee4", reservationGroupId: "board", sceneId: "office", expiresAt: 9_000 },
+    },
+  });
+  const event = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0, 0, 0, 0), now: 1_000 });
+
+  assert.equal(event.locationId, "dining");
+  assert.deepEqual(event.targetAnchors, ["dining:seat-1", "dining:seat-2"]);
+});
+
 test("keeps group conversation reservations and routes independent", () => {
   const firstState = createState({ forcedActivityId: "chatting" });
   const first = chooseOfficeEvent({ state: firstState, profiles: createProfiles(), random: sequence(0, 0.999, 0, 0), now: 1_000 });

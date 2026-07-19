@@ -8,6 +8,8 @@ const DESK_PROP_IDS = Object.freeze({
   working: ["laptop", "keyboard", "files-documents"],
   "desk-rest": ["phone", "book"],
 });
+const DINING_CONVERSATION_ACTIVITIES = new Set(["dining-chat", "dining-listen"]);
+const SOFA_CONVERSATION_ACTIVITIES = new Set(["sofa-chat", "sofa-listen"]);
 
 const getDeskObjectId = (slotId) => (slotId === "boss" ? "boss-desk" : `${slotId}-desk`);
 
@@ -38,7 +40,7 @@ const getFurnitureAnchor = (object, anchorId) => {
 
 export function getActivityPropStates(activityStates = []) {
   return activityStates.flatMap((state) => {
-    if (state?.activity === "eating") return [{
+    if (state?.activity === "eating" || DINING_CONVERSATION_ACTIVITIES.has(state?.activity)) return [{
       slotId: state.slotId || "",
       sceneId: "lounge",
       objectId: "dining-table",
@@ -51,6 +53,13 @@ export function getActivityPropStates(activityStates = []) {
       objectId: "television",
       anchorId: "screen",
       propIds: ["television-content"],
+    }];
+    if (SOFA_CONVERSATION_ACTIVITIES.has(state?.activity)) return [{
+      slotId: state.slotId || "",
+      sceneId: "lounge",
+      objectId: "coffee-table",
+      anchorId: "surface",
+      propIds: ["coffee-cup"],
     }];
     const propIds = DESK_PROP_IDS[state?.activity];
     if (!propIds || !state?.slotId) return [];

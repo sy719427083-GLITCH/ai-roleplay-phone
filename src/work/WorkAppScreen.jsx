@@ -8,7 +8,7 @@ import { requestOfficeActivityDetail } from "./officeActivityApi.js";
 import { getActivityDefinition } from "./officeActivityManifest.js";
 import { requestOfficeConversationTurn } from "./officeConversationApi.js";
 import { getSceneAnchor } from "./officeSceneManifest.js";
-import { reserveAnchors } from "./officeReservations.js";
+import { releaseReservationGroup, reserveAnchors } from "./officeReservations.js";
 import {
   createOfficeProfileSnapshot,
   normalizeOfficeAssignments,
@@ -379,7 +379,25 @@ export function createPhysicalSchedulerRuntime(event, assignments) {
     profileId: assignments[slotId].profileId || slotId,
     ...createOfficeProfileSnapshot(assignments[slotId].profile, slotId === "boss" ? "me" : "character"),
   }));
-  return { event, semanticEvent, participantSnapshots, actions };
+  const hostAction = isConversationEvent(event) && event.locationId.endsWith(":desk") ? {
+    type: "LOCK_CONVERSATION_HOST",
+    session: {
+      id: event.reservationGroupId,
+      hostId: event.hostId,
+      visitorIds: [...event.visitorIds],
+      memberIds: [...event.actorIds],
+      sceneId: event.sceneId,
+      locationId: event.locationId,
+      anchorByMember: { ...event.anchorByMember },
+      targetAnchorIds: [...event.targetAnchors],
+      reservationGroupId: event.reservationGroupId,
+      activityId: event.activityId,
+      activityStatus: event.semanticContext.status,
+      startedAt: event.startedAt,
+      endsAt: event.endsAt,
+    },
+  } : null;
+  return { event, semanticEvent, participantSnapshots, hostAction, actions };
 }
 
 export function samplePhysicalWorldFrame({ characters = {}, now = 0, previousSamples = {} } = {}) {
@@ -623,8 +641,6 @@ export default function WorkAppScreen({ onClose }) {
     const runtime = createPhysicalSchedulerRuntime(event, assignmentsRef.current);
     if (!runtime) return false;
     dispatchOffice({ type: "SET_RESERVATIONS", reservations });
-    pendingPhysicalEventsRef.current.set(event.reservationGroupId, event);
-    if (!isConversationEvent(event)) createActivityRuntime(runtime);
 
     if (isConversationEvent(event)) {
       const session = buildConversationSession({
@@ -648,6 +664,14 @@ export default function WorkAppScreen({ onClose }) {
           activityStatus: event.semanticContext.status,
           endsAt: event.endsAt,
         });
+        if (runtime.hostAction) dispatchOffice({ ...runtime.hostAction, session });
+        if (runtime.hostAction && stateRef.current.characters?.[session.hostId]?.phase !== "waitingForConversation") {
+          dispatchOffice({
+            type: "SET_RESERVATIONS",
+            reservations: releaseReservationGroup(stateRef.current.reservations, event.reservationGroupId),
+          });
+          return false;
+        }
         pendingConversationsRef.current.set(session.id, {
           memberIds: [...event.actorIds],
           travelerIds: runtime.actions.map(({ slotId }) => slotId),
@@ -656,6 +680,8 @@ export default function WorkAppScreen({ onClose }) {
       }
     }
 
+    pendingPhysicalEventsRef.current.set(event.reservationGroupId, event);
+    if (!isConversationEvent(event)) createActivityRuntime(runtime);
     for (const action of runtime.actions) dispatchOffice(action);
     return true;
   }, [createActivityRuntime, dispatchOffice]);

@@ -152,16 +152,17 @@ const selectParticipants = ({ definition, primarySlotId, eligibleIds, participan
 
 const createAnchorByMember = (actorIds, anchors) => Object.fromEntries(actorIds.map((slotId, index) => [slotId, anchors[index]]));
 
-const buildConversationPlan = ({ activityId, actorIds, characters, skipDesk = false }) => {
+const buildConversationPlans = ({ activityId, actorIds, characters }) => {
   const [hostId, ...visitorIds] = actorIds;
+  const plans = [];
   const hostHome = getHomePoint(hostId);
   const hostPoint = getActorPoint(hostId, characters[hostId]);
   const visitorAnchors = DESK_VISITOR_SUFFIXES.slice(0, visitorIds.length).map((suffix) => `${hostId}:${suffix}`);
-  if (!skipDesk && activityId === "chatting" && visitorAnchors.length === visitorIds.length && hasSamePoint(hostPoint, hostHome)
+  if (activityId === "chatting" && visitorAnchors.length === visitorIds.length && hasSamePoint(hostPoint, hostHome)
     && visitorAnchors.every((anchorId) => anchorPoint("office", anchorId))) {
     const routesByActor = buildRoutes({ actorIds: visitorIds, characters, sceneId: "office", anchors: visitorAnchors });
     if (routesByActor) {
-      return {
+      plans.push({
         hostId,
         visitorIds,
         sceneId: "office",
@@ -169,7 +170,7 @@ const buildConversationPlan = ({ activityId, actorIds, characters, skipDesk = fa
         targetAnchors: visitorAnchors,
         anchorByMember: { [hostId]: `${hostId}:seat-approach`, ...createAnchorByMember(visitorIds, visitorAnchors) },
         routesByActor,
-      };
+      });
     }
   }
 
@@ -178,7 +179,7 @@ const buildConversationPlan = ({ activityId, actorIds, characters, skipDesk = fa
     if (anchors.length !== actorIds.length || anchors.some((anchorId) => !anchorPoint(fallback.sceneId, anchorId))) continue;
     const routesByActor = buildRoutes({ actorIds, characters, sceneId: fallback.sceneId, anchors });
     if (!routesByActor) continue;
-    return {
+    plans.push({
       hostId,
       visitorIds,
       sceneId: fallback.sceneId,
@@ -186,9 +187,9 @@ const buildConversationPlan = ({ activityId, actorIds, characters, skipDesk = fa
       targetAnchors: anchors,
       anchorByMember: createAnchorByMember(actorIds, anchors),
       routesByActor,
-    };
+    });
   }
-  return null;
+  return plans;
 };
 
 export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
@@ -210,32 +211,44 @@ export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
   const duration = definition.durationMs.min + Math.floor(clampRandom(random()) * (definition.durationMs.max - definition.durationMs.min + 1));
   const endsAt = startedAt + duration;
   const reservationGroupId = `office-${activityId}-${startedAt}-${actorIds.join("-")}`;
-  let conversationPlan = CONVERSATION_ACTIVITY_IDS.has(activityId)
-    ? buildConversationPlan({ activityId, actorIds, characters: state.characters }) : null;
+  const isConversationActivity = CONVERSATION_ACTIVITY_IDS.has(activityId);
+  const conversationPlans = isConversationActivity
+    ? buildConversationPlans({ activityId, actorIds, characters: state.characters }) : [];
+  let conversationPlan = null;
   let targetAnchors = conversationPlan?.targetAnchors || selectAnchors(definition, actorIds[0], participantCount, random);
   let sceneId = conversationPlan?.sceneId || definition.sceneId;
-  if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(sceneId, anchorId))) return null;
-  let routesByActor = conversationPlan?.routesByActor || buildRoutes({ actorIds, characters: state.characters, sceneId, anchors: targetAnchors });
-  if (!routesByActor) return null;
-
-  const reservePlan = () => reserveAnchors(state.reservations || {}, {
-    sceneId,
-    reservationGroupId,
-    slotId: actorIds[0],
-    anchorIds: targetAnchors,
-    now: startedAt,
-    expiresAt: endsAt,
-  });
-  let reservationCheck = reservePlan();
-  if (!reservationCheck && conversationPlan?.locationId.endsWith(":desk")) {
-    conversationPlan = buildConversationPlan({
-      activityId, actorIds, characters: state.characters, skipDesk: true,
+  let routesByActor = null;
+  let reservationCheck = null;
+  if (isConversationActivity) {
+    for (const candidate of conversationPlans) {
+      const reservation = reserveAnchors(state.reservations || {}, {
+        sceneId: candidate.sceneId,
+        reservationGroupId,
+        slotId: actorIds[0],
+        anchorIds: candidate.targetAnchors,
+        now: startedAt,
+        expiresAt: endsAt,
+      });
+      if (!reservation) continue;
+      conversationPlan = candidate;
+      targetAnchors = candidate.targetAnchors;
+      sceneId = candidate.sceneId;
+      routesByActor = candidate.routesByActor;
+      reservationCheck = reservation;
+      break;
+    }
+  } else {
+    if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(sceneId, anchorId))) return null;
+    routesByActor = buildRoutes({ actorIds, characters: state.characters, sceneId, anchors: targetAnchors });
+    if (!routesByActor) return null;
+    reservationCheck = reserveAnchors(state.reservations || {}, {
+      sceneId,
+      reservationGroupId,
+      slotId: actorIds[0],
+      anchorIds: targetAnchors,
+      now: startedAt,
+      expiresAt: endsAt,
     });
-    if (!conversationPlan) return null;
-    targetAnchors = conversationPlan.targetAnchors;
-    sceneId = conversationPlan.sceneId;
-    routesByActor = conversationPlan.routesByActor;
-    reservationCheck = reservePlan();
   }
   if (!reservationCheck) return null;
 
