@@ -88,10 +88,11 @@ export async function requestOfficeActivityDetail(options = {}) {
   }
   const fallback = getFallback(event);
   try {
+    const messages = buildOfficeActivityMessages(event);
+    if (!messages.length) return fallback;
     const endpoint = getOfficeEndpoint(normalizedOptions.storage);
     const fetchImpl = normalizedOptions.fetchImpl === undefined ? globalThis.fetch : normalizedOptions.fetchImpl;
-    const messages = buildOfficeActivityMessages(event);
-    if (!endpoint || typeof fetchImpl !== "function" || !messages.length) return fallback;
+    if (!endpoint || typeof fetchImpl !== "function") return fallback;
     const response = await fetchImpl(getChatCompletionsUrl(endpoint.baseUrl), {
       method: "POST",
       headers: { Authorization: `Bearer ${endpoint.apiKey.trim()}`, "Content-Type": "application/json" },

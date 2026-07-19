@@ -77,6 +77,35 @@ test("contains throwing event accessors without building messages or reading fet
   assert.equal(fetchReads, 0);
 });
 
+test("validates nested event access before reading API options", async () => {
+  const hostileEvent = Object.defineProperty({}, "semanticContext", {
+    get() {
+      throw new Error("hostile semantic context");
+    },
+  });
+  let storageReads = 0;
+  let fetchReads = 0;
+  const hostileOptions = Object.defineProperties({}, {
+    event: { value: hostileEvent },
+    storage: {
+      get() {
+        storageReads += 1;
+        throw new Error("must not read storage");
+      },
+    },
+    fetchImpl: {
+      get() {
+        fetchReads += 1;
+        throw new Error("must not read fetch");
+      },
+    },
+  });
+
+  assert.deepEqual(await requestOfficeActivityDetail(hostileOptions), emptySemanticFallback);
+  assert.equal(storageReads, 0);
+  assert.equal(fetchReads, 0);
+});
+
 test("contains hostile profile access while preserving the semantic fallback", async () => {
   const hostileProfile = Object.defineProperties({}, {
     name: { get() { throw new Error("hostile name"); } },
