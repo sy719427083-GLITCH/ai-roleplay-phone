@@ -15,7 +15,67 @@ export const CHARACTER_SOURCE_MIN_CELL_SIZE = OFFICE_V2_CHARACTER_CONTRACT.sourc
 
 const ALPHA_THRESHOLD = 12;
 const POPULATED_ALPHA_THRESHOLD = 32;
+const MAX_REMOVABLE_SOURCE_NOISE_AREA = 2;
 const WEBP_PATTERN = /^data:image\/webp;base64,([A-Za-z0-9+/]+={0,2})$/;
+
+export function analyzeBodyConnectedAlpha({ alpha, width, height, alphaThreshold = 12 }) {
+  const visited = new Uint8Array(width * height);
+  const components = [];
+  const neighbors = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+  ];
+
+  for (let start = 0; start < alpha.length; start += 1) {
+    if (visited[start] || alpha[start] <= alphaThreshold) continue;
+    visited[start] = 1;
+    const pending = [start];
+    const pixels = [];
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    while (pending.length > 0) {
+      const index = pending.pop();
+      const x = index % width;
+      const y = Math.floor(index / width);
+      pixels.push(index);
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+
+      // Eight-way adjacency preserves diagonal anti-aliased hair, limbs, and footwear.
+      for (const [offsetX, offsetY] of neighbors) {
+        const nextX = x + offsetX;
+        const nextY = y + offsetY;
+        if (nextX < 0 || nextX >= width || nextY < 0 || nextY >= height) continue;
+        const next = (nextY * width) + nextX;
+        if (visited[next] || alpha[next] <= alphaThreshold) continue;
+        visited[next] = 1;
+        pending.push(next);
+      }
+    }
+
+    components.push({
+      area: pixels.length,
+      bounds: { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+      pixels,
+    });
+  }
+
+  components.sort((left, right) => (
+    right.area - left.area
+    || left.bounds.minY - right.bounds.minY
+    || left.bounds.minX - right.bounds.minX
+  ));
+  return {
+    bodyComponent: components[0] || null,
+    detachedComponents: components.slice(1),
+  };
+}
 
 export function getCharacterIdsForCohort(cohort) {
   if (!CHARACTER_COHORTS.includes(cohort)) {
@@ -247,8 +307,10 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
     alphaThreshold,
     populatedThreshold,
     padding,
+    bodyAnalyzerSource,
     furnitureAnalyzerSource,
   }) => {
+    const analyzeBody = Function(`return (${bodyAnalyzerSource})`)();
     const analyzeFurniture = Function(`return (${furnitureAnalyzerSource})`)();
     const image = new Image();
     image.src = source;
@@ -268,6 +330,7 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
     const emptyFrames = [];
     const gutterViolations = [];
     const furnitureLikeFrames = [];
+    const detachedFragmentFrames = [];
 
     for (let row = 0; row < metadata.rows; row += 1) {
       for (let column = 0; column < metadata.columns; column += 1) {
@@ -277,10 +340,6 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
         let useful = 0;
         let transparent = 0;
         let gutterOpaque = 0;
-        let minX = metadata.cellSize;
-        let minY = metadata.cellSize;
-        let maxX = -1;
-        let maxY = -1;
         const frameAlpha = new Uint8Array(metadata.cellSize * metadata.cellSize);
 
         for (let y = 0; y < metadata.cellSize; y += 1) {
@@ -289,10 +348,6 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
             frameAlpha[(y * metadata.cellSize) + x] = alpha;
             if (alpha <= alphaThreshold) transparent += 1;
             if (alpha > alphaThreshold) {
-              minX = Math.min(minX, x);
-              minY = Math.min(minY, y);
-              maxX = Math.max(maxX, x);
-              maxY = Math.max(maxY, y);
               if (x < padding || y < padding || x >= metadata.cellSize - padding || y >= metadata.cellSize - padding) {
                 gutterOpaque += 1;
               }
@@ -314,17 +369,29 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
         const furnitureLike = furnitureDiagnostic.furnitureLike;
         if (furnitureLike) furnitureLikeFrames.push(frameIndex);
 
+        const bodyAnalysis = analyzeBody({
+          alpha: frameAlpha,
+          width: metadata.cellSize,
+          height: metadata.cellSize,
+          alphaThreshold,
+        });
+        const bodyComponent = bodyAnalysis.bodyComponent;
+        const detachedComponents = bodyAnalysis.detachedComponents;
+        if (detachedComponents.length > 0) detachedFragmentFrames.push(frameIndex);
         let footMinX = metadata.cellSize;
         let footMaxX = -1;
-        if (maxY >= 0) {
-          const footBandStart = Math.max(minY, maxY - Math.max(2, Math.round((maxY - minY + 1) * 0.04)));
-          for (let y = footBandStart; y <= maxY; y += 1) {
-            for (let x = minX; x <= maxX; x += 1) {
-              const alpha = pixels[(((originY + y) * canvas.width) + originX + x) * 4 + 3];
-              if (alpha <= alphaThreshold) continue;
-              footMinX = Math.min(footMinX, x);
-              footMaxX = Math.max(footMaxX, x);
-            }
+        if (bodyComponent) {
+          const { minY: bodyMinY, maxY: bodyMaxY } = bodyComponent.bounds;
+          const footBandStart = Math.max(
+            bodyMinY,
+            bodyMaxY - Math.max(2, Math.round((bodyMaxY - bodyMinY + 1) * 0.04)),
+          );
+          for (const index of bodyComponent.pixels) {
+            const y = Math.floor(index / metadata.cellSize);
+            if (y < footBandStart) continue;
+            const x = index % metadata.cellSize;
+            footMinX = Math.min(footMinX, x);
+            footMaxX = Math.max(footMaxX, x);
           }
         }
         frames.push({
@@ -334,9 +401,11 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
           gutterOpaque,
           furnitureLike,
           furnitureDiagnostic,
+          bodyComponent: bodyComponent ? { area: bodyComponent.area, bounds: bodyComponent.bounds } : null,
+          detachedComponents: detachedComponents.map(({ area, bounds }) => ({ area, bounds })),
           footAnchor: {
             x: footMaxX >= footMinX ? Math.round((footMinX + footMaxX) / 2) : null,
-            y: maxY >= 0 ? maxY : null,
+            y: bodyComponent ? bodyComponent.bounds.maxY : null,
           },
         });
       }
@@ -348,6 +417,7 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
       emptyFrames,
       gutterViolations,
       furnitureLikeFrames,
+      detachedFragmentFrames,
     };
   }, {
     source: dataUrl,
@@ -356,17 +426,19 @@ export async function inspectCharacterStrip({ page, dataUrl, metadata, label = "
     alphaThreshold: ALPHA_THRESHOLD,
     populatedThreshold: POPULATED_ALPHA_THRESHOLD,
     padding: OFFICE_V2_CHARACTER_CONTRACT.normalization.transparentEdgePadding,
+    bodyAnalyzerSource: analyzeBodyConnectedAlpha.toString(),
     furnitureAnalyzerSource: analyzeFurnitureLikeComponents.toString(),
   });
 }
 
-async function realignEncodedCharacterStrip({ page, dataUrl, metadata, frames }) {
+async function cleanAndRealignEncodedCharacterStrip({ page, dataUrl, metadata, frames }) {
   const normalization = OFFICE_V2_CHARACTER_CONTRACT.normalization;
   const shifts = Object.fromEntries(frames.map(({ index, footAnchor }) => [index, {
     x: normalization.feetAnchor.x - footAnchor.x,
     y: normalization.feetAnchor.y - footAnchor.y,
   }]));
-  return page.evaluate(async ({ source, metadata, normalization, shifts }) => {
+  return page.evaluate(async ({ source, metadata, normalization, shifts, alphaThreshold, bodyAnalyzerSource }) => {
+    const analyzeBody = Function(`return (${bodyAnalyzerSource})`)();
     const image = new Image();
     image.src = source;
     await image.decode();
@@ -379,27 +451,59 @@ async function realignEncodedCharacterStrip({ page, dataUrl, metadata, frames })
       for (let column = 0; column < metadata.columns; column += 1) {
         const index = (row * metadata.columns) + column;
         const shift = shifts[index] || { x: 0, y: 0 };
-        const frame = document.createElement("canvas");
-        frame.width = metadata.cellSize;
-        frame.height = metadata.cellSize;
-        const frameContext = frame.getContext("2d");
-        frameContext.imageSmoothingEnabled = false;
-        frameContext.drawImage(
+        const sourceFrame = document.createElement("canvas");
+        sourceFrame.width = metadata.cellSize;
+        sourceFrame.height = metadata.cellSize;
+        const sourceFrameContext = sourceFrame.getContext("2d", { willReadFrequently: true });
+        sourceFrameContext.drawImage(
           image,
           column * metadata.cellSize,
           row * metadata.cellSize,
           metadata.cellSize,
           metadata.cellSize,
-          shift.x,
-          shift.y,
+          0,
+          0,
           metadata.cellSize,
           metadata.cellSize,
         );
-        outputContext.drawImage(frame, column * metadata.cellSize, row * metadata.cellSize);
+        const imageData = sourceFrameContext.getImageData(0, 0, metadata.cellSize, metadata.cellSize);
+        const alpha = new Uint8Array(metadata.cellSize * metadata.cellSize);
+        for (let pixel = 0; pixel < alpha.length; pixel += 1) alpha[pixel] = imageData.data[(pixel * 4) + 3];
+        const bodyAnalysis = analyzeBody({
+          alpha,
+          width: metadata.cellSize,
+          height: metadata.cellSize,
+          alphaThreshold,
+        });
+        for (const component of bodyAnalysis.detachedComponents) {
+          for (const pixel of component.pixels) {
+            const offset = pixel * 4;
+            imageData.data[offset] = 0;
+            imageData.data[offset + 1] = 0;
+            imageData.data[offset + 2] = 0;
+            imageData.data[offset + 3] = 0;
+          }
+        }
+        sourceFrameContext.putImageData(imageData, 0, 0);
+
+        const outputFrame = document.createElement("canvas");
+        outputFrame.width = metadata.cellSize;
+        outputFrame.height = metadata.cellSize;
+        const outputFrameContext = outputFrame.getContext("2d");
+        outputFrameContext.imageSmoothingEnabled = false;
+        outputFrameContext.drawImage(sourceFrame, shift.x, shift.y);
+        outputContext.drawImage(outputFrame, column * metadata.cellSize, row * metadata.cellSize);
       }
     }
     return output.toDataURL("image/webp", normalization.output.quality / 100);
-  }, { source: dataUrl, metadata, normalization, shifts });
+  }, {
+    source: dataUrl,
+    metadata,
+    normalization,
+    shifts,
+    alphaThreshold: ALPHA_THRESHOLD,
+    bodyAnalyzerSource: analyzeBodyConnectedAlpha.toString(),
+  });
 }
 
 export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, label = "character master" }) {
@@ -412,7 +516,10 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
     sourceCells,
     normalization,
     alphaThreshold,
+    maxRemovableSourceNoiseArea,
+    bodyAnalyzerSource,
   }) => {
+    const analyzeBody = Function(`return (${bodyAnalyzerSource})`)();
     const image = new Image();
     image.src = source;
     await image.decode();
@@ -473,32 +580,52 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
           sourceCells.sourceCellWidth,
           sourceCells.sourceCellHeight,
         );
-        const sourcePixels = sourceContext.getImageData(0, 0, sourceCell.width, sourceCell.height).data;
-        let minX = sourceCell.width;
-        let minY = sourceCell.height;
-        let maxX = -1;
-        let maxY = -1;
-        for (let y = 0; y < sourceCell.height; y += 1) {
-          for (let x = 0; x < sourceCell.width; x += 1) {
-            if (sourcePixels[((y * sourceCell.width) + x) * 4 + 3] <= alphaThreshold) continue;
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
+        const sourceImageData = sourceContext.getImageData(0, 0, sourceCell.width, sourceCell.height);
+        const sourcePixels = sourceImageData.data;
+        const sourceAlpha = new Uint8Array(sourceCell.width * sourceCell.height);
+        for (let pixel = 0; pixel < sourceAlpha.length; pixel += 1) {
+          sourceAlpha[pixel] = sourcePixels[(pixel * 4) + 3];
+        }
+        const bodyAnalysis = analyzeBody({
+          alpha: sourceAlpha,
+          width: sourceCell.width,
+          height: sourceCell.height,
+          alphaThreshold,
+        });
+        const bodyComponent = bodyAnalysis.bodyComponent;
+        const frameIndex = (row * metadata.columns) + column;
+        if (!bodyComponent) throw new Error(`frame ${frameIndex} is empty`);
+        const blockingFragments = bodyAnalysis.detachedComponents.filter(({ area }) => (
+          area > maxRemovableSourceNoiseArea
+        ));
+        if (blockingFragments.length > 0) {
+          throw new Error(
+            `frame ${frameIndex} contains detached alpha fragments `
+            + `(${blockingFragments.map(({ area }) => area).join(", ")} pixels)`,
+          );
+        }
+        for (const component of bodyAnalysis.detachedComponents) {
+          for (const pixel of component.pixels) {
+            const offset = pixel * 4;
+            sourcePixels[offset] = 0;
+            sourcePixels[offset + 1] = 0;
+            sourcePixels[offset + 2] = 0;
+            sourcePixels[offset + 3] = 0;
           }
         }
-        if (maxX < minX || maxY < minY) throw new Error(`frame ${row * metadata.columns + column} is empty`);
+        sourceContext.putImageData(sourceImageData, 0, 0);
+        const { minX, minY, maxX, maxY } = bodyComponent.bounds;
         const subjectWidth = maxX - minX + 1;
         const subjectHeight = maxY - minY + 1;
         const footBandStart = Math.max(minY, maxY - Math.max(2, Math.round(subjectHeight * 0.04)));
         let footMinX = sourceCell.width;
         let footMaxX = -1;
-        for (let y = footBandStart; y <= maxY; y += 1) {
-          for (let x = minX; x <= maxX; x += 1) {
-            if (sourcePixels[((y * sourceCell.width) + x) * 4 + 3] <= alphaThreshold) continue;
-            footMinX = Math.min(footMinX, x);
-            footMaxX = Math.max(footMaxX, x);
-          }
+        for (const index of bodyComponent.pixels) {
+          const y = Math.floor(index / sourceCell.width);
+          if (y < footBandStart) continue;
+          const x = index % sourceCell.width;
+          footMinX = Math.min(footMinX, x);
+          footMaxX = Math.max(footMaxX, x);
         }
         const footCenter = footMaxX >= footMinX ? (footMinX + footMaxX) / 2 : (minX + maxX) / 2;
         const leftExtent = Math.max(1, footCenter - minX);
@@ -531,6 +658,8 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
     sourceCells,
     normalization,
     alphaThreshold: ALPHA_THRESHOLD,
+    maxRemovableSourceNoiseArea: MAX_REMOVABLE_SOURCE_NOISE_AREA,
+    bodyAnalyzerSource: analyzeBodyConnectedAlpha.toString(),
   });
 
   decodeWebPDataUrl(outputDataUrl);
@@ -538,8 +667,8 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
   const encodedMisalignment = inspection.frames.filter(({ footAnchor }) => (
     footAnchor.x !== normalization.feetAnchor.x || footAnchor.y !== normalization.feetAnchor.y
   ));
-  if (encodedMisalignment.length > 0) {
-    outputDataUrl = await realignEncodedCharacterStrip({
+  if (encodedMisalignment.length > 0 || inspection.detachedFragmentFrames.length > 0) {
+    outputDataUrl = await cleanAndRealignEncodedCharacterStrip({
       page,
       dataUrl: outputDataUrl,
       metadata,
@@ -554,6 +683,9 @@ export async function normalizeCharacterMaster({ page, sourceDataUrl, metadata, 
   }
   if (inspection.furnitureLikeFrames.length > 0) {
     throw new Error(`${label}: furniture-like rectangular mass in frames ${inspection.furnitureLikeFrames.join(", ")}`);
+  }
+  if (inspection.detachedFragmentFrames.length > 0) {
+    throw new Error(`${label}: detached alpha fragments in frames ${inspection.detachedFragmentFrames.join(", ")}`);
   }
   const misaligned = inspection.frames.filter(({ footAnchor }) => (
     footAnchor.x !== normalization.feetAnchor.x || footAnchor.y !== normalization.feetAnchor.y

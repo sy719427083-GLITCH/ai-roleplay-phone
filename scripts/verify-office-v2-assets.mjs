@@ -156,6 +156,10 @@ export async function verifyCharacterCohort({
           `${characterId}/${clipId}: furniture-like full-width or rectangular mass ${result.furnitureLikeFrames.join(", ")}`,
         );
         ensure(
+          result.detachedFragmentFrames.length === 0,
+          `${characterId}/${clipId}: detached alpha fragments in frames ${result.detachedFragmentFrames.join(", ")}`,
+        );
+        ensure(
           result.frames.every(({ transparentPixels, usefulPixels }) => transparentPixels > 0 && usefulPixels > 0),
           `${characterId}/${clipId}: every frame must contain alpha and populated pixels`,
         );

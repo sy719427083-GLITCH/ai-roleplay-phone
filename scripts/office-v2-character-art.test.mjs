@@ -165,6 +165,30 @@ async function makeRectangularOutputStrip(page, metadata, shape) {
   }, { metadata, shape });
 }
 
+async function makeDetachedMarkerOutputStrip(page, metadata) {
+  return page.evaluate(({ metadata }) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = metadata.width;
+    canvas.height = metadata.height;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "rgb(105, 92, 158)";
+    for (let row = 0; row < metadata.rows; row += 1) {
+      for (let column = 0; column < metadata.columns; column += 1) {
+        const x = column * metadata.cellSize;
+        const y = row * metadata.cellSize;
+        context.beginPath();
+        context.arc(x + 192, y + 110, 45, 0, Math.PI * 2);
+        context.fill();
+        context.fillRect(x + 160, y + 150, 64, 130);
+        context.fillRect(x + 158, y + 270, 30, 61);
+        context.fillRect(x + 197, y + 270, 30, 61);
+        context.fillRect(x + 191, y + 359, 3, 1);
+      }
+    }
+    return canvas.toDataURL("image/webp", 0.95);
+  }, { metadata });
+}
+
 async function makeWebPRoundingMaster(page, metadata) {
   return page.evaluate(({ columns, rows }) => {
     const cell = 512;
@@ -234,6 +258,7 @@ test("normalizes generated cells to aligned populated 384px WebP frames", async 
     assert.equal(result.emptyFrames.length, 0);
     assert.equal(result.gutterViolations.length, 0);
     assert.equal(result.furnitureLikeFrames.length, 0);
+    assert.deepEqual(result.detachedFragmentFrames, []);
     assert.equal(result.frames.every(({ footAnchor }) => footAnchor.x === 192 && footAnchor.y === 359), true);
   } finally {
     await browser.close();
@@ -261,6 +286,28 @@ test("realigns post-WebP alpha rounding to the exact feet anchor", async () => {
       true,
     );
     assert.deepEqual(inspection.gutterViolations, []);
+    assert.deepEqual(inspection.detachedFragmentFrames, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("anchors to the largest body-connected component and reports detached marker spoofing", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const inspection = await inspectCharacterStrip({
+      page,
+      dataUrl: await makeDetachedMarkerOutputStrip(page, ACTION),
+      metadata: ACTION,
+      label: "fixture/detached-marker.webp",
+    });
+    assert.deepEqual(inspection.detachedFragmentFrames, [0, 1, 2, 3]);
+    assert.equal(inspection.frames.every(({ footAnchor }) => footAnchor.x === 192), true);
+    assert.equal(inspection.frames.every(({ footAnchor }) => footAnchor.y === 330), true);
+    assert.equal(inspection.frames.every(({ detachedComponents }) => (
+      detachedComponents.length === 1 && detachedComponents[0].area === 3
+    )), true);
   } finally {
     await browser.close();
   }
@@ -303,6 +350,7 @@ for (const shape of ["outstretched-arms", "wide-long-hair", "flared-dress", "ext
         label: `fixture/${shape}.webp`,
       });
       assert.deepEqual(inspection.furnitureLikeFrames, []);
+      assert.deepEqual(inspection.detachedFragmentFrames, []);
     } finally {
       await browser.close();
     }
@@ -370,6 +418,7 @@ test("cohort verifier defers absent inventory, rejects partial inventory, and ch
       emptyFrames: [],
       gutterViolations: [],
       furnitureLikeFrames: [],
+      detachedFragmentFrames: [],
       frames: Array.from({ length: metadata.columns * metadata.rows }, (_, index) => ({
         index,
         transparentPixels: 100,
@@ -422,6 +471,46 @@ test("cohort verifier defers absent inventory, rejects partial inventory, and ch
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("real strict cohort verification rejects detached marker anchor spoofing", async () => {
+  const { verifyCharacterCohort } = await import("./verify-office-v2-assets.mjs");
+  const root = await mkdtemp(path.join(os.tmpdir(), "office-v2-detached-marker-"));
+  const characterRoot = path.join(root, "characters");
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const spoof = decodeWebPDataUrl(await makeDetachedMarkerOutputStrip(page, LOCOMOTION));
+    for (const characterId of INSTALL_CHARACTER_IDS) {
+      const directory = path.join(characterRoot, characterId);
+      await mkdir(directory, { recursive: true });
+      await Promise.all(OFFICE_CLIP_IDS.map((clipId, index) => writeFile(
+        path.join(directory, `${clipId}.webp`),
+        characterId === "boss-f-01" && clipId === "locomotion"
+          ? spoof
+          : `${characterId}:${clipId}:${index}`,
+      )));
+    }
+  } finally {
+    await browser.close();
+  }
+
+  try {
+    await assert.rejects(
+      verifyCharacterCohort({ root, cohort: "boss-f" }),
+      /boss-f-01\/locomotion.*detached alpha fragments.*frames 0/i,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("real strict cohort verification accepts the installed boss-f body silhouettes", async () => {
+  const { verifyCharacterCohort } = await import("./verify-office-v2-assets.mjs");
+  const root = path.resolve("public/work-office-v2");
+  const result = await verifyCharacterCohort({ root, cohort: "boss-f" });
+  assert.equal(result.state, "complete");
+  assert.equal(result.verifiedStrips, 168);
 });
 
 test("rejects invalid WebP data URLs before creating an output file", async () => {
