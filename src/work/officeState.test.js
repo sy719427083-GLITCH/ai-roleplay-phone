@@ -424,16 +424,16 @@ test("locks a desk host, rejects a forced open, and restores its facing after cl
   state = {
     ...state,
     reservations: {
-      "employee1:visitor-left": {
-        anchorId: "employee1:visitor-left", slotId: "employee1", reservationGroupId: "desk-lock-group", sceneId: "office", expiresAt: 9_000,
+      "employee1:visitor-right": {
+        anchorId: "employee1:visitor-right", slotId: "employee1", reservationGroupId: "desk-lock-group", sceneId: "office", expiresAt: 9_000,
       },
     },
   };
   const session = {
     id: "desk-lock", hostId: "employee1", visitorIds: ["employee2"], memberIds: ["employee1", "employee2"],
     sceneId: "office", locationId: "employee1:desk", activityId: "chatting", reservationGroupId: "desk-lock-group",
-    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-left" },
-    targetAnchorIds: ["employee1:visitor-left"],
+    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-right" },
+    targetAnchorIds: ["employee1:visitor-right"],
     participantSnapshots: [{ memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" }],
     topic: "项目进度", startedAt: 1_000, endsAt: 9_000,
   };
@@ -453,14 +453,15 @@ test("locks a desk host, rejects a forced open, and restores its facing after cl
         phase: "chatting",
         activity: "chatting",
         reservationGroupId: "desk-lock-group",
-        targetAnchorId: "employee1:visitor-left",
-        position: { ...getSceneAnchor("office", "employee1:visitor-left") },
+        targetAnchorId: "employee1:visitor-right",
+        position: { ...getSceneAnchor("office", "employee1:visitor-right") },
       },
     },
   };
   state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
   assert.equal(state.characters.employee1.phase, "chatting");
-  assert.equal(state.characters.employee1.facing, "left");
+  assert.equal(state.characters.employee1.facing, "right");
+  assert.equal(state.characters.employee2.facing, "left");
 
   state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "desk-lock", now: 2_000 });
   assert.equal(state.characters.employee1.phase, "idle");

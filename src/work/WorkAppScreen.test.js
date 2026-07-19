@@ -318,6 +318,61 @@ test("renders exact physical activity anchors and conversation bubbles", () => {
   assert.equal((markup.match(/只显示一次/g) || []).length, 1);
 });
 
+test("renders the default two-person desk conversation facing each other with side-only clips", () => {
+  let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  const session = {
+    id: "default-desk-chat",
+    hostId: "employee1",
+    visitorIds: ["employee2"],
+    memberIds: ["employee1", "employee2"],
+    sceneId: "office",
+    locationId: "employee1:desk",
+    activityId: "chatting",
+    activityStatus: "交流中",
+    reservationGroupId: "default-desk-group",
+    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-right" },
+    targetAnchorIds: ["employee1:visitor-right"],
+    startedAt: 1_000,
+    endsAt: 9_000,
+  };
+  const actorRoles = { employee1: "host", employee2: "visitor" };
+  state = {
+    ...state,
+    reservations: {
+      "employee1:visitor-right": {
+        anchorId: "employee1:visitor-right",
+        slotId: "employee1",
+        reservationGroupId: "default-desk-group",
+        sceneId: "office",
+        expiresAt: 9_000,
+      },
+    },
+  };
+  state = officeReducer(state, { type: "LOCK_CONVERSATION_HOST", session });
+  state = {
+    ...state,
+    characters: {
+      ...state.characters,
+      employee2: {
+        ...state.characters.employee2,
+        position: { ...getSceneAnchor("office", "employee1:visitor-right") },
+        targetAnchorId: "employee1:visitor-right",
+        phase: "chatting",
+        activity: "chatting",
+        reservationGroupId: "default-desk-group",
+        propState: { category: "conversation", variant: "project", actorRoles },
+      },
+    },
+  };
+  state = officeReducer(state, { type: "OPEN_CONVERSATION", session });
+
+  const world = sceneModule.buildOfficeWorld({ state, assignments, motionNow: 1_500 });
+  const host = world.actors.find(({ id }) => id === "employee1");
+  const visitor = world.actors.find(({ id }) => id === "employee2");
+  assert.deepEqual({ clip: host.clip, facing: host.facing }, { clip: "chatting", facing: "right" });
+  assert.deepEqual({ clip: visitor.clip, facing: visitor.facing }, { clip: "listening", facing: "left" });
+});
+
 test("preserves focus, upload validation, and assignment persistence helpers", () => {
   assert.equal(screenModule.getNextOfficeRadioIndex(0, "ArrowLeft", 4), 3);
   assert.equal(screenModule.getNextOfficeRadioIndex(3, "ArrowRight", 4), 0);

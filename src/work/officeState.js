@@ -277,12 +277,13 @@ const isAtConversationAnchor = (character, conversation, slotId) => {
     && hasSamePoint({ sceneId: character.sceneId, ...character.position }, { sceneId: conversation.sceneId, ...anchor });
 };
 
-const conversationFacing = (conversation) => {
-  const hostAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[conversation.hostId]);
-  const visitorAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[conversation.visitorIds[0]]);
-  if (!hostAnchor || !visitorAnchor) return "front";
-  const deltaX = visitorAnchor.x - hostAnchor.x;
-  const deltaY = visitorAnchor.y - hostAnchor.y;
+const conversationFacing = (conversation, slotId = conversation.hostId) => {
+  const counterpartId = slotId === conversation.hostId ? conversation.visitorIds[0] : conversation.hostId;
+  const memberAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[slotId]);
+  const counterpartAnchor = getSceneAnchor(conversation.sceneId, conversation.anchorByMember[counterpartId]);
+  if (!memberAnchor || !counterpartAnchor) return "front";
+  const deltaX = counterpartAnchor.x - memberAnchor.x;
+  const deltaY = counterpartAnchor.y - memberAnchor.y;
   if (Math.abs(deltaX) >= Math.abs(deltaY)) return deltaX < 0 ? "left" : "right";
   return deltaY < 0 ? "back" : "front";
 };
@@ -609,7 +610,9 @@ export function officeReducer(state, action) {
             reservationGroupId: conversation.reservationGroupId || current.reservationGroupId,
             activityStartedAt: conversation.startedAt,
             activityEndsAt: conversation.endsAt,
-            facing: slotId === conversation.hostId ? conversationFacing(conversation) : current.facing || "front",
+            facing: conversation.locationId.endsWith(":desk")
+              ? conversationFacing(conversation, slotId)
+              : slotId === conversation.hostId ? conversationFacing(conversation) : current.facing || "front",
           },
         };
       }

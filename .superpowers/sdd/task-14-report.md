@@ -26,6 +26,26 @@ git diff --check
 # clean
 ```
 
+## Second Review Facing Fix
+
+- Default two-person desk conversations no longer use `visitor-front`. The scheduler chooses the first side anchor that remains legal under the authoritative Task 13 collision radius, so left-column desks use `visitor-right` and right-column desks use `visitor-left`.
+- Opening a desk conversation now derives facing for both participants from their actual anchors. The default host and visitor therefore reach Pixi as opposite `right`/`left` facings with the side-only `chatting` and `listening` clips; no `front` value is used to disguise a side strip.
+- The first RED run was 44 passing and 3 failing across scheduler/state/Work screen. A route investigation rejected `employee1:visitor-left` because the authoritative endpoint normalized from `x=70` to `x=63`; the right-column regression then produced the expected 17 passing and 1 failing scheduler RED before legal-side selection was generalized.
+
+```sh
+node --test src/work/officeConversationRecords.test.js src/work/officeConversationApi.test.js src/work/officeScheduler.test.js src/work/officeState.test.js
+# pass 51, fail 0
+
+node --test src/work/WorkAppScreen.test.js
+# pass 13, fail 0
+
+npm test
+# pass 199, fail 0
+
+npm run build
+# pass; existing worldbook runtime-asset and chunk-size warnings only
+```
+
 Production-source searches for `OfficeActivityPanel`, `activityEvents`, `activeEventBySlot`, and `officeActivities` returned no matches.
 
 ## Implementation

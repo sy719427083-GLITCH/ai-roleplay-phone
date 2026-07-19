@@ -10,6 +10,7 @@ const ACTIVITY_ORDER = Object.freeze(Object.keys(OFFICE_ACTIVITY_MANIFEST));
 const CONVERSATION_TOPICS = Object.freeze(["项目进度", "午饭时间", "周末安排", "办公室日常"]);
 const CONVERSATION_ACTIVITY_IDS = new Set(["chatting", "diningChat", "sofaChat"]);
 const DESK_VISITOR_SUFFIXES = Object.freeze(["visitor-front", "visitor-left", "visitor-right"]);
+const SIDE_DESK_VISITOR_SUFFIXES = Object.freeze(["visitor-left", "visitor-right"]);
 const CONVERSATION_FALLBACKS = Object.freeze({
   chatting: Object.freeze([
     Object.freeze({ sceneId: "office", locationId: "whiteboard", anchors: ["whiteboard:1", "whiteboard:2", "whiteboard:3"] }),
@@ -157,7 +158,11 @@ const buildConversationPlans = ({ activityId, actorIds, characters }) => {
   const plans = [];
   const hostHome = getHomePoint(hostId);
   const hostPoint = getActorPoint(hostId, characters[hostId]);
-  const visitorAnchors = DESK_VISITOR_SUFFIXES.slice(0, visitorIds.length).map((suffix) => `${hostId}:${suffix}`);
+  const sideVisitorSuffix = SIDE_DESK_VISITOR_SUFFIXES.find((suffix) => anchorPoint("office", `${hostId}:${suffix}`));
+  const visitorSuffixes = visitorIds.length === 1
+    ? sideVisitorSuffix ? [sideVisitorSuffix] : []
+    : DESK_VISITOR_SUFFIXES.slice(0, visitorIds.length);
+  const visitorAnchors = visitorSuffixes.map((suffix) => `${hostId}:${suffix}`);
   if (activityId === "chatting" && visitorAnchors.length === visitorIds.length && hasSamePoint(hostPoint, hostHome)
     && visitorAnchors.every((anchorId) => anchorPoint("office", anchorId))) {
     const routesByActor = buildRoutes({ actorIds: visitorIds, characters, sceneId: "office", anchors: visitorAnchors });

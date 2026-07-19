@@ -196,7 +196,7 @@ test("supports office and lounge conversation-compatible group events", () => {
   }
 });
 
-test("plans desk conversations around a stationary host and reserves only visitor anchors", () => {
+test("plans the default two-person desk conversation on a side visitor anchor", () => {
   const state = createState({
     forcedActivityId: "chatting",
     characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
@@ -208,11 +208,24 @@ test("plans desk conversations around a stationary host and reserves only visito
   assert.equal(event.locationId, "employee1:desk");
   assert.deepEqual(event.anchorByMember, {
     employee1: "employee1:seat-approach",
-    employee2: "employee1:visitor-front",
+    employee2: "employee1:visitor-right",
   });
   assert.deepEqual(Object.keys(event.routesByActor), ["employee2"]);
-  assert.deepEqual(event.targetAnchors, ["employee1:visitor-front"]);
-  assert.equal(state.reservations["employee1:visitor-front"].reservationGroupId, event.reservationGroupId);
+  assert.deepEqual(event.targetAnchors, ["employee1:visitor-right"]);
+  assert.equal(state.reservations["employee1:visitor-right"].reservationGroupId, event.reservationGroupId);
+});
+
+test("chooses the reachable side anchor for a right-column desk host", () => {
+  const state = createState({
+    forcedActivityId: "chatting",
+    characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
+  });
+  const event = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0.3, 0, 0, 0), now: 1_000 });
+
+  assert.equal(event.hostId, "employee2");
+  assert.equal(event.locationId, "employee2:desk");
+  assert.equal(event.anchorByMember.employee1, "employee2:visitor-left");
+  assert.deepEqual(event.targetAnchors, ["employee2:visitor-left"]);
 });
 
 test("falls back to legal shared anchors when a desk visitor anchor is occupied", () => {
@@ -220,7 +233,7 @@ test("falls back to legal shared anchors when a desk visitor anchor is occupied"
     forcedActivityId: "chatting",
     characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
     reservations: {
-      "employee1:visitor-front": { anchorId: "employee1:visitor-front", slotId: "employee4", reservationGroupId: "other", sceneId: "office", expiresAt: 9_000 },
+      "employee1:visitor-right": { anchorId: "employee1:visitor-right", slotId: "employee4", reservationGroupId: "other", sceneId: "office", expiresAt: 9_000 },
     },
   });
   const event = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0, 0, 0, 0), now: 1_000 });
@@ -235,7 +248,7 @@ test("continues from a blocked whiteboard to lounge conversation anchors", () =>
     forcedActivityId: "chatting",
     characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
     reservations: {
-      "employee1:visitor-front": { anchorId: "employee1:visitor-front", slotId: "employee4", reservationGroupId: "desk", sceneId: "office", expiresAt: 9_000 },
+      "employee1:visitor-right": { anchorId: "employee1:visitor-right", slotId: "employee4", reservationGroupId: "desk", sceneId: "office", expiresAt: 9_000 },
       "whiteboard:1": { anchorId: "whiteboard:1", slotId: "employee3", reservationGroupId: "board", sceneId: "office", expiresAt: 9_000 },
       "whiteboard:2": { anchorId: "whiteboard:2", slotId: "employee4", reservationGroupId: "board", sceneId: "office", expiresAt: 9_000 },
     },
