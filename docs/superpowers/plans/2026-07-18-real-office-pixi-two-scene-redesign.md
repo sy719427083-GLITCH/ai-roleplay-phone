@@ -720,7 +720,7 @@ Run: `node scripts/verify-office-v2-assets.mjs --characters employee-m`
 
 Expected: PASS.
 
-Run: `node scripts/verify-office-v2-assets.mjs --characters all`
+Run: `node scripts/verify-office-v2-assets.mjs --all`
 
 Expected: PASS for all sixteen identities and every required clip strip.
 
