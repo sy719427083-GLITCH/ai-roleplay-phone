@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   OFFICE_CHIBIS,
@@ -9,18 +8,87 @@ import { OFFICE_SCENES } from "../officeSceneManifest.js";
 
 if (!globalThis.navigator) Object.defineProperty(globalThis, "navigator", { value: {} });
 
-const { getActivityPropStates, OfficeSceneView } = await import("./OfficeSceneView.js");
-const { OfficeActorView } = await import("./OfficeActorView.js");
+const {
+  createObjectOcclusion,
+  createSprite,
+  getActivityPropKey,
+  getActivityPropStates,
+} = await import("./OfficeSceneView.js");
+const {
+  getActorTexturePlan,
+  loadActorFrames,
+} = await import("./OfficeActorView.js");
 
-const source = (fileName) => readFileSync(new URL(fileName, import.meta.url), "utf8");
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
+
+const settle = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+class FakeSprite {
+  constructor(texture) {
+    this.texture = texture;
+  }
+
+  set texture(value) {
+    this._texture = value;
+    this.width = value?.width || 1;
+    this.height = value?.height || 1;
+  }
+
+  get texture() {
+    return this._texture;
+  }
+}
+
+class FakeGraphics {
+  rect(x, y, width, height) {
+    this.bounds = { x, y, width, height };
+    return this;
+  }
+
+  fill() {
+    return this;
+  }
+}
+
+class FakeRectangle {
+  constructor(x, y, width, height) {
+    Object.assign(this, { x, y, width, height });
+  }
+}
+
+class FakeTexture {
+  constructor(options) {
+    Object.assign(this, options);
+  }
+}
+
+FakeTexture.EMPTY = { width: 1, height: 1 };
+
+const createRuntime = (load) => ({
+  Assets: { load },
+  Graphics: FakeGraphics,
+  Rectangle: FakeRectangle,
+  Sprite: FakeSprite,
+  Texture: FakeTexture,
+});
 
 test("resolves actor clips exclusively from the body-only character tree", () => {
   const clip = getActorClipSource({ characterId: "employee-f-01" }, "working");
 
   assert.equal(clip.src, "/work-office-v2/characters/employee-f-01/working.webp");
-  assert.match(source("./OfficeActorView.js"), /AnimatedSprite/);
-  assert.doesNotMatch(source("./OfficeActorView.js"), /work-office-assets\/chibi/);
-  assert.equal(typeof OfficeActorView, "function");
+  assert.equal(clip.bodyOnly, true);
+  assert.equal(clip.frameCount, 4);
 });
 
 test("keeps the four employee desk instances on one furniture alias", () => {
@@ -32,10 +100,11 @@ test("keeps the four employee desk instances on one furniture alias", () => {
   assert.equal(OFFICE_CHIBIS.every(({ src }) => /\/work-office-v2\/characters\/[\w-]+\/idle-standing\.webp$/.test(src)), true);
 });
 
-test("anchors activity props to existing furniture surfaces and never creates furniture in syncProps", () => {
+test("anchors simultaneous diners to their individual dining surfaces with unique prop keys", () => {
   const states = getActivityPropStates([
     { slotId: "employee1", sceneId: "office", activity: "working" },
     { slotId: "employee2", sceneId: "lounge", activity: "eating", anchorId: "dining:seat-1" },
+    { slotId: "employee3", sceneId: "lounge", activity: "eating", anchorId: "dining-seat-2" },
     { slotId: "employee3", sceneId: "lounge", activity: "watching-tv" },
     { slotId: "employee4", sceneId: "office", activity: "desk-rest" },
   ]);
@@ -43,20 +112,102 @@ test("anchors activity props to existing furniture surfaces and never creates fu
   assert.deepEqual(states.map(({ sceneId, objectId, anchorId }) => ({ sceneId, objectId, anchorId })), [
     { sceneId: "office", objectId: "employee1-desk", anchorId: "surface" },
     { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-1:surface" },
+    { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-2:surface" },
     { sceneId: "lounge", objectId: "television", anchorId: "screen" },
     { sceneId: "office", objectId: "employee4-desk", anchorId: "surface" },
   ]);
   assert.deepEqual(states[1].propIds, ["meal-tray", "food-plate", "utensils"]);
-  assert.deepEqual(states[2].propIds, ["television-content"]);
-  assert.match(source("./OfficeSceneView.js"), /syncProps\(activityStates\)/);
-  assert.doesNotMatch(source("./OfficeSceneView.js").slice(source("./OfficeSceneView.js").indexOf("  syncProps(activityStates)")), /createFurniture/);
-  assert.equal(typeof OfficeSceneView, "function");
+  assert.deepEqual(states[3].propIds, ["television-content"]);
+  assert.notEqual(getActivityPropKey(states[1], "meal-tray"), getActivityPropKey(states[2], "meal-tray"));
 });
 
-test("forwards each scene actor through the OfficeActorView sync envelope", () => {
-  assert.match(source("./OfficeSceneView.js"), /view\.sync\(\{\s*actor,\s*motion: actor\.motion,\s*clip: actor\.clip,/);
+test("preserves requested sprite layout after asynchronous texture replacement", async () => {
+  const loaded = deferred();
+  const sprite = createSprite("/scene.webp", { x: 12, y: 34, width: 1080, height: 1920 }, {
+    runtime: createRuntime(() => loaded.promise),
+  });
+
+  loaded.resolve({ width: 4096, height: 1024 });
+  await settle();
+
+  assert.deepEqual(
+    { x: sprite.x, y: sprite.y, width: sprite.width, height: sprite.height },
+    { x: 12, y: 34, width: 1080, height: 1920 },
+  );
 });
 
-test("lets each physical scene resolve prop ownership from the complete activity state set", () => {
-  assert.match(source("./createOfficeRenderer.js"), /activityStates: world\.activityStates \|\| \[\]/);
+test("uses each furniture front-edge mask to order behind and in-front actors", () => {
+  const desk = OFFICE_SCENES.office.objects.find(({ id }) => id === "employee1-desk");
+  const frontSprite = new FakeSprite({ width: 1, height: 1 });
+  const occlusion = createObjectOcclusion(desk, frontSprite, { runtime: createRuntime(async () => ({ width: 1, height: 1 })) });
+  const behindActor = { zIndex: occlusion.frontEdgeY - 1 };
+  const inFrontActor = { zIndex: occlusion.frontEdgeY + 1 };
+
+  assert.equal(frontSprite.mask, occlusion.mask);
+  assert.deepEqual(occlusion.mask.bounds, occlusion.bounds);
+  assert.equal(behindActor.zIndex < frontSprite.zIndex, true);
+  assert.equal(inFrontActor.zIndex > frontSprite.zIndex, true);
+});
+
+test("keeps left locomotion in its own row and mirrors only a single-row side action", () => {
+  const locomotion = getActorClipSource({ characterId: "employee-f-01" }, "locomotion");
+  const sideAction = getActorClipSource({ characterId: "employee-f-01" }, "phone-call");
+
+  assert.deepEqual(getActorTexturePlan(locomotion, "left"), { row: 1, scaleX: 1 });
+  assert.deepEqual(getActorTexturePlan(sideAction, "left"), { row: 0, scaleX: -1 });
+});
+
+test("registers actor strips only after their texture load succeeds", async () => {
+  const loaded = deferred();
+  const registrations = [];
+  const actorSprite = { textures: [], gotoAndStop() {} };
+  const source = getActorClipSource({ characterId: "employee-f-01" }, "working");
+
+  loadActorFrames({
+    runtime: createRuntime(() => loaded.promise),
+    source,
+    facing: "front",
+    frameIndex: 0,
+    actorSprite,
+    onLoaded: () => registrations.push(source.src),
+  });
+  assert.deepEqual(registrations, []);
+  loaded.resolve({ source: {} });
+  await settle();
+
+  assert.deepEqual(registrations, [source.src]);
+});
+
+test("reports actor and scene asset failures with their source context", async () => {
+  const errors = [];
+  const onAssetError = (error) => errors.push(error);
+  const rejectedRuntime = createRuntime(() => Promise.reject(new Error("offline")));
+  const actorSprite = { textures: [], gotoAndStop() {} };
+
+  createSprite("/broken-scene.webp", { x: 0, y: 0, width: 10, height: 10 }, {
+    runtime: rejectedRuntime,
+    onAssetError,
+    context: { kind: "environment", sceneId: "office" },
+  });
+  createSprite("/broken-prop.webp", { x: 0, y: 0, width: 10, height: 10 }, {
+    runtime: rejectedRuntime,
+    onAssetError,
+    context: { kind: "prop", sceneId: "lounge", propId: "meal-tray" },
+  });
+  loadActorFrames({
+    runtime: rejectedRuntime,
+    source: getActorClipSource({ characterId: "employee-f-01" }, "working"),
+    facing: "front",
+    frameIndex: 0,
+    actorSprite,
+    onAssetError,
+    context: { kind: "actor", actorId: "employee1" },
+  });
+  await settle();
+
+  assert.deepEqual(errors.map(({ context }) => context), [
+    { kind: "environment", sceneId: "office", source: "/broken-scene.webp" },
+    { kind: "prop", sceneId: "lounge", propId: "meal-tray", source: "/broken-prop.webp" },
+    { kind: "actor", actorId: "employee1", source: "/work-office-v2/characters/employee-f-01/working.webp" },
+  ]);
 });

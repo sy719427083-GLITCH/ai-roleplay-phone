@@ -138,11 +138,13 @@ export async function createOfficeRenderer({
   host.replaceChildren(app.canvas);
 
   const registerLoadedActionStrip = (src) => ownedActionStrips.add(src);
+  const getLatestCallbacks = () => getCallbacks?.() || { onFrame, onDoorSelect, onActorSelect };
+  const reportAssetError = (error) => getLatestCallbacks().onError?.(error);
   const office = new Container();
   const lounge = new Container();
   const sceneViews = new Map([
-    ["office", new SceneView("office", { registerLoadedActionStrip, getCallbacks })],
-    ["lounge", new SceneView("lounge", { registerLoadedActionStrip, getCallbacks })],
+    ["office", new SceneView("office", { registerLoadedActionStrip, onAssetError: reportAssetError })],
+    ["lounge", new SceneView("lounge", { registerLoadedActionStrip, onAssetError: reportAssetError })],
   ]);
   office.addChild(sceneViews.get("office"));
   lounge.addChild(sceneViews.get("lounge"));
@@ -163,7 +165,6 @@ export async function createOfficeRenderer({
       root.eventMode = active ? "static" : "none";
     }
   };
-  const getLatestCallbacks = () => getCallbacks?.() || { onFrame, onDoorSelect, onActorSelect };
   tickerCallback = () => {
     refreshTransform();
     getLatestCallbacks().onFrame?.(app.ticker.lastTime);
