@@ -1,261 +1,179 @@
-import { claimAnchor, findOfficeRoute } from "./officeNavigation.js";
+import { getActivityDefinition, OFFICE_ACTIVITY_MANIFEST } from "./officeActivityManifest.js";
+import { getSceneAnchor } from "./officeSceneManifest.js";
+import { reserveAnchors } from "./officeReservations.js";
+import { buildWorldRoute } from "./officeWorld.js";
+import { isLegalCharacterPosition } from "./officePathfinding.js";
 
-export const MODE_WEIGHTS = {
-  focus: {
-    working: 58,
-    reading: 12,
-    slacking: 4,
-    eating: 7,
-    gaming: 3,
-    watchingSeries: 3,
-    watchingShortVideo: 3,
-    chatting: 10,
-  },
-  free: {
-    working: 25,
-    reading: 10,
-    slacking: 12,
-    eating: 12,
-    gaming: 9,
-    watchingSeries: 8,
-    watchingShortVideo: 9,
-    chatting: 15,
-  },
-  rest: {
-    working: 6,
-    reading: 12,
-    slacking: 14,
-    eating: 18,
-    gaming: 12,
-    watchingSeries: 12,
-    watchingShortVideo: 12,
-    chatting: 14,
-  },
-};
-
-const ACTIVITY_ORDER = [
-  "working",
-  "reading",
-  "slacking",
-  "eating",
-  "gaming",
-  "watchingSeries",
-  "watchingShortVideo",
-  "chatting",
-];
-const BREAK_ANCHORS = ["break-1", "break-2"];
-const CHAT_ANCHORS = ["chat-1", "chat-2", "chat-3", "chat-4"];
-const CHAT_ANCHOR_CONFLICTS = {
-  "chat-1": new Set(["chat-2"]),
-  "chat-2": new Set(["chat-1"]),
-  "chat-3": new Set(["chat-4"]),
-  "chat-4": new Set(["chat-3"]),
-};
-const MEALS = ["bento", "rice", "noodles", "sandwich"];
-const SLACK_PROPS = ["phone", "comic", "handheld"];
-const BOOK_PROPS = ["paperback", "hardcover", "magazine"];
-const SERIES_PROPS = ["phone-landscape", "tablet", "second-screen"];
-const SHORT_VIDEO_PROPS = ["phone-portrait-light", "phone-portrait-dark"];
-const TOPICS = ["项目进度", "午饭时间", "周末安排", "办公室日常"];
 const INTERRUPTIBLE_PHASES = new Set(["idle", "working"]);
-const BLOCKED_ACTIVITIES = new Set(["slacking", "eating", "returning", "gaming", "chatting"]);
+const BLOCKED_ACTIVITIES = new Set(["returning", "chatting", "eating", "gaming", "slacking"]);
+const ACTIVITY_ORDER = Object.freeze(Object.keys(OFFICE_ACTIVITY_MANIFEST));
+const CONVERSATION_TOPICS = Object.freeze(["项目进度", "午饭时间", "周末安排", "办公室日常"]);
 
-const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const clampRandom = (value) => {
-  if (!Number.isFinite(value)) return 0;
-  if (value <= 0) return 0;
-  if (value >= 1) return 0.999999999;
-  return value;
-};
-
-const pickIndex = (items, random) => {
-  if (!Array.isArray(items) || items.length === 0) return -1;
-  return Math.floor(clampRandom(random()) * items.length);
-};
-
-const pickFromList = (items, random) => {
-  const index = pickIndex(items, random);
-  return index >= 0 ? items[index] : null;
-};
-
-const getModeWeights = (mode) => MODE_WEIGHTS[mode] || MODE_WEIGHTS.free;
-
-const applyPersonalityModifiers = (weights, personality = "") => {
-  const next = { ...weights };
-  const text = String(personality || "");
-
-  if (text.includes("外向")) {
-    next.working -= 4;
-    next.reading -= 2;
-    next.chatting += 12;
-  }
-  if (text.includes("社恐")) {
-    next.working += 6;
-    next.reading += 4;
-    next.chatting -= 18;
-  }
-  if (text.includes("自律")) {
-    next.working += 12;
-    next.reading += 8;
-    next.slacking -= 8;
-    next.eating -= 4;
-    next.gaming -= 10;
-    next.watchingSeries -= 4;
-    next.watchingShortVideo -= 4;
-  }
-  if (text.includes("沉静")) {
-    next.working += 4;
-    next.reading += 12;
-    next.slacking -= 4;
-    next.gaming -= 3;
-    next.watchingSeries -= 3;
-    next.watchingShortVideo -= 3;
-    next.chatting -= 6;
-  }
-  if (text.includes("贪吃")) {
-    next.slacking -= 2;
-    next.eating += 18;
-  }
-  if (text.includes("游戏")) {
-    next.working -= 6;
-    next.gaming += 18;
-  }
-  if (text.includes("追剧")) {
-    next.working -= 4;
-    next.slacking -= 2;
-    next.gaming -= 4;
-    next.watchingSeries += 18;
-    next.watchingShortVideo -= 2;
-  }
-  if (text.includes("短视频")) {
-    next.working -= 4;
-    next.slacking -= 2;
-    next.gaming -= 4;
-    next.watchingSeries -= 2;
-    next.watchingShortVideo += 18;
-  }
-  if (text.includes("话多")) {
-    next.slacking -= 2;
-    next.reading -= 2;
-    next.chatting += 16;
-  }
-
-  for (const key of ACTIVITY_ORDER) {
-    next[key] = Math.max(1, Math.round(next[key] || 0));
-  }
-
-  return next;
-};
-
-const pickWeightedActivity = (weights, random) => {
-  const total = ACTIVITY_ORDER.reduce((sum, key) => sum + weights[key], 0);
-  let threshold = clampRandom(random()) * total;
-
-  for (const key of ACTIVITY_ORDER) {
-    threshold -= weights[key];
-    if (threshold < 0) return key;
-  }
-
-  return ACTIVITY_ORDER[ACTIVITY_ORDER.length - 1];
-};
-
-const getProfileForSlot = (slotId, character, profiles) => {
-  if (isPlainObject(profiles?.[character?.profileId])) return profiles[character.profileId];
-  if (isPlainObject(profiles?.[slotId])) return profiles[slotId];
-  if (isPlainObject(character?.profile)) return character.profile;
-  return {};
-};
-
-const isInterruptibleCharacter = (character) => {
-  if (!isPlainObject(character)) return false;
-  if (character.conversationId) return false;
-  if (!INTERRUPTIBLE_PHASES.has(character.phase)) return false;
-  if (BLOCKED_ACTIVITIES.has(character.activity)) return false;
-  return true;
-};
-
-const getCharacterNode = (slotId, character) => String(
-  character?.positionNode
-  || character?.homePosition
-  || character?.homeNode
-  || `${slotId}-home`,
-);
-
-const getAvailableAnchorClaim = (anchorIds, reservations, ownerId, random) => {
-  const available = anchorIds
-    .map((anchorId) => [anchorId, claimAnchor(reservations, anchorId, ownerId)])
-    .filter(([, nextReservations]) => nextReservations);
-
-  if (!available.length) return null;
-
-  const index = pickIndex(available, random);
-  const [anchorId, nextReservations] = available[index];
-  return { anchorId, reservations: nextReservations };
-};
-
-const buildSingleCharacterEvent = (slotId, activity, now) => ({
-  slotId,
-  memberIds: [slotId],
-  activity,
-  now,
+export const MODE_WEIGHTS = Object.freeze({
+  focus: Object.freeze({ working: 48, reading: 15, reporting: 8, printing: 6, filing: 6, videoMeeting: 7, screenCollaboration: 10 }),
+  free: Object.freeze({ working: 22, reading: 9, slacking: 8, gaming: 5, watchingSeries: 5, watchingShortVideo: 6, chatting: 8, eating: 7, drinking: 5, screenCollaboration: 6, computerHelp: 4, printing: 3, whiteboardWork: 2 }),
+  rest: Object.freeze({ eating: 22, drinking: 12, sofaRest: 12, quietRest: 10, watchingTv: 8, diningChat: 8, sofaChat: 8, stretching: 8, reading: 5, watchingSeries: 4, watchingShortVideo: 3 }),
 });
 
-const buildDeskLocalEvent = ({ slotId, activity, now, random, propPool }) => {
-  const event = buildSingleCharacterEvent(slotId, activity, now);
-  if (!Array.isArray(propPool) || !propPool.length) return event;
+const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const clampRandom = (value) => (Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999) : 0);
+const pick = (items, random) => items[Math.floor(clampRandom(random()) * items.length)] ?? null;
+const unique = (items) => [...new Set(items)];
 
-  return {
-    ...event,
-    propVariant: pickFromList(propPool, random),
-  };
+const isInterruptible = (character) => (
+  isPlainObject(character)
+  && !character.conversationId
+  && INTERRUPTIBLE_PHASES.has(character.phase)
+  && !BLOCKED_ACTIVITIES.has(character.activity)
+);
+
+const getProfile = (slotId, character, profiles) => (
+  profiles?.[character?.profileId] || profiles?.[slotId] || character?.profile || {}
+);
+
+const personalityWeight = (activityId, personality) => {
+  const text = String(personality || "");
+  let modifier = 0;
+  if (text.includes("自律") && ["working", "reading", "reporting", "filing"].includes(activityId)) modifier += 16;
+  if (text.includes("沉静") && ["reading", "quietRest", "working"].includes(activityId)) modifier += 12;
+  if (text.includes("外向") && ["chatting", "diningChat", "sofaChat", "whiteboardWork"].includes(activityId)) modifier += 16;
+  if (text.includes("社恐") && ["chatting", "diningChat", "sofaChat"].includes(activityId)) modifier -= 12;
+  if (text.includes("贪吃") && ["eating", "drinking"].includes(activityId)) modifier += 18;
+  if (text.includes("游戏") && activityId === "gaming") modifier += 18;
+  if (text.includes("追剧") && activityId === "watchingSeries") modifier += 18;
+  if (text.includes("短视频") && activityId === "watchingShortVideo") modifier += 18;
+  return modifier;
 };
 
-const buildEatingEvent = ({ slotId, character, reservations, random, now }) => {
-  const claim = getAvailableAnchorClaim(BREAK_ANCHORS, reservations, slotId, random);
-  if (!claim) return null;
-
-  const route = findOfficeRoute(getCharacterNode(slotId, character), claim.anchorId);
-  if (!route.length) return null;
-
-  return {
-    ...buildSingleCharacterEvent(slotId, "eating", now),
-    anchorId: claim.anchorId,
-    meal: pickFromList(MEALS, random),
-    route,
-    reservations: claim.reservations,
-  };
-};
-
-const buildChatRoutes = (memberIds, characters, anchorId) => {
-  const routesByMember = {};
-
-  for (const slotId of memberIds) {
-    const route = findOfficeRoute(getCharacterNode(slotId, characters[slotId]), anchorId);
-    if (!route.length) return null;
-    routesByMember[slotId] = route;
+const chooseActivityId = ({ state, profile, random }) => {
+  if (getActivityDefinition(state.forcedActivityId)) return state.forcedActivityId;
+  const base = MODE_WEIGHTS[state.mode] || MODE_WEIGHTS.free;
+  const weighted = ACTIVITY_ORDER.map((activityId) => ({
+    activityId,
+    weight: Math.max(1, (base[activityId] || 1) + personalityWeight(activityId, profile.personality)),
+  }));
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let threshold = clampRandom(random()) * total;
+  for (const entry of weighted) {
+    threshold -= entry.weight;
+    if (threshold < 0) return entry.activityId;
   }
-
-  return routesByMember;
+  return weighted.at(-1).activityId;
 };
 
-export function buildConversationSession({ memberIds, anchorId, now, random }) {
-  if (!Array.isArray(memberIds) || memberIds.length < 2 || memberIds.length > 5) return null;
-  if (new Set(memberIds).size !== memberIds.length) return null;
-  if (!anchorId || typeof anchorId !== "string") return null;
-  if (typeof random !== "function") return null;
+const getHomePoint = (slotId) => {
+  const anchor = getSceneAnchor("office", `${slotId}:seat-approach`) || getSceneAnchor("office", "entry");
+  return { sceneId: "office", x: anchor.x, y: anchor.y };
+};
 
-  const normalizedMemberIds = memberIds.map((memberId) => String(memberId));
-  const anchorOwnerId = normalizedMemberIds[0];
+const getActorPoint = (slotId, character) => {
+  const point = character?.position;
+  if (typeof character?.sceneId === "string" && Number.isFinite(point?.x) && Number.isFinite(point?.y)
+    && isLegalCharacterPosition(character.sceneId, point)) {
+    return { sceneId: character.sceneId, x: point.x, y: point.y };
+  }
+  return getHomePoint(slotId);
+};
+
+const resolveAnchor = (anchorId, leaderId) => anchorId.replace(/^\$actor/, leaderId);
+const anchorPoint = (sceneId, anchorId) => {
+  const point = getSceneAnchor(sceneId, anchorId);
+  return point && isLegalCharacterPosition(sceneId, point) ? { sceneId, x: point.x, y: point.y } : null;
+};
+
+const buildRoutes = ({ actorIds, characters, sceneId, anchors }) => {
+  const routesByActor = {};
+  for (let index = 0; index < actorIds.length; index += 1) {
+    const actorId = actorIds[index];
+    const destination = anchorPoint(sceneId, anchors[index % anchors.length]);
+    if (!destination) return null;
+    const route = buildWorldRoute({ from: getActorPoint(actorId, characters[actorId]), to: destination });
+    if (!route.length) return null;
+    routesByActor[actorId] = route;
+  }
+  return routesByActor;
+};
+
+const getActorRoles = (definition, actorIds) => Object.fromEntries(actorIds.map((actorId, index) => [
+  actorId,
+  index === 0 && definition.clips.host ? "host" : index > 0 && definition.clips.visitor ? "visitor" : "actor",
+]));
+
+const selectAnchors = (definition, leaderId, random) => {
+  const resolved = definition.targetAnchors.map((anchorId) => resolveAnchor(anchorId, leaderId));
+  if (definition.participants.max === 1 && resolved.length > 1) return [pick(resolved, random)];
+  return resolved.slice(0, definition.participants.min);
+};
+
+const selectParticipants = ({ definition, primarySlotId, eligibleIds }) => {
+  const required = Array.isArray(definition.requiredActorIds) ? definition.requiredActorIds : [];
+  if (required.some((slotId) => !eligibleIds.includes(slotId))) return null;
+  const leaders = required.length ? required : [primarySlotId];
+  const actorIds = unique([...leaders, ...eligibleIds.filter((slotId) => !leaders.includes(slotId))])
+    .slice(0, definition.participants.min);
+  return actorIds.length === definition.participants.min ? actorIds : null;
+};
+
+export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
+  if (!isPlainObject(state) || !isPlainObject(state.characters) || !isPlainObject(profiles) || typeof random !== "function") return null;
+  const eligibleIds = Object.keys(state.characters).filter((slotId) => isInterruptible(state.characters[slotId]));
+  if (!eligibleIds.length) return null;
+
+  const primarySlotId = pick(eligibleIds, random);
+  if (!primarySlotId) return null;
+  const profile = getProfile(primarySlotId, state.characters[primarySlotId], profiles);
+  const activityId = chooseActivityId({ state, profile, random });
+  const definition = getActivityDefinition(activityId);
+  if (!definition) return null;
+  const actorIds = selectParticipants({ definition, primarySlotId, eligibleIds });
+  if (!actorIds) return null;
+  const targetAnchors = selectAnchors(definition, actorIds[0], random);
+  if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(definition.sceneId, anchorId))) return null;
+
+  const startedAt = Number.isFinite(now) ? now : Date.now();
+  const duration = definition.durationMs.min + Math.floor(clampRandom(random()) * (definition.durationMs.max - definition.durationMs.min + 1));
+  const endsAt = startedAt + duration;
+  const reservationGroupId = `office-${activityId}-${startedAt}-${actorIds.join("-")}`;
+  const reservationCheck = reserveAnchors(state.reservations || {}, {
+    sceneId: definition.sceneId,
+    reservationGroupId,
+    slotId: actorIds[0],
+    anchorIds: targetAnchors,
+    now: startedAt,
+    expiresAt: endsAt,
+  });
+  if (!reservationCheck) return null;
+
+  const routesByActor = buildRoutes({ actorIds, characters: state.characters, sceneId: definition.sceneId, anchors: targetAnchors });
+  if (!routesByActor) return null;
+
+  const variant = definition.propState.variants.length ? pick(definition.propState.variants, random) : "";
+  const eventId = reservationGroupId;
+  return {
+    activityId,
+    actorIds,
+    sceneId: definition.sceneId,
+    targetAnchors,
+    reservationGroupId,
+    routesByActor,
+    propState: { category: definition.propState.category, variant, actorRoles: getActorRoles(definition, actorIds) },
+    semanticContext: { eventId, activityId, status: definition.status, semanticFallback: { ...definition.semanticFallback } },
+    startedAt,
+    endsAt,
+  };
+}
+
+export function buildConversationSession({ memberIds, anchorId, now, random } = {}) {
+  if (!Array.isArray(memberIds) || memberIds.length < 2 || memberIds.length > 5 || new Set(memberIds).size !== memberIds.length || typeof anchorId !== "string" || !anchorId || typeof random !== "function") return null;
+  const normalizedMemberIds = memberIds.map(String);
   const idSeed = Math.floor(clampRandom(random()) * 1_000_000);
-  const topic = pickFromList(TOPICS, random) || TOPICS[0];
-
+  const topic = pick(CONVERSATION_TOPICS, random) || CONVERSATION_TOPICS[0];
   return {
     id: `office-chat-${now}-${anchorId}-${idSeed}-${normalizedMemberIds.join("-")}`,
     memberIds: [...normalizedMemberIds],
     topic,
     anchorId,
-    anchorOwnerId,
+    anchorOwnerId: normalizedMemberIds[0],
     transcript: [],
     turnIndex: 0,
     requestSequence: 0,
@@ -263,141 +181,7 @@ export function buildConversationSession({ memberIds, anchorId, now, random }) {
     startedAt: now,
     endsAt: now + 45_000,
     bubbleQueue: [],
-    promptContext: {
-      anchorId,
-      topic,
-      members: [...normalizedMemberIds],
-    },
+    promptContext: { anchorId, topic, members: [...normalizedMemberIds] },
     lastResponse: null,
   };
-}
-
-const buildChatEvent = ({ state, eligibleIds, primarySlotId, random, now }) => {
-  if (eligibleIds.length < 2) return null;
-
-  const reservedChatAnchors = CHAT_ANCHORS.filter((anchorId) => state.reservations?.[anchorId]);
-  const spacedChatAnchors = CHAT_ANCHORS.filter((anchorId) => (
-    reservedChatAnchors.every((reservedAnchorId) => (
-      !CHAT_ANCHOR_CONFLICTS[reservedAnchorId]?.has(anchorId)
-    ))
-  ));
-  const claim = getAvailableAnchorClaim(
-    spacedChatAnchors,
-    state.reservations,
-    primarySlotId,
-    random,
-  );
-  if (!claim) return null;
-
-  const maxGroupSize = Math.min(5, eligibleIds.length);
-  const groupSize = maxGroupSize === 2
-    ? 2
-    : 2 + Math.floor(clampRandom(random()) * (maxGroupSize - 1));
-  const memberIds = [
-    primarySlotId,
-    ...eligibleIds.filter((slotId) => slotId !== primarySlotId),
-  ].slice(0, groupSize);
-
-  if (memberIds.length < 2) return null;
-
-  const routesByMember = buildChatRoutes(memberIds, state.characters, claim.anchorId);
-  if (!routesByMember) return null;
-
-  const session = buildConversationSession({
-    memberIds,
-    anchorId: claim.anchorId,
-    now,
-    random,
-  });
-  if (!session) return null;
-
-  return {
-    activity: "chatting",
-    memberIds,
-    leaderId: primarySlotId,
-    anchorId: claim.anchorId,
-    routesByMember,
-    reservations: claim.reservations,
-    session,
-    now,
-  };
-};
-
-export function chooseOfficeEvent({ state, profiles, random, now }) {
-  if (!isPlainObject(state) || !isPlainObject(state.characters) || !isPlainObject(profiles)) return null;
-  if (typeof random !== "function") return null;
-
-  const eligibleIds = Object.keys(state.characters).filter((slotId) => isInterruptibleCharacter(state.characters[slotId]));
-  if (!eligibleIds.length) return null;
-
-  const primarySlotId = eligibleIds[pickIndex(eligibleIds, random)];
-  const primaryCharacter = state.characters[primarySlotId];
-  const profile = getProfileForSlot(primarySlotId, primaryCharacter, profiles);
-  const weights = applyPersonalityModifiers(getModeWeights(state.mode), profile.personality);
-  const activity = pickWeightedActivity(weights, random);
-
-  if (activity === "eating") {
-    return buildEatingEvent({
-      slotId: primarySlotId,
-      character: primaryCharacter,
-      reservations: state.reservations || {},
-      random,
-      now,
-    });
-  }
-
-  if (activity === "chatting") {
-    return buildChatEvent({
-      state: {
-        ...state,
-        reservations: state.reservations || {},
-      },
-      eligibleIds,
-      primarySlotId,
-      random,
-      now,
-    });
-  }
-
-  if (activity === "reading") {
-    return buildDeskLocalEvent({
-      slotId: primarySlotId,
-      activity,
-      now,
-      random,
-      propPool: BOOK_PROPS,
-    });
-  }
-
-  if (activity === "slacking") {
-    return buildDeskLocalEvent({
-      slotId: primarySlotId,
-      activity,
-      now,
-      random,
-      propPool: SLACK_PROPS,
-    });
-  }
-
-  if (activity === "watchingSeries") {
-    return buildDeskLocalEvent({
-      slotId: primarySlotId,
-      activity,
-      now,
-      random,
-      propPool: SERIES_PROPS,
-    });
-  }
-
-  if (activity === "watchingShortVideo") {
-    return buildDeskLocalEvent({
-      slotId: primarySlotId,
-      activity,
-      now,
-      random,
-      propPool: SHORT_VIDEO_PROPS,
-    });
-  }
-
-  return buildSingleCharacterEvent(primarySlotId, activity, now);
 }
