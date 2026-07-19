@@ -150,8 +150,8 @@ export async function createOfficeRenderer({
   const office = new Container();
   const lounge = new Container();
   const sceneViews = new Map([
-    ["office", new SceneView("office", { registerLoadedActionStrip, onAssetError: reportAssetError })],
-    ["lounge", new SceneView("lounge", { registerLoadedActionStrip, onAssetError: reportAssetError })],
+    ["office", new SceneView("office", { registerLoadedActionStrip, onAssetError: reportAssetError, runtime: pixi })],
+    ["lounge", new SceneView("lounge", { registerLoadedActionStrip, onAssetError: reportAssetError, runtime: pixi })],
   ]);
   office.addChild(sceneViews.get("office"));
   lounge.addChild(sceneViews.get("lounge"));

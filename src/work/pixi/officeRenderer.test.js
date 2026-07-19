@@ -35,6 +35,7 @@ function createHost({ width = 390, height = 744 } = {}) {
 
 function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
   const applications = [];
+  const sceneViewConstructorCalls = [];
   const unloaded = [];
 
   class Container {
@@ -97,11 +98,13 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
   }
 
   class SceneView extends Container {
-    constructor(sceneId, { registerLoadedActionStrip } = {}) {
+    constructor(sceneId, options = {}) {
       super();
+      const { registerLoadedActionStrip } = options;
       this.sceneId = sceneId;
       this.registerLoadedActionStrip = registerLoadedActionStrip;
       this.snapshots = [];
+      sceneViewConstructorCalls.push({ sceneId, options });
     }
 
     sync(snapshot) {
@@ -112,6 +115,7 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
 
   return {
     applications,
+    sceneViewConstructorCalls,
     unloaded,
     runtime: {
       Application,
@@ -149,6 +153,9 @@ test("initializes the exact Pixi options and keeps persistent roots synchronized
     preference: "webgl",
   });
   assert.equal(host.children[0], fake.applications[0].canvas);
+  assert.deepEqual(fake.sceneViewConstructorCalls.map(({ sceneId }) => sceneId), ["office", "lounge"]);
+  assert.equal(fake.sceneViewConstructorCalls[0].options.runtime, fake.runtime);
+  assert.equal(fake.sceneViewConstructorCalls[1].options.runtime, fake.runtime);
   renderer.sync(createWorld());
 
   const [officeRoot, loungeRoot] = fake.applications[0].stage.children;
