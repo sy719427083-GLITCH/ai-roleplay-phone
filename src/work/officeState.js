@@ -1,6 +1,7 @@
 import { OFFICE_SCENES, getSceneAnchor } from "./officeSceneManifest.js";
 import { isLegalCharacterPosition } from "./officePathfinding.js";
 import { releaseReservationGroup } from "./officeReservations.js";
+import { appendConversationRecord, restoreConversationRecords } from "./officeConversationRecords.js";
 import { buildWorldRoute, isValidWorldRoute, sampleWorldRoute } from "./officeWorld.js";
 
 const OFFICE_MODE = "free";
@@ -184,25 +185,78 @@ const withCharacter = (state, slotId, updater) => {
   };
 };
 
-const normalizeConversation = (session = {}, now = 0) => ({
-  id: String(session.id || ""),
-  memberIds: Array.isArray(session.memberIds) ? [...session.memberIds] : [],
-  topic: String(session.topic || ""),
-  anchorId: String(session.anchorId || ""),
-  anchorOwnerId: String(session.anchorOwnerId || ""),
-  reservationGroupId: String(session.reservationGroupId || ""),
-  sceneId: String(session.sceneId || ""),
-  targetAnchorIds: Array.isArray(session.targetAnchorIds) ? [...session.targetAnchorIds] : [],
-  transcript: Array.isArray(session.transcript) ? deepClone(session.transcript) : [],
-  turnIndex: Number.isFinite(session.turnIndex) ? session.turnIndex : 0,
-  requestSequence: Number.isFinite(session.requestSequence) ? session.requestSequence : 0,
-  status: String(session.status || "active"),
-  startedAt: Number.isFinite(session.startedAt) ? session.startedAt : now,
-  endsAt: Number.isFinite(session.endsAt) ? session.endsAt : 0,
-  bubbleQueue: Array.isArray(session.bubbleQueue) ? deepClone(session.bubbleQueue) : [],
-  promptContext: isPlainObject(session.promptContext) ? deepClone(session.promptContext) : {},
-  lastResponse: isPlainObject(session.lastResponse) ? deepClone(session.lastResponse) : null,
+const uniqueMemberIds = (value) => Array.isArray(value)
+  ? [...new Set(value.filter((slotId) => hasText(slotId)))] : [];
+
+const normalizeConversation = (session = {}, now = 0) => {
+  const memberIds = uniqueMemberIds(session.memberIds);
+  const hostId = hasText(session.hostId) && memberIds.includes(session.hostId) ? session.hostId : memberIds[0] || "";
+  const visitorIds = uniqueMemberIds(session.visitorIds).filter((slotId) => slotId !== hostId && memberIds.includes(slotId));
+  const normalizedVisitorIds = visitorIds.length ? visitorIds : memberIds.filter((slotId) => slotId !== hostId);
+  const anchorByMember = isPlainObject(session.anchorByMember) ? deepClone(session.anchorByMember) : {};
+  return {
+    id: String(session.id || ""),
+    workSessionId: String(session.workSessionId || ""),
+    hostId,
+    visitorIds: normalizedVisitorIds,
+    memberIds,
+    topic: String(session.topic || "办公室日常"),
+    anchorId: String(session.anchorId || ""),
+    anchorOwnerId: String(session.anchorOwnerId || hostId),
+    reservationGroupId: String(session.reservationGroupId || ""),
+    sceneId: String(session.sceneId || "office"),
+    locationId: String(session.locationId || session.anchorId || "office"),
+    anchorByMember,
+    targetAnchorIds: Array.isArray(session.targetAnchorIds) ? [...session.targetAnchorIds] : [],
+    participantSnapshots: Array.isArray(session.participantSnapshots) ? deepClone(session.participantSnapshots) : [],
+    transcript: Array.isArray(session.transcript) ? deepClone(session.transcript) : [],
+    turnIndex: Number.isFinite(session.turnIndex) ? session.turnIndex : 0,
+    requestSequence: Number.isFinite(session.requestSequence) ? session.requestSequence : 0,
+    status: String(session.status || "active"),
+    activityId: String(session.activityId || "chatting"),
+    activityStatus: String(session.activityStatus || "闲聊中"),
+    startedAt: Number.isFinite(session.startedAt) ? session.startedAt : now,
+    endsAt: Number.isFinite(session.endsAt) ? session.endsAt : 0,
+    bubbleQueue: Array.isArray(session.bubbleQueue) ? deepClone(session.bubbleQueue) : [],
+    promptContext: isPlainObject(session.promptContext) ? deepClone(session.promptContext) : {},
+    lastResponse: isPlainObject(session.lastResponse) ? deepClone(session.lastResponse) : null,
+  };
+};
+
+const normalizeConversationEntry = (entry, conversation) => {
+  if (!isPlainObject(entry) || !conversation.memberIds.includes(entry.speakerId) || typeof entry.text !== "string") return null;
+  const text = Array.from(entry.text.trim()).slice(0, 80).join("");
+  return text ? { speakerId: entry.speakerId, text } : null;
+};
+
+const getConversationSnapshots = (state, conversation) => {
+  if (conversation.participantSnapshots.length === conversation.memberIds.length
+    && conversation.participantSnapshots.every((snapshot) => conversation.memberIds.includes(snapshot?.memberId))) {
+    return deepClone(conversation.participantSnapshots);
+  }
+  return conversation.memberIds.map((memberId) => ({
+    ...(deepClone(state.assignments[memberId]?.profile) || {}),
+    memberId,
+    profileId: state.assignments[memberId]?.profileId || memberId,
+  }));
+};
+
+const buildConversationRecord = (state, conversation, now) => ({
+  conversationId: conversation.id,
+  workSessionId: conversation.workSessionId || state.workSessionId,
+  sceneId: conversation.sceneId || "office",
+  locationId: conversation.locationId || conversation.anchorId || "office",
+  topic: conversation.topic || "办公室日常",
+  participantSnapshots: getConversationSnapshots(state, conversation),
+  startedAt: conversation.startedAt,
+  endedAt: Number.isFinite(now) ? now : state.now,
+  transcript: conversation.transcript,
 });
+
+const isAtHome = (character) => {
+  const home = getHomePoint(character.slotId);
+  return character.sceneId === home.sceneId && hasSamePoint({ sceneId: character.sceneId, ...character.position }, home);
+};
 
 const withConversation = (state, conversationId, updater) => {
   const current = state.conversations[conversationId];
@@ -273,6 +327,7 @@ export function createOfficeState({ assignments, now = 0, durationMs = 0, workSe
     assignments: normalizedAssignments,
     reservations: {},
     conversations: {},
+    conversationRecords: [],
     characters: Object.fromEntries(slotIdsFromAssignments(normalizedAssignments).map((slotId) => [
       slotId,
       getIdleCharacter(slotId, normalizedAssignments[slotId]),
@@ -287,7 +342,7 @@ export function serializeOfficeState(state) {
     durationMs: state.durationMs,
     workSessionId: state.workSessionId,
     visibleSceneId: OFFICE_SCENES[state.visibleSceneId] ? state.visibleSceneId : "office",
-    conversations: deepClone(state.conversations || {}),
+    conversationRecords: restoreConversationRecords(state.conversationRecords || []),
   });
 }
 
@@ -309,6 +364,7 @@ export function restoreOfficeState(raw, assignments, now = 0) {
     mode: String(parsed.mode || base.mode),
     visibleSceneId: "office",
     conversations: {},
+    conversationRecords: restoreConversationRecords(parsed.conversationRecords),
   };
 }
 
@@ -478,9 +534,9 @@ export function officeReducer(state, action) {
           ...characters,
           [slotId]: {
             ...current,
-            phase: "chatting",
-            activity: "chatting",
-            status: "闲聊中",
+            phase: conversation.activityId,
+            activity: conversation.activityId,
+            status: conversation.activityStatus,
             conversationId: conversation.id,
             reservationGroupId: conversation.reservationGroupId || current.reservationGroupId,
             activityStartedAt: conversation.startedAt,
@@ -496,10 +552,10 @@ export function officeReducer(state, action) {
     }
 
     case "APPEND_CONVERSATION":
-      return withConversation(state, action.conversationId, (conversation) => ({
-        ...conversation,
-        transcript: [...conversation.transcript, deepClone(action.entry)],
-      }));
+      return withConversation(state, action.conversationId, (conversation) => {
+        const entry = normalizeConversationEntry(action.entry, conversation);
+        return entry ? { ...conversation, transcript: [...conversation.transcript, entry] } : conversation;
+      });
 
     case "QUEUE_BUBBLE":
       return withConversation(state, action.conversationId, (conversation) => ({
@@ -527,17 +583,17 @@ export function officeReducer(state, action) {
       if (!conversation) return state;
       const conversations = { ...state.conversations };
       delete conversations[action.conversationId];
+      const conversationRecords = appendConversationRecord(
+        state.conversationRecords,
+        buildConversationRecord(state, conversation, action.now ?? state.now),
+      );
       let characters = state.characters;
       for (const slotId of conversation.memberIds) {
         const current = characters[slotId];
         if (!current || current.conversationId !== conversation.id) continue;
-        const next = startReturnCharacter(
-          current,
-          action.returnRoutes?.[slotId],
-          action.now ?? state.now,
-          null,
-          true,
-        );
+        const next = slotId === conversation.hostId && isAtHome(current)
+          ? getIdleCharacter(slotId, state.assignments[slotId])
+          : startReturnCharacter(current, action.returnRoutes?.[slotId], action.now ?? state.now, null, true);
         characters = { ...characters, [slotId]: next };
       }
       return {
@@ -546,6 +602,7 @@ export function officeReducer(state, action) {
           ? releaseReservationGroup(state.reservations, conversation.reservationGroupId)
           : state.reservations,
         conversations,
+        conversationRecords,
         characters,
       };
     }

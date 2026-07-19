@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ArrowLeft, Ellipsis, Users } from "lucide-react";
-import OfficeActivityPanel from "./OfficeActivityPanel.jsx";
+import OfficeConversationPanel from "./OfficeConversationPanel.jsx";
 import OfficeAssignmentFlow from "./OfficeAssignmentFlow.jsx";
 import OfficeScene from "./OfficeScene.jsx";
 import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
@@ -59,6 +59,7 @@ const SLOT_DETAILS = [
 ];
 
 const AVAILABLE_PHASES = new Set(["idle", "working"]);
+const CONVERSATION_ACTIVITY_IDS = new Set(["chatting", "diningChat", "sofaChat"]);
 const MODE_OPTIONS = [
   { id: "focus", label: "认真干活" },
   { id: "free", label: "自由行动" },
@@ -323,28 +324,32 @@ const getHomeWorldPoint = (slotId) => {
   return anchor ? { sceneId: "office", x: anchor.x, y: anchor.y } : null;
 };
 
-const hasExactPhysicalEventContract = (event) => (
-  isRecord(event)
-  && cleanText(event.activityId)
-  && cleanText(event.sceneId)
-  && cleanText(event.reservationGroupId)
-  && Array.isArray(event.actorIds)
-  && event.actorIds.length > 0
-  && new Set(event.actorIds).size === event.actorIds.length
-  && Array.isArray(event.targetAnchors)
-  && event.targetAnchors.length === event.actorIds.length
-  && isRecord(event.routesByActor)
-  && event.actorIds.every((slotId) => Array.isArray(event.routesByActor[slotId]) && event.routesByActor[slotId].length > 0)
-  && isRecord(event.propState)
-  && isRecord(event.semanticContext)
-  && Number.isFinite(event.startedAt)
-  && Number.isFinite(event.endsAt)
-);
+const isConversationEvent = (event) => CONVERSATION_ACTIVITY_IDS.has(event?.activityId);
+
+const hasExactPhysicalEventContract = (event) => {
+  if (!isRecord(event) || !cleanText(event.activityId) || !cleanText(event.sceneId)
+    || !cleanText(event.reservationGroupId) || !Array.isArray(event.actorIds) || !event.actorIds.length
+    || new Set(event.actorIds).size !== event.actorIds.length || !Array.isArray(event.targetAnchors)
+    || !isRecord(event.routesByActor) || !isRecord(event.propState) || !isRecord(event.semanticContext)
+    || !Number.isFinite(event.startedAt) || !Number.isFinite(event.endsAt)) return false;
+  const routeActorIds = Object.keys(event.routesByActor);
+  if (!routeActorIds.length || routeActorIds.some((slotId) => !event.actorIds.includes(slotId)
+    || !Array.isArray(event.routesByActor[slotId]) || !event.routesByActor[slotId].length)) return false;
+  if (!isConversationEvent(event)) return event.targetAnchors.length === event.actorIds.length && routeActorIds.length === event.actorIds.length;
+  return cleanText(event.hostId) && event.actorIds.includes(event.hostId)
+    && Array.isArray(event.visitorIds) && event.visitorIds.length
+    && event.visitorIds.every((slotId) => event.actorIds.includes(slotId) && slotId !== event.hostId)
+    && isRecord(event.anchorByMember) && event.actorIds.every((slotId) => cleanText(event.anchorByMember[slotId]))
+    && cleanText(event.locationId)
+    && (event.locationId.endsWith(":desk")
+      ? routeActorIds.length === event.visitorIds.length && routeActorIds.every((slotId) => event.visitorIds.includes(slotId))
+      : routeActorIds.length === event.actorIds.length);
+};
 
 export function createPhysicalSchedulerRuntime(event, assignments) {
   if (!hasExactPhysicalEventContract(event) || !isRecord(assignments)) return null;
   const definition = getActivityDefinition(event.activityId);
-  if (!definition || definition.sceneId !== event.sceneId) return null;
+  if (!definition || (!isConversationEvent(event) && definition.sceneId !== event.sceneId)) return null;
   if (event.actorIds.some((slotId) => !isRecord(assignments[slotId]))) return null;
 
   const semanticEvent = {
@@ -355,12 +360,12 @@ export function createPhysicalSchedulerRuntime(event, assignments) {
       slotId === "boss" ? "me" : "character",
     )),
   };
-  const actions = event.actorIds.map((slotId, index) => ({
+  const actions = Object.keys(event.routesByActor).map((slotId, index) => ({
     type: "START_WORLD_ROUTE",
     slotId,
     activityId: event.activityId,
     route: event.routesByActor[slotId],
-    targetAnchorId: event.targetAnchors[index],
+    targetAnchorId: isConversationEvent(event) ? event.anchorByMember[slotId] : event.targetAnchors[index],
     reservationGroupId: event.reservationGroupId,
     propState: event.propState,
     semanticContext: event.semanticContext,
@@ -369,7 +374,12 @@ export function createPhysicalSchedulerRuntime(event, assignments) {
     now: event.startedAt,
     endsAt: event.endsAt,
   }));
-  return { event, semanticEvent, actions };
+  const participantSnapshots = event.actorIds.map((slotId) => ({
+    memberId: slotId,
+    profileId: assignments[slotId].profileId || slotId,
+    ...createOfficeProfileSnapshot(assignments[slotId].profile, slotId === "boss" ? "me" : "character"),
+  }));
+  return { event, semanticEvent, participantSnapshots, actions };
 }
 
 export function samplePhysicalWorldFrame({ characters = {}, now = 0, previousSamples = {} } = {}) {
@@ -571,6 +581,7 @@ export default function WorkAppScreen({ onClose }) {
       const character = snapshot.characters?.[slotId];
       const from = getCharacterWorldPoint(character, sampledWorldActorsRef.current[slotId]);
       const to = getHomeWorldPoint(slotId);
+      if (slotId === conversation.hostId && from?.sceneId === to?.sceneId && from?.x === to?.x && from?.y === to?.y) continue;
       const route = buildWorldRoute({ from, to });
       if (route.length) returnRoutes[slotId] = route;
     }
@@ -613,9 +624,9 @@ export default function WorkAppScreen({ onClose }) {
     if (!runtime) return false;
     dispatchOffice({ type: "SET_RESERVATIONS", reservations });
     pendingPhysicalEventsRef.current.set(event.reservationGroupId, event);
-    createActivityRuntime(runtime);
+    if (!isConversationEvent(event)) createActivityRuntime(runtime);
 
-    if (event.activityId === "chatting") {
+    if (isConversationEvent(event)) {
       const session = buildConversationSession({
         memberIds: event.actorIds,
         anchorId: event.targetAnchors[0],
@@ -623,10 +634,25 @@ export default function WorkAppScreen({ onClose }) {
         random: Math.random,
       });
       if (session) {
-        session.reservationGroupId = event.reservationGroupId;
-        session.sceneId = event.sceneId;
-        session.targetAnchorIds = [...event.targetAnchors];
-        pendingConversationsRef.current.set(session.id, { memberIds: [...event.actorIds], session });
+        Object.assign(session, {
+          workSessionId: stateRef.current.workSessionId,
+          hostId: event.hostId,
+          visitorIds: [...event.visitorIds],
+          sceneId: event.sceneId,
+          locationId: event.locationId,
+          anchorByMember: { ...event.anchorByMember },
+          reservationGroupId: event.reservationGroupId,
+          targetAnchorIds: [...event.targetAnchors],
+          participantSnapshots: runtime.participantSnapshots,
+          activityId: event.activityId,
+          activityStatus: event.semanticContext.status,
+          endsAt: event.endsAt,
+        });
+        pendingConversationsRef.current.set(session.id, {
+          memberIds: [...event.actorIds],
+          travelerIds: runtime.actions.map(({ slotId }) => slotId),
+          session,
+        });
       }
     }
 
@@ -755,9 +781,9 @@ export default function WorkAppScreen({ onClose }) {
         }
       }
       for (const [conversationId, pending] of pendingConversationsRef.current) {
-        const allArrived = pending.memberIds.every((slotId) => {
+        const allArrived = pending.travelerIds.every((slotId) => {
           const character = stateRef.current.characters?.[slotId];
-          return character?.phase === "chatting" && !character.conversationId;
+          return character?.phase === pending.session.activityId && !character.conversationId;
         });
         if (!allArrived) continue;
         dispatchOffice({ type: "OPEN_CONVERSATION", session: pending.session });
@@ -835,17 +861,17 @@ export default function WorkAppScreen({ onClose }) {
           requestSequence,
           promptContext: {
             ...current.promptContext,
-            activity: "chatting",
+            activity: current.activityId || "chatting",
           },
         });
 
         const requestSession = {
           ...current,
           requestSequence,
-          currentActivity: "chatting",
+          currentActivity: current.activityId || "chatting",
           promptContext: {
             ...current.promptContext,
-            activity: "chatting",
+            activity: current.activityId || "chatting",
           },
         };
         const controller = new AbortController();
@@ -1145,6 +1171,10 @@ export default function WorkAppScreen({ onClose }) {
       activityId: "chatting",
       actorIds: memberIds,
       sceneId: "office",
+      hostId: leaderId,
+      visitorIds: memberIds.slice(1),
+      locationId: "whiteboard",
+      anchorByMember: Object.fromEntries(memberIds.map((slotId, index) => [slotId, targetAnchors[index]])),
       targetAnchors,
       reservationGroupId,
       routesByActor,
@@ -1221,8 +1251,8 @@ export default function WorkAppScreen({ onClose }) {
         <button
           type="button"
           className="work-icon-button"
-          aria-label="活动记录"
-          title="活动记录"
+          aria-label="对话记录"
+          title="对话记录"
           aria-expanded={activityPanelOpen}
           ref={activityOpenerRef}
           onClick={openActivityPanel}
@@ -1303,11 +1333,10 @@ export default function WorkAppScreen({ onClose }) {
         </aside>
       )}
 
-      <OfficeActivityPanel
+      <OfficeConversationPanel
         open={activityPanelOpen}
-        events={[]}
-        workSessionId={state.workSessionId}
-        assignments={assignments}
+        activeConversations={state.conversations}
+        conversationRecords={state.conversationRecords}
         onClose={() => setActivityPanelOpen(false)}
       />
     </main>

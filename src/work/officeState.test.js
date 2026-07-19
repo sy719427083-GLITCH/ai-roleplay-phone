@@ -418,6 +418,42 @@ test("conversation counters reject regressions without changing another session"
   assert.strictEqual(state.conversations.b, untouched);
 });
 
+test("closing a physical conversation records it once and persists only closed dialogue", () => {
+  let state = createOfficeState({ assignments, now: 100, durationMs: 60_000, workSessionId: "work-records" });
+  state = officeReducer(state, {
+    type: "OPEN_CONVERSATION",
+    session: {
+      id: "desk-chat", workSessionId: "work-records", hostId: "employee1", visitorIds: ["employee2"],
+      memberIds: ["employee1", "employee2"], sceneId: "office", locationId: "employee1:desk",
+      anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-front" },
+      reservationGroupId: "desk-chat-group", topic: "项目进度", participantSnapshots: [
+        { memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" },
+      ], startedAt: 100,
+    },
+  });
+  state = officeReducer(state, {
+    type: "APPEND_CONVERSATION", conversationId: "desk-chat", entry: { speakerId: "employee1", text: "我们先看进度。" },
+  });
+  state = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "desk-chat", now: 200 });
+
+  assert.equal(state.conversations["desk-chat"], undefined);
+  assert.equal(state.conversationRecords.length, 1);
+  assert.deepEqual(state.conversationRecords[0], {
+    conversationId: "desk-chat", workSessionId: "work-records", sceneId: "office", locationId: "employee1:desk", topic: "项目进度",
+    participantSnapshots: [{ memberId: "employee1", name: "员工一" }, { memberId: "employee2", name: "员工二" }],
+    startedAt: 100, endedAt: 200, transcript: [{ speakerId: "employee1", text: "我们先看进度。" }],
+  });
+  const duplicate = officeReducer(state, { type: "CLOSE_CONVERSATION", conversationId: "desk-chat", now: 300 });
+  assert.strictEqual(duplicate, state);
+
+  const snapshot = JSON.parse(serializeOfficeState(state));
+  assert.deepEqual(snapshot.conversations, undefined);
+  assert.equal(snapshot.conversationRecords.length, 1);
+  const restored = restoreOfficeState(JSON.stringify({ ...snapshot, conversations: { stale: {} }, activityEvents: [{ summary: "discard" }] }), assignments, 400);
+  assert.deepEqual(restored.conversations, {});
+  assert.equal(restored.conversationRecords.length, 1);
+});
+
 test("restore migrates every legacy or transient actor to its exact safe home anchor", () => {
   const restored = restoreOfficeState(JSON.stringify({
     visibleSceneId: "lounge",
@@ -442,7 +478,7 @@ test("restore migrates every legacy or transient actor to its exact safe home an
   }
 });
 
-test("serialization excludes transient routes, props, and every non-conversation activity summary", () => {
+test("serialization excludes active sessions, transient routes, props, and every non-conversation activity summary", () => {
   let state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
   state = officeReducer(state, startEvent());
   state = {
@@ -460,7 +496,9 @@ test("serialization excludes transient routes, props, and every non-conversation
   assert.equal(snapshot.activityEvents, undefined);
   assert.equal(snapshot.activeEventBySlot, undefined);
   assert.doesNotMatch(serialized, /do not persist|semanticContext|semanticFallback|propState|routesByActor/u);
-  assert.match(serialized, /keep conversation semantics/u);
+  assert.equal(snapshot.conversations, undefined);
+  assert.deepEqual(snapshot.conversationRecords, []);
+  assert.doesNotMatch(serialized, /keep conversation semantics/u);
   assert.equal(snapshot.visibleSceneId, "office");
 
   const restored = restoreOfficeState(serialized, assignments, 5_000);

@@ -21,7 +21,8 @@ const screenPath = new URL("./WorkAppScreen.jsx", import.meta.url);
 const source = existsSync(screenPath) ? readFileSync(screenPath, "utf8") : "";
 const sceneSource = readFileSync(new URL("./OfficeScene.jsx", import.meta.url), "utf8");
 const assignmentFlowSource = readFileSync(new URL("./OfficeAssignmentFlow.jsx", import.meta.url), "utf8");
-const activityPanelSource = readFileSync(new URL("./OfficeActivityPanel.jsx", import.meta.url), "utf8");
+const conversationPanelPath = new URL("./OfficeConversationPanel.jsx", import.meta.url);
+const conversationPanelSource = existsSync(conversationPanelPath) ? readFileSync(conversationPanelPath, "utf8") : "";
 const cssSource = readFileSync(new URL("./office.css", import.meta.url), "utf8");
 const vite = await createServer({
   appType: "custom",
@@ -61,12 +62,14 @@ const pointAt = (sceneId, anchorId) => {
 
 test("keeps the public Work controls and assignment workflow intact", () => {
   assert.match(source, /export default function WorkAppScreen\(\{ onClose \}\)/);
-  for (const label of ["工作剩余", "认真干活", "自由行动", "休息一下", "开会", "活动记录"]) {
-    assert.ok(`${source}\n${activityPanelSource}`.includes(label), `missing public control: ${label}`);
+  for (const label of ["工作剩余", "认真干活", "自由行动", "休息一下", "开会", "对话记录"]) {
+    assert.ok(`${source}\n${conversationPanelSource}`.includes(label), `missing public control: ${label}`);
   }
-  for (const token of ["ArrowLeft", "Ellipsis", "Users", "OfficeAssignmentFlow", "OfficeActivityPanel"]) {
+  for (const token of ["ArrowLeft", "Ellipsis", "Users", "OfficeAssignmentFlow", "OfficeConversationPanel"]) {
     assert.ok(source.includes(token), `missing Work screen wiring: ${token}`);
   }
+  assert.doesNotMatch(source, /OfficeActivityPanel|activityEvents|activeEventBySlot/u);
+  assert.doesNotMatch(conversationPanelSource, /本地记录|按角色筛选|按活动筛选/u);
   for (const token of ["onProfileChange", "onChibiChange", "onUpload", "onCustomDraftChange", "OFFICE_CHIBIS"]) {
     assert.ok(assignmentFlowSource.includes(token), `missing assignment behavior: ${token}`);
   }
@@ -80,6 +83,10 @@ test("consumes the exact physical scheduler contract and render-drives every act
     activityId: "diningChat",
     actorIds,
     sceneId: "lounge",
+    hostId: "employee1",
+    visitorIds: ["employee2"],
+    locationId: "dining",
+    anchorByMember: { employee1: "dining:seat-1", employee2: "dining:seat-2" },
     targetAnchors,
     reservationGroupId: "office-diningChat-1000-employee1-employee2",
     routesByActor: Object.fromEntries(actorIds.map((slotId, index) => [slotId, buildWorldRoute({
@@ -116,6 +123,31 @@ test("consumes the exact physical scheduler contract and render-drives every act
     assert.equal(sample.done, false);
     assert.notDeepEqual({ x: sample.x, y: sample.y }, character.position);
   }
+});
+
+test("starts only desk visitors and retains the host at its home anchor", () => {
+  const event = {
+    activityId: "chatting",
+    actorIds: ["employee1", "employee2"],
+    hostId: "employee1",
+    visitorIds: ["employee2"],
+    sceneId: "office",
+    locationId: "employee1:desk",
+    anchorByMember: { employee1: "employee1:seat-approach", employee2: "employee1:visitor-front" },
+    targetAnchors: ["employee1:visitor-front"],
+    reservationGroupId: "desk-chat",
+    routesByActor: {
+      employee2: buildWorldRoute({ from: pointAt("office", "employee2:seat-approach"), to: pointAt("office", "employee1:visitor-front") }),
+    },
+    propState: { category: "conversation", variant: "project", actorRoles: { employee1: "host", employee2: "visitor" } },
+    semanticContext: { eventId: "desk-chat", activityId: "chatting", status: "交流中", semanticFallback: {} },
+    startedAt: 1_000,
+    endsAt: 61_000,
+  };
+  const runtime = screenModule.createPhysicalSchedulerRuntime(event, assignments);
+  assert.deepEqual(runtime.actions.map(({ slotId, targetAnchorId }) => ({ slotId, targetAnchorId })), [
+    { slotId: "employee2", targetAnchorId: "employee1:visitor-front" },
+  ]);
 });
 
 test("rejects legacy scheduler aliases instead of reviving compatibility paths", () => {

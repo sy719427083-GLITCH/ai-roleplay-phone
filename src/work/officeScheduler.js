@@ -8,6 +8,21 @@ const INTERRUPTIBLE_PHASES = new Set(["idle", "working"]);
 const BLOCKED_ACTIVITIES = new Set(["returning", "chatting", "eating", "gaming", "slacking"]);
 const ACTIVITY_ORDER = Object.freeze(Object.keys(OFFICE_ACTIVITY_MANIFEST));
 const CONVERSATION_TOPICS = Object.freeze(["项目进度", "午饭时间", "周末安排", "办公室日常"]);
+const CONVERSATION_ACTIVITY_IDS = new Set(["chatting", "diningChat", "sofaChat"]);
+const DESK_VISITOR_SUFFIXES = Object.freeze(["visitor-front", "visitor-left", "visitor-right"]);
+const CONVERSATION_FALLBACKS = Object.freeze({
+  chatting: Object.freeze([
+    Object.freeze({ sceneId: "office", locationId: "whiteboard", anchors: ["whiteboard:1", "whiteboard:2", "whiteboard:3"] }),
+    Object.freeze({ sceneId: "lounge", locationId: "dining", anchors: ["dining:seat-1", "dining:seat-2", "dining:seat-3", "dining:seat-4"] }),
+    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:visitor-2", "tv:view"] }),
+  ]),
+  diningChat: Object.freeze([
+    Object.freeze({ sceneId: "lounge", locationId: "dining", anchors: ["dining:seat-1", "dining:seat-2", "dining:seat-3", "dining:seat-4"] }),
+  ]),
+  sofaChat: Object.freeze([
+    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:visitor-2", "tv:view"] }),
+  ]),
+});
 
 export const MODE_WEIGHTS = Object.freeze({
   focus: Object.freeze({ working: 48, reading: 15, reporting: 8, printing: 6, filing: 6, videoMeeting: 7, screenCollaboration: 10 }),
@@ -83,6 +98,8 @@ const getActorPoint = (slotId, character) => {
   return getHomePoint(slotId);
 };
 
+const hasSamePoint = (left, right) => left?.sceneId === right?.sceneId && left?.x === right?.x && left?.y === right?.y;
+
 const resolveAnchor = (anchorId, leaderId) => anchorId.replace(/^\$actor/, leaderId);
 const anchorPoint = (sceneId, anchorId) => {
   const point = getSceneAnchor(sceneId, anchorId);
@@ -133,6 +150,47 @@ const selectParticipants = ({ definition, primarySlotId, eligibleIds, participan
   return actorIds.length === participantCount ? actorIds : null;
 };
 
+const createAnchorByMember = (actorIds, anchors) => Object.fromEntries(actorIds.map((slotId, index) => [slotId, anchors[index]]));
+
+const buildConversationPlan = ({ activityId, actorIds, characters, skipDesk = false }) => {
+  const [hostId, ...visitorIds] = actorIds;
+  const hostHome = getHomePoint(hostId);
+  const hostPoint = getActorPoint(hostId, characters[hostId]);
+  const visitorAnchors = DESK_VISITOR_SUFFIXES.slice(0, visitorIds.length).map((suffix) => `${hostId}:${suffix}`);
+  if (!skipDesk && activityId === "chatting" && visitorAnchors.length === visitorIds.length && hasSamePoint(hostPoint, hostHome)
+    && visitorAnchors.every((anchorId) => anchorPoint("office", anchorId))) {
+    const routesByActor = buildRoutes({ actorIds: visitorIds, characters, sceneId: "office", anchors: visitorAnchors });
+    if (routesByActor) {
+      return {
+        hostId,
+        visitorIds,
+        sceneId: "office",
+        locationId: `${hostId}:desk`,
+        targetAnchors: visitorAnchors,
+        anchorByMember: { [hostId]: `${hostId}:seat-approach`, ...createAnchorByMember(visitorIds, visitorAnchors) },
+        routesByActor,
+      };
+    }
+  }
+
+  for (const fallback of CONVERSATION_FALLBACKS[activityId] || []) {
+    const anchors = fallback.anchors.slice(0, actorIds.length);
+    if (anchors.length !== actorIds.length || anchors.some((anchorId) => !anchorPoint(fallback.sceneId, anchorId))) continue;
+    const routesByActor = buildRoutes({ actorIds, characters, sceneId: fallback.sceneId, anchors });
+    if (!routesByActor) continue;
+    return {
+      hostId,
+      visitorIds,
+      sceneId: fallback.sceneId,
+      locationId: fallback.locationId,
+      targetAnchors: anchors,
+      anchorByMember: createAnchorByMember(actorIds, anchors),
+      routesByActor,
+    };
+  }
+  return null;
+};
+
 export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
   if (!isPlainObject(state) || !isPlainObject(state.characters) || !isPlainObject(profiles) || typeof random !== "function") return null;
   const eligibleIds = Object.keys(state.characters).filter((slotId) => isInterruptible(state.characters[slotId]));
@@ -147,22 +205,46 @@ export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
   const participantCount = selectParticipantCount(definition, random);
   const actorIds = selectParticipants({ definition, primarySlotId, eligibleIds, participantCount });
   if (!actorIds) return null;
-  const targetAnchors = selectAnchors(definition, actorIds[0], participantCount, random);
-  if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(definition.sceneId, anchorId))) return null;
 
   const startedAt = Number.isFinite(now) ? now : Date.now();
   const duration = definition.durationMs.min + Math.floor(clampRandom(random()) * (definition.durationMs.max - definition.durationMs.min + 1));
   const endsAt = startedAt + duration;
   const reservationGroupId = `office-${activityId}-${startedAt}-${actorIds.join("-")}`;
-  const routesByActor = buildRoutes({ actorIds, characters: state.characters, sceneId: definition.sceneId, anchors: targetAnchors });
+  let conversationPlan = CONVERSATION_ACTIVITY_IDS.has(activityId)
+    ? buildConversationPlan({ activityId, actorIds, characters: state.characters }) : null;
+  let targetAnchors = conversationPlan?.targetAnchors || selectAnchors(definition, actorIds[0], participantCount, random);
+  let sceneId = conversationPlan?.sceneId || definition.sceneId;
+  if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(sceneId, anchorId))) return null;
+  let routesByActor = conversationPlan?.routesByActor || buildRoutes({ actorIds, characters: state.characters, sceneId, anchors: targetAnchors });
   if (!routesByActor) return null;
+
+  const reservePlan = () => reserveAnchors(state.reservations || {}, {
+    sceneId,
+    reservationGroupId,
+    slotId: actorIds[0],
+    anchorIds: targetAnchors,
+    now: startedAt,
+    expiresAt: endsAt,
+  });
+  let reservationCheck = reservePlan();
+  if (!reservationCheck && conversationPlan?.locationId.endsWith(":desk")) {
+    conversationPlan = buildConversationPlan({
+      activityId, actorIds, characters: state.characters, skipDesk: true,
+    });
+    if (!conversationPlan) return null;
+    targetAnchors = conversationPlan.targetAnchors;
+    sceneId = conversationPlan.sceneId;
+    routesByActor = conversationPlan.routesByActor;
+    reservationCheck = reservePlan();
+  }
+  if (!reservationCheck) return null;
 
   const variant = definition.propState.variants.length ? pick(definition.propState.variants, random) : "";
   const eventId = reservationGroupId;
   const event = {
     activityId,
     actorIds,
-    sceneId: definition.sceneId,
+    sceneId,
     targetAnchors,
     reservationGroupId,
     routesByActor,
@@ -171,15 +253,12 @@ export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
     startedAt,
     endsAt,
   };
-  const reservationCheck = reserveAnchors(state.reservations || {}, {
-    sceneId: definition.sceneId,
-    reservationGroupId,
-    slotId: actorIds[0],
-    anchorIds: targetAnchors,
-    now: startedAt,
-    expiresAt: endsAt,
+  if (conversationPlan) Object.assign(event, {
+    hostId: conversationPlan.hostId,
+    visitorIds: [...conversationPlan.visitorIds],
+    locationId: conversationPlan.locationId,
+    anchorByMember: { ...conversationPlan.anchorByMember },
   });
-  if (!reservationCheck) return null;
   state.reservations = reservationCheck;
   return event;
 }
