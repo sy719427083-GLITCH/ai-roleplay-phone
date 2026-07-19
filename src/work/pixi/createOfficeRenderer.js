@@ -29,6 +29,11 @@ const applyRootTransform = (root, transform) => {
   }
 };
 
+const isOwnedActionStrip = (src) => (
+  ["idle", "walk", "work"].includes(src)
+  || /(?:^|\/)work-office-v2\/characters\/[^/]+\/[^/]+\.webp(?:\?.*)?$/.test(src)
+);
+
 export const isExpectedCancellation = (error) => error?.name === "AbortError";
 
 export function applyOfficeRendererUpdate(renderer, {
@@ -137,7 +142,9 @@ export async function createOfficeRenderer({
   app.canvas.dataset.officeRenderer = "pixi";
   host.replaceChildren(app.canvas);
 
-  const registerLoadedActionStrip = (src) => ownedActionStrips.add(src);
+  const registerLoadedActionStrip = (src) => {
+    if (isOwnedActionStrip(src)) ownedActionStrips.add(src);
+  };
   const getLatestCallbacks = () => getCallbacks?.() || { onFrame, onDoorSelect, onActorSelect };
   const reportAssetError = (error) => getLatestCallbacks().onError?.(error);
   const office = new Container();

@@ -13,11 +13,14 @@ const {
   createSprite,
   getActivityPropKey,
   getActivityPropStates,
+  OfficeSceneView,
 } = await import("./OfficeSceneView.js");
 const {
   getActorTexturePlan,
   loadActorFrames,
+  OfficeActorView,
 } = await import("./OfficeActorView.js");
+const { AnimatedSprite, Container, Rectangle, Texture } = await import("pixi.js");
 
 const deferred = () => {
   let resolve;
@@ -81,6 +84,13 @@ const createRuntime = (load) => ({
   Rectangle: FakeRectangle,
   Sprite: FakeSprite,
   Texture: FakeTexture,
+});
+
+const createActorRuntime = (load) => ({
+  AnimatedSprite,
+  Assets: { load },
+  Rectangle,
+  Texture,
 });
 
 test("resolves actor clips exclusively from the body-only character tree", () => {
@@ -176,6 +186,79 @@ test("registers actor strips only after their texture load succeeds", async () =
   await settle();
 
   assert.deepEqual(registrations, [source.src]);
+});
+
+test("ignores a stale actor texture completion after a newer clip has loaded", async () => {
+  const first = deferred();
+  const second = deferred();
+  const requests = [first, second];
+  const registrations = [];
+  const runtime = createActorRuntime(() => requests.shift().promise);
+  const view = new OfficeActorView({
+    runtime,
+    registerLoadedActionStrip: (src) => registrations.push(src),
+  });
+  const actor = { id: "employee1", characterId: "employee-f-01" };
+  const firstSource = getActorClipSource(actor, "working");
+  const secondSource = getActorClipSource(actor, "slacking");
+
+  view.sync({ actor, clip: "working" });
+  view.sync({ actor, clip: "slacking" });
+  second.resolve({ source: Texture.EMPTY.source });
+  await settle();
+  const winningTextures = view.actorSprite.textures;
+  first.resolve({ source: Texture.EMPTY.source });
+  await settle();
+
+  assert.equal(view.actorSprite.textures, winningTextures);
+  assert.deepEqual(registrations, [secondSource.src]);
+  assert.equal(registrations.includes(firstSource.src), false);
+});
+
+test("retries the same actor clip after its previous texture load fails", async () => {
+  const first = deferred();
+  const second = deferred();
+  const requests = [first, second];
+  const registrations = [];
+  const runtime = createActorRuntime(() => requests.shift().promise);
+  const view = new OfficeActorView({
+    runtime,
+    registerLoadedActionStrip: (src) => registrations.push(src),
+  });
+  const actor = { id: "employee1", characterId: "employee-f-01" };
+  const source = getActorClipSource(actor, "working");
+
+  view.sync({ actor, clip: "working" });
+  first.reject(new Error("first request failed"));
+  await settle();
+  view.sync({ actor, clip: "working" });
+  second.resolve({ source: Texture.EMPTY.source });
+  await settle();
+
+  assert.equal(view.source?.state, "loaded");
+  assert.equal(view.actorSprite.textures.length, source.frameCount);
+  assert.deepEqual(registrations, [source.src]);
+});
+
+test("forwards its injected Pixi runtime to child actor views", () => {
+  const injectedRuntime = { id: "scene-runtime" };
+  const received = [];
+  class TestSceneView extends OfficeSceneView {
+    createFurniture() {}
+  }
+  class RecordingActorView extends Container {
+    constructor(options) {
+      super();
+      received.push(options);
+    }
+
+    sync() {}
+  }
+  const view = new TestSceneView("office", { runtime: injectedRuntime, ActorView: RecordingActorView });
+
+  view.syncActors([{ id: "employee1" }]);
+
+  assert.equal(received[0].runtime, injectedRuntime);
 });
 
 test("reports actor and scene asset failures with their source context", async () => {

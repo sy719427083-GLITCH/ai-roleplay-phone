@@ -128,7 +128,10 @@ const createWorld = () => ({
     { id: "office-actor", sceneId: "office", x: 540, y: 960, status: "工作中" },
     { id: "lounge-actor", sceneId: "lounge", x: 270, y: 480, status: "休息中" },
   ],
-  moduleState: { office: { desk: "active" }, lounge: { sofa: "occupied" } },
+  activityStates: [
+    { slotId: "office-actor", sceneId: "office", activity: "working" },
+    { slotId: "lounge-actor", sceneId: "lounge", activity: "eating", anchorId: "dining:seat-1" },
+  ],
 });
 
 test("initializes the exact Pixi options and keeps persistent roots synchronized with dynamic scene data", async () => {
@@ -151,7 +154,7 @@ test("initializes the exact Pixi options and keeps persistent roots synchronized
   const [officeRoot, loungeRoot] = fake.applications[0].stage.children;
   assert.deepEqual(officeRoot.children[0].snapshot.actors.map(({ id }) => id), ["office-actor"]);
   assert.deepEqual(loungeRoot.children[0].snapshot.actors.map(({ id }) => id), ["lounge-actor"]);
-  assert.deepEqual(officeRoot.children[0].snapshot.moduleState, { office: { desk: "active" }, lounge: { sofa: "occupied" } });
+  assert.deepEqual(officeRoot.children[0].snapshot.activityStates, createWorld().activityStates);
   renderer.setVisibleScene("lounge");
   assert.equal(officeRoot.visible, false);
   assert.equal(officeRoot.eventMode, "none");

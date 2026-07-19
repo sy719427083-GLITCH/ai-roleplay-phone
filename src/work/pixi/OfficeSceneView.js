@@ -1,9 +1,9 @@
-import { Assets, Container, Graphics, Sprite, Texture } from "pixi.js";
+import { AnimatedSprite, Assets, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
 import { OFFICE_SCENES } from "../officeSceneManifest.js";
 import { OFFICE_ASSET_MANIFEST } from "./officeAssetManifest.js";
 import { OfficeActorView } from "./OfficeActorView.js";
 
-const PIXI_RUNTIME = Object.freeze({ Assets, Graphics, Sprite, Texture });
+const PIXI_RUNTIME = Object.freeze({ AnimatedSprite, Assets, Graphics, Rectangle, Sprite, Texture });
 const DESK_PROP_IDS = Object.freeze({
   working: ["laptop", "keyboard", "files-documents"],
   "desk-rest": ["phone", "book"],
@@ -181,6 +181,7 @@ export class OfficeSceneView extends Container {
         view = new this.ActorView({
           registerLoadedActionStrip: this.registerLoadedActionStrip,
           onAssetError: this.onAssetError,
+          runtime: this.runtime,
         });
         this.actorViews.set(actor.id, view);
         this.depthLayer.addChild(view);

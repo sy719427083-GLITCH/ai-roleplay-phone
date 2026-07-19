@@ -38,14 +38,19 @@ export function loadActorFrames({
   actorSprite,
   onAssetError,
   onLoaded,
+  isCurrent = () => true,
   context = {},
 }) {
   const plan = getActorTexturePlan(source, facing);
   void runtime.Assets.load(source.src).then((texture) => {
+    if (!isCurrent()) return;
     actorSprite.textures = textureFrames(runtime, texture, source, plan.row);
     actorSprite.gotoAndStop(Math.abs(Number(frameIndex) || 0) % source.frameCount);
+    if (!isCurrent()) return;
     onLoaded?.();
-  }).catch((error) => reportAssetError(onAssetError, { ...context, source: source.src }, error));
+  }).catch((error) => {
+    if (isCurrent()) reportAssetError(onAssetError, { ...context, source: source.src }, error);
+  });
 }
 
 const getPoint = (actor, furnitureAnchor) => ({
@@ -79,10 +84,19 @@ export class OfficeActorView extends Container {
     this.actorSprite.loop = source.loop;
     this.actorSprite.gotoAndStop(Math.abs(Number(frameIndex) || 0) % source.frameCount);
 
-    if (this.source?.src === source.src && this.source.facing === facing) return;
-    this.source = { src: source.src, facing };
+    if (
+      this.source?.src === source.src
+      && this.source.facing === facing
+      && ["pending", "loaded"].includes(this.source.state)
+    ) return;
     const version = this.loadVersion + 1;
     this.loadVersion = version;
+    this.source = { src: source.src, facing, state: "pending" };
+    const isCurrent = () => (
+      this.loadVersion === version
+      && this.source?.src === source.src
+      && this.source.facing === facing
+    );
     loadActorFrames({
       runtime: this.runtime,
       source,
@@ -90,11 +104,16 @@ export class OfficeActorView extends Container {
       frameIndex,
       actorSprite: this.actorSprite,
       onAssetError: (error) => {
-        if (this.loadVersion === version) this.onAssetError?.(error);
+        if (!isCurrent()) return;
+        this.source = null;
+        this.onAssetError?.(error);
       },
       onLoaded: () => {
-        if (this.loadVersion === version) this.registerLoadedActionStrip?.(source.src);
+        if (!isCurrent()) return;
+        this.source.state = "loaded";
+        this.registerLoadedActionStrip?.(source.src);
       },
+      isCurrent,
       context: { kind: "actor", actorId: actor.id || "unknown" },
     });
   }
