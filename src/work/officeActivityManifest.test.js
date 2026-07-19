@@ -50,3 +50,11 @@ test("manifest keeps visible props data-owned and never folds them into body-onl
     assert.ok(!Object.values(definition.clips).some((clipId) => definition.propState.variants.includes(clipId)), definition.id);
   }
 });
+
+test("manifest gives every three-person group three distinct physical anchors", () => {
+  for (const activityId of ["whiteboardWork", "chatting"]) {
+    const definition = getActivityDefinition(activityId);
+    assert.deepEqual(definition.targetAnchors, ["whiteboard:1", "whiteboard:2", "whiteboard:3"]);
+    assert.equal(definition.participants.max, 3);
+  }
+});

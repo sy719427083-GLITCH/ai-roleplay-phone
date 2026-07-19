@@ -27,8 +27,12 @@ const isInterruptible = (character) => (
   && !BLOCKED_ACTIVITIES.has(character.activity)
 );
 
-const getProfile = (slotId, character, profiles) => (
-  profiles?.[character?.profileId] || profiles?.[slotId] || character?.profile || {}
+const unwrapProfile = (candidate) => (
+  isPlainObject(candidate?.profile) ? candidate.profile : candidate
+);
+
+const getProfile = (slotId, character, profiles) => unwrapProfile(
+  profiles?.[slotId] || profiles?.[character?.profileId] || character?.profile || {},
 );
 
 const personalityWeight = (activityId, personality) => {
@@ -68,9 +72,13 @@ const getHomePoint = (slotId) => {
 
 const getActorPoint = (slotId, character) => {
   const point = character?.position;
-  if (typeof character?.sceneId === "string" && Number.isFinite(point?.x) && Number.isFinite(point?.y)
-    && isLegalCharacterPosition(character.sceneId, point)) {
-    return { sceneId: character.sceneId, x: point.x, y: point.y };
+  const hasWorldPosition = Object.hasOwn(character || {}, "sceneId") || Object.hasOwn(character || {}, "position");
+  if (hasWorldPosition) {
+    if (typeof character?.sceneId === "string" && Number.isFinite(point?.x) && Number.isFinite(point?.y)
+      && isLegalCharacterPosition(character.sceneId, point)) {
+      return { sceneId: character.sceneId, x: point.x, y: point.y };
+    }
+    return null;
   }
   return getHomePoint(slotId);
 };
@@ -99,19 +107,30 @@ const getActorRoles = (definition, actorIds) => Object.fromEntries(actorIds.map(
   index === 0 && definition.clips.host ? "host" : index > 0 && definition.clips.visitor ? "visitor" : "actor",
 ]));
 
-const selectAnchors = (definition, leaderId, random) => {
+const selectAnchors = (definition, leaderId, participantCount, random) => {
   const resolved = definition.targetAnchors.map((anchorId) => resolveAnchor(anchorId, leaderId));
   if (definition.participants.max === 1 && resolved.length > 1) return [pick(resolved, random)];
-  return resolved.slice(0, definition.participants.min);
+  return resolved.slice(0, participantCount);
 };
 
-const selectParticipants = ({ definition, primarySlotId, eligibleIds }) => {
+const selectParticipantCount = (definition, random) => (
+  definition.participants.min + Math.floor(clampRandom(random()) * (definition.participants.max - definition.participants.min + 1))
+);
+
+const selectParticipants = ({ definition, primarySlotId, eligibleIds, participantCount }) => {
+  if (definition.rolePolicy === "employeeHostBossVisitor") {
+    if (!eligibleIds.includes("boss")) return null;
+    const hostId = primarySlotId !== "boss" && eligibleIds.includes(primarySlotId)
+      ? primarySlotId
+      : eligibleIds.find((slotId) => slotId !== "boss");
+    return hostId && participantCount === 2 ? [hostId, "boss"] : null;
+  }
   const required = Array.isArray(definition.requiredActorIds) ? definition.requiredActorIds : [];
   if (required.some((slotId) => !eligibleIds.includes(slotId))) return null;
   const leaders = required.length ? required : [primarySlotId];
   const actorIds = unique([...leaders, ...eligibleIds.filter((slotId) => !leaders.includes(slotId))])
-    .slice(0, definition.participants.min);
-  return actorIds.length === definition.participants.min ? actorIds : null;
+    .slice(0, participantCount);
+  return actorIds.length === participantCount ? actorIds : null;
 };
 
 export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
@@ -125,31 +144,22 @@ export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
   const activityId = chooseActivityId({ state, profile, random });
   const definition = getActivityDefinition(activityId);
   if (!definition) return null;
-  const actorIds = selectParticipants({ definition, primarySlotId, eligibleIds });
+  const participantCount = selectParticipantCount(definition, random);
+  const actorIds = selectParticipants({ definition, primarySlotId, eligibleIds, participantCount });
   if (!actorIds) return null;
-  const targetAnchors = selectAnchors(definition, actorIds[0], random);
+  const targetAnchors = selectAnchors(definition, actorIds[0], participantCount, random);
   if (!targetAnchors.length || targetAnchors.some((anchorId) => !anchorPoint(definition.sceneId, anchorId))) return null;
 
   const startedAt = Number.isFinite(now) ? now : Date.now();
   const duration = definition.durationMs.min + Math.floor(clampRandom(random()) * (definition.durationMs.max - definition.durationMs.min + 1));
   const endsAt = startedAt + duration;
   const reservationGroupId = `office-${activityId}-${startedAt}-${actorIds.join("-")}`;
-  const reservationCheck = reserveAnchors(state.reservations || {}, {
-    sceneId: definition.sceneId,
-    reservationGroupId,
-    slotId: actorIds[0],
-    anchorIds: targetAnchors,
-    now: startedAt,
-    expiresAt: endsAt,
-  });
-  if (!reservationCheck) return null;
-
   const routesByActor = buildRoutes({ actorIds, characters: state.characters, sceneId: definition.sceneId, anchors: targetAnchors });
   if (!routesByActor) return null;
 
   const variant = definition.propState.variants.length ? pick(definition.propState.variants, random) : "";
   const eventId = reservationGroupId;
-  return {
+  const event = {
     activityId,
     actorIds,
     sceneId: definition.sceneId,
@@ -161,6 +171,17 @@ export function chooseOfficeEvent({ state, profiles, random, now } = {}) {
     startedAt,
     endsAt,
   };
+  const reservationCheck = reserveAnchors(state.reservations || {}, {
+    sceneId: definition.sceneId,
+    reservationGroupId,
+    slotId: actorIds[0],
+    anchorIds: targetAnchors,
+    now: startedAt,
+    expiresAt: endsAt,
+  });
+  if (!reservationCheck) return null;
+  state.reservations = reservationCheck;
+  return event;
 }
 
 export function buildConversationSession({ memberIds, anchorId, now, random } = {}) {

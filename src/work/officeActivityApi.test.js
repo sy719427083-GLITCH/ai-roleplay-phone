@@ -50,7 +50,36 @@ test("caps semantic text, rejects malformed replies, and falls back to local sem
   assert.equal(parseOfficeActivityReply(JSON.stringify({ eventId: "wrong", subject: "x", summary: "y", insightOrResult: "z" }), event), null);
 
   const fallback = await requestOfficeActivityDetail({ event, storage: createStorage(), fetchImpl: async () => { throw new Error("must not fetch"); } });
-  assert.deepEqual(fallback, { eventId: event.semanticContext.eventId, ...event.semanticContext.semanticFallback });
+  assert.deepEqual(fallback, {
+    eventId: event.semanticContext.eventId,
+    subject: "项目资料",
+    summary: "沈知白以克制的方式整理关键段落",
+    insightOrResult: "明确下一步",
+  });
+});
+
+test("normalizes capped profile-aware local fallback without structural fields", async () => {
+  const oversizedFallbackEvent = {
+    ...event,
+    semanticContext: {
+      ...event.semanticContext,
+      semanticFallback: {
+        subject: "题".repeat(140),
+        summary: 42,
+        insightOrResult: "果".repeat(140),
+        sceneId: "office",
+      },
+    },
+    profileSnapshots: [{ name: "沈知白", personality: "克制" }],
+  };
+  const fallback = await requestOfficeActivityDetail({ event: oversizedFallbackEvent, storage: createStorage() });
+  assert.deepEqual(Object.keys(fallback), ["eventId", "subject", "summary", "insightOrResult"]);
+  assert.equal(fallback.eventId, event.semanticContext.eventId);
+  assert.equal(fallback.subject, "题".repeat(120));
+  assert.match(fallback.summary, /沈知白|克制/u);
+  assert.ok(fallback.summary.length <= 120);
+  assert.equal(fallback.insightOrResult, "果".repeat(120));
+  assert.doesNotMatch(JSON.stringify(fallback), /sceneId|activityId|targetAnchors/u);
 });
 
 test("posts semantic-only requests and returns semantic-only remote detail", async () => {
@@ -68,6 +97,12 @@ test("posts semantic-only requests and returns semantic-only remote detail", asy
 test("keeps abort, endpoint, HTTP, and invalid-JSON failures within semantic fallback", async () => {
   const controller = new AbortController();
   const calls = [];
+  const expectedFallback = {
+    eventId: event.semanticContext.eventId,
+    subject: "项目资料",
+    summary: "沈知白以克制的方式整理关键段落",
+    insightOrResult: "明确下一步",
+  };
   const response = await requestOfficeActivityDetail({
     event,
     storage: createApiStorage(),
@@ -79,16 +114,13 @@ test("keeps abort, endpoint, HTTP, and invalid-JSON failures within semantic fal
   });
   assert.equal(calls[0][1].signal, controller.signal);
   assert.equal(calls[0][1].headers.Authorization, "Bearer office-secret");
-  assert.deepEqual(response, { eventId: event.semanticContext.eventId, ...event.semanticContext.semanticFallback });
+  assert.deepEqual(response, expectedFallback);
 
   for (const fetchImpl of [
     async () => { throw new Error("network"); },
     async () => ({ ok: true, json: async () => { throw new Error("bad JSON"); } }),
     async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: "not json" } }] }) }),
   ]) {
-    assert.deepEqual(await requestOfficeActivityDetail({ event, storage: createApiStorage(), fetchImpl }), {
-      eventId: event.semanticContext.eventId,
-      ...event.semanticContext.semanticFallback,
-    });
+    assert.deepEqual(await requestOfficeActivityDetail({ event, storage: createApiStorage(), fetchImpl }), expectedFallback);
   }
 });

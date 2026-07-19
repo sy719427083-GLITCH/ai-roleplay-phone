@@ -7,7 +7,20 @@ const isPlainObject = (value) => Boolean(value) && typeof value === "object" && 
 const cap = (value) => typeof value === "string" ? Array.from(value.trim()).slice(0, MAX_DETAIL_CHARACTERS).join("") : "";
 const stripJsonFence = (raw) => raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 const getEventId = (event) => String(event?.semanticContext?.eventId || "");
-const getFallback = (event) => ({ eventId: getEventId(event), ...(event?.semanticContext?.semanticFallback || {}) });
+const getFallback = (event) => {
+  const fallback = isPlainObject(event?.semanticContext?.semanticFallback)
+    ? event.semanticContext.semanticFallback
+    : {};
+  const profile = Array.isArray(event?.profileSnapshots)
+    ? event.profileSnapshots.find(isPlainObject) || {}
+    : {};
+  const name = cap(profile.name);
+  const personality = cap(profile.personality);
+  const subject = cap(fallback.subject) || "当前事项";
+  const summary = cap(`${name}${personality ? `以${personality}的方式` : ""}${cap(fallback.summary) || "正在推进当前事项"}`);
+  const insightOrResult = cap(fallback.insightOrResult) || "形成下一步";
+  return { eventId: getEventId(event), subject, summary, insightOrResult };
+};
 const getChatCompletionsUrl = (baseUrl) => `${String(baseUrl || "").trim().replace(/\/+$/, "").replace(/\/v1$/, "")}/v1/chat/completions`;
 
 export function buildOfficeActivityMessages(event = {}) {

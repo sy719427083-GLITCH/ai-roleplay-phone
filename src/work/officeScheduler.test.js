@@ -58,7 +58,47 @@ test("returns only the required physical event fields and applies personality we
   assert.equal(event.sceneId, "office");
 });
 
-test("uses atomic reservations for printer contention and rejects an occupied printer without mutating state", () => {
+test("unwraps normalizeOfficeAssignments-style profiles before applying personality weighting", () => {
+  const state = createState({
+    mode: "focus",
+    characters: { employee1: createCharacter("employee1") },
+  });
+  const profiles = {
+    employee1: {
+      profileId: "character-game",
+      profile: { id: "character-game", name: "小林", personality: "游戏" },
+    },
+  };
+
+  const event = chooseOfficeEvent({ state, profiles, random: sequence(0, 0.45, 0, 0), now: 1_000 });
+  assertPhysicalEvent(event);
+  assert.equal(event.activityId, "gaming");
+});
+
+test("commits successful printer reservations atomically and leaves failures unchanged", () => {
+  const state = createState({ forcedActivityId: "printing" });
+  const first = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0), now: 1_000 });
+  assertPhysicalEvent(first);
+  assert.deepEqual(state.reservations["printer:front"], {
+    anchorId: "printer:front",
+    slotId: first.actorIds[0],
+    reservationGroupId: first.reservationGroupId,
+    sceneId: "office",
+    expiresAt: first.endsAt,
+  });
+  const committed = structuredClone(state.reservations);
+  assert.equal(chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0), now: 1_001 }), null);
+  assert.deepEqual(state.reservations, committed);
+
+  const invalidRouteState = createState({
+    forcedActivityId: "printing",
+    characters: { employee1: createCharacter("employee1", { position: { x: Number.NaN, y: 990 } }) },
+  });
+  assert.equal(chooseOfficeEvent({ state: invalidRouteState, profiles: createProfiles(), random: sequence(0), now: 1_000 }), null);
+  assert.deepEqual(invalidRouteState.reservations, {});
+});
+
+test("rejects an already occupied printer without mutating reservations", () => {
   const state = createState({
     forcedActivityId: "printing",
     reservations: { "printer:front": { anchorId: "printer:front", slotId: "employee2", sceneId: "office", reservationGroupId: "other", expiresAt: 9_000 } },
@@ -79,13 +119,11 @@ test("keeps desk activities in the office and lounge eating in the lounge", () =
   assert.match(meal.targetAnchors[0], /dining:seat/);
 });
 
-test("assigns host and visitor roles for screen collaboration, reports, help, whiteboard and deliveries", () => {
+test("assigns host and visitor roles for screen collaboration, help and whiteboard work", () => {
   const cases = [
     ["screenCollaboration", "screen-collaboration-host", "screen-collaboration-visitor"],
-    ["reporting", "reporting", "listening"],
     ["computerHelp", "computer-help-host", "computer-help-visitor"],
     ["whiteboardWork", "whiteboard-writing", "whiteboard-discussing"],
-    ["documentDelivery", "document-submit", "document-sign"],
   ];
   for (const [activityId, hostClip, visitorClip] of cases) {
     const event = chooseOfficeEvent({ state: createState({ forcedActivityId: activityId }), profiles: createProfiles(), random: sequence(0, 0, 0), now: 1_000 });
@@ -94,6 +132,29 @@ test("assigns host and visitor roles for screen collaboration, reports, help, wh
     assert.equal(OFFICE_ACTIVITY_MANIFEST[activityId].clips[event.propState.actorRoles[event.actorIds[0]]], hostClip);
     assert.equal(OFFICE_ACTIVITY_MANIFEST[activityId].clips[event.propState.actorRoles[event.actorIds[1]]], visitorClip);
   }
+});
+
+test("makes employees report and submit while the boss listens or signs", () => {
+  for (const [activityId, hostClip, visitorClip] of [
+    ["reporting", "reporting", "listening"],
+    ["documentDelivery", "document-submit", "document-sign"],
+  ]) {
+    const event = chooseOfficeEvent({ state: createState({ forcedActivityId: activityId }), profiles: createProfiles(), random: sequence(0, 0, 0), now: 1_000 });
+    assertPhysicalEvent(event);
+    assert.deepEqual(event.actorIds, ["employee1", "boss"]);
+    assert.deepEqual(event.propState.actorRoles, { employee1: "host", boss: "visitor" });
+    assert.equal(OFFICE_ACTIVITY_MANIFEST[activityId].clips[event.propState.actorRoles.employee1], hostClip);
+    assert.equal(OFFICE_ACTIVITY_MANIFEST[activityId].clips[event.propState.actorRoles.boss], visitorClip);
+  }
+
+  const signing = chooseOfficeEvent({ state: createState({ forcedActivityId: "documentSigning" }), profiles: createProfiles(), random: sequence(0), now: 1_000 });
+  assertPhysicalEvent(signing);
+  assert.deepEqual(signing.actorIds, ["boss"]);
+  assert.deepEqual(signing.propState.actorRoles, { boss: "actor" });
+  assert.equal(OFFICE_ACTIVITY_MANIFEST.documentSigning.clips[signing.propState.actorRoles.boss], "document-sign");
+
+  const noEmployee = createState({ forcedActivityId: "reporting", characters: { boss: createCharacter("boss") } });
+  assert.equal(chooseOfficeEvent({ state: noEmployee, profiles: createProfiles(), random: sequence(0), now: 1_000 }), null);
 });
 
 test("selects a door delivery route and no route point or segment enters a collider", () => {
@@ -128,6 +189,27 @@ test("supports office and lounge conversation-compatible group events", () => {
     const event = chooseOfficeEvent({ state: createState({ forcedActivityId: activityId }), profiles: createProfiles(), random: sequence(0, 0, 0), now: 1_000 });
     assertPhysicalEvent(event);
     assert.ok(event.actorIds.length >= 2, activityId);
+  }
+});
+
+test("uses deterministic participant counts and atomic anchors for whiteboard and chat groups", () => {
+  for (const activityId of ["whiteboardWork", "chatting"]) {
+    for (const [countRoll, expectedCount] of [[0, 2], [0.999, 3]]) {
+      const state = createState({ forcedActivityId: activityId });
+      const event = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0, countRoll, 0, 0), now: 1_000 });
+      assertPhysicalEvent(event);
+      assert.equal(event.actorIds.length, expectedCount, activityId);
+      assert.equal(event.targetAnchors.length, expectedCount, activityId);
+      assert.equal(new Set(event.actorIds).size, expectedCount, activityId);
+      assert.equal(new Set(event.targetAnchors).size, expectedCount, activityId);
+      for (const [anchorId, reservation] of Object.entries(state.reservations)) {
+        assert.ok(event.targetAnchors.includes(anchorId));
+        assert.equal(reservation.reservationGroupId, event.reservationGroupId);
+      }
+      for (const route of Object.values(event.routesByActor)) {
+        assert.ok(route.every((point) => point.transition || isLegalCharacterPosition(point.sceneId, point)));
+      }
+    }
   }
 });
 
