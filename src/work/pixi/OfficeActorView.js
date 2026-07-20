@@ -29,6 +29,25 @@ export function getActorTexturePlan(clip, facing = "front") {
   return { row: 0, scaleX: mirrorSideAction ? -1 : 1 };
 }
 
+export function getActorTextureLayoutSignature(source, facing = "front") {
+  const normalizedFacing = normalizeActorFacing(facing);
+  const plan = getActorTexturePlan(source, normalizedFacing);
+  return JSON.stringify([
+    source.src,
+    normalizedFacing,
+    source.width,
+    source.height,
+    source.cellSize,
+    source.columns,
+    source.rows,
+    source.frameCount,
+    plan.row,
+    plan.scaleX,
+    Object.entries(source.rowByFacing || {}).sort(([left], [right]) => left.localeCompare(right)),
+    [...(source.legalFacings || [])],
+  ]);
+}
+
 const textureFrames = (runtime, texture, clip, row) => Array.from({ length: clip.frameCount }, (_, index) => new runtime.Texture({
   source: texture.source,
   frame: new runtime.Rectangle((index % clip.columns) * clip.cellSize, row * clip.cellSize, clip.cellSize, clip.cellSize),
@@ -79,6 +98,7 @@ export class OfficeActorView extends Container {
   sync({ actor = {}, motion = null, clip = "idle-standing", frameIndex = 0, furnitureAnchor = null } = {}) {
     const facing = normalizeActorFacing(motion?.facing || actor.facing || "front");
     const source = getActorClipSource(actor, clip, facing);
+    const identity = getActorTextureLayoutSignature(source, facing);
     const point = getPoint(actor, furnitureAnchor);
     const plan = getActorTexturePlan(source, facing);
     this.x = point.x;
@@ -90,8 +110,7 @@ export class OfficeActorView extends Container {
     const normalizedFrameIndex = Math.abs(Number(frameIndex) || 0) % source.frameCount;
 
     if (
-      this.source?.src === source.src
-      && this.source.facing === facing
+      this.source?.identity === identity
       && ["pending", "loaded"].includes(this.source.state)
     ) {
       this.source.frameIndex = normalizedFrameIndex;
@@ -100,11 +119,16 @@ export class OfficeActorView extends Container {
     }
     const version = this.loadVersion + 1;
     this.loadVersion = version;
-    this.source = { src: source.src, facing, state: "pending", frameIndex: normalizedFrameIndex };
+    this.source = {
+      src: source.src,
+      facing,
+      identity,
+      state: "pending",
+      frameIndex: normalizedFrameIndex,
+    };
     const isCurrent = () => (
       this.loadVersion === version
-      && this.source?.src === source.src
-      && this.source.facing === facing
+      && this.source?.identity === identity
     );
     loadActorFrames({
       runtime: this.runtime,

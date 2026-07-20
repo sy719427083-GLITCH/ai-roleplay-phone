@@ -308,6 +308,47 @@ test("ignores a stale actor texture completion after a newer clip has loaded", a
   assert.equal(registrations.includes(firstSource.src), false);
 });
 
+test("reloads the same source and facing when its complete texture geometry changes", async () => {
+  const first = deferred();
+  const second = deferred();
+  const requests = [first, second];
+  let loadCount = 0;
+  const runtime = createActorRuntime(() => {
+    loadCount += 1;
+    return requests.shift().promise;
+  });
+  const view = new OfficeActorView({ runtime });
+  const customStrip = (frameCount, columns) => ({
+    src: "https://cdn.example/shared-action.webp",
+    width: 384 * columns,
+    height: 384,
+    cellSize: 384,
+    columns,
+    rows: 1,
+    frameCount,
+    fps: 9,
+    loop: true,
+    legalFacings: ["front"],
+  });
+  const actor = {
+    id: "employee1",
+    characterId: "employee-f-01",
+    animationManifest: { clips: { actions: { working: customStrip(4, 4) } } },
+  };
+
+  view.sync({ actor, clip: "working", frameIndex: 3 });
+  actor.animationManifest = { clips: { actions: { working: customStrip(6, 6) } } };
+  view.sync({ actor, clip: "working", frameIndex: 5 });
+  first.resolve({ source: Texture.EMPTY.source });
+  await settle();
+  second.resolve({ source: Texture.EMPTY.source });
+  await settle();
+
+  assert.equal(loadCount, 2);
+  assert.equal(view.actorSprite.textures.length, 6);
+  assert.equal(view.actorSprite.currentFrame, 5);
+});
+
 test("retries the same actor clip after its previous texture load fails", async () => {
   const first = deferred();
   const second = deferred();

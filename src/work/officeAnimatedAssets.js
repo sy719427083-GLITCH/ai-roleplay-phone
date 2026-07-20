@@ -10,6 +10,10 @@ const DIRECTIONS = Object.freeze(["front", "back", "left", "right"]);
 const MAX_CLIP_FRAMES = 120;
 const MAX_NAMED_ACTIONS = 32;
 const MAX_DECODED_PIXELS = 64 * 1024 * 1024;
+const FINGERPRINT_GRID_SIZE = 8;
+const MIN_OPAQUE_FRAME_COVERAGE = 0.02;
+const MIN_TRANSPARENT_CLIP_COVERAGE = 0.05;
+const MIN_SIGNIFICANT_FRAME_DISTANCE = 0.01;
 const STILL_IMAGE_SOURCE = /(?:^data:image\/|\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$)/iu;
 const EMBEDDED_IMAGE_SOURCE = /^data:image\/(?:png|webp);base64,[a-z0-9+/=]+$/iu;
 const ZIP_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
@@ -255,6 +259,78 @@ const createInspectionCanvas = (width, height) => {
   return null;
 };
 
+const isCoverage = (value) => Number.isFinite(value) && value >= 0 && value <= 1;
+
+export function analyzeOfficeAnimationPixels(pixels, strip) {
+  const width = Number(strip?.width);
+  const height = Number(strip?.height);
+  const cellSize = Number(strip?.cellSize);
+  const columns = Number(strip?.columns);
+  const frameCount = Number(strip?.frameCount);
+  if (!(pixels instanceof Uint8ClampedArray) || pixels.length !== width * height * 4
+    || !Number.isInteger(cellSize) || cellSize < 1 || !Number.isInteger(columns) || columns < 1
+    || !Number.isInteger(frameCount) || frameCount < 1) {
+    throw new Error("Invalid animation pixel geometry");
+  }
+
+  const frames = [];
+  let clipTransparentPixels = 0;
+  let clipPixels = 0;
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const frameX = (frameIndex % columns) * cellSize;
+    const frameY = Math.floor(frameIndex / columns) * cellSize;
+    const blockCount = FINGERPRINT_GRID_SIZE * FINGERPRINT_GRID_SIZE;
+    const alphaSums = new Float64Array(blockCount);
+    const lumaSums = new Float64Array(blockCount);
+    const sampleCounts = new Uint32Array(blockCount);
+    let opaquePixels = 0;
+    let transparentPixels = 0;
+    const framePixels = cellSize * cellSize;
+
+    for (let localY = 0; localY < cellSize; localY += 1) {
+      const y = frameY + localY;
+      for (let localX = 0; localX < cellSize; localX += 1) {
+        const x = frameX + localX;
+        const pixel = ((y * width) + x) * 4;
+        const red = pixels[pixel];
+        const green = pixels[pixel + 1];
+        const blue = pixels[pixel + 2];
+        const alpha = pixels[pixel + 3];
+        if (alpha >= 224) opaquePixels += 1;
+        if (alpha <= 16) transparentPixels += 1;
+        const blockX = Math.min(FINGERPRINT_GRID_SIZE - 1, Math.floor((localX * FINGERPRINT_GRID_SIZE) / cellSize));
+        const blockY = Math.min(FINGERPRINT_GRID_SIZE - 1, Math.floor((localY * FINGERPRINT_GRID_SIZE) / cellSize));
+        const block = (blockY * FINGERPRINT_GRID_SIZE) + blockX;
+        const luma = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
+        alphaSums[block] += alpha;
+        lumaSums[block] += (luma * alpha) / 255;
+        sampleCounts[block] += 1;
+      }
+    }
+
+    const fingerprint = [];
+    for (let block = 0; block < blockCount; block += 1) {
+      const samples = sampleCounts[block] || 1;
+      fingerprint.push(Math.round(alphaSums[block] / samples));
+      fingerprint.push(Math.round(lumaSums[block] / samples));
+    }
+    frames.push({
+      opaqueCoverage: opaquePixels / framePixels,
+      transparentCoverage: transparentPixels / framePixels,
+      fingerprint,
+    });
+    clipTransparentPixels += transparentPixels;
+    clipPixels += framePixels;
+  }
+
+  return {
+    width,
+    height,
+    transparentCoverage: clipPixels ? clipTransparentPixels / clipPixels : 0,
+    frames,
+  };
+}
+
 export async function inspectOfficeAnimationImage(source, {
   fetchImpl = globalThis.fetch,
   signal,
@@ -278,8 +354,8 @@ export async function inspectOfficeAnimationImage(source, {
       return {
         width: bitmap.width,
         height: bitmap.height,
-        hasTransparency: false,
-        nonEmptyFrames: [],
+        transparentCoverage: 0,
+        frames: [],
       };
     }
     const canvas = createInspectionCanvas(bitmap.width, bitmap.height);
@@ -288,21 +364,7 @@ export async function inspectOfficeAnimationImage(source, {
     context.clearRect(0, 0, bitmap.width, bitmap.height);
     context.drawImage(bitmap, 0, 0);
     const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
-    const nonEmptyFrames = Array.from({ length: strip.frameCount }, () => false);
-    let hasTransparency = false;
-    for (let index = 0; index < pixels.length; index += 4) {
-      const alpha = pixels[index + 3];
-      if (alpha < 255) hasTransparency = true;
-      if (alpha === 0) continue;
-      const pixelIndex = index / 4;
-      const x = pixelIndex % bitmap.width;
-      const y = Math.floor(pixelIndex / bitmap.width);
-      const frameX = Math.floor(x / strip.cellSize);
-      const frameY = Math.floor(y / strip.cellSize);
-      const frameIndex = (frameY * strip.columns) + frameX;
-      if (frameIndex < strip.frameCount) nonEmptyFrames[frameIndex] = true;
-    }
-    return { width: bitmap.width, height: bitmap.height, hasTransparency, nonEmptyFrames };
+    return analyzeOfficeAnimationPixels(pixels, strip);
   } finally {
     bitmap.close?.();
   }
@@ -315,6 +377,22 @@ const requiredStrips = (manifest) => [
   ...Object.values(manifest.clips.actions || {}),
 ];
 
+const fingerprintDistance = (left, right) => {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length || !left.length) return 0;
+  return left.reduce((total, value, index) => total + Math.abs(value - right[index]), 0)
+    / (left.length * 255);
+};
+
+const countDistinctFrames = (frames) => {
+  const representatives = [];
+  for (const frame of frames) {
+    if (representatives.every((candidate) => (
+      fingerprintDistance(frame.fingerprint, candidate.fingerprint) >= MIN_SIGNIFICANT_FRAME_DISTANCE
+    ))) representatives.push(frame);
+  }
+  return representatives.length;
+};
+
 const validateInspection = (inspection, strip) => {
   if (!isRecord(inspection)) return "invalid-clip-manifest";
   const width = Number(inspection.width);
@@ -322,16 +400,37 @@ const validateInspection = (inspection, strip) => {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return "invalid-clip-manifest";
   if ((width / strip.columns) < MIN_CUSTOM_ANIMATION_FRAME_SIZE
     || (height / strip.rows) < MIN_CUSTOM_ANIMATION_FRAME_SIZE) return "low-resolution";
-  if (width !== strip.width || height !== strip.height || inspection.hasTransparency !== true) {
+  if (width !== strip.width || height !== strip.height
+    || !isCoverage(inspection.transparentCoverage)
+    || inspection.transparentCoverage < MIN_TRANSPARENT_CLIP_COVERAGE) {
     return "invalid-clip-manifest";
   }
-  if (!Array.isArray(inspection.nonEmptyFrames)
-    || inspection.nonEmptyFrames.length < strip.frameCount
-    || inspection.nonEmptyFrames.slice(0, strip.frameCount).some((value) => value !== true)) {
+  if (!Array.isArray(inspection.frames) || inspection.frames.length !== strip.frameCount) {
     return "invalid-clip-manifest";
   }
+  const frames = inspection.frames;
+  for (const frame of frames) {
+    if (!isRecord(frame) || !isCoverage(frame.opaqueCoverage) || !isCoverage(frame.transparentCoverage)
+      || frame.opaqueCoverage < MIN_OPAQUE_FRAME_COVERAGE
+      || !Array.isArray(frame.fingerprint) || frame.fingerprint.length !== 128
+      || frame.fingerprint.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) {
+      return "invalid-clip-manifest";
+    }
+  }
+  const minimumDistinctFrames = strip.family === "locomotion" ? 4 : 2;
+  if (countDistinctFrames(frames) < minimumDistinctFrames) return "invalid-clip-manifest";
   return "";
 };
+
+export const getOfficeAnimationInspectionKey = (strip) => JSON.stringify([
+  strip.src,
+  strip.cellSize,
+  strip.width,
+  strip.height,
+  strip.columns,
+  strip.rows,
+  strip.frameCount,
+]);
 
 export async function inspectOfficeAnimationManifest(value, {
   allowDataUrls = false,
@@ -348,10 +447,11 @@ export async function inspectOfficeAnimationManifest(value, {
   try {
     for (const strip of requiredStrips(normalized.manifest)) {
       signal?.throwIfAborted?.();
-      let inspection = inspections.get(strip.src);
+      const inspectionKey = getOfficeAnimationInspectionKey(strip);
+      let inspection = inspections.get(inspectionKey);
       if (!inspection) {
         inspection = await inspectImage(strip.src, { fetchImpl, signal, strip });
-        inspections.set(strip.src, inspection);
+        inspections.set(inspectionKey, inspection);
       }
       const reason = validateInspection(inspection, strip);
       if (reason) return failure(reason);

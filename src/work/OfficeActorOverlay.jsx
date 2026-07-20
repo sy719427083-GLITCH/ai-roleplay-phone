@@ -4,18 +4,69 @@ import { DoorOpen } from "lucide-react";
 const DEFAULT_SCENE_WIDTH = 390;
 const DEFAULT_SCENE_HEIGHT = 712;
 const LABEL_WIDTH = 112;
-const LABEL_HEIGHT = 38;
 const BUBBLE_WIDTH = 180;
-const BUBBLE_HEIGHT = 48;
+const BUBBLE_MIN_HEIGHT = 48;
+const NAME_MIN_HEIGHT = 21;
+const STATUS_MIN_HEIGHT = 19;
 const STACK_GAP = 5;
+const LABEL_GAP = 2;
 const EDGE_GUTTER = 6;
 const COLLISION_STEP = 8;
 const IDLE_STATUS = "空闲中";
+const MAX_BUBBLE_CHARACTERS = 80;
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 const round = (value) => Math.round(value * 10) / 10;
+
+const textUnits = (value) => Array.from(cleanText(value)).reduce((total, character) => {
+  if (character === "\n") return total;
+  if (/^[\x00-\x7F]$/u.test(character)) return total + (character === " " ? 0.35 : 0.62);
+  return total + 1;
+}, 0);
+
+const measureTextBox = (value, {
+  lineUnits,
+  lineHeight,
+  minimumHeight,
+  verticalChrome,
+}) => {
+  const lines = cleanText(value).split("\n").reduce((total, line) => (
+    total + Math.max(1, Math.ceil(textUnits(line) / lineUnits))
+  ), 0);
+  return Math.max(minimumHeight, Math.ceil((lines * lineHeight) + verticalChrome));
+};
+
+export function measureOfficeOverlayText(snapshot = {}) {
+  const bubble = cleanText(snapshot.bubble).slice(0, MAX_BUBBLE_CHARACTERS);
+  const nameHeight = measureTextBox(snapshot.name || "NPC", {
+    lineUnits: 8.5,
+    lineHeight: 12.65,
+    minimumHeight: NAME_MIN_HEIGHT,
+    verticalChrome: 8,
+  });
+  const statusHeight = measureTextBox(snapshot.status || IDLE_STATUS, {
+    lineUnits: 9,
+    lineHeight: 11,
+    minimumHeight: STATUS_MIN_HEIGHT,
+    verticalChrome: 8,
+  });
+  const bubbleHeight = bubble ? measureTextBox(bubble, {
+    lineUnits: 13,
+    lineHeight: 14.3,
+    minimumHeight: BUBBLE_MIN_HEIGHT,
+    verticalChrome: 14,
+  }) : 0;
+  const labelHeight = nameHeight + LABEL_GAP + statusHeight;
+  return Object.freeze({
+    bubbleHeight,
+    labelHeight,
+    nameHeight,
+    statusHeight,
+    stackHeight: labelHeight + (bubble ? bubbleHeight + STACK_GAP : 0),
+  });
+}
 
 const fallbackScreenPoint = (actor) => ({
   x: (Number(actor?.x) || 0) * (DEFAULT_SCENE_WIDTH / 1080),
@@ -40,7 +91,9 @@ export function buildOfficeActorSnapshots({ state = {}, world = {}, renderer = n
       screenY: round(Number(point?.y) || 0),
       name: cleanText(actor?.profile?.name) || cleanText(character.profile?.name) || "NPC",
       status: cleanText(actor?.status) || cleanText(character.status) || IDLE_STATUS,
-      bubble: cleanText(activeBubble?.speakerId) === slotId ? cleanText(activeBubble?.text) : "",
+      bubble: cleanText(activeBubble?.speakerId) === slotId
+        ? cleanText(activeBubble?.text).slice(0, MAX_BUBBLE_CHARACTERS)
+        : "",
       facing: cleanText(actor?.facing) || cleanText(character.facing) || "front",
       sceneId: cleanText(actor?.sceneId) || "office",
     };
@@ -54,21 +107,21 @@ const intersects = (left, right) => (
   && left.y + left.height > right.y
 );
 
-const makeRects = (snapshot, stackX, stackY) => {
+const makeRects = (snapshot, metrics, stackX, stackY) => {
   if (!snapshot.bubble) {
     return {
-      labelRect: { x: round(stackX), y: round(stackY), width: LABEL_WIDTH, height: LABEL_HEIGHT },
+      labelRect: { x: round(stackX), y: round(stackY), width: LABEL_WIDTH, height: metrics.labelHeight },
       bubbleRect: null,
     };
   }
   return {
     labelRect: {
       x: round(stackX + ((BUBBLE_WIDTH - LABEL_WIDTH) / 2)),
-      y: round(stackY + BUBBLE_HEIGHT + STACK_GAP),
+      y: round(stackY + metrics.bubbleHeight + STACK_GAP),
       width: LABEL_WIDTH,
-      height: LABEL_HEIGHT,
+      height: metrics.labelHeight,
     },
-    bubbleRect: { x: round(stackX), y: round(stackY), width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT },
+    bubbleRect: { x: round(stackX), y: round(stackY), width: BUBBLE_WIDTH, height: metrics.bubbleHeight },
   };
 };
 
@@ -96,16 +149,42 @@ export function layoutOfficeActorOverlays(snapshots = [], {
   width = DEFAULT_SCENE_WIDTH,
   height = DEFAULT_SCENE_HEIGHT,
 } = {}) {
+  const items = snapshots.filter((snapshot) => snapshot?.visible !== false).map((snapshot) => {
+    const metrics = measureOfficeOverlayText(snapshot);
+    return {
+      metrics,
+      snapshot,
+      stackHeight: metrics.stackHeight,
+      stackWidth: snapshot.bubble ? BUBBLE_WIDTH : LABEL_WIDTH,
+    };
+  });
+  const tallestStack = Math.max(1, ...items.map(({ stackHeight }) => stackHeight));
   const bounds = {
     width: Math.max(BUBBLE_WIDTH + (EDGE_GUTTER * 2), Number(width) || DEFAULT_SCENE_WIDTH),
-    height: Math.max(BUBBLE_HEIGHT + LABEL_HEIGHT + (EDGE_GUTTER * 2), Number(height) || DEFAULT_SCENE_HEIGHT),
+    height: Math.max(tallestStack + (EDGE_GUTTER * 2), Number(height) || DEFAULT_SCENE_HEIGHT),
   };
+
+  const finishLayout = (item, rectangles) => {
+    const baselineLabelY = clamp(
+      item.snapshot.screenY - item.metrics.labelHeight - 12,
+      EDGE_GUTTER,
+      bounds.height - item.metrics.labelHeight - EDGE_GUTTER,
+    );
+    return {
+      slotId: item.snapshot.slotId,
+      offsetY: round(rectangles.labelRect.y - baselineLabelY),
+      labelRect: rectangles.labelRect,
+      bubbleRect: rectangles.bubbleRect,
+      bubbleHeight: item.metrics.bubbleHeight,
+      nameHeight: item.metrics.nameHeight,
+      statusHeight: item.metrics.statusHeight,
+    };
+  };
+
   const occupied = [];
-  return snapshots.filter((snapshot) => snapshot?.visible !== false).map((snapshot) => {
-    const stackWidth = snapshot.bubble ? BUBBLE_WIDTH : LABEL_WIDTH;
-    const stackHeight = snapshot.bubble
-      ? BUBBLE_HEIGHT + STACK_GAP + LABEL_HEIGHT
-      : LABEL_HEIGHT;
+  const greedyLayouts = [];
+  for (const item of items) {
+    const { snapshot, stackHeight, stackWidth } = item;
     const maximumX = bounds.width - stackWidth - EDGE_GUTTER;
     const maximumY = bounds.height - stackHeight - EDGE_GUTTER;
     const preferredX = snapshot.screenX - (stackWidth / 2);
@@ -116,7 +195,7 @@ export function layoutOfficeActorOverlays(snapshots = [], {
 
     for (const x of xCandidates) {
       for (const y of yCandidates) {
-        const candidate = makeRects(snapshot, x, y);
+        const candidate = makeRects(snapshot, item.metrics, x, y);
         const candidateRects = [candidate.labelRect, candidate.bubbleRect].filter(Boolean);
         if (!candidateRects.some((rectangle) => occupied.some((placed) => intersects(rectangle, placed)))) {
           rectangles = candidate;
@@ -125,20 +204,44 @@ export function layoutOfficeActorOverlays(snapshots = [], {
       }
       if (rectangles) break;
     }
-    rectangles ||= makeRects(snapshot, xCandidates[0], yCandidates[0]);
+    if (!rectangles) {
+      greedyLayouts.length = 0;
+      break;
+    }
     occupied.push(rectangles.labelRect);
     if (rectangles.bubbleRect) occupied.push(rectangles.bubbleRect);
-    const baselineLabelY = clamp(
-      snapshot.screenY - LABEL_HEIGHT - 12,
-      EDGE_GUTTER,
-      bounds.height - LABEL_HEIGHT - EDGE_GUTTER,
-    );
-    return {
-      slotId: snapshot.slotId,
-      offsetY: round(rectangles.labelRect.y - baselineLabelY),
-      labelRect: rectangles.labelRect,
-      bubbleRect: rectangles.bubbleRect,
-    };
+    greedyLayouts.push(finishLayout(item, rectangles));
+  }
+  if (greedyLayouts.length === items.length) return greedyLayouts;
+
+  const laneWidth = Math.max(...items.map(({ stackWidth }) => stackWidth), LABEL_WIDTH);
+  const availableWidth = bounds.width - (EDGE_GUTTER * 2);
+  const columnCount = Math.max(1, Math.min(
+    items.length,
+    Math.floor((availableWidth + STACK_GAP) / (laneWidth + STACK_GAP)),
+  ));
+  const lastLaneX = bounds.width - EDGE_GUTTER - laneWidth;
+  const laneXs = Array.from({ length: columnCount }, (_, index) => (
+    columnCount === 1
+      ? clamp((bounds.width - laneWidth) / 2, EDGE_GUTTER, lastLaneX)
+      : EDGE_GUTTER + ((lastLaneX - EDGE_GUTTER) * index) / (columnCount - 1)
+  ));
+  const columnHeights = Array.from({ length: columnCount }, () => EDGE_GUTTER);
+  return items.map((item) => {
+    const orderedColumns = Array.from({ length: columnCount }, (_, index) => index).sort((left, right) => (
+      columnHeights[left] - columnHeights[right]
+      || Math.abs((laneXs[left] + (laneWidth / 2)) - item.snapshot.screenX)
+        - Math.abs((laneXs[right] + (laneWidth / 2)) - item.snapshot.screenX)
+      || left - right
+    ));
+    const column = orderedColumns.find((index) => (
+      columnHeights[index] + item.stackHeight <= bounds.height - EDGE_GUTTER
+    )) ?? orderedColumns[0];
+    const x = laneXs[column] + ((laneWidth - item.stackWidth) / 2);
+    const y = clamp(columnHeights[column], EDGE_GUTTER, bounds.height - item.stackHeight - EDGE_GUTTER);
+    const rectangles = makeRects(item.snapshot, item.metrics, x, y);
+    columnHeights[column] = y + item.stackHeight + STACK_GAP;
+    return finishLayout(item, rectangles);
   });
 }
 
@@ -177,6 +280,7 @@ export function OfficeActorOverlay({
     <div className="office-scene-overlay" aria-live="polite">
       {snapshots.map((snapshot) => {
         const layout = layouts.get(snapshot.slotId);
+        const metrics = layout || measureOfficeOverlayText(snapshot);
         const labelCenterX = layout
           ? layout.labelRect.x + (layout.labelRect.width / 2)
           : snapshot.screenX;
@@ -195,6 +299,9 @@ export function OfficeActorOverlay({
               left: `${labelCenterX}px`,
               top: `${layout?.bubbleRect?.y ?? layout?.labelRect?.y ?? snapshot.screenY}px`,
               "--office-bubble-shift": `${bubbleCenterX - labelCenterX}px`,
+              "--office-bubble-height": `${metrics.bubbleHeight}px`,
+              "--office-name-height": `${metrics.nameHeight}px`,
+              "--office-status-height": `${metrics.statusHeight}px`,
             }}
             aria-label={`${snapshot.name}，${snapshot.status}`}
             onClick={() => onActorSelect?.(snapshot.slotId)}

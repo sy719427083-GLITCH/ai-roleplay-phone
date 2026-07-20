@@ -424,6 +424,8 @@ test("keeps safe-area overlays and pointer-safe Pixi actor overlays", () => {
   assert.match(cssSource, /\.work-office-surface\s*\{[^}]*position:\s*absolute[^}]*inset:\s*100px 0 0/su);
   assert.match(cssSource, /\.office-scene-overlay\s*\{[^}]*pointer-events:\s*none/su);
   assert.match(cssSource, /\.office-actor-overlay\s*\{[^}]*pointer-events:\s*auto/su);
+  assert.match(cssSource, /\.office-actor-bubble\s*\{[^}]*height:\s*var\(--office-bubble-height\)/su);
+  assert.doesNotMatch(cssSource, /\.office-actor-bubble\s*\{[^}]*overflow:\s*hidden/su);
   assert.match(sceneSource, /OfficeCanvas/u);
   assert.match(sceneSource, /OfficeActorOverlay/u);
   assert.match(sceneSource, /onSceneChange/u);
