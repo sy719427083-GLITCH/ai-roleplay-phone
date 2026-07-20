@@ -14,6 +14,8 @@ const EDGE_GUTTER = 6;
 const COLLISION_STEP = 8;
 const IDLE_STATUS = "空闲中";
 const MAX_BUBBLE_CHARACTERS = 80;
+const ACTOR_HEAD_OFFSET_WORLD = 330;
+const HEAD_GAP = 6;
 
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
@@ -84,11 +86,16 @@ export function buildOfficeActorSnapshots({ state = {}, world = {}, renderer = n
     const conversation = conversations[cleanText(character.conversationId)];
     const activeBubble = Array.isArray(conversation?.bubbleQueue) ? conversation.bubbleQueue[0] : null;
     const point = renderer?.worldToScreen?.(actor) || fallbackScreenPoint(actor);
+    const headPoint = renderer?.worldToScreen?.({ ...actor, y: (Number(actor?.y) || 0) - ACTOR_HEAD_OFFSET_WORLD })
+      || fallbackScreenPoint({ ...actor, y: (Number(actor?.y) || 0) - ACTOR_HEAD_OFFSET_WORLD });
     return {
       slotId,
       visible: cleanText(actor?.sceneId) === visibleSceneId,
       screenX: round(Number(point?.x) || 0),
       screenY: round(Number(point?.y) || 0),
+      headScreenY: round(Number(headPoint?.y) || 0),
+      worldX: round(Number(actor?.x) || 0),
+      worldY: round(Number(actor?.y) || 0),
       name: cleanText(actor?.profile?.name) || cleanText(character.profile?.name) || "NPC",
       status: cleanText(actor?.status) || cleanText(character.status) || IDLE_STATUS,
       bubble: cleanText(activeBubble?.speakerId) === slotId
@@ -96,6 +103,9 @@ export function buildOfficeActorSnapshots({ state = {}, world = {}, renderer = n
         : "",
       facing: cleanText(actor?.facing) || cleanText(character.facing) || "front",
       sceneId: cleanText(actor?.sceneId) || "office",
+      clip: cleanText(actor?.clip) || "idle-standing",
+      frameIndex: Math.max(0, Math.floor(Number(actor?.frameIndex) || 0)),
+      moving: Boolean(actor?.motion),
     };
   });
 }
@@ -165,8 +175,11 @@ export function layoutOfficeActorOverlays(snapshots = [], {
   };
 
   const finishLayout = (item, rectangles) => {
+    const actorHeadY = Number.isFinite(item.snapshot.headScreenY)
+      ? item.snapshot.headScreenY
+      : item.snapshot.screenY;
     const baselineLabelY = clamp(
-      item.snapshot.screenY - item.metrics.labelHeight - 12,
+      actorHeadY - item.metrics.labelHeight - HEAD_GAP,
       EDGE_GUTTER,
       bounds.height - item.metrics.labelHeight - EDGE_GUTTER,
     );
@@ -186,9 +199,17 @@ export function layoutOfficeActorOverlays(snapshots = [], {
   for (const item of items) {
     const { snapshot, stackHeight, stackWidth } = item;
     const maximumX = bounds.width - stackWidth - EDGE_GUTTER;
-    const maximumY = bounds.height - stackHeight - EDGE_GUTTER;
+    const sceneMaximumY = bounds.height - stackHeight - EDGE_GUTTER;
+    const maximumY = Number.isFinite(snapshot.headScreenY)
+      ? Math.min(sceneMaximumY, snapshot.headScreenY - stackHeight - HEAD_GAP)
+      : sceneMaximumY;
+    if (maximumY < EDGE_GUTTER) {
+      greedyLayouts.length = 0;
+      break;
+    }
     const preferredX = snapshot.screenX - (stackWidth / 2);
-    const preferredY = snapshot.screenY - stackHeight - 12;
+    const preferredY = (Number.isFinite(snapshot.headScreenY) ? snapshot.headScreenY : snapshot.screenY)
+      - stackHeight - HEAD_GAP;
     const xCandidates = horizontalCandidates(preferredX, maximumX);
     const yCandidates = verticalCandidates(preferredY, maximumY);
     let rectangles = null;
@@ -294,6 +315,12 @@ export function OfficeActorOverlay({
             className="office-actor-overlay"
             data-office-actor-overlay={snapshot.slotId}
             data-facing={snapshot.facing}
+            data-world-x={snapshot.worldX}
+            data-world-y={snapshot.worldY}
+            data-head-screen-y={snapshot.headScreenY}
+            data-motion-clip={snapshot.clip}
+            data-motion-frame={snapshot.frameIndex}
+            data-moving={snapshot.moving ? "true" : "false"}
             hidden={!snapshot.visible}
             style={{
               left: `${labelCenterX}px`,

@@ -8,7 +8,7 @@
     "build": "vite build",
     "deploy:pages": "npm run build && node scripts/sync-pages.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/*.test.js src/work/*.test.js src/work/pixi/*.test.js",
+    "test": "node --test scripts/office-release-contract.test.mjs scripts/pages-sync-contract.test.mjs src/*.test.js src/work/*.test.js src/work/pixi/*.test.js",
     "verify:office": "node scripts/verify-office.mjs"
   },
   "dependencies": {

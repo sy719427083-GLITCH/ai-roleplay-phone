@@ -229,13 +229,6 @@ export function findScenePath({ sceneId, from, to, dynamicObstacles } = {}) {
   if (cells.length === 0) return [];
 
   const createLegalPath = (pathCells) => {
-    const smoothedPath = withExactEndpoints(
-      PF.Util.smoothenPath(grid, pathCells).map(gridToWorldPoint),
-      start,
-      destination,
-    );
-    if (hasLegalSegments(smoothedPath, isLegalSegment)) return smoothedPath;
-
     const safelySmoothedPath = createSafelySmoothedPath(
       pathCells,
       start,

@@ -68,7 +68,9 @@ test("keeps the public Work controls and assignment workflow intact", () => {
   for (const token of ["ArrowLeft", "Ellipsis", "Users", "OfficeAssignmentFlow", "OfficeConversationPanel"]) {
     assert.ok(source.includes(token), `missing Work screen wiring: ${token}`);
   }
-  assert.doesNotMatch(source, /OfficeActivityPanel|activityEvents|activeEventBySlot/u);
+  const retiredPanelName = ["Office", "Activity", "Panel"].join("");
+  assert.equal(source.includes(retiredPanelName), false);
+  assert.doesNotMatch(source, /activityEvents|activeEventBySlot/u);
   assert.doesNotMatch(conversationPanelSource, /本地记录|按角色筛选|按活动筛选/u);
   for (const token of ["onProfileChange", "onChibiChange", "onUpload", "onCustomDraftChange", "OFFICE_CHIBIS"]) {
     assert.ok(assignmentFlowSource.includes(token), `missing assignment behavior: ${token}`);

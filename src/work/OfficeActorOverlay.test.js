@@ -66,7 +66,8 @@ test("builds five strict scene-aware snapshots at the renderer screen coordinate
   assert.equal(snapshots.length, 5);
   for (const snapshot of snapshots) {
     assert.deepEqual(Object.keys(snapshot), [
-      "slotId", "visible", "screenX", "screenY", "name", "status", "bubble", "facing", "sceneId",
+      "slotId", "visible", "screenX", "screenY", "headScreenY", "worldX", "worldY", "name", "status", "bubble", "facing", "sceneId",
+      "clip", "frameIndex", "moving",
     ]);
   }
   assert.deepEqual(snapshots.map(({ slotId, visible }) => [slotId, visible]), [
@@ -77,11 +78,17 @@ test("builds five strict scene-aware snapshots at the renderer screen coordinate
     visible: true,
     screenX: 130,
     screenY: 195,
+    headScreenY: 112.5,
+    worldX: 260,
+    worldY: 780,
     name: "employee1名字",
     status: "employee1状态",
     bubble: "这句只跟第一组有关",
     facing: "right",
     sceneId: "office",
+    clip: "idle-standing",
+    frameIndex: 0,
+    moving: false,
   });
   assert.equal(snapshots.filter(({ bubble }) => bubble).length, 1);
 });
@@ -111,6 +118,22 @@ test("moves colliding label and bubble stacks deterministically within the scene
     for (const other of rectangles.slice(index + 1)) {
       assert.equal(rectanglesIntersect(rectangle, other), false);
     }
+  });
+});
+
+test("keeps every label and bubble stack above the actor head anchor", () => {
+  const snapshots = [
+    { slotId: "boss", visible: true, screenX: 195, screenY: 240, headScreenY: 116, bubble: "" },
+    { slotId: "employee1", visible: true, screenX: 102, screenY: 390, headScreenY: 266, bubble: "项目进度已经整理好了" },
+    { slotId: "employee2", visible: true, screenX: 288, screenY: 390, headScreenY: 266, bubble: "" },
+  ];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 712 });
+
+  assert.equal(layouts.length, 3);
+  layouts.forEach((layout, index) => {
+    const bottom = Math.max(layout.labelRect.bottom ?? (layout.labelRect.y + layout.labelRect.height),
+      layout.bubbleRect?.bottom ?? ((layout.bubbleRect?.y || 0) + (layout.bubbleRect?.height || 0)));
+    assert.ok(bottom <= snapshots[index].headScreenY - 6, `${snapshots[index].slotId} overlay covers the actor head`);
   });
 });
 
@@ -222,6 +245,12 @@ test("renders independent accessible actor overlays and an icon door control", (
     bubble: entry.id === "boss" ? "请进" : "",
     facing: entry.facing,
     sceneId: entry.sceneId,
+    headScreenY: (entry.y / 4) - 82.5,
+    worldX: entry.x,
+    worldY: entry.y,
+    clip: entry.id === "employee1" ? "locomotion" : "idle-standing",
+    frameIndex: entry.id === "employee1" ? 3 : 0,
+    moving: entry.id === "employee1",
   }));
   snapshots[0] = { ...snapshots[0], screenX: 2 };
   const markup = renderToStaticMarkup(React.createElement(overlayModule.OfficeActorOverlay, {
@@ -230,6 +259,12 @@ test("renders independent accessible actor overlays and an icon door control", (
   }));
 
   assert.equal((markup.match(/data-office-actor-overlay=/g) || []).length, 5);
+  assert.match(markup, /data-world-x="260"/u);
+  assert.match(markup, /data-world-y="780"/u);
+  assert.match(markup, /data-head-screen-y="112.5"/u);
+  assert.match(markup, /data-motion-clip="locomotion"/u);
+  assert.match(markup, /data-motion-frame="3"/u);
+  assert.match(markup, /data-moving="true"/u);
   assert.match(markup, /aria-label="进入休息区"/u);
   assert.match(markup, /title="进入休息区"/u);
   assert.match(markup, /data-lucide="door-open"/u);
