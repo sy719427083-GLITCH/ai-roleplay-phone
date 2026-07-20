@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Link as LinkIcon, Upload } from "lucide-react";
 import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
+import { OFFICE_ANIMATION_REASON_MESSAGES } from "./officeAnimatedAssets.js";
 
 const RADIO_PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
 const RADIO_NEXT_KEYS = new Set(["ArrowRight", "ArrowDown"]);
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
-const isAcceptedAssetSource = (value) => {
+const isAcceptedManifestSource = (value) => {
   const source = cleanText(value);
   if (!source) return true;
-  return /^(?:https?:\/\/\S+|data:image\/[a-z0-9.+-]+(?:;[^,]*)?,.+)$/i.test(source);
+  return /^https?:\/\/\S+$/i.test(source)
+    && !/\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(source);
 };
 
 const getNextRadioIndex = (currentIndex, key, itemCount) => {
@@ -28,6 +30,7 @@ function AssignmentEditor({
   occupiedProfiles,
   onChibiChange,
   onCustomDraftChange,
+  onCustomManifestSubmit,
   onProfileChange,
   onUpload,
   profiles,
@@ -36,16 +39,21 @@ function AssignmentEditor({
   const compatibleChibis = OFFICE_CHIBIS.filter((chibi) => chibi.kind === slot.kind).slice(0, 8);
   const profileOptions = slot.kind === "boss" ? profiles.bossOptions : profiles.employeeOptions;
   const selectedProfileId = assignment.profile?.generated ? "" : assignment.profileId;
-  const [customDraft, setCustomDraft] = useState(assignment.customAssetSrc || "");
-  const isInvalidDraft = !isAcceptedAssetSource(customDraft);
-  const visibleError = isInvalidDraft ? "地址格式不支持" : cleanText(errorMessage);
+  const [customDraft, setCustomDraft] = useState(assignment.customManifestUrl || "");
+  const isInvalidDraft = !isAcceptedManifestSource(customDraft);
+  const visibleError = isInvalidDraft ? OFFICE_ANIMATION_REASON_MESSAGES["still-image"] : cleanText(errorMessage);
   const errorId = `${slot.id}-asset-error`;
   const selectedChibiIndex = compatibleChibis.findIndex((chibi) => chibi.id === assignment.chibiId);
   const rovingChibiIndex = selectedChibiIndex >= 0 ? selectedChibiIndex : 0;
 
   useEffect(() => {
-    setCustomDraft(assignment.customAssetSrc || "");
-  }, [assignment.customAssetSrc]);
+    setCustomDraft(assignment.customManifestUrl || "");
+  }, [assignment.customManifestUrl]);
+
+  const submitManifestDraft = () => {
+    if (isInvalidDraft) return;
+    onCustomManifestSubmit?.(slot.id, customDraft);
+  };
 
   const handleChibiKeyDown = (event, index) => {
     const nextIndex = getNextRadioIndex(index, event.key, compatibleChibis.length);
@@ -110,7 +118,7 @@ function AssignmentEditor({
       <div className="office-custom-asset-controls">
         <label
           className="office-upload-command"
-          title="上传自定义形象"
+          title="上传动画清单"
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
@@ -120,30 +128,36 @@ function AssignmentEditor({
           }}
         >
           <Upload size={18} strokeWidth={1.8} aria-hidden="true" />
-          <span>上传</span>
+          <span>上传清单</span>
           <input
             type="file"
-            accept="image/*"
-            aria-label={`${slot.label}上传形象`}
+            accept="application/json,.json"
+            aria-label={`${slot.label}上传动画清单`}
             aria-describedby={visibleError ? errorId : undefined}
             tabIndex={-1}
             onChange={(event) => onUpload(slot.id, event)}
           />
         </label>
-        <label className="office-asset-url-field" title="自定义图片地址">
+        <label className="office-asset-url-field" title="动画清单地址">
           <LinkIcon size={17} strokeWidth={1.8} aria-hidden="true" />
-          <span className="sr-only">{slot.label}形象地址</span>
+          <span className="sr-only">{slot.label}动画清单地址</span>
           <input
             type="text"
             inputMode="url"
             value={customDraft}
-            aria-label={`${slot.label}形象地址`}
+            aria-label={`${slot.label}动画清单地址`}
             aria-invalid={isInvalidDraft || undefined}
             aria-describedby={visibleError ? errorId : undefined}
-            placeholder="图片 URL"
+            placeholder="动画 manifest URL"
             onChange={(event) => {
               setCustomDraft(event.target.value);
               onCustomDraftChange(slot.id, event.target.value);
+            }}
+            onBlur={submitManifestDraft}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              submitManifestDraft();
             }}
           />
         </label>
@@ -167,6 +181,7 @@ export default function OfficeAssignmentFlow({
   onChibiChange,
   onUpload,
   onCustomDraftChange,
+  onCustomManifestSubmit,
 }) {
   const selectedSlot = slots.find((slot) => slot.id === selectedSlotId);
   const showSelection = view === "selection" && selectedSlot;
@@ -203,6 +218,7 @@ export default function OfficeAssignmentFlow({
             onChibiChange={onChibiChange}
             onUpload={onUpload}
             onCustomDraftChange={onCustomDraftChange}
+            onCustomManifestSubmit={onCustomManifestSubmit}
           />
         </div>
       ) : (

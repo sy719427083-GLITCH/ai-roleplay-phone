@@ -4,6 +4,14 @@ import OfficeConversationPanel from "./OfficeConversationPanel.jsx";
 import OfficeAssignmentFlow from "./OfficeAssignmentFlow.jsx";
 import OfficeScene from "./OfficeScene.jsx";
 import { OFFICE_CHIBIS } from "./pixi/officeAssetManifest.js";
+import {
+  fetchOfficeAnimationManifest,
+  MAX_CUSTOM_ANIMATION_BYTES,
+  OFFICE_ANIMATION_REASON_MESSAGES,
+  parseOfficeAnimationManifestText,
+  validateOfficeAnimationBundle,
+  validateOfficeAnimationFile,
+} from "./officeAnimatedAssets.js";
 import { requestOfficeActivityDetail } from "./officeActivityApi.js";
 import { getActivityDefinition } from "./officeActivityManifest.js";
 import { requestOfficeConversationTurn } from "./officeConversationApi.js";
@@ -36,13 +44,13 @@ const SCHEDULE_MAX_MS = 8_000;
 const STATE_PERSIST_DEBOUNCE_MS = 1_000;
 const MODE_SCHEDULE_NUDGE_MS = 350;
 const OFFICE_WALK_SPEED = 180;
-export const MAX_CUSTOM_IMAGE_BYTES = 1024 * 1024;
+export { MAX_CUSTOM_ANIMATION_BYTES, validateOfficeAnimationFile } from "./officeAnimatedAssets.js";
 
 const RADIO_PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
 const RADIO_NEXT_KEYS = new Set(["ArrowRight", "ArrowDown"]);
 const ASSIGNMENT_STORAGE_ERROR = "安排无法保存，请检查设备存储后重试";
-const CUSTOM_ASSET_STORAGE_ERROR = "图片无法保存，请使用更小图片或图片 URL";
-const CUSTOM_ASSET_LOAD_ERROR = "图片加载失败，已恢复内置形象";
+const CUSTOM_ASSET_STORAGE_ERROR = "动画清单无法保存，请检查设备存储后重试";
+const CUSTOM_ASSET_LOAD_ERROR = "动画资源加载失败，已恢复内置形象";
 const DIALOG_FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
   "select:not([disabled])",
@@ -87,16 +95,6 @@ export function getOfficeFocusTrapIndex(currentIndex, itemCount, shiftKey) {
   if (shiftKey && currentIndex === 0) return itemCount - 1;
   if (!shiftKey && currentIndex === itemCount - 1) return 0;
   return null;
-}
-
-export function validateOfficeImageFile(file) {
-  if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
-    return { ok: false, reason: "invalid-type" };
-  }
-  if (!Number.isFinite(file.size) || file.size < 0 || file.size > MAX_CUSTOM_IMAGE_BYTES) {
-    return { ok: false, reason: "too-large" };
-  }
-  return { ok: true, reason: "" };
 }
 
 const abortReaderSafely = (reader) => {
@@ -178,10 +176,11 @@ const readStoredObject = (storage, key) => {
 
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 
-const isAcceptedCustomAssetSource = (value) => {
+const isAcceptedManifestUrl = (value) => {
   const source = cleanText(value);
   if (!source) return true;
-  return /^(?:https?:\/\/\S+|data:image\/[a-z0-9.+-]+(?:;[^,]*)?,.+)$/i.test(source);
+  return /^https?:\/\/\S+$/i.test(source)
+    && !/\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(source);
 };
 
 const getStoredProfileId = (value) => {
@@ -190,7 +189,7 @@ const getStoredProfileId = (value) => {
   return "";
 };
 
-const normalizeStoredAssignments = (storedValue, profiles) => {
+export const normalizeStoredAssignments = (storedValue, profiles) => {
   const seenProfileIds = new Set();
   const profileIds = {};
 
@@ -213,14 +212,16 @@ const normalizeStoredAssignments = (storedValue, profiles) => {
     const chibiId = compatibleChibis.some((chibi) => chibi.id === requestedChibiId)
       ? requestedChibiId
       : slot.defaultChibiId;
-    const requestedCustomSource = cleanText(stored.customAssetSrc);
+    const customValidation = validateOfficeAnimationBundle(stored.customAnimationManifest);
+    const requestedManifestUrl = cleanText(stored.customManifestUrl);
 
     return [slot.id, {
       ...normalized[slot.id],
       chibiId,
-      customAssetSrc: isAcceptedCustomAssetSource(requestedCustomSource)
-        ? requestedCustomSource
+      customManifestUrl: customValidation.ok && isAcceptedManifestUrl(requestedManifestUrl)
+        ? requestedManifestUrl
         : "",
+      customAnimationManifest: customValidation.ok ? customValidation.manifest : null,
     }];
   }));
 };
@@ -229,7 +230,8 @@ const serializeAssignments = (assignments) => JSON.stringify(Object.fromEntries(
   OFFICE_SLOT_IDS.map((slotId) => [slotId, {
     profileId: cleanText(assignments[slotId]?.profileId),
     chibiId: cleanText(assignments[slotId]?.chibiId),
-    customAssetSrc: cleanText(assignments[slotId]?.customAssetSrc),
+    customManifestUrl: cleanText(assignments[slotId]?.customManifestUrl),
+    customAnimationManifest: assignments[slotId]?.customAnimationManifest || null,
   }]),
 ));
 
@@ -451,7 +453,7 @@ export default function WorkAppScreen({ onClose }) {
   const [sampledWorldActors, setSampledWorldActors] = useState({});
   const [assignmentErrors, setAssignmentErrors] = useState({});
   const [, setCustomDrafts] = useState(() => Object.fromEntries(
-    OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customAssetSrc]),
+    OFFICE_SLOT_IDS.map((slotId) => [slotId, initialContext.assignments[slotId].customManifestUrl]),
   ));
 
   const stateRef = useRef(state);
@@ -477,6 +479,8 @@ export default function WorkAppScreen({ onClose }) {
   const isMountedRef = useRef(true);
   const uploadReadersRef = useRef(null);
   if (!uploadReadersRef.current) uploadReadersRef.current = createOfficeUploadReaderRegistry();
+  const manifestRequestsRef = useRef(null);
+  if (!manifestRequestsRef.current) manifestRequestsRef.current = createOfficeUploadReaderRegistry();
 
   stateRef.current = state;
   assignmentsRef.current = assignments;
@@ -962,6 +966,7 @@ export default function WorkAppScreen({ onClose }) {
     return () => {
       isMountedRef.current = false;
       uploadReadersRef.current.abortAll();
+      manifestRequestsRef.current.abortAll();
       if (statePersistTimerRef.current) clearTimeout(statePersistTimerRef.current);
       persistOfficeState();
       for (const controller of activityControllersRef.current.values()) controller.abort();
@@ -1068,22 +1073,56 @@ export default function WorkAppScreen({ onClose }) {
     replaceAssignment(slotId, {
       ...assignmentsRef.current[slotId],
       chibiId,
+      customManifestUrl: "",
+      customAnimationManifest: null,
     });
+    setCustomDrafts((current) => ({ ...current, [slotId]: "" }));
   }, [replaceAssignment]);
 
   const handleCustomDraftChange = useCallback((slotId, value) => {
     if (!isMountedRef.current) return;
     setCustomDrafts((current) => ({ ...current, [slotId]: value }));
-    if (!isAcceptedCustomAssetSource(value)) {
-      setAssignmentError(slotId, "");
+    manifestRequestsRef.current.abort(slotId);
+    setAssignmentError(slotId, "");
+  }, [setAssignmentError]);
+
+  const handleCustomManifestSubmit = useCallback(async (slotId, value) => {
+    const source = cleanText(value);
+    const requests = manifestRequestsRef.current;
+    requests.abort(slotId);
+    if (!source) {
+      replaceAssignment(slotId, {
+        ...assignmentsRef.current[slotId],
+        customManifestUrl: "",
+        customAnimationManifest: null,
+      }, { failureMessage: CUSTOM_ASSET_STORAGE_ERROR });
       return;
     }
-    replaceAssignment(slotId, {
+    if (!isAcceptedManifestUrl(source)) {
+      setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES["still-image"]);
+      return;
+    }
+    const controller = new AbortController();
+    requests.start(slotId, controller);
+    setAssignmentError(slotId, "正在验证动画清单…");
+    let validation;
+    try {
+      validation = await fetchOfficeAnimationManifest(source, { signal: controller.signal });
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      validation = { ok: false, reason: "invalid-clip-manifest", manifest: null };
+    }
+    if (!requests.finish(slotId, controller) || !isMountedRef.current) return;
+    if (!validation.ok) {
+      setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES[validation.reason]);
+      return;
+    }
+    const saved = replaceAssignment(slotId, {
       ...assignmentsRef.current[slotId],
-      customAssetSrc: cleanText(value),
-    }, {
-      failureMessage: CUSTOM_ASSET_STORAGE_ERROR,
-    });
+      customManifestUrl: source,
+      customAnimationManifest: validation.manifest,
+    }, { failureMessage: CUSTOM_ASSET_STORAGE_ERROR });
+    if (saved) setCustomDrafts((current) => ({ ...current, [slotId]: source }));
   }, [replaceAssignment, setAssignmentError]);
 
   const handleUpload = useCallback((slotId, event) => {
@@ -1094,14 +1133,9 @@ export default function WorkAppScreen({ onClose }) {
     readers.abort(slotId);
     if (!file) return;
 
-    const validation = validateOfficeImageFile(file);
+    const validation = validateOfficeAnimationFile(file);
     if (!validation.ok) {
-      setAssignmentError(
-        slotId,
-        validation.reason === "too-large"
-          ? "图片不能超过 1 MB，请使用更小图片或图片 URL"
-          : "请选择图片文件",
-      );
+      setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES[validation.reason]);
       return;
     }
 
@@ -1109,34 +1143,35 @@ export default function WorkAppScreen({ onClose }) {
     reader.addEventListener("load", () => {
       if (!isMountedRef.current || !readers.isCurrent(slotId, reader)) return;
       readers.finish(slotId, reader);
-      const source = typeof reader.result === "string" ? reader.result : "";
-      if (!source.startsWith("data:image/") || !isAcceptedCustomAssetSource(source)) {
-        setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+      const result = parseOfficeAnimationManifestText(typeof reader.result === "string" ? reader.result : "");
+      if (!result.ok) {
+        setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES[result.reason]);
         return;
       }
       const saved = replaceAssignment(slotId, {
         ...assignmentsRef.current[slotId],
-        customAssetSrc: source,
+        customManifestUrl: "",
+        customAnimationManifest: result.manifest,
       }, {
         failureMessage: CUSTOM_ASSET_STORAGE_ERROR,
       });
       if (saved && isMountedRef.current) {
-        setCustomDrafts((current) => ({ ...current, [slotId]: source }));
+        setCustomDrafts((current) => ({ ...current, [slotId]: "" }));
       }
     }, { once: true });
     reader.addEventListener("error", () => {
       if (!readers.finish(slotId, reader) || !isMountedRef.current) return;
-      setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+      setAssignmentError(slotId, "动画清单读取失败，请重试");
     }, { once: true });
     reader.addEventListener("abort", () => {
       readers.finish(slotId, reader);
     }, { once: true });
     readers.start(slotId, reader);
     try {
-      reader.readAsDataURL(file);
+      reader.readAsText(file);
     } catch {
       if (readers.finish(slotId, reader) && isMountedRef.current) {
-        setAssignmentError(slotId, "图片读取失败，请重试或使用图片 URL");
+        setAssignmentError(slotId, "动画清单读取失败，请重试");
       }
     }
   }, [replaceAssignment, setAssignmentError]);
@@ -1146,7 +1181,8 @@ export default function WorkAppScreen({ onClose }) {
     setCustomDrafts((current) => ({ ...current, [slotId]: "" }));
     const nextAssignment = {
       ...assignmentsRef.current[slotId],
-      customAssetSrc: "",
+      customManifestUrl: "",
+      customAnimationManifest: null,
     };
     const saved = replaceAssignment(slotId, nextAssignment, {
       failureMessage: `${CUSTOM_ASSET_LOAD_ERROR}，但清理结果未保存`,
@@ -1327,7 +1363,8 @@ export default function WorkAppScreen({ onClose }) {
           sampledWorldActors={sampledWorldActors}
           motionNow={motionNow}
           onSlotSelect={openAssignmentPanel}
-          onStationSelect={handleVisibleSceneChange}
+          onSceneChange={handleVisibleSceneChange}
+          onActorAssetError={onAssetError}
         />
       </div>
 
@@ -1355,6 +1392,7 @@ export default function WorkAppScreen({ onClose }) {
             onChibiChange={handleChibiChange}
             onUpload={handleUpload}
             onCustomDraftChange={handleCustomDraftChange}
+            onCustomManifestSubmit={handleCustomManifestSubmit}
           />
         </aside>
       )}

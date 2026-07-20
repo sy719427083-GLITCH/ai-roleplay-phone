@@ -78,7 +78,7 @@ export class OfficeActorView extends Container {
 
   sync({ actor = {}, motion = null, clip = "idle-standing", frameIndex = 0, furnitureAnchor = null } = {}) {
     const facing = normalizeActorFacing(motion?.facing || actor.facing || "front");
-    const source = getActorClipSource(actor, clip);
+    const source = getActorClipSource(actor, clip, facing);
     const point = getPoint(actor, furnitureAnchor);
     const plan = getActorTexturePlan(source, facing);
     this.x = point.x;

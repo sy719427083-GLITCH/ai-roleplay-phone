@@ -1,4 +1,5 @@
 import { OFFICE_CHARACTER_IDS, getCharacterClipSource } from "./officeCharacterClips.js";
+import { getCustomOfficeClipSource } from "../officeAnimatedAssets.js";
 
 const CHARACTER_LABELS = Object.freeze([
   ["boss", "female", "boss-f", "女老板"],
@@ -70,7 +71,9 @@ export const OFFICE_ASSET_MANIFEST = Object.freeze({
   }),
 });
 
-export function getActorClipSource(actor = {}, clipId = "idle-standing") {
+export function getActorClipSource(actor = {}, clipId = "idle-standing", facing = "front") {
+  const customSource = getCustomOfficeClipSource(actor.animationManifest, clipId, facing);
+  if (customSource) return customSource;
   const requestedCharacterId = actor.characterId || actor.chibiId || actor.assetId;
   const characterId = OFFICE_CHARACTER_IDS.includes(requestedCharacterId)
     ? requestedCharacterId

@@ -102,6 +102,40 @@ test("resolves actor clips exclusively from the body-only character tree", () =>
   assert.equal(clip.frameCount, 4);
 });
 
+test("resolves validated custom locomotion and action fallbacks into Pixi strips", () => {
+  const customStrip = (src, frameCount = 8) => ({
+    src,
+    width: 384 * frameCount,
+    height: 384,
+    cellSize: 384,
+    columns: frameCount,
+    rows: 1,
+    frameCount,
+    fps: 9,
+    loop: true,
+    legalFacings: ["front"],
+  });
+  const actor = {
+    characterId: "employee-f-01",
+    animationManifest: {
+      clips: {
+        locomotion: {
+          front: customStrip("https://cdn.example/walk-front.webp"),
+          back: customStrip("https://cdn.example/walk-back.webp"),
+          left: customStrip("https://cdn.example/walk-left.webp"),
+          right: customStrip("https://cdn.example/walk-right.webp"),
+        },
+        idle: customStrip("https://cdn.example/idle.webp", 4),
+        action: customStrip("https://cdn.example/action.webp", 4),
+      },
+    },
+  };
+
+  assert.equal(getActorClipSource(actor, "locomotion", "left").src, "https://cdn.example/walk-left.webp");
+  assert.equal(getActorClipSource(actor, "idle-standing", "front").src, "https://cdn.example/idle.webp");
+  assert.equal(getActorClipSource(actor, "working", "right").src, "https://cdn.example/action.webp");
+});
+
 test("keeps the four employee desk instances on one furniture alias", () => {
   const desks = OFFICE_SCENES.office.objects.filter(({ templateId }) => templateId === "employee-desk");
 

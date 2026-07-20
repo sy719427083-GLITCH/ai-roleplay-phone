@@ -31,7 +31,8 @@ const applyRootTransform = (root, transform) => {
 
 const isOwnedActionStrip = (src) => (
   ["idle", "walk", "work"].includes(src)
-  || /(?:^|\/)work-office-v2\/characters\/[^/]+\/[^/]+\.webp(?:\?.*)?$/.test(src)
+  || /^https?:\/\//u.test(src)
+  || /(?:^|\/)work-office-v2\/characters\/[^/]+\/[^/]+\.webp(?:\?.*)?$/u.test(src)
 );
 
 export const isExpectedCancellation = (error) => error?.name === "AbortError";

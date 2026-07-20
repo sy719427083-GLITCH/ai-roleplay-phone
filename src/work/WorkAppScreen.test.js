@@ -373,16 +373,20 @@ test("renders the default two-person desk conversation facing each other with si
   assert.deepEqual({ clip: visitor.clip, facing: visitor.facing }, { clip: "listening", facing: "left" });
 });
 
-test("preserves focus, upload validation, and assignment persistence helpers", () => {
+test("preserves focus, animated upload validation, and assignment persistence helpers", () => {
   assert.equal(screenModule.getNextOfficeRadioIndex(0, "ArrowLeft", 4), 3);
   assert.equal(screenModule.getNextOfficeRadioIndex(3, "ArrowRight", 4), 0);
   assert.equal(screenModule.getOfficeFocusTrapIndex(0, 4, true), 3);
   assert.equal(screenModule.getOfficeFocusTrapIndex(3, 4, false), 0);
-  assert.deepEqual(screenModule.validateOfficeImageFile({ type: "image/png", size: screenModule.MAX_CUSTOM_IMAGE_BYTES }), { ok: true, reason: "" });
-  assert.deepEqual(screenModule.validateOfficeImageFile({ type: "text/plain", size: 10 }), { ok: false, reason: "invalid-type" });
+  assert.deepEqual(screenModule.validateOfficeAnimationFile({ type: "image/png", size: 20 }), {
+    ok: false, reason: "still-image", manifest: null,
+  });
+  assert.deepEqual(screenModule.validateOfficeAnimationFile({ type: "application/json", size: screenModule.MAX_CUSTOM_ANIMATION_BYTES + 1 }), {
+    ok: false, reason: "oversized", manifest: null,
+  });
 
   const current = { employee1: assignments.employee1 };
-  const next = { employee1: { ...assignments.employee1, customAssetSrc: "data:image/png;base64,new" } };
+  const next = { employee1: { ...assignments.employee1, customManifestUrl: "https://cdn.example/manifest.json" } };
   const failed = screenModule.commitOfficeAssignments({ setItem() { throw new Error("quota"); } }, current, next);
   assert.equal(failed.ok, false);
   assert.strictEqual(failed.assignments, current);
@@ -400,11 +404,32 @@ test("owns one upload reader per slot and aborts stale work", () => {
   assert.equal(second.abortCount, 1);
 });
 
+test("drops legacy still-image assignments instead of migrating image data URLs", () => {
+  assert.equal(typeof screenModule.normalizeStoredAssignments, "function");
+  const restored = screenModule.normalizeStoredAssignments({
+    employee1: {
+      chibiId: "employee-f-01",
+      customAssetSrc: "data:image/png;base64,legacy",
+      customManifestUrl: "https://cdn.example/portrait.webp",
+    },
+  }, { bossOptions: [], employeeOptions: [] });
+
+  assert.equal(restored.employee1.customManifestUrl, "");
+  assert.equal(restored.employee1.customAnimationManifest, null);
+  assert.equal("customAssetSrc" in restored.employee1, false);
+});
+
 test("keeps safe-area overlays and pointer-safe Pixi actor overlays", () => {
   assert.match(cssSource, /\.work-app-header\s*\{[^}]*position:\s*absolute[^}]*top:\s*var\(--app-safe-top-clearance\)/su);
   assert.match(cssSource, /\.work-office-surface\s*\{[^}]*position:\s*absolute[^}]*inset:\s*100px 0 0/su);
   assert.match(cssSource, /\.office-scene-overlay\s*\{[^}]*pointer-events:\s*none/su);
   assert.match(cssSource, /\.office-actor-overlay\s*\{[^}]*pointer-events:\s*auto/su);
   assert.match(sceneSource, /OfficeCanvas/u);
+  assert.match(sceneSource, /OfficeActorOverlay/u);
+  assert.match(sceneSource, /onSceneChange/u);
+  assert.match(assignmentFlowSource, /application\/json/u);
+  assert.doesNotMatch(assignmentFlowSource, /accept="image\/\*"|图片 URL|自定义图片/u);
+  assert.match(source, /fetchOfficeAnimationManifest/u);
+  assert.doesNotMatch(source, /data:image|validateOfficeImageFile/u);
   assert.doesNotMatch(sceneSource, /OFFICE_NODES|sampleOfficeRoute/u);
 });
