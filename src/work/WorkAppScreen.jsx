@@ -8,7 +8,7 @@ import {
   fetchOfficeAnimationManifest,
   MAX_CUSTOM_ANIMATION_BYTES,
   OFFICE_ANIMATION_REASON_MESSAGES,
-  parseOfficeAnimationManifestText,
+  parseOfficeAnimationUpload,
   validateOfficeAnimationBundle,
   validateOfficeAnimationFile,
 } from "./officeAnimatedAssets.js";
@@ -1140,10 +1140,31 @@ export default function WorkAppScreen({ onClose }) {
     }
 
     const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (!isMountedRef.current || !readers.isCurrent(slotId, reader)) return;
-      readers.finish(slotId, reader);
-      const result = parseOfficeAnimationManifestText(typeof reader.result === "string" ? reader.result : "");
+    const controller = new AbortController();
+    const operation = {
+      abort() {
+        controller.abort();
+        if (reader.readyState === FileReader.LOADING) reader.abort();
+      },
+    };
+    reader.addEventListener("load", async () => {
+      if (!isMountedRef.current || !readers.isCurrent(slotId, operation)) return;
+      const bytes = reader.result instanceof ArrayBuffer ? new Uint8Array(reader.result) : null;
+      let result;
+      try {
+        result = bytes
+          ? await parseOfficeAnimationUpload({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            bytes,
+          }, { signal: controller.signal })
+          : { ok: false, reason: "invalid-clip-manifest", manifest: null };
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        result = { ok: false, reason: "invalid-clip-manifest", manifest: null };
+      }
+      if (!isMountedRef.current || !readers.finish(slotId, operation)) return;
       if (!result.ok) {
         setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES[result.reason]);
         return;
@@ -1160,18 +1181,18 @@ export default function WorkAppScreen({ onClose }) {
       }
     }, { once: true });
     reader.addEventListener("error", () => {
-      if (!readers.finish(slotId, reader) || !isMountedRef.current) return;
-      setAssignmentError(slotId, "动画清单读取失败，请重试");
+      if (!readers.finish(slotId, operation) || !isMountedRef.current) return;
+      setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES["invalid-clip-manifest"]);
     }, { once: true });
     reader.addEventListener("abort", () => {
-      readers.finish(slotId, reader);
+      readers.finish(slotId, operation);
     }, { once: true });
-    readers.start(slotId, reader);
+    readers.start(slotId, operation);
     try {
-      reader.readAsText(file);
+      reader.readAsArrayBuffer(file);
     } catch {
-      if (readers.finish(slotId, reader) && isMountedRef.current) {
-        setAssignmentError(slotId, "动画清单读取失败，请重试");
+      if (readers.finish(slotId, operation) && isMountedRef.current) {
+        setAssignmentError(slotId, OFFICE_ANIMATION_REASON_MESSAGES["invalid-clip-manifest"]);
       }
     }
   }, [replaceAssignment, setAssignmentError]);

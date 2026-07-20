@@ -118,7 +118,7 @@ function AssignmentEditor({
       <div className="office-custom-asset-controls">
         <label
           className="office-upload-command"
-          title="上传动画清单"
+          title="上传动画清单或 ZIP 动画包"
           role="button"
           tabIndex={0}
           onKeyDown={(event) => {
@@ -128,11 +128,11 @@ function AssignmentEditor({
           }}
         >
           <Upload size={18} strokeWidth={1.8} aria-hidden="true" />
-          <span>上传清单</span>
+          <span>上传动画包</span>
           <input
             type="file"
-            accept="application/json,.json"
-            aria-label={`${slot.label}上传动画清单`}
+            accept="application/json,application/zip,.json,.zip"
+            aria-label={`${slot.label}上传动画清单或 ZIP 动画包`}
             aria-describedby={visibleError ? errorId : undefined}
             tabIndex={-1}
             onChange={(event) => onUpload(slot.id, event)}

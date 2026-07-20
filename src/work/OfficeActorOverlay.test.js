@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test, { after } from "node:test";
+import { strToU8, zipSync } from "fflate";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
@@ -85,7 +86,7 @@ test("builds five strict scene-aware snapshots at the renderer screen coordinate
   assert.equal(snapshots.filter(({ bubble }) => bubble).length, 1);
 });
 
-test("moves colliding label and bubble stacks upward deterministically within the scene", () => {
+test("moves colliding label and bubble stacks deterministically within the scene", () => {
   assert.equal(typeof overlayModule.layoutOfficeActorOverlays, "function");
   const snapshots = [
     { slotId: "boss", visible: true, screenX: 180, screenY: 300, bubble: "第一句" },
@@ -98,7 +99,7 @@ test("moves colliding label and bubble stacks upward deterministically within th
   assert.deepEqual(first, second);
   assert.equal(first.length, 3);
   assert.ok(first[1].offsetY < first[0].offsetY);
-  assert.ok(first[2].offsetY < first[1].offsetY);
+  assert.notEqual(first[2].offsetY, first[1].offsetY);
   for (const layout of first) {
     for (const rectangle of [layout.labelRect, layout.bubbleRect].filter(Boolean)) {
       assert.ok(rectangle.x >= 0 && rectangle.y >= 0);
@@ -106,6 +107,40 @@ test("moves colliding label and bubble stacks upward deterministically within th
       assert.ok(rectangle.y + rectangle.height <= 500);
     }
   }
+});
+
+const rectanglesIntersect = (left, right) => (
+  left.x < right.x + right.width
+  && left.x + left.width > right.x
+  && left.y < right.y + right.height
+  && left.y + left.height > right.y
+);
+
+test("keeps five top-edge bubble and label rectangles bounded and mutually disjoint", () => {
+  const snapshots = ["boss", "employee1", "employee2", "employee3", "employee4"].map((slotId, index) => ({
+    slotId,
+    visible: true,
+    screenX: 180 + index,
+    screenY: 20,
+    bubble: `${slotId}正在发言`,
+  }));
+  const first = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 500 });
+  const second = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 500 });
+  const rectangles = first.flatMap(({ labelRect, bubbleRect }) => [labelRect, bubbleRect]);
+
+  assert.deepEqual(first, second);
+  assert.equal(rectangles.length, 10);
+  for (const layout of first) {
+    assert.equal(rectanglesIntersect(layout.labelRect, layout.bubbleRect), false);
+  }
+  rectangles.forEach((rectangle, index) => {
+    assert.ok(rectangle.x >= 0 && rectangle.y >= 0);
+    assert.ok(rectangle.x + rectangle.width <= 390);
+    assert.ok(rectangle.y + rectangle.height <= 500);
+    for (const other of rectangles.slice(index + 1)) {
+      assert.equal(rectanglesIntersect(rectangle, other), false);
+    }
+  });
 });
 
 test("renders independent accessible actor overlays and an icon door control", () => {
@@ -131,7 +166,7 @@ test("renders independent accessible actor overlays and an icon door control", (
   assert.match(markup, /aria-label="进入休息区"/u);
   assert.match(markup, /title="进入休息区"/u);
   assert.match(markup, /data-lucide="door-open"/u);
-  assert.match(markup, /left:62px/u);
+  assert.match(markup, /left:96px/u);
   assert.match(markup, /--office-bubble-shift:/u);
   assert.equal((markup.match(/ hidden=""/g) || []).length, 2);
 });
@@ -173,6 +208,20 @@ const validManifest = () => ({
     action: strip("action", 4),
   },
 });
+
+const createManifestZip = (manifest = validManifest(), overrides = {}) => {
+  const entries = {
+    "bundle/manifest.json": strToU8(JSON.stringify(manifest)),
+    ...Object.fromEntries([
+      "walk-front", "walk-back", "walk-left", "walk-right", "idle", "action",
+    ].map((name, index) => [`bundle/clips/${name}.webp`, new Uint8Array([1, 2, 3, index])])),
+  };
+  for (const [path, bytes] of Object.entries(overrides)) {
+    if (bytes === undefined) delete entries[path];
+    else entries[path] = bytes;
+  }
+  return zipSync(entries, { level: 6 });
+};
 
 test("returns stable animated manifest validation results and exact rejection reasons", () => {
   assert.equal(typeof animationModule.validateOfficeAnimationBundle, "function");
@@ -230,4 +279,214 @@ test("contains hostile manifest accessors and invalid declared strip dimensions"
   assert.deepEqual(animationModule.validateOfficeAnimationBundle(invalidDimensions), {
     ok: false, reason: "invalid-clip-manifest", manifest: null,
   });
+});
+
+test("requires at least four frames for idle and action fallbacks", () => {
+  for (const clipId of ["idle", "action"]) {
+    const manifest = validManifest();
+    manifest.clips[clipId] = strip(clipId, 3);
+    assert.deepEqual(animationModule.validateOfficeAnimationBundle(manifest, {
+      baseUrl: "https://cdn.example/characters/manifest.json",
+    }), {
+      ok: false, reason: "invalid-clip-manifest", manifest: null,
+    });
+  }
+});
+
+const successfulInspection = (stripDefinition) => ({
+  width: stripDefinition.frameWidth * stripDefinition.columns,
+  height: stripDefinition.frameHeight * stripDefinition.rows,
+  hasTransparency: true,
+  nonEmptyFrames: Array.from({ length: stripDefinition.frameCount }, () => true),
+});
+
+test("inspects real dimensions, transparency, and every required frame before acceptance", async () => {
+  assert.equal(typeof animationModule.inspectOfficeAnimationManifest, "function");
+  const manifest = validManifest();
+  const inspectedSources = [];
+  const accepted = await animationModule.inspectOfficeAnimationManifest(manifest, {
+    baseUrl: "https://cdn.example/characters/manifest.json",
+    inspectImage: async (source, { strip: normalizedStrip }) => {
+      inspectedSources.push(source);
+      return {
+        width: normalizedStrip.width,
+        height: normalizedStrip.height,
+        hasTransparency: true,
+        nonEmptyFrames: Array.from({ length: normalizedStrip.frameCount }, () => true),
+      };
+    },
+  });
+  assert.equal(accepted.ok, true);
+  assert.equal(new Set(inspectedSources).size, 6);
+
+  for (const mutation of [
+    (inspection) => ({ ...inspection, width: 384 }),
+    (inspection) => ({ ...inspection, hasTransparency: false }),
+    (inspection) => ({ ...inspection, nonEmptyFrames: inspection.nonEmptyFrames.map((value, index) => index !== 2 && value) }),
+  ]) {
+    const rejected = await animationModule.inspectOfficeAnimationManifest(manifest, {
+      baseUrl: "https://cdn.example/characters/manifest.json",
+      inspectImage: async (_source, { strip: normalizedStrip }) => mutation({
+        width: normalizedStrip.width,
+        height: normalizedStrip.height,
+        hasTransparency: true,
+        nonEmptyFrames: Array.from({ length: normalizedStrip.frameCount }, () => true),
+      }),
+    });
+    assert.equal(rejected.ok, false);
+    assert.equal(["low-resolution", "invalid-clip-manifest"].includes(rejected.reason), true);
+    assert.equal(rejected.manifest, null);
+  }
+});
+
+test("uses the redirected response URL as hosted clip base and inspects the resolved clips", async () => {
+  assert.equal(typeof animationModule.fetchOfficeAnimationManifest, "function");
+  const bytes = new TextEncoder().encode(JSON.stringify(validManifest()));
+  let delivered = false;
+  const inspectedSources = [];
+  const response = {
+    ok: true,
+    url: "https://assets.example/redirected/manifest.json",
+    headers: { get: () => null },
+    body: {
+      getReader: () => ({
+        read: async () => {
+          if (delivered) return { done: true, value: undefined };
+          delivered = true;
+          return { done: false, value: bytes };
+        },
+      }),
+    },
+  };
+  const result = await animationModule.fetchOfficeAnimationManifest("https://origin.example/manifest.json", {
+    fetchImpl: async () => response,
+    inspectImage: async (source, { strip: normalizedStrip }) => {
+      inspectedSources.push(source);
+      return {
+        width: normalizedStrip.width,
+        height: normalizedStrip.height,
+        hasTransparency: true,
+        nonEmptyFrames: Array.from({ length: normalizedStrip.frameCount }, () => true),
+      };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.manifest.clips.locomotion.front.src, "https://assets.example/redirected/clips/walk-front.webp");
+  assert.equal(inspectedSources.every((source) => source.startsWith("https://assets.example/redirected/clips/")), true);
+});
+
+test("cancels a lengthless hosted manifest stream as soon as it exceeds the byte cap", async () => {
+  assert.equal(typeof animationModule.readBoundedResponseBytes, "function");
+  let readCount = 0;
+  let cancelled = false;
+  const chunks = [new Uint8Array(8), new Uint8Array(8), new Uint8Array(8)];
+  const response = {
+    headers: { get: () => null },
+    text: async () => { throw new Error("must not buffer through response.text"); },
+    body: {
+      getReader: () => ({
+        read: async () => ({ done: readCount >= chunks.length, value: chunks[readCount++] }),
+        cancel: async () => { cancelled = true; },
+      }),
+    },
+  };
+
+  const result = await animationModule.readBoundedResponseBytes(response, 10);
+  assert.deepEqual(result, { ok: false, reason: "oversized", manifest: null });
+  assert.equal(readCount, 2);
+  assert.equal(cancelled, true);
+});
+
+test("accepts JSON and ZIP files but never image files", () => {
+  assert.deepEqual(animationModule.validateOfficeAnimationFile({
+    name: "portrait.png", type: "image/png", size: 100,
+  }), { ok: false, reason: "still-image", manifest: null });
+  assert.equal(animationModule.validateOfficeAnimationFile({
+    name: "manifest.json", type: "application/json", size: 100,
+  }).ok, true);
+  assert.equal(animationModule.validateOfficeAnimationFile({
+    name: "animation.zip", type: "application/zip", size: 100,
+  }).ok, true);
+  assert.deepEqual(animationModule.validateOfficeAnimationFile({
+    name: "animation.zip",
+    type: "application/zip",
+    size: animationModule.MAX_CUSTOM_ANIMATION_ARCHIVE_BYTES + 1,
+  }), { ok: false, reason: "oversized", manifest: null });
+});
+
+test("parses a real ZIP bundle into persistent data URLs and inspects every unique clip", async () => {
+  assert.equal(typeof animationModule.parseOfficeAnimationUpload, "function");
+  const bytes = createManifestZip();
+  const inspected = [];
+  const result = await animationModule.parseOfficeAnimationUpload({
+    name: "animation.zip",
+    type: "application/zip",
+    size: bytes.byteLength,
+    bytes,
+  }, {
+    inspectImage: async (source, { strip: normalizedStrip }) => {
+      inspected.push(source);
+      return {
+        width: normalizedStrip.width,
+        height: normalizedStrip.height,
+        hasTransparency: true,
+        nonEmptyFrames: Array.from({ length: normalizedStrip.frameCount }, () => true),
+      };
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(inspected.length, 6);
+  assert.equal(inspected.every((source) => source.startsWith("data:image/webp;base64,")), true);
+  assert.equal(result.manifest.clips.locomotion.front.src.startsWith("data:image/webp;base64,"), true);
+  assert.equal(result.manifest.clips.locomotion.front.src.startsWith("blob:"), false);
+  assert.equal(animationModule.validateOfficeAnimationBundle(result.manifest).ok, true);
+});
+
+test("rejects unsafe, incomplete, duplicate-manifest, and inflated ZIP bundles", async () => {
+  const inspectImage = async (_source, { strip: normalizedStrip }) => ({
+    width: normalizedStrip.width,
+    height: normalizedStrip.height,
+    hasTransparency: true,
+    nonEmptyFrames: Array.from({ length: normalizedStrip.frameCount }, () => true),
+  });
+  const parseZip = (bytes, options = {}) => animationModule.parseOfficeAnimationUpload({
+    name: "animation.zip", type: "application/zip", size: bytes.byteLength, bytes,
+  }, { inspectImage, ...options });
+
+  const missing = createManifestZip(validManifest(), { "bundle/clips/walk-left.webp": undefined });
+  const missingResult = await parseZip(missing);
+  assert.deepEqual(missingResult, { ok: false, reason: "invalid-clip-manifest", manifest: null });
+
+  const traversalManifest = validManifest();
+  traversalManifest.clips.action.src = "../../outside.webp";
+  const traversal = createManifestZip(traversalManifest, { "outside.webp": new Uint8Array([1]) });
+  assert.deepEqual(await parseZip(traversal), {
+    ok: false, reason: "invalid-clip-manifest", manifest: null,
+  });
+
+  const duplicateManifests = createManifestZip(validManifest(), {
+    "manifest.json": strToU8(JSON.stringify(validManifest())),
+  });
+  assert.deepEqual(await parseZip(duplicateManifests), {
+    ok: false, reason: "invalid-clip-manifest", manifest: null,
+  });
+
+  const inflated = createManifestZip(validManifest(), {
+    "bundle/clips/action.webp": new Uint8Array(32 * 1024),
+  });
+  assert.deepEqual(await parseZip(inflated, { maxUncompressedBytes: 8 * 1024 }), {
+    ok: false, reason: "oversized", manifest: null,
+  });
+});
+
+test("rejects uploaded JSON with relative clips because it has no resource base", async () => {
+  const bytes = new TextEncoder().encode(JSON.stringify(validManifest()));
+  const result = await animationModule.parseOfficeAnimationUpload({
+    name: "manifest.json", type: "application/json", size: bytes.byteLength, bytes,
+  }, {
+    inspectImage: async () => { throw new Error("must not inspect unresolved clips"); },
+  });
+  assert.deepEqual(result, { ok: false, reason: "invalid-clip-manifest", manifest: null });
 });

@@ -429,7 +429,10 @@ test("keeps safe-area overlays and pointer-safe Pixi actor overlays", () => {
   assert.match(sceneSource, /onSceneChange/u);
   assert.match(assignmentFlowSource, /application\/json/u);
   assert.doesNotMatch(assignmentFlowSource, /accept="image\/\*"|图片 URL|自定义图片/u);
+  assert.match(assignmentFlowSource, /accept="application\/json,application\/zip,\.json,\.zip"/u);
   assert.match(source, /fetchOfficeAnimationManifest/u);
+  assert.match(source, /parseOfficeAnimationUpload/u);
+  assert.match(source, /readAsArrayBuffer/u);
   assert.doesNotMatch(source, /data:image|validateOfficeImageFile/u);
   assert.doesNotMatch(sceneSource, /OFFICE_NODES|sampleOfficeRoute/u);
 });

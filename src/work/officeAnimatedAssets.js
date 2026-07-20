@@ -1,20 +1,40 @@
+import { strFromU8, unzipSync } from "fflate";
+
 export const MAX_CUSTOM_ANIMATION_BYTES = 2 * 1024 * 1024;
+export const MAX_CUSTOM_ANIMATION_ARCHIVE_BYTES = 8 * 1024 * 1024;
+export const MAX_CUSTOM_ANIMATION_UNCOMPRESSED_BYTES = 12 * 1024 * 1024;
+export const MAX_CUSTOM_ANIMATION_ENTRY_BYTES = 6 * 1024 * 1024;
 export const MIN_CUSTOM_ANIMATION_FRAME_SIZE = 384;
 
 const DIRECTIONS = Object.freeze(["front", "back", "left", "right"]);
+const MAX_CLIP_FRAMES = 120;
+const MAX_NAMED_ACTIONS = 32;
+const MAX_DECODED_PIXELS = 64 * 1024 * 1024;
 const STILL_IMAGE_SOURCE = /(?:^data:image\/|\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$)/iu;
+const EMBEDDED_IMAGE_SOURCE = /^data:image\/(?:png|webp);base64,[a-z0-9+/=]+$/iu;
+const ZIP_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
 const isRecord = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const cleanText = (value) => (typeof value === "string" ? value.trim() : "");
 const failure = (reason) => ({ ok: false, reason, manifest: null });
+const success = (manifest) => ({ ok: true, reason: "", manifest });
 
 const byteLength = (value) => {
   if (typeof TextEncoder === "function") return new TextEncoder().encode(value).byteLength;
   return value.length;
 };
 
-const resolveClipUrl = (source, baseUrl) => {
+const toBytes = (value) => {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  return null;
+};
+
+const resolveClipUrl = (source, baseUrl, allowDataUrls) => {
   const value = cleanText(source);
-  if (!value || STILL_IMAGE_SOURCE.test(value) && value.startsWith("data:")) return "";
+  if (!value) return "";
+  if (allowDataUrls && EMBEDDED_IMAGE_SOURCE.test(value)) return value;
+  if (value.startsWith("data:")) return "";
   try {
     const resolved = baseUrl ? new URL(value, baseUrl) : new URL(value);
     return ["http:", "https:"].includes(resolved.protocol) ? resolved.href : "";
@@ -23,7 +43,12 @@ const resolveClipUrl = (source, baseUrl) => {
   }
 };
 
-const normalizeStrip = (value, { baseUrl, minimumFrames = 1, legalFacings = DIRECTIONS } = {}) => {
+const normalizeStrip = (value, {
+  allowDataUrls = false,
+  baseUrl,
+  minimumFrames = 4,
+  legalFacings = DIRECTIONS,
+} = {}) => {
   if (!isRecord(value) || value.alpha !== true) return { reason: "invalid-clip-manifest" };
   const frameWidth = Number(value.frameWidth ?? value.cellSize);
   const frameHeight = Number(value.frameHeight ?? value.cellSize);
@@ -31,20 +56,21 @@ const normalizeStrip = (value, { baseUrl, minimumFrames = 1, legalFacings = DIRE
   const columns = Number(value.columns);
   const rows = Number(value.rows ?? 1);
   const fps = Number(value.fps);
-  const src = resolveClipUrl(value.src, baseUrl);
+  const src = resolveClipUrl(value.src, baseUrl, allowDataUrls);
   if (!Number.isFinite(frameWidth) || !Number.isFinite(frameHeight)
     || frameWidth < MIN_CUSTOM_ANIMATION_FRAME_SIZE || frameHeight < MIN_CUSTOM_ANIMATION_FRAME_SIZE) {
     return { reason: "low-resolution" };
   }
   if (!src || frameWidth !== frameHeight || !Number.isInteger(frameCount) || frameCount < minimumFrames
-    || !Number.isInteger(columns) || columns < frameCount || !Number.isInteger(rows) || rows < 1
-    || !Number.isFinite(fps) || fps <= 0 || fps > 30) {
+    || frameCount > MAX_CLIP_FRAMES
+    || !Number.isInteger(columns) || columns < 1 || !Number.isInteger(rows) || rows < 1
+    || columns * rows < frameCount || !Number.isFinite(fps) || fps <= 0 || fps > 30) {
     return { reason: "invalid-clip-manifest" };
   }
   const declaredWidth = Number(value.width ?? frameWidth * columns);
   const declaredHeight = Number(value.height ?? frameHeight * rows);
   if (!Number.isFinite(declaredWidth) || !Number.isFinite(declaredHeight)
-    || declaredWidth < frameWidth * columns || declaredHeight < frameHeight * rows) {
+    || declaredWidth !== frameWidth * columns || declaredHeight !== frameHeight * rows) {
     return { reason: "invalid-clip-manifest" };
   }
   return {
@@ -69,8 +95,10 @@ const normalizeStrip = (value, { baseUrl, minimumFrames = 1, legalFacings = DIRE
 };
 
 function validateOfficeAnimationBundleUnsafe(value, {
+  allowDataUrls = value?.embedded === true,
   baseUrl = "",
   byteLength: declaredByteLength = 0,
+  embedded = value?.embedded === true,
   maxBytes = MAX_CUSTOM_ANIMATION_BYTES,
 } = {}) {
   if (Number(declaredByteLength) > maxBytes) return failure("oversized");
@@ -85,46 +113,48 @@ function validateOfficeAnimationBundleUnsafe(value, {
     return failure("invalid-clip-manifest");
   }
 
+  const normalizeOptions = { allowDataUrls, baseUrl };
   const locomotion = {};
   for (const direction of DIRECTIONS) {
     const normalized = normalizeStrip(value.clips.locomotion[direction], {
-      baseUrl,
+      ...normalizeOptions,
       minimumFrames: 8,
       legalFacings: [direction],
     });
     if (normalized.reason) return failure(normalized.reason);
     locomotion[direction] = normalized.strip;
   }
-  const idle = normalizeStrip(value.clips.idle, { baseUrl });
+  const idle = normalizeStrip(value.clips.idle, normalizeOptions);
   if (idle.reason) return failure(idle.reason);
-  const action = normalizeStrip(value.clips.action, { baseUrl });
+  const action = normalizeStrip(value.clips.action, normalizeOptions);
   if (action.reason) return failure(action.reason);
 
   const actions = {};
   if (value.clips.actions !== undefined) {
     if (!isRecord(value.clips.actions)) return failure("invalid-clip-manifest");
-    for (const [clipId, strip] of Object.entries(value.clips.actions)) {
-      if (!cleanText(clipId)) return failure("invalid-clip-manifest");
-      const normalized = normalizeStrip(strip, { baseUrl });
+    const actionEntries = Object.entries(value.clips.actions);
+    if (actionEntries.length > MAX_NAMED_ACTIONS) return failure("invalid-clip-manifest");
+    for (const [clipId, strip] of actionEntries) {
+      if (!cleanText(clipId) || ["__proto__", "constructor", "prototype"].includes(clipId)) {
+        return failure("invalid-clip-manifest");
+      }
+      const normalized = normalizeStrip(strip, normalizeOptions);
       if (normalized.reason) return failure(normalized.reason);
       actions[clipId] = normalized.strip;
     }
   }
 
-  return {
-    ok: true,
-    reason: "",
-    manifest: Object.freeze({
-      version: 1,
-      alpha: true,
-      clips: Object.freeze({
-        locomotion: Object.freeze(locomotion),
-        idle: idle.strip,
-        action: action.strip,
-        actions: Object.freeze(actions),
-      }),
+  return success(Object.freeze({
+    version: 1,
+    alpha: true,
+    ...(embedded ? { embedded: true } : {}),
+    clips: Object.freeze({
+      locomotion: Object.freeze(locomotion),
+      idle: idle.strip,
+      action: action.strip,
+      actions: Object.freeze(actions),
     }),
-  };
+  }));
 }
 
 export function validateOfficeAnimationBundle(value, options = {}) {
@@ -135,17 +165,24 @@ export function validateOfficeAnimationBundle(value, options = {}) {
   }
 }
 
+const isZipFile = (file) => {
+  const name = cleanText(file?.name).toLowerCase();
+  const type = cleanText(file?.type).toLowerCase();
+  return name.endsWith(".zip") || ZIP_TYPES.has(type);
+};
+
 export function validateOfficeAnimationFile(file) {
   try {
     if (!file || typeof file !== "object") return failure("invalid-clip-manifest");
-    if (cleanText(file.type).startsWith("image/")) return failure("still-image");
-    if (!Number.isFinite(file.size) || file.size < 0 || file.size > MAX_CUSTOM_ANIMATION_BYTES) {
-      return failure("oversized");
-    }
+    if (cleanText(file.type).toLowerCase().startsWith("image/")) return failure("still-image");
     const name = cleanText(file.name).toLowerCase();
     const type = cleanText(file.type).toLowerCase();
+    const zip = isZipFile(file);
+    const maxBytes = zip ? MAX_CUSTOM_ANIMATION_ARCHIVE_BYTES : MAX_CUSTOM_ANIMATION_BYTES;
+    if (!Number.isFinite(file.size) || file.size < 0 || file.size > maxBytes) return failure("oversized");
+    if (zip) return success(null);
     if (type !== "application/json" && !name.endsWith(".json")) return failure("invalid-clip-manifest");
-    return { ok: true, reason: "", manifest: null };
+    return success(null);
   } catch {
     return failure("invalid-clip-manifest");
   }
@@ -162,8 +199,315 @@ export function parseOfficeAnimationManifestText(text, options = {}) {
   }
 }
 
+export async function readBoundedResponseBytes(response, maxBytes = MAX_CUSTOM_ANIMATION_BYTES) {
+  try {
+    const contentLengthValue = cleanText(response?.headers?.get?.("content-length"));
+    if (contentLengthValue) {
+      const contentLength = Number(contentLengthValue);
+      if (!Number.isFinite(contentLength) || contentLength < 0) return failure("invalid-clip-manifest");
+      if (contentLength > maxBytes) return failure("oversized");
+    }
+    const reader = response?.body?.getReader?.();
+    if (!reader) {
+      const bytes = toBytes(await response.arrayBuffer());
+      if (!bytes) return failure("invalid-clip-manifest");
+      if (bytes.byteLength > maxBytes) return failure("oversized");
+      return { ok: true, reason: "", manifest: null, bytes };
+    }
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = toBytes(value);
+      if (!chunk) {
+        await reader.cancel?.();
+        return failure("invalid-clip-manifest");
+      }
+      total += chunk.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel?.();
+        return failure("oversized");
+      }
+      chunks.push(chunk);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { ok: true, reason: "", manifest: null, bytes };
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    return failure("invalid-clip-manifest");
+  }
+}
+
+const createInspectionCanvas = (width, height) => {
+  if (typeof OffscreenCanvas === "function") return new OffscreenCanvas(width, height);
+  if (globalThis.document?.createElement) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  return null;
+};
+
+export async function inspectOfficeAnimationImage(source, {
+  fetchImpl = globalThis.fetch,
+  signal,
+  strip,
+} = {}) {
+  if (typeof fetchImpl !== "function" || typeof globalThis.createImageBitmap !== "function" || !strip) {
+    throw new Error("Animation image inspection is unavailable");
+  }
+  const response = await fetchImpl(source, { method: "GET", signal });
+  if (!response?.ok) throw new Error("Animation image request failed");
+  const contentType = cleanText(response.headers?.get?.("content-type")).toLowerCase();
+  if (contentType && !contentType.startsWith("image/")) throw new Error("Animation clip is not an image");
+  const loaded = await readBoundedResponseBytes(response, MAX_CUSTOM_ANIMATION_ENTRY_BYTES);
+  if (!loaded.ok) throw Object.assign(new Error(loaded.reason), { reason: loaded.reason });
+  const bitmap = await createImageBitmap(new Blob([loaded.bytes], { type: contentType || "image/webp" }));
+  try {
+    if (bitmap.width * bitmap.height > MAX_DECODED_PIXELS) {
+      throw Object.assign(new Error("Decoded animation is too large"), { reason: "oversized" });
+    }
+    if (bitmap.width !== strip.width || bitmap.height !== strip.height) {
+      return {
+        width: bitmap.width,
+        height: bitmap.height,
+        hasTransparency: false,
+        nonEmptyFrames: [],
+      };
+    }
+    const canvas = createInspectionCanvas(bitmap.width, bitmap.height);
+    const context = canvas?.getContext?.("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Animation pixel inspection is unavailable");
+    context.clearRect(0, 0, bitmap.width, bitmap.height);
+    context.drawImage(bitmap, 0, 0);
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    const nonEmptyFrames = Array.from({ length: strip.frameCount }, () => false);
+    let hasTransparency = false;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const alpha = pixels[index + 3];
+      if (alpha < 255) hasTransparency = true;
+      if (alpha === 0) continue;
+      const pixelIndex = index / 4;
+      const x = pixelIndex % bitmap.width;
+      const y = Math.floor(pixelIndex / bitmap.width);
+      const frameX = Math.floor(x / strip.cellSize);
+      const frameY = Math.floor(y / strip.cellSize);
+      const frameIndex = (frameY * strip.columns) + frameX;
+      if (frameIndex < strip.frameCount) nonEmptyFrames[frameIndex] = true;
+    }
+    return { width: bitmap.width, height: bitmap.height, hasTransparency, nonEmptyFrames };
+  } finally {
+    bitmap.close?.();
+  }
+}
+
+const requiredStrips = (manifest) => [
+  ...DIRECTIONS.map((direction) => manifest.clips.locomotion[direction]),
+  manifest.clips.idle,
+  manifest.clips.action,
+  ...Object.values(manifest.clips.actions || {}),
+];
+
+const validateInspection = (inspection, strip) => {
+  if (!isRecord(inspection)) return "invalid-clip-manifest";
+  const width = Number(inspection.width);
+  const height = Number(inspection.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return "invalid-clip-manifest";
+  if ((width / strip.columns) < MIN_CUSTOM_ANIMATION_FRAME_SIZE
+    || (height / strip.rows) < MIN_CUSTOM_ANIMATION_FRAME_SIZE) return "low-resolution";
+  if (width !== strip.width || height !== strip.height || inspection.hasTransparency !== true) {
+    return "invalid-clip-manifest";
+  }
+  if (!Array.isArray(inspection.nonEmptyFrames)
+    || inspection.nonEmptyFrames.length < strip.frameCount
+    || inspection.nonEmptyFrames.slice(0, strip.frameCount).some((value) => value !== true)) {
+    return "invalid-clip-manifest";
+  }
+  return "";
+};
+
+export async function inspectOfficeAnimationManifest(value, {
+  allowDataUrls = false,
+  baseUrl = "",
+  embedded = false,
+  fetchImpl = globalThis.fetch,
+  inspectImage = inspectOfficeAnimationImage,
+  signal,
+} = {}) {
+  const normalized = validateOfficeAnimationBundle(value, { allowDataUrls, baseUrl, embedded });
+  if (!normalized.ok) return normalized;
+  if (typeof inspectImage !== "function") return failure("invalid-clip-manifest");
+  const inspections = new Map();
+  try {
+    for (const strip of requiredStrips(normalized.manifest)) {
+      signal?.throwIfAborted?.();
+      let inspection = inspections.get(strip.src);
+      if (!inspection) {
+        inspection = await inspectImage(strip.src, { fetchImpl, signal, strip });
+        inspections.set(strip.src, inspection);
+      }
+      const reason = validateInspection(inspection, strip);
+      if (reason) return failure(reason);
+    }
+    return normalized;
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    if (error?.reason === "oversized") return failure("oversized");
+    return failure("invalid-clip-manifest");
+  }
+}
+
+const normalizeArchivePath = (value) => {
+  const path = cleanText(value);
+  if (!path || path.includes("\\") || path.includes("\0") || path.startsWith("/") || /^[a-z]:/iu.test(path)) return "";
+  const parts = path.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) return "";
+  return parts.join("/");
+};
+
+const archiveMimeType = (path) => {
+  if (/\.png$/iu.test(path)) return "image/png";
+  if (/\.webp$/iu.test(path)) return "image/webp";
+  return "";
+};
+
+const bytesToBase64 = (bytes) => {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  if (typeof btoa !== "function") throw new Error("Base64 encoding is unavailable");
+  return btoa(binary);
+};
+
+const getRawStrips = (manifest) => {
+  if (!isRecord(manifest?.clips?.locomotion)) return [];
+  return [
+    ...DIRECTIONS.map((direction) => manifest.clips.locomotion[direction]),
+    manifest.clips.idle,
+    manifest.clips.action,
+    ...Object.values(isRecord(manifest.clips.actions) ? manifest.clips.actions : {}),
+  ];
+};
+
+const embedArchiveSources = (manifest, manifestPath, entries) => {
+  const rawStrips = getRawStrips(manifest);
+  if (rawStrips.length < 6 || rawStrips.some((strip) => !isRecord(strip))) return failure("invalid-clip-manifest");
+  const manifestDirectory = manifestPath.includes("/") ? manifestPath.slice(0, manifestPath.lastIndexOf("/")) : "";
+  const resolvedSources = new Map();
+  for (const strip of rawStrips) {
+    const source = cleanText(strip.src);
+    if (!source || /^[a-z][a-z0-9+.-]*:/iu.test(source) || source.includes("?") || source.includes("#")) {
+      return failure("invalid-clip-manifest");
+    }
+    const normalizedSource = normalizeArchivePath(source);
+    if (!normalizedSource) return failure("invalid-clip-manifest");
+    const path = normalizeArchivePath(manifestDirectory ? `${manifestDirectory}/${normalizedSource}` : normalizedSource);
+    const bytes = entries[path];
+    const mimeType = archiveMimeType(path);
+    if (!path || !bytes || !mimeType) return failure("invalid-clip-manifest");
+    if (!resolvedSources.has(source)) {
+      resolvedSources.set(source, `data:${mimeType};base64,${bytesToBase64(bytes)}`);
+    }
+    strip.src = resolvedSources.get(source);
+  }
+  manifest.embedded = true;
+  return success(manifest);
+};
+
+const extractAnimationArchive = (bytes, {
+  maxUncompressedBytes = MAX_CUSTOM_ANIMATION_UNCOMPRESSED_BYTES,
+} = {}) => {
+  let rejectionReason = "";
+  let totalUncompressed = 0;
+  const names = new Set();
+  let entries;
+  try {
+    entries = unzipSync(bytes, {
+      filter: (file) => {
+        const directory = file.name.endsWith("/");
+        const path = normalizeArchivePath(directory ? file.name.slice(0, -1) : file.name);
+        const canonicalPath = `${path.toLowerCase()}${directory ? "/" : ""}`;
+        if (!path || names.has(canonicalPath) || ![0, 8].includes(file.compression)) {
+          rejectionReason ||= "invalid-clip-manifest";
+          return false;
+        }
+        names.add(canonicalPath);
+        if (!Number.isFinite(file.size) || !Number.isFinite(file.originalSize)
+          || file.size < 0 || file.originalSize < 0) {
+          rejectionReason ||= "invalid-clip-manifest";
+          return false;
+        }
+        totalUncompressed += file.originalSize;
+        if (file.size > MAX_CUSTOM_ANIMATION_ENTRY_BYTES
+          || file.originalSize > MAX_CUSTOM_ANIMATION_ENTRY_BYTES
+          || totalUncompressed > maxUncompressedBytes) {
+          rejectionReason = "oversized";
+          return false;
+        }
+        return !rejectionReason && !directory;
+      },
+    });
+  } catch {
+    return failure(rejectionReason || "invalid-clip-manifest");
+  }
+  if (rejectionReason) return failure(rejectionReason);
+  const normalizedEntries = Object.fromEntries(Object.entries(entries).map(([path, value]) => [normalizeArchivePath(path), value]));
+  const manifests = Object.keys(normalizedEntries).filter((path) => /(?:^|\/)manifest\.json$/iu.test(path));
+  if (manifests.length !== 1) return failure("invalid-clip-manifest");
+  const manifestBytes = normalizedEntries[manifests[0]];
+  if (!manifestBytes || manifestBytes.byteLength > MAX_CUSTOM_ANIMATION_BYTES) return failure("oversized");
+  let manifest;
+  try {
+    manifest = JSON.parse(strFromU8(manifestBytes));
+  } catch {
+    return failure("invalid-clip-manifest");
+  }
+  return embedArchiveSources(manifest, manifests[0], normalizedEntries);
+};
+
+export async function parseOfficeAnimationUpload(file, {
+  inspectImage = inspectOfficeAnimationImage,
+  maxUncompressedBytes = MAX_CUSTOM_ANIMATION_UNCOMPRESSED_BYTES,
+  signal,
+} = {}) {
+  signal?.throwIfAborted?.();
+  const fileValidation = validateOfficeAnimationFile(file);
+  if (!fileValidation.ok) return fileValidation;
+  const bytes = toBytes(file.bytes);
+  if (!bytes || bytes.byteLength !== file.size) return failure("invalid-clip-manifest");
+  if (isZipFile(file)) {
+    if (bytes.byteLength > MAX_CUSTOM_ANIMATION_ARCHIVE_BYTES) return failure("oversized");
+    const extracted = extractAnimationArchive(bytes, { maxUncompressedBytes });
+    if (!extracted.ok) return extracted;
+    signal?.throwIfAborted?.();
+    return inspectOfficeAnimationManifest(extracted.manifest, {
+      allowDataUrls: true,
+      embedded: true,
+      inspectImage,
+      signal,
+    });
+  }
+  if (bytes.byteLength > MAX_CUSTOM_ANIMATION_BYTES) return failure("oversized");
+  let manifest;
+  try {
+    manifest = JSON.parse(strFromU8(bytes));
+  } catch {
+    return failure("invalid-clip-manifest");
+  }
+  return inspectOfficeAnimationManifest(manifest, { inspectImage, signal });
+}
+
 export async function fetchOfficeAnimationManifest(source, {
   fetchImpl = globalThis.fetch,
+  inspectImage = inspectOfficeAnimationImage,
   signal,
   maxBytes = MAX_CUSTOM_ANIMATION_BYTES,
 } = {}) {
@@ -187,10 +531,21 @@ export async function fetchOfficeAnimationManifest(source, {
     if (!response?.ok) return failure("invalid-clip-manifest");
     const contentType = cleanText(response.headers?.get?.("content-type")).toLowerCase();
     if (contentType.startsWith("image/")) return failure("still-image");
-    const contentLength = Number(response.headers?.get?.("content-length"));
-    if (Number.isFinite(contentLength) && contentLength > maxBytes) return failure("oversized");
-    const text = await response.text();
-    return parseOfficeAnimationManifestText(text, { baseUrl: parsedUrl.href, maxBytes });
+    const loaded = await readBoundedResponseBytes(response, maxBytes);
+    if (!loaded.ok) return loaded;
+    let manifest;
+    try {
+      manifest = JSON.parse(strFromU8(loaded.bytes));
+    } catch {
+      return failure("invalid-clip-manifest");
+    }
+    const responseUrl = cleanText(response.url) || parsedUrl.href;
+    return inspectOfficeAnimationManifest(manifest, {
+      baseUrl: responseUrl,
+      fetchImpl,
+      inspectImage,
+      signal,
+    });
   } catch (error) {
     if (error?.name === "AbortError") throw error;
     return failure("invalid-clip-manifest");
@@ -213,8 +568,8 @@ export function getCustomOfficeClipSource(manifest, clipId, facing = "front") {
 }
 
 export const OFFICE_ANIMATION_REASON_MESSAGES = Object.freeze({
-  "still-image": "不支持静态图片，请提供动画清单",
+  "still-image": "不支持静态图片，请提供 JSON 动画清单或 ZIP 动画包",
   "low-resolution": "动画每帧至少需要 384×384 像素",
-  "invalid-clip-manifest": "动画清单不完整，请检查四向走路、透明通道与待机/动作片段",
-  oversized: "动画清单不能超过 2 MB",
+  "invalid-clip-manifest": "动画清单或资源不完整，请检查四向走路、透明像素与待机/动作片段",
+  oversized: "动画文件过大，请缩小清单或动画包后重试",
 });

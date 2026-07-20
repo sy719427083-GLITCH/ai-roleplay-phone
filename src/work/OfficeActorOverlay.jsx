@@ -54,17 +54,42 @@ const intersects = (left, right) => (
   && left.y + left.height > right.y
 );
 
-const makeRects = (snapshot, offsetY, bounds) => {
-  const labelX = clamp(snapshot.screenX - (LABEL_WIDTH / 2), EDGE_GUTTER, bounds.width - LABEL_WIDTH - EDGE_GUTTER);
-  const labelY = clamp(snapshot.screenY - LABEL_HEIGHT - 12 + offsetY, EDGE_GUTTER, bounds.height - LABEL_HEIGHT - EDGE_GUTTER);
-  const labelRect = { x: round(labelX), y: round(labelY), width: LABEL_WIDTH, height: LABEL_HEIGHT };
-  if (!snapshot.bubble) return { labelRect, bubbleRect: null };
-  const bubbleX = clamp(snapshot.screenX - (BUBBLE_WIDTH / 2), EDGE_GUTTER, bounds.width - BUBBLE_WIDTH - EDGE_GUTTER);
-  const bubbleY = clamp(labelY - BUBBLE_HEIGHT - STACK_GAP, EDGE_GUTTER, bounds.height - BUBBLE_HEIGHT - EDGE_GUTTER);
+const makeRects = (snapshot, stackX, stackY) => {
+  if (!snapshot.bubble) {
+    return {
+      labelRect: { x: round(stackX), y: round(stackY), width: LABEL_WIDTH, height: LABEL_HEIGHT },
+      bubbleRect: null,
+    };
+  }
   return {
-    labelRect,
-    bubbleRect: { x: round(bubbleX), y: round(bubbleY), width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT },
+    labelRect: {
+      x: round(stackX + ((BUBBLE_WIDTH - LABEL_WIDTH) / 2)),
+      y: round(stackY + BUBBLE_HEIGHT + STACK_GAP),
+      width: LABEL_WIDTH,
+      height: LABEL_HEIGHT,
+    },
+    bubbleRect: { x: round(stackX), y: round(stackY), width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT },
   };
+};
+
+const verticalCandidates = (preferredY, maximumY) => {
+  const candidates = [clamp(preferredY, EDGE_GUTTER, maximumY)];
+  const searchDistance = maximumY + Math.abs(preferredY) + COLLISION_STEP;
+  for (let distance = COLLISION_STEP; distance <= searchDistance; distance += COLLISION_STEP) {
+    candidates.push(clamp(preferredY - distance, EDGE_GUTTER, maximumY));
+    candidates.push(clamp(preferredY + distance, EDGE_GUTTER, maximumY));
+  }
+  return [...new Set(candidates.map(round))];
+};
+
+const horizontalCandidates = (preferredX, maximumX) => {
+  const clamped = clamp(preferredX, EDGE_GUTTER, maximumX);
+  const candidates = [clamped];
+  for (let distance = COLLISION_STEP; distance <= maximumX + COLLISION_STEP; distance += COLLISION_STEP) {
+    candidates.push(clamp(preferredX - distance, EDGE_GUTTER, maximumX));
+    candidates.push(clamp(preferredX + distance, EDGE_GUTTER, maximumX));
+  }
+  return [...new Set(candidates.map(round))];
 };
 
 export function layoutOfficeActorOverlays(snapshots = [], {
@@ -77,24 +102,40 @@ export function layoutOfficeActorOverlays(snapshots = [], {
   };
   const occupied = [];
   return snapshots.filter((snapshot) => snapshot?.visible !== false).map((snapshot) => {
-    let offsetY = 0;
-    let rectangles = makeRects(snapshot, offsetY, bounds);
-    while (occupied.some((rectangle) => (
-      intersects(rectangles.labelRect, rectangle)
-      || (rectangles.bubbleRect && intersects(rectangles.bubbleRect, rectangle))
-    ))) {
-      const nextOffset = offsetY - COLLISION_STEP;
-      const nextRectangles = makeRects(snapshot, nextOffset, bounds);
-      if (nextRectangles.labelRect.y === rectangles.labelRect.y
-        && nextRectangles.bubbleRect?.y === rectangles.bubbleRect?.y) break;
-      offsetY = nextOffset;
-      rectangles = nextRectangles;
+    const stackWidth = snapshot.bubble ? BUBBLE_WIDTH : LABEL_WIDTH;
+    const stackHeight = snapshot.bubble
+      ? BUBBLE_HEIGHT + STACK_GAP + LABEL_HEIGHT
+      : LABEL_HEIGHT;
+    const maximumX = bounds.width - stackWidth - EDGE_GUTTER;
+    const maximumY = bounds.height - stackHeight - EDGE_GUTTER;
+    const preferredX = snapshot.screenX - (stackWidth / 2);
+    const preferredY = snapshot.screenY - stackHeight - 12;
+    const xCandidates = horizontalCandidates(preferredX, maximumX);
+    const yCandidates = verticalCandidates(preferredY, maximumY);
+    let rectangles = null;
+
+    for (const x of xCandidates) {
+      for (const y of yCandidates) {
+        const candidate = makeRects(snapshot, x, y);
+        const candidateRects = [candidate.labelRect, candidate.bubbleRect].filter(Boolean);
+        if (!candidateRects.some((rectangle) => occupied.some((placed) => intersects(rectangle, placed)))) {
+          rectangles = candidate;
+          break;
+        }
+      }
+      if (rectangles) break;
     }
+    rectangles ||= makeRects(snapshot, xCandidates[0], yCandidates[0]);
     occupied.push(rectangles.labelRect);
     if (rectangles.bubbleRect) occupied.push(rectangles.bubbleRect);
+    const baselineLabelY = clamp(
+      snapshot.screenY - LABEL_HEIGHT - 12,
+      EDGE_GUTTER,
+      bounds.height - LABEL_HEIGHT - EDGE_GUTTER,
+    );
     return {
       slotId: snapshot.slotId,
-      offsetY,
+      offsetY: round(rectangles.labelRect.y - baselineLabelY),
       labelRect: rectangles.labelRect,
       bubbleRect: rectangles.bubbleRect,
     };
@@ -152,7 +193,7 @@ export function OfficeActorOverlay({
             hidden={!snapshot.visible}
             style={{
               left: `${labelCenterX}px`,
-              top: `${snapshot.screenY + (layout?.offsetY || 0)}px`,
+              top: `${layout?.bubbleRect?.y ?? layout?.labelRect?.y ?? snapshot.screenY}px`,
               "--office-bubble-shift": `${bubbleCenterX - labelCenterX}px`,
             }}
             aria-label={`${snapshot.name}，${snapshot.status}`}
