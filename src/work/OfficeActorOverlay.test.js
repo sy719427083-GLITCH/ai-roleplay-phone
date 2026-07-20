@@ -370,6 +370,9 @@ const meaningfulInspection = (normalizedStrip, { distinctFrames = normalizedStri
     fingerprint: Array.from({ length: 128 }, (_value, sample) => (
       ((index % distinctFrames) * 41 + sample * 13) % 256
     )),
+    localMotionFingerprint: Array.from({ length: 48 * 48 }, (_value, sample) => (
+      ((index % distinctFrames) * 53 + sample * 7) % 256
+    )),
   })),
 });
 
@@ -460,7 +463,64 @@ test("computes robust per-frame coverage and fingerprints from decoded pixels", 
   assert.equal(analysis.frames.length, 8);
   assert.ok(analysis.transparentCoverage > 0.3);
   assert.equal(new Set(analysis.frames.map(({ fingerprint }) => fingerprint.join(","))).size, 1);
+  assert.equal(new Set(analysis.frames.map(({ localMotionFingerprint }) => (
+    Array.from(localMotionFingerprint).join(",")
+  ))).size, 1);
   assert.ok(analysis.frames.every(({ opaqueCoverage }) => opaqueCoverage > 0.3));
+});
+
+const create384LocomotionInspection = (variation) => {
+  const geometry = {
+    width: 384 * 8,
+    height: 384,
+    cellSize: 384,
+    columns: 8,
+    rows: 1,
+    frameCount: 8,
+  };
+  const pixels = new Uint8ClampedArray(geometry.width * geometry.height * 4);
+  const fill = (frame, x, y, width, height) => {
+    for (let localY = y; localY < y + height; localY += 1) {
+      for (let localX = x; localX < x + width; localX += 1) {
+        const pixel = ((localY * geometry.width) + (frame * geometry.cellSize) + localX) * 4;
+        pixels[pixel] = 92;
+        pixels[pixel + 1] = 118;
+        pixels[pixel + 2] = 146;
+        pixels[pixel + 3] = 255;
+      }
+    }
+  };
+  const armOffsets = [0, 2, 5, 7, 9, 11, 14, 16];
+
+  for (let frame = 0; frame < geometry.frameCount; frame += 1) {
+    fill(frame, 144, 104, 96, 208);
+    fill(frame, 136, 152 + (variation === "subtle-arm" ? armOffsets[frame] : 0), 8, 64);
+    if (variation === "single-pixel") fill(frame, 20 + frame, 20, 1, 1);
+  }
+  return animationModule.analyzeOfficeAnimationPixels(pixels, geometry);
+};
+
+const inspectManifestWithLocomotion = (locomotionInspection) => (
+  animationModule.inspectOfficeAnimationManifest(validManifest(), {
+    baseUrl: "https://cdn.example/characters/manifest.json",
+    inspectImage: async (_source, { strip: normalizedStrip }) => (
+      normalizedStrip.family === "locomotion"
+        ? locomotionInspection
+        : meaningfulInspection(normalizedStrip)
+    ),
+  })
+);
+
+test("accepts an eight-pixel arm moving smoothly sixteen pixels across 384px frames", async () => {
+  const result = await inspectManifestWithLocomotion(create384LocomotionInspection("subtle-arm"));
+  assert.equal(result.ok, true);
+});
+
+test("still rejects copied 384px frames and per-frame single-pixel changes", async () => {
+  for (const variation of ["copied", "single-pixel"]) {
+    const result = await inspectManifestWithLocomotion(create384LocomotionInspection(variation));
+    assert.deepEqual(result, { ok: false, reason: "invalid-clip-manifest", manifest: null });
+  }
 });
 
 test("keys image inspection by source and complete strip geometry", async () => {

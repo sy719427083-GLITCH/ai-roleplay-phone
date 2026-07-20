@@ -11,9 +11,11 @@ const MAX_CLIP_FRAMES = 120;
 const MAX_NAMED_ACTIONS = 32;
 const MAX_DECODED_PIXELS = 64 * 1024 * 1024;
 const FINGERPRINT_GRID_SIZE = 8;
+const LOCAL_MOTION_GRID_SIZE = 48;
 const MIN_OPAQUE_FRAME_COVERAGE = 0.02;
 const MIN_TRANSPARENT_CLIP_COVERAGE = 0.05;
 const MIN_SIGNIFICANT_FRAME_DISTANCE = 0.01;
+const MIN_LOCAL_MOTION_COVERAGE = 0.0001;
 const STILL_IMAGE_SOURCE = /(?:^data:image\/|\.(?:avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$)/iu;
 const EMBEDDED_IMAGE_SOURCE = /^data:image\/(?:png|webp);base64,[a-z0-9+/=]+$/iu;
 const ZIP_TYPES = new Set(["application/zip", "application/x-zip-compressed"]);
@@ -283,6 +285,9 @@ export function analyzeOfficeAnimationPixels(pixels, strip) {
     const alphaSums = new Float64Array(blockCount);
     const lumaSums = new Float64Array(blockCount);
     const sampleCounts = new Uint32Array(blockCount);
+    const localBlockCount = LOCAL_MOTION_GRID_SIZE * LOCAL_MOTION_GRID_SIZE;
+    const localAlphaSums = new Float64Array(localBlockCount);
+    const localSampleCounts = new Uint32Array(localBlockCount);
     let opaquePixels = 0;
     let transparentPixels = 0;
     const framePixels = cellSize * cellSize;
@@ -305,6 +310,17 @@ export function analyzeOfficeAnimationPixels(pixels, strip) {
         alphaSums[block] += alpha;
         lumaSums[block] += (luma * alpha) / 255;
         sampleCounts[block] += 1;
+        const localBlockX = Math.min(
+          LOCAL_MOTION_GRID_SIZE - 1,
+          Math.floor((localX * LOCAL_MOTION_GRID_SIZE) / cellSize),
+        );
+        const localBlockY = Math.min(
+          LOCAL_MOTION_GRID_SIZE - 1,
+          Math.floor((localY * LOCAL_MOTION_GRID_SIZE) / cellSize),
+        );
+        const localBlock = (localBlockY * LOCAL_MOTION_GRID_SIZE) + localBlockX;
+        localAlphaSums[localBlock] += alpha;
+        localSampleCounts[localBlock] += 1;
       }
     }
 
@@ -314,10 +330,16 @@ export function analyzeOfficeAnimationPixels(pixels, strip) {
       fingerprint.push(Math.round(alphaSums[block] / samples));
       fingerprint.push(Math.round(lumaSums[block] / samples));
     }
+    const localMotionFingerprint = new Uint8Array(localBlockCount);
+    for (let block = 0; block < localBlockCount; block += 1) {
+      const samples = localSampleCounts[block] || 1;
+      localMotionFingerprint[block] = Math.round(localAlphaSums[block] / samples);
+    }
     frames.push({
       opaqueCoverage: opaquePixels / framePixels,
       transparentCoverage: transparentPixels / framePixels,
       fingerprint,
+      localMotionFingerprint,
     });
     clipTransparentPixels += transparentPixels;
     clipPixels += framePixels;
@@ -377,17 +399,29 @@ const requiredStrips = (manifest) => [
   ...Object.values(manifest.clips.actions || {}),
 ];
 
+const isFingerprint = (value, length) => (
+  (Array.isArray(value) || ArrayBuffer.isView(value))
+  && value.length === length
+  && Array.from(value).every((sample) => Number.isFinite(sample) && sample >= 0 && sample <= 255)
+);
+
 const fingerprintDistance = (left, right) => {
-  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length || !left.length) return 0;
+  if (!left || !right || left.length !== right.length || !left.length) return 0;
   return left.reduce((total, value, index) => total + Math.abs(value - right[index]), 0)
     / (left.length * 255);
 };
+
+const hasMeaningfulFrameDifference = (left, right) => (
+  fingerprintDistance(left.fingerprint, right.fingerprint) >= MIN_SIGNIFICANT_FRAME_DISTANCE
+  || fingerprintDistance(left.localMotionFingerprint, right.localMotionFingerprint)
+    >= MIN_LOCAL_MOTION_COVERAGE
+);
 
 const countDistinctFrames = (frames) => {
   const representatives = [];
   for (const frame of frames) {
     if (representatives.every((candidate) => (
-      fingerprintDistance(frame.fingerprint, candidate.fingerprint) >= MIN_SIGNIFICANT_FRAME_DISTANCE
+      hasMeaningfulFrameDifference(frame, candidate)
     ))) representatives.push(frame);
   }
   return representatives.length;
@@ -412,8 +446,8 @@ const validateInspection = (inspection, strip) => {
   for (const frame of frames) {
     if (!isRecord(frame) || !isCoverage(frame.opaqueCoverage) || !isCoverage(frame.transparentCoverage)
       || frame.opaqueCoverage < MIN_OPAQUE_FRAME_COVERAGE
-      || !Array.isArray(frame.fingerprint) || frame.fingerprint.length !== 128
-      || frame.fingerprint.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) {
+      || !isFingerprint(frame.fingerprint, 128)
+      || !isFingerprint(frame.localMotionFingerprint, LOCAL_MOTION_GRID_SIZE ** 2)) {
       return "invalid-clip-manifest";
     }
   }
