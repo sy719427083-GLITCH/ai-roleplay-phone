@@ -3,11 +3,8 @@ import { dirname, join, resolve } from "node:path";
 
 export const PAGE_ASSET_DIRECTORIES = Object.freeze([
   "assets",
-  "work-office-v2",
   "worldbook-assets",
 ]);
-
-const retiredOfficeDirectory = ["work", "office", "assets"].join("-");
 
 const listFiles = async (rootDirectory, relativeDirectory = "") => {
   const entries = await readdir(resolve(rootDirectory, relativeDirectory), { withFileTypes: true });
@@ -48,7 +45,6 @@ export async function syncPages({ repositoryRoot }) {
   }
 
   await mkdir(docsDirectory, { recursive: true });
-  await rm(resolve(docsDirectory, retiredOfficeDirectory), { recursive: true, force: true });
   await cp(resolve(distDirectory, "index.html"), resolve(docsDirectory, "index.html"), { force: true });
 
   for (const assetDirectory of PAGE_ASSET_DIRECTORIES) {

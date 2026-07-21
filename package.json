@@ -1,6 +1,6 @@
 {
   "name": "ai-roleplay-phone",
-  "version": "0.2.98",
+  "version": "0.2.99",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,15 +8,11 @@
     "build": "vite build",
     "deploy:pages": "npm run build && node scripts/sync-pages.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test scripts/office-release-contract.test.mjs scripts/pages-sync-contract.test.mjs src/*.test.js src/work/*.test.js src/work/pixi/*.test.js",
-    "verify:office": "node scripts/verify-office.mjs"
+    "test": "node --test scripts/pages-sync-contract.test.mjs src/*.test.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
-    "fflate": "^0.8.3",
     "lucide-react": "^1.21.0",
-    "pathfinding": "^0.4.18",
-    "pixi.js": "^8.19.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "vite": "6.4.2"
