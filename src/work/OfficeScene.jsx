@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import OfficeCanvas from "./pixi/OfficeCanvas.jsx";
-import OfficeActorOverlay, { buildOfficeActorSnapshots } from "./OfficeActorOverlay.jsx";
+import OfficeActorOverlay, {
+  buildOfficeActorBodyRects,
+  buildOfficeActorSnapshots,
+  buildOfficeSceneOverlayGeometry,
+} from "./OfficeActorOverlay.jsx";
 import { getActivityDefinition } from "./officeActivityManifest.js";
 import { getCustomOfficeClipSource } from "./officeAnimatedAssets.js";
 import { OFFICE_SCENES } from "./officeSceneManifest.js";
@@ -81,6 +85,7 @@ export function buildOfficeWorld({ state = {}, assignments = {}, sampledWorldAct
     return {
       slotId: actor.id,
       sceneId: actor.sceneId,
+      activityId: character.activity,
       activity: actor.clip,
       anchorId: character.targetAnchorId || character.homeAnchorId || "",
       propState: character.propState || null,
@@ -98,25 +103,30 @@ export function OfficeScene({
   onActorAssetError,
   onSlotSelect,
   onSceneChange,
+  onRendererReady,
 }) {
   const sceneRef = useRef(null);
   const [renderer, setRenderer] = useState(null);
   const [rendererError, setRendererError] = useState(null);
-  const [, setOverlayRevision] = useState(0);
   const world = useMemo(
     () => buildOfficeWorld({ state, assignments, sampledWorldActors, motionNow }),
     [state, assignments, sampledWorldActors, motionNow],
   );
-  const onFrame = useCallback(() => setOverlayRevision((revision) => revision + 1), []);
   const onReady = useCallback((nextRenderer) => {
     setRenderer(nextRenderer);
     setRendererError(null);
-  }, []);
+    onRendererReady?.(nextRenderer);
+  }, [onRendererReady]);
   const onRendererError = useCallback((error) => {
     setRendererError(error);
     if (error?.context?.kind === "actor") onActorAssetError?.(error.context.actorId);
   }, [onActorAssetError]);
   const overlaySnapshots = buildOfficeActorSnapshots({ state, world, renderer });
+  const overlayGeometry = buildOfficeSceneOverlayGeometry({ sceneId: world.visibleSceneId, renderer });
+  const overlayAvoidRects = [
+    ...overlayGeometry.furnitureRects,
+    ...buildOfficeActorBodyRects(overlaySnapshots),
+  ];
   const sceneWidth = sceneRef.current?.clientWidth || 390;
   const sceneHeight = sceneRef.current?.clientHeight || 712;
 
@@ -125,7 +135,6 @@ export function OfficeScene({
       <OfficeCanvas
         world={world}
         visibleSceneId={world.visibleSceneId}
-        onFrame={onFrame}
         onActorSelect={onSlotSelect}
         onReady={onReady}
         onError={onRendererError}
@@ -135,6 +144,8 @@ export function OfficeScene({
         sceneId={world.visibleSceneId}
         sceneWidth={sceneWidth}
         sceneHeight={sceneHeight}
+        avoidRects={overlayAvoidRects}
+        doorPoint={overlayGeometry.doorPoint}
         onActorSelect={onSlotSelect}
         onSceneChange={onSceneChange}
         rendererError={rendererError}

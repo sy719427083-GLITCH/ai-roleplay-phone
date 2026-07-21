@@ -127,6 +127,29 @@ test("consumes the exact physical scheduler contract and render-drives every act
   }
 });
 
+test("builds deterministic QA events through the real scheduler without mutating live state", () => {
+  assert.equal(typeof screenModule.createOfficeQaSchedulerEvent, "function");
+  const state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  const originalReservations = JSON.parse(JSON.stringify(state.reservations));
+  const result = screenModule.createOfficeQaSchedulerEvent({
+    state,
+    profiles: assignments,
+    activityId: "printing",
+    now: 2_000,
+    random: () => 0,
+  });
+
+  assert.equal(result.event.activityId, "printing");
+  assert.deepEqual(result.event.actorIds, ["boss"]);
+  assert.notEqual(result.reservations, state.reservations);
+  assert.deepEqual(state.reservations, originalReservations);
+  assert.ok(result.reservations["printer:front"]);
+  assert.match(source, /import\.meta\.env\.DEV/u);
+  assert.match(source, /officeQa=1/u);
+  assert.match(source, /__CCAT_OFFICE_QA__/u);
+  assert.match(source, /captureSceneFrame/u);
+});
+
 test("starts only desk visitors and retains the host at its home anchor", () => {
   const event = {
     activityId: "chatting",
@@ -271,6 +294,34 @@ test("passes sampled positions directly into the Pixi world for hidden and visib
   });
   assert.match(source, /sampledWorldActors=\{sampledWorldActors\}/u);
   assert.match(sceneSource, /sampledWorldActors/u);
+});
+
+test("passes the canonical activity id and generic prop state into the Pixi world", () => {
+  const state = createOfficeState({ assignments, now: 1_000, durationMs: 60_000 });
+  const activeState = {
+    ...state,
+    characters: {
+      ...state.characters,
+      employee1: {
+        ...state.characters.employee1,
+        activity: "watchingSeries",
+        phase: "watchingSeries",
+        targetAnchorId: "employee1:seat-approach",
+        propState: { category: "screen", variant: "tablet", actorRoles: { employee1: "actor" } },
+      },
+    },
+  };
+
+  const world = sceneModule.buildOfficeWorld({ state: activeState, assignments, motionNow: 1_500 });
+  const activityState = world.activityStates.find(({ slotId }) => slotId === "employee1");
+  assert.deepEqual(activityState, {
+    slotId: "employee1",
+    sceneId: "office",
+    activityId: "watchingSeries",
+    activity: "watching-series",
+    anchorId: "employee1:seat-approach",
+    propState: { category: "screen", variant: "tablet", actorRoles: { employee1: "actor" } },
+  });
 });
 
 test("renders exact physical activity anchors and conversation bubbles", () => {

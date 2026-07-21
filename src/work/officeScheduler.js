@@ -14,14 +14,15 @@ const SIDE_DESK_VISITOR_SUFFIXES = Object.freeze(["visitor-left", "visitor-right
 const CONVERSATION_FALLBACKS = Object.freeze({
   chatting: Object.freeze([
     Object.freeze({ sceneId: "office", locationId: "whiteboard", anchors: ["whiteboard:1", "whiteboard:2", "whiteboard:3"] }),
+    Object.freeze({ sceneId: "office", locationId: "office-chat", anchors: ["office-chat:1", "office-chat:2"] }),
     Object.freeze({ sceneId: "lounge", locationId: "dining", anchors: ["dining:seat-1", "dining:seat-2", "dining:seat-3", "dining:seat-4"] }),
-    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:visitor-2", "tv:view"] }),
+    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:seat-1", "sofa:seat-3"] }),
   ]),
   diningChat: Object.freeze([
     Object.freeze({ sceneId: "lounge", locationId: "dining", anchors: ["dining:seat-1", "dining:seat-2", "dining:seat-3", "dining:seat-4"] }),
   ]),
   sofaChat: Object.freeze([
-    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:visitor-2", "tv:view"] }),
+    Object.freeze({ sceneId: "lounge", locationId: "sofa", anchors: ["sofa:seat-1", "sofa:seat-3"] }),
   ]),
 });
 
@@ -158,7 +159,11 @@ const buildConversationPlans = ({ activityId, actorIds, characters }) => {
   const plans = [];
   const hostHome = getHomePoint(hostId);
   const hostPoint = getActorPoint(hostId, characters[hostId]);
-  const sideVisitorSuffix = SIDE_DESK_VISITOR_SUFFIXES.find((suffix) => anchorPoint("office", `${hostId}:${suffix}`));
+  const preferredSideSuffix = /[13]$/u.test(hostId) ? "visitor-right" : "visitor-left";
+  const sideVisitorSuffix = SIDE_DESK_VISITOR_SUFFIXES.includes(preferredSideSuffix)
+    && anchorPoint("office", `${hostId}:${preferredSideSuffix}`)
+    ? preferredSideSuffix
+    : null;
   const visitorSuffixes = visitorIds.length === 1
     ? sideVisitorSuffix ? [sideVisitorSuffix] : []
     : DESK_VISITOR_SUFFIXES.slice(0, visitorIds.length);

@@ -4,12 +4,90 @@ import { OFFICE_ASSET_MANIFEST } from "./officeAssetManifest.js";
 import { OfficeActorView } from "./OfficeActorView.js";
 
 const PIXI_RUNTIME = Object.freeze({ AnimatedSprite, Assets, Graphics, Rectangle, Sprite, Texture });
-const DESK_PROP_IDS = Object.freeze({
-  working: ["laptop", "keyboard", "files-documents"],
-  "desk-rest": ["phone", "book"],
+const LEGACY_ACTIVITY_STATES = Object.freeze({
+  working: Object.freeze({ activityId: "working", category: "computer", variant: "laptop" }),
+  "desk-rest": Object.freeze({ activityId: "deskRest", category: "rest", variant: "eye-mask" }),
+  eating: Object.freeze({ activityId: "eating", category: "meal", variant: "bento" }),
+  "watching-tv": Object.freeze({ activityId: "watchingTv", category: "television", variant: "show" }),
+  "dining-chat": Object.freeze({ activityId: "diningChat", category: "conversation", variant: "meal" }),
+  "dining-listen": Object.freeze({ activityId: "diningChat", category: "conversation", variant: "meal" }),
+  "sofa-chat": Object.freeze({ activityId: "sofaChat", category: "conversation", variant: "coffee" }),
+  "sofa-listen": Object.freeze({ activityId: "sofaChat", category: "conversation", variant: "coffee" }),
 });
-const DINING_CONVERSATION_ACTIVITIES = new Set(["dining-chat", "dining-listen"]);
-const SOFA_CONVERSATION_ACTIVITIES = new Set(["sofa-chat", "sofa-listen"]);
+
+const PROP_IDS_BY_VARIANT = Object.freeze({
+  computer: Object.freeze({
+    laptop: ["laptop", "keyboard", "files-documents"],
+    monitor: ["laptop", "keyboard", "files-documents"],
+    keyboard: ["laptop", "keyboard"],
+    mouse: ["laptop", "keyboard"],
+  }),
+  leisure: Object.freeze({ phone: ["phone"], comic: ["book"], handheld: ["game-device"] }),
+  game: Object.freeze({ handheld: ["game-device"], keyboard: ["game-device", "keyboard"] }),
+  book: Object.freeze({ paperback: ["book"], hardcover: ["book"], magazine: ["book"] }),
+  screen: Object.freeze({ tablet: ["tablet"], "phone-landscape": ["phone"], "shared-screen": ["laptop", "keyboard"] }),
+  phone: Object.freeze({ phone: ["phone"], "phone-portrait-light": ["phone"], "phone-portrait-dark": ["phone"] }),
+  meeting: Object.freeze({ camera: ["laptop", "headphones"], monitor: ["laptop", "headphones"] }),
+  training: Object.freeze({ "slide-deck": ["tablet", "headphones"] }),
+  stationery: Object.freeze({
+    "sticky-notes": ["sticky-notes", "pen"],
+    marker: ["sticky-notes", "pen"],
+    folders: ["files-documents", "desk-organizer"],
+    wipes: ["cleaning-cloth", "desk-organizer"],
+  }),
+  rest: Object.freeze({ "eye-mask": ["headphones"], cushion: [], none: [] }),
+  documents: Object.freeze({
+    printout: ["printer-paper"],
+    folder: ["files-documents"],
+    contract: ["files-documents", "pen"],
+    pen: ["files-documents", "pen"],
+  }),
+  whiteboard: Object.freeze({ marker: ["sticky-notes", "pen"], "sticky-notes": ["sticky-notes", "pen"] }),
+  report: Object.freeze({ report: ["files-documents"] }),
+  parcel: Object.freeze({ parcel: ["delivery-parcel"] }),
+  exercise: Object.freeze({ none: [] }),
+  meal: Object.freeze({
+    bento: ["meal-tray", "food-plate", "utensils"],
+    rice: ["meal-tray", "food-plate", "utensils"],
+    noodles: ["meal-tray", "food-plate", "utensils"],
+    sandwich: ["meal-tray", "food-plate", "utensils"],
+  }),
+  drink: Object.freeze({ coffee: ["coffee-cup"], water: ["water-cup"] }),
+  television: Object.freeze({ news: ["television-content"], show: ["television-content"] }),
+  conversation: Object.freeze({
+    meal: ["meal-tray", "food-plate", "utensils"],
+    coffee: ["coffee-cup"],
+    project: ["files-documents", "sticky-notes"],
+    lunch: ["coffee-cup"],
+    weekend: ["coffee-cup"],
+  }),
+  none: Object.freeze({ "": [], none: [] }),
+});
+
+const PROP_LAYOUTS = Object.freeze({
+  book: Object.freeze({ offsetX: 0, offsetY: 2, width: 112, height: 82 }),
+  "cleaning-cloth": Object.freeze({ offsetX: 34, offsetY: 16, width: 70, height: 58 }),
+  "coffee-cup": Object.freeze({ offsetX: 0, offsetY: 0, width: 58, height: 68 }),
+  "delivery-parcel": Object.freeze({ offsetX: 0, offsetY: 0, width: 118, height: 108 }),
+  "desk-organizer": Object.freeze({ offsetX: -42, offsetY: 5, width: 76, height: 76 }),
+  "files-documents": Object.freeze({ offsetX: -58, offsetY: 22, width: 96, height: 72 }),
+  "food-plate": Object.freeze({ offsetX: 0, offsetY: -5, width: 92, height: 74 }),
+  "game-device": Object.freeze({ offsetX: 0, offsetY: 8, width: 94, height: 68 }),
+  headphones: Object.freeze({ offsetX: 48, offsetY: 4, width: 74, height: 68 }),
+  keyboard: Object.freeze({ offsetX: 32, offsetY: 34, width: 104, height: 48 }),
+  laptop: Object.freeze({ offsetX: 8, offsetY: -18, width: 132, height: 96 }),
+  "meal-tray": Object.freeze({ offsetX: 0, offsetY: 8, width: 150, height: 104 }),
+  pen: Object.freeze({ offsetX: 50, offsetY: 28, width: 62, height: 28 }),
+  phone: Object.freeze({ offsetX: 0, offsetY: 8, width: 62, height: 76 }),
+  "printer-paper": Object.freeze({ offsetX: 0, offsetY: 5, width: 94, height: 70 }),
+  "sticky-notes": Object.freeze({ offsetX: -34, offsetY: -5, width: 82, height: 76 }),
+  tablet: Object.freeze({ offsetX: 0, offsetY: 0, width: 112, height: 82 }),
+  "television-content": Object.freeze({ offsetX: 0, offsetY: -8, width: 154, height: 102 }),
+  utensils: Object.freeze({ offsetX: 54, offsetY: 24, width: 70, height: 30 }),
+  "water-cup": Object.freeze({ offsetX: 0, offsetY: 0, width: 54, height: 72 }),
+});
+
+const FRONT_MOUNT_OBJECTS = new Set(["file-cabinet", "office-door", "pantry", "printer", "television", "whiteboard"]);
 
 const getDeskObjectId = (slotId) => (slotId === "boss" ? "boss-desk" : `${slotId}-desk`);
 
@@ -29,6 +107,12 @@ const getFurnitureAnchor = (object, anchorId) => {
   const x = object.x + (object.width / 2);
   const y = object.y + (object.height / 2);
   if (anchorId === "screen") return { x, y: object.y + (object.height * 0.35) };
+  if (anchorId === "counter") return { x, y: object.y + (object.height * 0.56) };
+  if (anchorId === "counter-coffee") return { x: object.x + (object.width * 0.5), y: object.y + (object.height * 0.56) };
+  if (anchorId === "counter-water") return { x: object.x + (object.width * 0.745), y: object.y + (object.height * 0.56) };
+  if (anchorId === "surface-left") return { x: object.x + (object.width * 0.2), y: object.y + (object.height * 0.35) };
+  if (anchorId === "surface-center") return { x, y: object.y + (object.height * 0.35) };
+  if (anchorId === "surface-right") return { x: object.x + (object.width * 0.8), y: object.y + (object.height * 0.35) };
   const seat = String(anchorId).match(/seat-([1-4])/)?.[1];
   if (seat) {
     const column = ["1", "3"].includes(seat) ? 0.2 : 0.8;
@@ -38,37 +122,64 @@ const getFurnitureAnchor = (object, anchorId) => {
   return { x, y: object.y + (object.height * 0.35) };
 };
 
+const getDeskObjectFromAnchor = (anchorId, slotId) => {
+  const ownerId = String(anchorId || "").match(/^(boss|employee[1-4]):/u)?.[1] || slotId;
+  return getDeskObjectId(ownerId);
+};
+
+const getPropMount = (state, activityId) => {
+  const anchorId = String(state.anchorId || "");
+  if (activityId === "drinking") return { objectId: "coffee-table", anchorId: "surface-center" };
+  if (activityId === "sofaChat") {
+    const side = /seat-3$/u.test(anchorId) ? "right" : "left";
+    return { objectId: "coffee-table", anchorId: `surface-${side}` };
+  }
+  if (["diningChat", "eating"].includes(activityId) || /^dining(?::|-)/u.test(anchorId)) {
+    return { objectId: "dining-table", anchorId: normalizeDiningSurface(anchorId) };
+  }
+  if (activityId === "watchingTv") return { objectId: "television", anchorId: "screen" };
+  if (anchorId === "pantry:coffee") return { objectId: "pantry", anchorId: "counter-coffee" };
+  if (anchorId === "pantry:water") return { objectId: "pantry", anchorId: "counter-water" };
+  if (/^pantry:/u.test(anchorId)) return { objectId: "pantry", anchorId: "counter" };
+  if (/^printer:/u.test(anchorId)) return { objectId: "printer", anchorId: "output" };
+  if (/^file-cabinet:/u.test(anchorId)) return { objectId: "file-cabinet", anchorId: "front" };
+  if (/^whiteboard:/u.test(anchorId)) return { objectId: "whiteboard", anchorId: "board" };
+  if (anchorId === "delivery") return { objectId: "office-door", anchorId: "parcel" };
+  if (anchorId === "tv:view") return { objectId: "television", anchorId: "screen" };
+  if (/^sofa:/u.test(anchorId)) return { objectId: "sofa", anchorId: "seat" };
+  return { objectId: getDeskObjectFromAnchor(anchorId, state.slotId), anchorId: "surface" };
+};
+
+const getResolvedPropState = (state) => {
+  const legacy = LEGACY_ACTIVITY_STATES[state?.activity] || {};
+  return {
+    activityId: String(state?.activityId || legacy.activityId || state?.activity || ""),
+    category: String(state?.propState?.category || legacy.category || "none"),
+    variant: String(state?.propState?.variant ?? legacy.variant ?? ""),
+  };
+};
+
 export function getActivityPropStates(activityStates = []) {
   return activityStates.flatMap((state) => {
-    if (state?.activity === "eating" || DINING_CONVERSATION_ACTIVITIES.has(state?.activity)) return [{
-      slotId: state.slotId || "",
-      sceneId: "lounge",
-      objectId: "dining-table",
-      anchorId: normalizeDiningSurface(state.anchorId),
-      propIds: ["meal-tray", "food-plate", "utensils"],
-    }];
-    if (state?.activity === "watching-tv") return [{
-      slotId: state.slotId || "",
-      sceneId: "lounge",
-      objectId: "television",
-      anchorId: "screen",
-      propIds: ["television-content"],
-    }];
-    if (SOFA_CONVERSATION_ACTIVITIES.has(state?.activity)) return [{
-      slotId: state.slotId || "",
-      sceneId: "lounge",
-      objectId: "coffee-table",
-      anchorId: "surface",
-      propIds: ["coffee-cup"],
-    }];
-    const propIds = DESK_PROP_IDS[state?.activity];
-    if (!propIds || !state?.slotId) return [];
+    if (!state?.slotId) return [];
+    const resolved = getResolvedPropState(state);
+    const propIds = PROP_IDS_BY_VARIANT[resolved.category]?.[resolved.variant];
+    if (!propIds) return [];
+    const mount = getPropMount(state, resolved.activityId);
+    const objectExists = OFFICE_SCENES[state.sceneId]?.objects.some(({ id }) => id === mount.objectId);
+    if (!objectExists) return [];
     return [{
       slotId: state.slotId,
-      sceneId: "office",
-      objectId: getDeskObjectId(state.slotId),
-      anchorId: "surface",
-      propIds,
+      sceneId: state.sceneId,
+      activityId: resolved.activityId,
+      category: resolved.category,
+      variant: resolved.variant,
+      objectId: mount.objectId,
+      anchorId: mount.anchorId,
+      propIds: [...propIds],
+      props: propIds.map((propId) => ({ propId, ...PROP_LAYOUTS[propId] })),
+      layer: FRONT_MOUNT_OBJECTS.has(mount.objectId) ? "front" : "surface",
+      generatedFurnitureIds: [],
     }];
   });
 }
@@ -96,8 +207,10 @@ export function createSprite(src, layout, {
   return sprite;
 }
 
-const getObjectOcclusionRectangles = (object) => object.colliders?.length
-  ? object.colliders.map(({ x, y, width, height }) => ({ x, y, width, height }))
+const getObjectOcclusionRectangles = (object) => object.occlusionRects?.length
+  ? object.occlusionRects.map(({ x, y, width, height }) => ({ x, y, width, height }))
+  : object.colliders?.length
+    ? object.colliders.map(({ x, y, width, height }) => ({ x, y, width, height }))
   : [{ x: object.x, y: object.y + (object.height * 0.4), width: object.width, height: object.height * 0.6 }];
 
 export const getObjectOcclusionBounds = (object) => {
@@ -226,21 +339,26 @@ export class OfficeSceneView extends Container {
       const object = this.objectAnchors.get(state.objectId);
       if (!object) continue;
       const anchor = getFurnitureAnchor(object, state.anchorId);
-      for (const propId of state.propIds) {
+      for (const prop of state.props) {
+        const { propId } = prop;
         const key = getActivityPropKey(state, propId);
         activePropKeys.add(key);
         if (this.propViews.has(key)) continue;
         const sprite = createSprite(OFFICE_ASSET_MANIFEST.props[propId], {
-          x: anchor.x - 24,
-          y: anchor.y - 24,
-          width: 48,
-          height: 48,
+          x: anchor.x + prop.offsetX - (prop.width / 2),
+          y: anchor.y + prop.offsetY - (prop.height / 2),
+          width: prop.width,
+          height: prop.height,
         }, {
           runtime: this.runtime,
           onAssetError: this.onAssetError,
           context: { kind: "prop", sceneId: this.sceneId, objectId: state.objectId, propId },
         });
-        sprite.zIndex = Math.round(anchor.y);
+        const occlusion = this.objectOcclusions.get(state.objectId);
+        sprite.zIndex = state.layer === "front" && occlusion
+          ? occlusion.frontEdgeY + 1
+          : Math.round(anchor.y);
+        sprite.label = `activity-prop:${state.activityId}:${state.slotId}:${propId}`;
         this.propViews.set(key, sprite);
         this.depthLayer.addChild(sprite);
       }

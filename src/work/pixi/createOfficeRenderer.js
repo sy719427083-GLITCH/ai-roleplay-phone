@@ -66,7 +66,7 @@ export async function createOfficeRenderer({
   devicePixelRatio = globalThis.devicePixelRatio || 1,
 }) {
   const pixi = runtime || await import("pixi.js");
-  const { Application, Assets, Container } = pixi;
+  const { Application, Assets, Container, Rectangle } = pixi;
   const SceneView = pixi.SceneView || (await import("./OfficeSceneView.js")).OfficeSceneView;
   const owner = {};
   hostOwners.set(host, owner);
@@ -158,6 +158,7 @@ export async function createOfficeRenderer({
   lounge.addChild(sceneViews.get("lounge"));
   app.stage.addChild(office, lounge);
   const rootByScene = new Map([["office", office], ["lounge", lounge]]);
+  let activeSceneId = "office";
   let transform = getTransform(host);
 
   const refreshTransform = () => {
@@ -166,7 +167,7 @@ export async function createOfficeRenderer({
     return transform;
   };
   const setVisibleScene = (sceneId) => {
-    const activeSceneId = rootByScene.has(sceneId) ? sceneId : "office";
+    activeSceneId = rootByScene.has(sceneId) ? sceneId : "office";
     for (const [id, root] of rootByScene) {
       const active = id === activeSceneId;
       root.visible = active;
@@ -200,6 +201,19 @@ export async function createOfficeRenderer({
         x: transform.x + ((Number(point.x) || 0) * transform.scale),
         y: transform.y + ((Number(point.y) || 0) * transform.scale),
       };
+    },
+    extractSceneFrame(sceneId) {
+      if (!sceneViews.has(sceneId)) throw new Error(`Unknown office scene: ${sceneId}`);
+      if (sceneId !== activeSceneId) throw new Error(`Office scene is not visible: ${sceneId}`);
+      refreshTransform();
+      const { width, height } = getHostSize(host);
+      return app.renderer.extract.base64({
+        target: app.stage,
+        frame: new Rectangle(0, 0, width, height),
+        resolution: 1,
+        format: "png",
+        antialias: true,
+      });
     },
     destroy: destroyApp,
   };

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  OFFICE_ASSET_MANIFEST,
   OFFICE_CHIBIS,
   getActorClipSource,
 } from "./officeAssetManifest.js";
+import { OFFICE_ACTIVITY_MANIFEST } from "../officeActivityManifest.js";
 import { OFFICE_SCENES } from "../officeSceneManifest.js";
 
 if (!globalThis.navigator) Object.defineProperty(globalThis, "navigator", { value: {} });
@@ -170,19 +172,108 @@ test("keeps dining and sofa conversation props on existing lounge furniture", ()
   const states = getActivityPropStates([
     { slotId: "employee1", sceneId: "lounge", activity: "dining-chat", anchorId: "dining:seat-1" },
     { slotId: "employee2", sceneId: "lounge", activity: "dining-listen", anchorId: "dining:seat-2" },
-    { slotId: "employee3", sceneId: "lounge", activity: "sofa-chat", anchorId: "sofa:visitor-2" },
-    { slotId: "employee4", sceneId: "lounge", activity: "sofa-listen", anchorId: "tv:view" },
+    { slotId: "employee3", sceneId: "lounge", activity: "sofa-chat", anchorId: "sofa:seat-1" },
+    { slotId: "employee4", sceneId: "lounge", activity: "sofa-listen", anchorId: "sofa:seat-3" },
   ]);
 
   assert.deepEqual(states.map(({ sceneId, objectId, anchorId }) => ({ sceneId, objectId, anchorId })), [
     { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-1:surface" },
     { sceneId: "lounge", objectId: "dining-table", anchorId: "seat-2:surface" },
-    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface" },
-    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface" },
+    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface-left" },
+    { sceneId: "lounge", objectId: "coffee-table", anchorId: "surface-right" },
   ]);
   assert.deepEqual(states[0].propIds, ["meal-tray", "food-plate", "utensils"]);
   assert.deepEqual(states[2].propIds, ["coffee-cup"]);
   assert.equal(states.every(({ sceneId, objectId }) => OFFICE_SCENES[sceneId].objects.some((object) => object.id === objectId)), true);
+});
+
+test("resolves every manifest prop variant onto existing furniture without generating furniture", () => {
+  const manifestEntries = Object.values(OFFICE_ACTIVITY_MANIFEST);
+  assert.equal(manifestEntries.length, 32);
+
+  for (const definition of manifestEntries) {
+    const slotId = definition.requiredActorIds?.[0] || "employee1";
+    const templateAnchor = definition.targetAnchors[0];
+    const anchorId = templateAnchor.startsWith("$actor:")
+      ? `${slotId}:${templateAnchor.slice(7)}`
+      : templateAnchor;
+    const variants = definition.propState.variants.length ? definition.propState.variants : [""];
+
+    for (const variant of variants) {
+      const [state] = getActivityPropStates([{
+        slotId,
+        sceneId: definition.sceneId,
+        activityId: definition.id,
+        activity: "deliberately-not-a-clip-lookup",
+        anchorId,
+        propState: { category: definition.propState.category, variant },
+      }]);
+
+      assert.ok(state, `${definition.id}:${variant || "empty"} did not resolve a visual attachment`);
+      assert.equal(state.activityId, definition.id);
+      assert.equal(state.sceneId, definition.sceneId);
+      assert.ok(OFFICE_SCENES[state.sceneId].objects.some(({ id }) => id === state.objectId), `${definition.id}:${variant} is not attached to scene furniture`);
+      assert.deepEqual(state.generatedFurnitureIds, [], `${definition.id}:${variant} generated duplicate furniture`);
+      assert.equal(state.props.length, state.propIds.length, `${definition.id}:${variant} prop layout count mismatch`);
+      assert.equal(state.props.every(({ propId, width, height }) => (
+        Boolean(OFFICE_ASSET_MANIFEST.props[propId]) && width >= 40 && height >= 24
+      )), true, `${definition.id}:${variant} did not resolve existing high-resolution props`);
+      if (variant !== "none") {
+        assert.ok(state.propIds.length > 0, `${definition.id}:${variant} dropped a required visible prop`);
+      }
+    }
+  }
+});
+
+test("maps concrete work and lounge semantics to distinct existing high-resolution props", () => {
+  const cases = [
+    ["reading", "book", "hardcover", "employee1:seat-approach", "book"],
+    ["working", "computer", "laptop", "employee1:seat-approach", "laptop"],
+    ["watchingSeries", "screen", "tablet", "employee1:seat-approach", "tablet"],
+    ["watchingShortVideo", "phone", "phone-portrait-light", "employee1:seat-approach", "phone"],
+    ["gaming", "game", "handheld", "employee1:seat-approach", "game-device"],
+    ["printing", "documents", "printout", "printer:front", "printer-paper"],
+    ["whiteboardWork", "whiteboard", "marker", "whiteboard:1", "sticky-notes"],
+    ["parcelReceive", "parcel", "parcel", "delivery", "delivery-parcel"],
+    ["eating", "meal", "bento", "dining:seat-1", "meal-tray"],
+    ["drinking", "drink", "water", "sofa:seat-2", "water-cup"],
+    ["watchingTv", "television", "show", "tv:view", "television-content"],
+    ["sofaChat", "conversation", "coffee", "sofa:visitor-2", "coffee-cup"],
+  ];
+
+  for (const [activityId, category, variant, anchorId, expectedPropId] of cases) {
+    const [state] = getActivityPropStates([{
+      slotId: "employee1",
+      sceneId: OFFICE_ACTIVITY_MANIFEST[activityId].sceneId,
+      activityId,
+      activity: "irrelevant-clip",
+      anchorId,
+      propState: { category, variant },
+    }]);
+    assert.ok(state.propIds.includes(expectedPropId), `${activityId}:${variant} is missing ${expectedPropId}`);
+  }
+});
+
+test("keeps sofa drinks on separate table positions and uses the integrated sofa cushion", () => {
+  const states = getActivityPropStates([
+    { slotId: "employee1", sceneId: "lounge", activityId: "sofaChat", anchorId: "sofa:seat-1", propState: { category: "conversation", variant: "coffee" } },
+    { slotId: "employee2", sceneId: "lounge", activityId: "drinking", anchorId: "sofa:seat-2", propState: { category: "drink", variant: "water" } },
+    { slotId: "employee3", sceneId: "lounge", activityId: "sofaChat", anchorId: "sofa:seat-3", propState: { category: "conversation", variant: "coffee" } },
+    { slotId: "employee4", sceneId: "lounge", activityId: "sofaRest", anchorId: "sofa:seat-2", propState: { category: "rest", variant: "none" } },
+  ]);
+
+  assert.deepEqual(states.map(({ anchorId }) => anchorId), ["surface-left", "surface-center", "surface-right", "seat"]);
+  assert.deepEqual(states.map(({ propIds }) => propIds), [["coffee-cup"], ["water-cup"], ["coffee-cup"], []]);
+});
+
+test("keeps real coffee and water break activities on their own pantry positions", () => {
+  const states = getActivityPropStates([
+    { slotId: "employee1", sceneId: "lounge", activityId: "coffeeBreak", anchorId: "pantry:coffee", propState: { category: "drink", variant: "coffee" } },
+    { slotId: "employee2", sceneId: "lounge", activityId: "waterBreak", anchorId: "pantry:water", propState: { category: "drink", variant: "water" } },
+  ]);
+
+  assert.deepEqual(states.map(({ anchorId }) => anchorId), ["counter-coffee", "counter-water"]);
+  assert.notEqual(getActivityPropKey(states[0], "coffee-cup"), getActivityPropKey(states[1], "water-cup"));
 });
 
 test("preserves requested sprite layout after asynchronous texture replacement", async () => {
@@ -211,6 +302,21 @@ test("uses each furniture front-edge mask to order behind and in-front actors", 
   assert.deepEqual(occlusion.mask.rectangles, desk.colliders);
   assert.equal(behindActor.zIndex < frontSprite.zIndex, true);
   assert.equal(inFrontActor.zIndex > frontSprite.zIndex, true);
+});
+
+test("uses visual occlusion rectangles for seated dining and sofa actors without changing colliders", () => {
+  for (const objectId of ["dining-table", "sofa"]) {
+    const object = OFFICE_SCENES.lounge.objects.find(({ id }) => id === objectId);
+    const frontSprite = new FakeSprite({ width: 1, height: 1 });
+    const occlusion = createObjectOcclusion(object, frontSprite, {
+      runtime: createRuntime(async () => ({ width: 1, height: 1 })),
+    });
+
+    assert.ok(Array.isArray(object.occlusionRects) && object.occlusionRects.length > 0, `${objectId} visual mask`);
+    assert.deepEqual(occlusion.mask.rectangles, object.occlusionRects);
+    assert.notDeepEqual(object.occlusionRects, object.colliders);
+    assert.ok(object.occlusionRects[0].y < object.colliders[0].y, `${objectId} must cover the seated lower body`);
+  }
 });
 
 test("builds one object mask from every collider while preserving single-collider desks", () => {

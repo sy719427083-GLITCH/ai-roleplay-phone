@@ -12,7 +12,7 @@ const REQUIRED_ACTIVITY_IDS = [
   "phoneCall", "videoMeeting", "onlineTraining", "stickyPlanning", "tidyDesk", "deskRest",
   "printing", "filing", "whiteboardWork", "reporting", "screenCollaboration",
   "documentDelivery", "documentSigning", "computerHelp", "parcelReceive", "stretching",
-  "eating", "drinking", "watchingTv", "sofaRest", "quietRest", "diningChat", "sofaChat",
+  "eating", "drinking", "coffeeBreak", "waterBreak", "watchingTv", "sofaRest", "quietRest", "diningChat", "sofaChat",
   "chatting",
 ];
 
@@ -58,4 +58,21 @@ test("manifest keeps whiteboard groups at three anchors and allows three desk vi
   assert.equal(whiteboard.participants.max, 3);
   assert.deepEqual(chatting.targetAnchors, ["whiteboard:1", "whiteboard:2", "whiteboard:3"]);
   assert.equal(chatting.participants.max, 4);
+  const first = getSceneAnchor("office", "whiteboard:1");
+  const second = getSceneAnchor("office", "whiteboard:2");
+  assert.ok(Math.hypot(second.x - first.x, second.y - first.y) >= 130,
+    "the first two whiteboard actors need enough body clearance");
+});
+
+test("anchors every seated lounge action to real furniture", () => {
+  assert.deepEqual(getActivityDefinition("watchingTv").targetAnchors, ["sofa:seat-2"]);
+  assert.deepEqual(getActivityDefinition("sofaRest").targetAnchors, ["sofa:seat-2"]);
+  assert.deepEqual(getActivityDefinition("quietRest").targetAnchors, ["sofa:seat-2"]);
+  assert.deepEqual(getActivityDefinition("sofaChat").targetAnchors, ["sofa:seat-1", "sofa:seat-3"]);
+  assert.deepEqual(getActivityDefinition("drinking").targetAnchors, ["sofa:seat-2"]);
+  assert.equal(getActivityDefinition("drinking").clips.actor, "drinking");
+  assert.deepEqual(getActivityDefinition("coffeeBreak").targetAnchors, ["pantry:coffee"]);
+  assert.deepEqual(getActivityDefinition("waterBreak").targetAnchors, ["pantry:water"]);
+  assert.deepEqual(getActivityDefinition("sofaRest").propState.variants, ["none"]);
+  assert.equal(getActivityDefinition("chatting").propState.category, "none");
 });

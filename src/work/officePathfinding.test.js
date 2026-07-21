@@ -94,8 +94,8 @@ test("routes through a safe orthogonal detour when a diagonal clips an expanded 
 });
 
 test("rejects a narrow sofa-corner crossing that falls between ten-pixel samples", () => {
-  const from = { x: 75, y: 1575 };
-  const to = { x: 45, y: 1545 };
+  const from = { x: 165, y: 1655 };
+  const to = { x: 145, y: 1635 };
   const path = findScenePath({ sceneId: "lounge", from, to });
 
   assert.notDeepEqual(path, [from, to]);
@@ -109,8 +109,8 @@ test("rejects a narrow sofa-corner crossing that falls between ten-pixel samples
 test("checks every character segment continuously against static and dynamic colliders", () => {
   assert.equal(isLegalCharacterSegment(
     "lounge",
-    { x: 75, y: 1575 },
-    { x: 45, y: 1545 },
+    { x: 165, y: 1655 },
+    { x: 145, y: 1635 },
   ), false);
   assert.equal(isLegalCharacterSegment(
     "office",

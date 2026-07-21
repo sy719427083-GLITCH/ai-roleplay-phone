@@ -402,6 +402,39 @@ export function createPhysicalSchedulerRuntime(event, assignments) {
   return { event, semanticEvent, participantSnapshots, hostAction, actions };
 }
 
+export function createOfficeQaSchedulerEvent({
+  state,
+  profiles,
+  activityId,
+  blockedAnchorIds = [],
+  now = Date.now(),
+  random = () => 0,
+} = {}) {
+  if (!isRecord(state) || !isRecord(profiles) || !getActivityDefinition(activityId)
+    || typeof random !== "function" || !Number.isFinite(now)) return null;
+  const schedulerState = {
+    ...state,
+    forcedActivityId: activityId,
+    reservations: JSON.parse(JSON.stringify(state.reservations || {})),
+  };
+  for (const anchorId of blockedAnchorIds) {
+    schedulerState.reservations[anchorId] = {
+      anchorId,
+      sceneId: "office",
+      slotId: "qa-blocker",
+      reservationGroupId: `qa-blocker-${anchorId}`,
+      expiresAt: now + 120_000,
+    };
+  }
+  const event = chooseOfficeEvent({ state: schedulerState, profiles, random, now });
+  for (const anchorId of blockedAnchorIds) {
+    if (schedulerState.reservations[anchorId]?.slotId === "qa-blocker") {
+      delete schedulerState.reservations[anchorId];
+    }
+  }
+  return event ? { event, reservations: schedulerState.reservations } : null;
+}
+
 export function samplePhysicalWorldFrame({ characters = {}, now = 0, previousSamples = {} } = {}) {
   const rawSamples = {};
   const movingActors = [];
@@ -469,6 +502,8 @@ export default function WorkAppScreen({ onClose }) {
   const completedRouteKeysRef = useRef(new Set());
   const routeTransitionKeysRef = useRef(new Set());
   const sampledWorldActorsRef = useRef({});
+  const officeRendererRef = useRef(null);
+  const qaSequenceRef = useRef(0);
   const timestampOriginRef = useRef(Date.now() - (
     typeof performance !== "undefined" ? performance.now() : 0
   ));
@@ -641,7 +676,7 @@ export default function WorkAppScreen({ onClose }) {
     });
   }, [dispatchOffice, initialContext.storage]);
 
-  const applyScheduledEvent = useCallback((event, reservations) => {
+  const applyScheduledEvent = useCallback((event, reservations, options = {}) => {
     const runtime = createPhysicalSchedulerRuntime(event, assignmentsRef.current);
     if (!runtime) return false;
     dispatchOffice({ type: "SET_RESERVATIONS", reservations });
@@ -686,9 +721,72 @@ export default function WorkAppScreen({ onClose }) {
 
     pendingPhysicalEventsRef.current.set(event.reservationGroupId, event);
     if (!isConversationEvent(event)) createActivityRuntime(runtime);
-    for (const action of runtime.actions) dispatchOffice(action);
+    const speed = Number.isFinite(options.speed) && options.speed > 0 ? options.speed : null;
+    for (const action of runtime.actions) dispatchOffice(speed ? { ...action, speed } : action);
     return true;
   }, [createActivityRuntime, dispatchOffice]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined"
+      || !window.location.search.includes("officeQa=1")) return undefined;
+    const bridge = {
+      getState() {
+        return JSON.parse(JSON.stringify({
+          state: stateRef.current,
+          sampledWorldActors: sampledWorldActorsRef.current,
+        }));
+      },
+      queueBubble(conversationId, speakerId, text) {
+        const conversation = stateRef.current.conversations?.[conversationId];
+        if (!conversation?.memberIds?.includes(speakerId) || !cleanText(text)) return false;
+        const runtime = conversationRuntimeRef.current.get(conversationId);
+        if (runtime?.bubbleTimer) {
+          clearTimeout(runtime.bubbleTimer);
+          runtime.bubbleTimer = null;
+        }
+        while (stateRef.current.conversations?.[conversationId]?.bubbleQueue.length) {
+          dispatchOffice({ type: "SHIFT_BUBBLE", conversationId });
+        }
+        dispatchOffice({
+          type: "QUEUE_BUBBLE",
+          conversationId,
+          bubble: { speakerId, text: cleanText(text) },
+        });
+        return true;
+      },
+      schedule(activityId, { blockedAnchorIds = [], randomValues = [0], speed = 900 } = {}) {
+        let randomIndex = 0;
+        const random = () => {
+          const value = randomValues[randomIndex % Math.max(1, randomValues.length)];
+          randomIndex += 1;
+          return Number.isFinite(value) ? value : 0;
+        };
+        qaSequenceRef.current += 1;
+        const result = createOfficeQaSchedulerEvent({
+          state: stateRef.current,
+          profiles: getProfileMap(assignmentsRef.current),
+          activityId,
+          blockedAnchorIds,
+          now: Date.now() + qaSequenceRef.current,
+          random,
+        });
+        if (!result || !applyScheduledEvent(result.event, result.reservations, { speed })) return null;
+        return JSON.parse(JSON.stringify(result.event));
+      },
+      setVisibleScene(sceneId) {
+        if (!["office", "lounge"].includes(sceneId)) return false;
+        dispatchOffice({ type: "SET_VISIBLE_SCENE", sceneId });
+        return true;
+      },
+      captureSceneFrame(sceneId) {
+        return officeRendererRef.current?.extractSceneFrame(sceneId) || null;
+      },
+    };
+    window.__CCAT_OFFICE_QA__ = bridge;
+    return () => {
+      if (window.__CCAT_OFFICE_QA__ === bridge) delete window.__CCAT_OFFICE_QA__;
+    };
+  }, [applyScheduledEvent, dispatchOffice]);
 
   const runScheduleAttempt = useCallback((now) => {
     const snapshot = stateRef.current;
@@ -1386,6 +1484,7 @@ export default function WorkAppScreen({ onClose }) {
           onSlotSelect={openAssignmentPanel}
           onSceneChange={handleVisibleSceneChange}
           onActorAssetError={onAssetError}
+          onRendererReady={(renderer) => { officeRendererRef.current = renderer; }}
         />
       </div>
 

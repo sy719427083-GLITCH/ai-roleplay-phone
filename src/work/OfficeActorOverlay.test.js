@@ -106,9 +106,9 @@ test("moves colliding label and bubble stacks deterministically within the scene
   assert.deepEqual(first, second);
   assert.equal(first.length, 3);
   assert.ok(first.some(({ offsetY }) => offsetY !== 0));
-  const rectangles = first.flatMap(({ labelRect, bubbleRect }) => [labelRect, bubbleRect].filter(Boolean));
+  const rectangles = first.flatMap(({ labelRect, statusRect, bubbleRect }) => [labelRect, statusRect, bubbleRect].filter(Boolean));
   for (const layout of first) {
-    for (const rectangle of [layout.labelRect, layout.bubbleRect].filter(Boolean)) {
+    for (const rectangle of [layout.labelRect, layout.statusRect, layout.bubbleRect].filter(Boolean)) {
       assert.ok(rectangle.x >= 0 && rectangle.y >= 0);
       assert.ok(rectangle.x + rectangle.width <= 390);
       assert.ok(rectangle.y + rectangle.height <= 500);
@@ -119,6 +119,112 @@ test("moves colliding label and bubble stacks deterministically within the scene
       assert.equal(rectanglesIntersect(rectangle, other), false);
     }
   });
+});
+
+test("keeps the overlay layout signature stable across animation-only frame changes", () => {
+  assert.equal(typeof overlayModule.buildOfficeOverlayLayoutSignature, "function");
+  const base = [{
+    slotId: "employee1",
+    visible: true,
+    screenX: 120,
+    screenY: 300,
+    headScreenY: 190,
+    name: "程雾",
+    status: "工作中",
+    bubble: "",
+    frameIndex: 0,
+    facing: "left",
+    moving: false,
+  }];
+  const obstacles = [{ id: "employee1-desk", x: 60, y: 220, width: 120, height: 80 }];
+  const first = overlayModule.buildOfficeOverlayLayoutSignature(base, obstacles, 390, 712);
+  const animationOnly = overlayModule.buildOfficeOverlayLayoutSignature([
+    { ...base[0], frameIndex: 3, facing: "right", moving: true },
+  ], obstacles.map((entry) => ({ ...entry })), 390, 712);
+  const moved = overlayModule.buildOfficeOverlayLayoutSignature([
+    { ...base[0], screenX: 122 },
+  ], obstacles, 390, 712);
+
+  assert.equal(first, animationOnly);
+  assert.notEqual(first, moved);
+});
+
+test("keeps the stationary solver key stable while a walking actor advances", () => {
+  assert.equal(typeof overlayModule.partitionOfficeOverlayInputs, "function");
+  assert.equal(typeof overlayModule.layoutMovingOfficeActorOverlays, "function");
+  assert.equal(typeof overlayModule.adjustStationaryOfficeOverlaysForMovingBodies, "function");
+  const stationary = {
+    slotId: "boss", visible: true, screenX: 195, screenY: 250, headScreenY: 140,
+    name: "沈知白", status: "工作中", bubble: "", moving: false,
+  };
+  const walking = {
+    slotId: "employee1", visible: true, screenX: 120, screenY: 520, headScreenY: 410,
+    name: "周予安", status: "前往茶水间", bubble: "", moving: true,
+  };
+  const first = overlayModule.partitionOfficeOverlayInputs(
+    [stationary, walking],
+    [
+      { id: "pantry", x: 25, y: 100, width: 330, height: 50 },
+      { id: "boss:body", x: 170, y: 140, width: 50, height: 110 },
+      { id: "employee1:body", x: 95, y: 410, width: 50, height: 110 },
+    ],
+    390,
+    712,
+  );
+  const second = overlayModule.partitionOfficeOverlayInputs(
+    [stationary, { ...walking, screenX: 146, screenY: 538, headScreenY: 428, frameIndex: 5 }],
+    [
+      { id: "pantry", x: 25, y: 100, width: 330, height: 50 },
+      { id: "boss:body", x: 170, y: 140, width: 50, height: 110 },
+      { id: "employee1:body", x: 121, y: 428, width: 50, height: 110 },
+    ],
+    390,
+    712,
+  );
+
+  assert.equal(first.stationarySignature, second.stationarySignature);
+  assert.deepEqual(first.stationarySnapshots.map(({ slotId }) => slotId), ["boss"]);
+  assert.deepEqual(first.movingSnapshots.map(({ slotId }) => slotId), ["employee1"]);
+  assert.equal(first.stationaryAvoidRects.some(({ id }) => id === "employee1:body"), false);
+  assert.deepEqual(first.movingBodyRects.map(({ id }) => id), ["employee1:body"]);
+  const movingLayouts = overlayModule.layoutMovingOfficeActorOverlays(second.movingSnapshots, {
+    width: 390,
+    height: 712,
+    avoidRects: [...second.stationaryAvoidRects, ...second.movingBodyRects],
+  });
+  assert.equal(movingLayouts.length, 1);
+  assert.ok(Math.abs((movingLayouts[0].labelRect.x + 32) - 146) <= 16);
+});
+
+test("lightly shifts a stationary label when a walking body crosses underneath", () => {
+  const snapshot = {
+    slotId: "boss", visible: true, screenX: 195, screenY: 270, headScreenY: 160,
+    name: "沈知白", status: "工作中", bubble: "", moving: false,
+  };
+  const [layout] = overlayModule.layoutOfficeActorOverlays([snapshot], { width: 390, height: 712 });
+  const movingBody = {
+    id: "employee1:body",
+    x: layout.labelRect.x + 10,
+    y: layout.labelRect.y - 4,
+    width: 34,
+    height: layout.labelRect.height + 8,
+  };
+  const [adjusted] = overlayModule.adjustStationaryOfficeOverlaysForMovingBodies(
+    [layout],
+    [snapshot],
+    {
+      width: 390,
+      height: 712,
+      avoidRects: [movingBody],
+      movingBodyRects: [movingBody],
+    },
+  );
+
+  assert.equal([adjusted.labelRect, adjusted.statusRect].some((rectangle) => (
+    rectanglesIntersect(rectangle, movingBody)
+  )), false);
+  assert.ok(Math.abs((adjusted.labelRect.x + 32) - snapshot.screenX) <= 16);
+  assert.ok(snapshot.headScreenY - (adjusted.labelRect.y + adjusted.labelRect.height) <= 30.5);
 });
 
 test("keeps every label and bubble stack above the actor head anchor", () => {
@@ -132,9 +238,277 @@ test("keeps every label and bubble stack above the actor head anchor", () => {
   assert.equal(layouts.length, 3);
   layouts.forEach((layout, index) => {
     const bottom = Math.max(layout.labelRect.bottom ?? (layout.labelRect.y + layout.labelRect.height),
+      layout.statusRect.bottom ?? (layout.statusRect.y + layout.statusRect.height),
       layout.bubbleRect?.bottom ?? ((layout.bubbleRect?.y || 0) + (layout.bubbleRect?.height || 0)));
     assert.ok(bottom <= snapshots[index].headScreenY - 6, `${snapshots[index].slotId} overlay covers the actor head`);
   });
+});
+
+test("keeps overlay blocks clear of actor bodies and projected fixed furniture", () => {
+  const snapshots = [
+    { slotId: "boss", visible: true, screenX: 195, screenY: 243, headScreenY: 120, bubble: "" },
+    { slotId: "employee1", visible: true, screenX: 101, screenY: 392, headScreenY: 270, bubble: "" },
+    { slotId: "employee2", visible: true, screenX: 289, screenY: 392, headScreenY: 270, bubble: "" },
+  ];
+  const avoidRects = [
+    { id: "boss-desk", x: 119, y: 130, width: 152, height: 93 },
+    ...snapshots.map((snapshot) => ({
+      id: `${snapshot.slotId}:body`,
+      x: snapshot.screenX - 38,
+      y: snapshot.headScreenY,
+      width: 76,
+      height: snapshot.screenY - snapshot.headScreenY,
+    })),
+  ];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, {
+    width: 390,
+    height: 712,
+    avoidRects,
+  });
+
+  for (const layout of layouts) {
+    for (const rectangle of [layout.labelRect, layout.statusRect, layout.bubbleRect].filter(Boolean)) {
+      for (const avoidRect of avoidRects) {
+        assert.equal(rectanglesIntersect(rectangle, avoidRect), false, `${layout.slotId} covers ${avoidRect.id}`);
+      }
+    }
+  }
+});
+
+test("solves a five-actor activity layout without falling back across the boss desk", () => {
+  const scale = 375 / 1080;
+  const evidencePositions = {
+    boss: [300, 1450],
+    employee1: [550, 700],
+    employee2: [750, 700],
+    employee3: [500, 1860],
+    employee4: [840, 1860],
+  };
+  const snapshots = Object.entries(evidencePositions).map(([slotId, [x, y]]) => ({
+    slotId,
+    visible: true,
+    screenX: x * scale,
+    screenY: y * scale,
+    headScreenY: (y - 330) * scale,
+    bubble: slotId === "employee4" ? "发布清单已核对，结论一致" : "",
+  }));
+  const furniture = overlayModule.buildOfficeSceneOverlayGeometry({
+    sceneId: "office",
+    renderer: { worldToScreen: ({ x, y }) => ({ x: x * scale, y: y * scale }) },
+  }).furnitureRects;
+  const bodies = overlayModule.buildOfficeActorBodyRects(snapshots);
+  const avoidRects = [...furniture, ...bodies];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, {
+    width: 375,
+    height: 712,
+    avoidRects,
+  });
+
+  assert.equal(layouts.length, 5);
+  for (const layout of layouts) {
+    for (const rectangle of [layout.labelRect, layout.statusRect, layout.bubbleRect].filter(Boolean)) {
+      assert.equal(avoidRects.some((avoidRect) => rectanglesIntersect(rectangle, avoidRect)), false,
+        `${layout.slotId} overlaps a fixed scene rectangle`);
+    }
+    const snapshot = snapshots.find(({ slotId }) => slotId === layout.slotId);
+    const stackBottom = Math.max(
+      layout.labelRect.y + layout.labelRect.height,
+      layout.statusRect.y + layout.statusRect.height,
+    );
+    assert.ok(stackBottom >= snapshot.headScreenY - 24,
+      `${layout.slotId} label is detached from its actor head`);
+  }
+});
+
+test("keeps the real 375px home labels compact beside the cabinet and boss body", () => {
+  const scale = 375 / 1080;
+  const homes = {
+    boss: [540, 655],
+    employee1: [280, 1120],
+    employee2: [800, 1120],
+    employee3: [300, 1520],
+    employee4: [800, 1520],
+  };
+  const snapshots = Object.entries(homes).map(([slotId, [x, y]]) => ({
+    slotId,
+    visible: true,
+    screenX: x * scale,
+    screenY: y * scale,
+    headScreenY: (y - 330) * scale,
+    name: `${slotId}名字`,
+    status: "空闲中",
+    bubble: "",
+  }));
+  const geometry = overlayModule.buildOfficeSceneOverlayGeometry({
+    sceneId: "office",
+    renderer: { worldToScreen: ({ x, y }) => ({ x: x * scale, y: y * scale }) },
+  });
+  const avoidRects = [
+    ...geometry.furnitureRects,
+    ...overlayModule.buildOfficeActorBodyRects(snapshots),
+  ];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, {
+    width: 375,
+    height: 375 * (16 / 9),
+    avoidRects,
+  });
+
+  for (const layout of layouts) {
+    for (const rectangle of [layout.labelRect, layout.statusRect]) {
+      assert.equal(avoidRects.some((avoidRect) => rectanglesIntersect(rectangle, avoidRect)), false,
+        `${layout.slotId} label overlaps fixed geometry`);
+    }
+    const snapshot = snapshots.find(({ slotId }) => slotId === layout.slotId);
+    const nameCenter = layout.labelRect.x + (layout.labelRect.width / 2);
+    assert.ok(Math.abs(nameCenter - snapshot.screenX) <= 2,
+      `${layout.slotId} label drifts too far from its head`);
+  }
+});
+
+test("keeps adjacent whiteboard names centered and disjoint at mobile width", () => {
+  const snapshots = [
+    { slotId: "employee1", visible: true, screenX: 157, screenY: 355, headScreenY: 263, name: "小夏", status: "白板协作中", bubble: "" },
+    { slotId: "employee2", visible: true, screenX: 226, screenY: 355, headScreenY: 263, name: "周屿", status: "白板协作中", bubble: "" },
+  ];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 375, height: 667 });
+
+  assert.equal(layouts.length, 2);
+  const rectangles = layouts.flatMap(({ labelRect, statusRect }) => [labelRect, statusRect]);
+  rectangles.forEach((rectangle, index) => {
+    assert.ok(rectangle);
+    for (const other of rectangles.slice(index + 1)) {
+      assert.equal(rectanglesIntersect(rectangle, other), false);
+    }
+  });
+  layouts.forEach((layout, index) => {
+    const nameCenter = layout.labelRect.x + (layout.labelRect.width / 2);
+    assert.ok(Math.abs(nameCenter - snapshots[index].screenX) <= 2,
+      `${snapshots[index].slotId} name is not centered above the actor`);
+  });
+});
+
+test("moves a sofa conversation bubble above dining furniture without detaching the actor name", () => {
+  const snapshot = {
+    slotId: "employee2",
+    visible: true,
+    screenX: 210,
+    screenY: 490,
+    headScreenY: 364,
+    name: "程雾",
+    status: "沙发聊天中",
+    bubble: "沙发组正在聊这部剧的剧情，不会串到午餐组。",
+  };
+  const diningTable = { id: "dining-table", x: 175, y: 250, width: 180, height: 62.5 };
+  const pantryCounter = { id: "pantry-counter", x: 175, y: 334, width: 70, height: 26 };
+  const [layout] = overlayModule.layoutOfficeActorOverlays([snapshot], {
+    width: 720,
+    height: 540,
+    avoidRects: [diningTable, pantryCounter],
+  });
+
+  assert.equal(rectanglesIntersect(layout.bubbleRect, diningTable), false, JSON.stringify(layout));
+  assert.equal(rectanglesIntersect(layout.labelRect, pantryCounter), false, JSON.stringify(layout));
+  assert.ok(snapshot.headScreenY - (layout.labelRect.y + layout.labelRect.height) <= 30);
+  assert.equal(rectanglesIntersect(layout.statusRect, pantryCounter), false, JSON.stringify(layout));
+  assert.ok(snapshot.headScreenY - (layout.statusRect.y + layout.statusRect.height) <= 30.5,
+    JSON.stringify(layout));
+  assert.ok(snapshot.headScreenY - (layout.bubbleRect.y + layout.bubbleRect.height) <= 90);
+});
+
+test("stagger three adjacent sofa labels without overlapping either lounge conversation", () => {
+  const snapshots = [
+    {
+      slotId: "boss",
+      visible: true,
+      screenX: 114,
+      screenY: 270,
+      headScreenY: 157,
+      name: "沈知白",
+      status: "餐桌聊天中",
+      bubble: "午餐组只讨论今天的菜和下午安排。",
+    },
+    {
+      slotId: "employee1",
+      visible: true,
+      screenX: 257,
+      screenY: 270,
+      headScreenY: 157,
+      name: "周予安",
+      status: "餐桌聊天中",
+      bubble: "",
+    },
+    {
+      slotId: "employee2",
+      visible: true,
+      screenX: 132,
+      screenY: 523,
+      headScreenY: 410,
+      name: "顾南星",
+      status: "沙发聊天中",
+      bubble: "沙发组正在聊这部剧的剧情，不会串到午餐组。",
+    },
+    {
+      slotId: "employee3",
+      visible: true,
+      screenX: 184,
+      screenY: 523,
+      headScreenY: 410,
+      name: "许青禾",
+      status: "喝饮料中",
+      bubble: "",
+    },
+    {
+      slotId: "employee4",
+      visible: true,
+      screenX: 236,
+      screenY: 523,
+      headScreenY: 410,
+      name: "程雾",
+      status: "沙发聊天中",
+      bubble: "",
+    },
+  ];
+  const avoidRects = [
+    { id: "pantry", x: 31, y: 133, width: 308, height: 48 },
+    { id: "dining-table", x: 89, y: 290, width: 191, height: 65 },
+    { id: "sofa", x: 82, y: 536, width: 195, height: 45 },
+    { id: "coffee-table", x: 144, y: 584, width: 112, height: 44 },
+    { id: "television", x: 291, y: 519, width: 71, height: 48 },
+  ];
+  const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, {
+    width: 375,
+    height: 656,
+    avoidRects,
+  });
+  const rectangles = layouts.flatMap(({ labelRect, statusRect, bubbleRect }) => (
+    [labelRect, statusRect, bubbleRect].filter(Boolean)
+  ));
+
+  rectangles.forEach((rectangle, index) => {
+    for (const other of rectangles.slice(index + 1)) {
+      assert.equal(rectanglesIntersect(rectangle, other), false,
+        `${JSON.stringify(rectangle)} overlaps ${JSON.stringify(other)}`);
+    }
+  });
+  layouts.forEach((layout, index) => {
+    const nameCenter = layout.labelRect.x + (layout.labelRect.width / 2);
+    assert.ok(Math.abs(nameCenter - snapshots[index].screenX) <= 16);
+    assert.ok(snapshots[index].headScreenY - (layout.labelRect.y + layout.labelRect.height) <= 30.5);
+    assert.ok(snapshots[index].headScreenY - (layout.statusRect.y + layout.statusRect.height) <= 30.5);
+  });
+});
+
+test("projects the door control onto the actual scene door at every aspect ratio", () => {
+  assert.equal(typeof overlayModule.buildOfficeSceneOverlayGeometry, "function");
+  const geometry = overlayModule.buildOfficeSceneOverlayGeometry({
+    sceneId: "office",
+    renderer: { worldToScreen: ({ x, y }) => ({ x: x / 2, y: y / 4 }) },
+  });
+
+  assert.deepEqual(geometry.doorPoint, { x: 480, y: 445 });
+  assert.equal(geometry.furnitureRects.some(({ id }) => id === "office-door"), true);
+  const doorRect = geometry.furnitureRects.find(({ id }) => id === "office-door");
+  assert.deepEqual(doorRect, { id: "office-door", x: 437.5, y: 410, width: 85, height: 70 });
 });
 
 const rectanglesIntersect = (left, right) => (
@@ -145,21 +519,24 @@ const rectanglesIntersect = (left, right) => (
 );
 
 test("keeps five top-edge bubble and label rectangles bounded and mutually disjoint", () => {
+  const screenXs = [75, 195, 315, 105, 285];
   const snapshots = ["boss", "employee1", "employee2", "employee3", "employee4"].map((slotId, index) => ({
     slotId,
     visible: true,
-    screenX: 180 + index,
+    screenX: screenXs[index],
     screenY: 20,
     bubble: `${slotId}正在发言`,
   }));
   const first = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 500 });
   const second = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 500 });
-  const rectangles = first.flatMap(({ labelRect, bubbleRect }) => [labelRect, bubbleRect]);
+  const rectangles = first.flatMap(({ labelRect, statusRect, bubbleRect }) => [labelRect, statusRect, bubbleRect]);
 
   assert.deepEqual(first, second);
-  assert.equal(rectangles.length, 10);
+  assert.equal(rectangles.length, 15);
   for (const layout of first) {
+    assert.equal(rectanglesIntersect(layout.labelRect, layout.statusRect), false);
     assert.equal(rectanglesIntersect(layout.labelRect, layout.bubbleRect), false);
+    assert.equal(rectanglesIntersect(layout.statusRect, layout.bubbleRect), false);
   }
   rectangles.forEach((rectangle, index) => {
     assert.ok(rectangle.x >= 0 && rectangle.y >= 0);
@@ -182,17 +559,17 @@ test("uses one conservative DOM height model for five long top-edge bubbles and 
     screenY: 20,
     name: `${slotId}超长姓名`,
     status: "正在处理重要工作事项",
-    bubble: index % 2 ? longDigits : longCjk,
+    bubble: index === 0 ? longCjk : index === 1 ? longDigits : "",
     facing: "front",
     sceneId: "office",
   }));
   const layouts = overlayModule.layoutOfficeActorOverlays(snapshots, { width: 390, height: 712 });
-  const rectangles = layouts.flatMap(({ labelRect, bubbleRect }) => [labelRect, bubbleRect]);
+  const rectangles = layouts.flatMap(({ labelRect, statusRect, bubbleRect }) => [labelRect, statusRect, bubbleRect].filter(Boolean));
 
   assert.ok(overlayModule.measureOfficeOverlayText(snapshots[0]).bubbleHeight > 48);
   layouts.forEach((layout, index) => {
     const metrics = overlayModule.measureOfficeOverlayText(snapshots[index]);
-    assert.equal(layout.bubbleRect.height, metrics.bubbleHeight);
+    assert.equal(layout.bubbleRect?.height || 0, metrics.bubbleHeight);
     assert.equal(layout.labelRect.height, metrics.labelHeight);
   });
   rectangles.forEach((rectangle, index) => {
@@ -212,6 +589,7 @@ test("uses one conservative DOM height model for five long top-edge bubbles and 
   }));
   assert.equal((markup.match(/--office-bubble-height:/g) || []).length, 5);
   assert.equal((markup.match(/--office-name-height:/g) || []).length, 5);
+  assert.equal((markup.match(/class="office-actor-label"/g) || []).length, 5);
   assert.match(markup, new RegExp(longCjk, "u"));
   assert.match(markup, new RegExp(longDigits, "u"));
 });
@@ -261,15 +639,19 @@ test("renders independent accessible actor overlays and an icon door control", (
   assert.equal((markup.match(/data-office-actor-overlay=/g) || []).length, 5);
   assert.match(markup, /data-world-x="260"/u);
   assert.match(markup, /data-world-y="780"/u);
+  assert.match(markup, /data-screen-x=/u);
+  assert.match(markup, /data-screen-y="195"/u);
   assert.match(markup, /data-head-screen-y="112.5"/u);
+  assert.match(markup, /data-scene-id="office"/u);
   assert.match(markup, /data-motion-clip="locomotion"/u);
   assert.match(markup, /data-motion-frame="3"/u);
   assert.match(markup, /data-moving="true"/u);
   assert.match(markup, /aria-label="进入休息区"/u);
   assert.match(markup, /title="进入休息区"/u);
   assert.match(markup, /data-lucide="door-open"/u);
-  assert.match(markup, /left:96px/u);
-  assert.match(markup, /--office-bubble-shift:/u);
+  assert.match(markup, /left:100px/u);
+  assert.match(markup, /--office-bubble-shift-x:/u);
+  assert.match(markup, /--office-status-shift-x:/u);
   assert.equal((markup.match(/ hidden=""/g) || []).length, 2);
 });
 

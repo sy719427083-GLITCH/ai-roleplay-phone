@@ -36,7 +36,14 @@ function createHost({ width = 390, height = 744 } = {}) {
 function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
   const applications = [];
   const sceneViewConstructorCalls = [];
+  const extractionCalls = [];
   const unloaded = [];
+
+  class Rectangle {
+    constructor(x, y, width, height) {
+      Object.assign(this, { x, y, width, height });
+    }
+  }
 
   class Container {
     constructor() {
@@ -67,7 +74,14 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
     }
 
     createRendererResources() {
-      this.renderer = {};
+      this.renderer = {
+        extract: {
+          base64: async (options) => {
+            extractionCalls.push(options);
+            return "data:image/png;base64,cGl4aQ==";
+          },
+        },
+      };
       this._canvas = { dataset: {}, parentNode: null, width: 0, height: 0 };
       this.ticker = {
         lastTime: 123,
@@ -115,12 +129,14 @@ function createFakePixi({ init, resourceTiming = "constructor" } = {}) {
 
   return {
     applications,
+    extractionCalls,
     sceneViewConstructorCalls,
     unloaded,
     runtime: {
       Application,
       Assets: { unload: async (aliases) => unloaded.push([...aliases]) },
       Container,
+      Rectangle,
       SceneView,
     },
   };
@@ -190,6 +206,25 @@ test("caps DPR, applies one letterbox transform to both roots, and keeps worldTo
   assert.equal(officeRoot.scale.x, loungeRoot.scale.x);
   assert.equal(officeRoot.x, loungeRoot.x);
   assert.equal(officeRoot.y, loungeRoot.y);
+});
+
+test("extracts only the visible composed stage at its rendered host size", async () => {
+  const { createOfficeRenderer } = await loadRenderer();
+  const fake = createFakePixi();
+  const renderer = await createOfficeRenderer({ host: createHost(), runtime: fake.runtime });
+
+  renderer.setVisibleScene("lounge");
+  assert.equal(await renderer.extractSceneFrame("lounge"), "data:image/png;base64,cGl4aQ==");
+  assert.equal(fake.extractionCalls.length, 1);
+  assert.equal(fake.extractionCalls[0].target, fake.applications[0].stage);
+  assert.deepEqual(
+    { ...fake.extractionCalls[0].frame },
+    { x: 0, y: 0, width: 390, height: 744 },
+  );
+  assert.equal(fake.extractionCalls[0].resolution, 1);
+  assert.equal(fake.extractionCalls[0].format, "png");
+  assert.equal(fake.extractionCalls[0].antialias, true);
+  assert.throws(() => renderer.extractSceneFrame("office"), /not visible/u);
 });
 
 test("uses the latest callbacks and removes its ticker on idempotent destroy", async () => {

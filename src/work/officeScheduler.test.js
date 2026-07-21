@@ -13,7 +13,10 @@ const createCharacter = (slotId, overrides = {}) => ({
   activity: "idle",
   conversationId: "",
   sceneId: "office",
-  position: { x: slotId === "boss" ? 540 : slotId.endsWith("1") || slotId.endsWith("3") ? 280 : 800, y: slotId === "boss" ? 655 : slotId.endsWith("1") || slotId.endsWith("2") ? 990 : 1380 },
+  position: {
+    x: slotId === "boss" ? 540 : slotId === "employee3" ? 300 : slotId === "employee1" ? 280 : 800,
+    y: slotId === "boss" ? 655 : slotId.endsWith("1") || slotId.endsWith("2") ? 1120 : 1520,
+  },
   ...overrides,
 });
 
@@ -96,7 +99,7 @@ test("commits successful printer reservations atomically and leaves failures unc
 
   const invalidRouteState = createState({
     forcedActivityId: "printing",
-    characters: { employee1: createCharacter("employee1", { position: { x: Number.NaN, y: 990 } }) },
+    characters: { employee1: createCharacter("employee1", { position: { x: Number.NaN, y: 1120 } }) },
   });
   assert.equal(chooseOfficeEvent({ state: invalidRouteState, profiles: createProfiles(), random: sequence(0), now: 1_000 }), null);
   assert.deepEqual(invalidRouteState.reservations, {});
@@ -193,6 +196,9 @@ test("supports office and lounge conversation-compatible group events", () => {
     const event = chooseOfficeEvent({ state: createState({ forcedActivityId: activityId }), profiles: createProfiles(), random: sequence(0, 0, 0), now: 1_000 });
     assertPhysicalEvent(event);
     assert.ok(event.actorIds.length >= 2, activityId);
+    if (activityId === "sofaChat") {
+      assert.deepEqual(event.targetAnchors, ["sofa:seat-1", "sofa:seat-3"]);
+    }
   }
 });
 
@@ -243,7 +249,7 @@ test("falls back to legal shared anchors when a desk visitor anchor is occupied"
   assert.deepEqual(event.targetAnchors, ["whiteboard:1", "whiteboard:2"]);
 });
 
-test("continues from a blocked whiteboard to lounge conversation anchors", () => {
+test("continues from a blocked whiteboard to open office conversation anchors", () => {
   const state = createState({
     forcedActivityId: "chatting",
     characters: { ...createState().characters, boss: createCharacter("boss", { conversationId: "busy" }) },
@@ -255,8 +261,8 @@ test("continues from a blocked whiteboard to lounge conversation anchors", () =>
   });
   const event = chooseOfficeEvent({ state, profiles: createProfiles(), random: sequence(0, 0, 0, 0), now: 1_000 });
 
-  assert.equal(event.locationId, "dining");
-  assert.deepEqual(event.targetAnchors, ["dining:seat-1", "dining:seat-2"]);
+  assert.equal(event.locationId, "office-chat");
+  assert.deepEqual(event.targetAnchors, ["office-chat:1", "office-chat:2"]);
 });
 
 test("keeps group conversation reservations and routes independent", () => {

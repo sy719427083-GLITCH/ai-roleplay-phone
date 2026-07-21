@@ -44,3 +44,16 @@ test("contains no rug or carpet objects", () => {
   const ids = Object.values(OFFICE_SCENES).flatMap((scene) => scene.objects.map((object) => object.id));
   assert.equal(ids.some((id) => /rug|carpet/i.test(id)), false);
 });
+
+test("leaves a label-safe aisle between dining seats and the lounge sofa group", () => {
+  const sofa = OFFICE_SCENES.lounge.objects.find(({ id }) => id === "sofa");
+  const coffeeTable = OFFICE_SCENES.lounge.objects.find(({ id }) => id === "coffee-table");
+  const television = OFFICE_SCENES.lounge.objects.find(({ id }) => id === "television");
+  const seat = getSceneAnchor("lounge", "sofa:seat-2");
+
+  assert.equal(sofa.y, 1400);
+  assert.equal(sofa.x, 240);
+  assert.equal(seat.y, 1530);
+  assert.equal(coffeeTable.y, 1670);
+  assert.equal(television.y, 1420);
+});

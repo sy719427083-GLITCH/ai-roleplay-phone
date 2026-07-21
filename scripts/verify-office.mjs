@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import {
   OFFICE_RELEASE_VIEWPORTS,
+  assertActorMotionEvidence,
+  assertConversationActivityCoverage,
   assertDisjointRectangles,
 } from "./office-release-contract.mjs";
 
@@ -267,7 +269,9 @@ async function seedReleaseState(context) {
 }
 
 async function openWork(page, appUrl) {
-  await page.goto(appUrl, { waitUntil: "domcontentloaded" });
+  const qaUrl = new URL(appUrl);
+  qaUrl.searchParams.set("officeQa", "1");
+  await page.goto(qaUrl.href, { waitUntil: "domcontentloaded" });
   const unlock = page.getByRole("button", { name: "上划解锁", exact: true });
   if (await unlock.count() && await unlock.isVisible()) await unlock.click();
   await page.locator(".phone-surface").waitFor({ state: "visible" });
@@ -275,6 +279,8 @@ async function openWork(page, appUrl) {
   await page.getByRole("button", { name: "工作", exact: true }).click();
   await page.locator(".work-app-screen").waitFor({ state: "visible" });
   await page.locator('canvas[data-office-renderer="pixi"]').waitFor({ state: "visible", timeout: READY_TIMEOUT_MS });
+  await page.waitForFunction(() => Boolean(window.__CCAT_OFFICE_QA__), null, { timeout: READY_TIMEOUT_MS });
+  assert(await page.getByText("场景暂时无法加载", { exact: true }).count() === 0, "renderer fallback is visible");
 }
 
 async function inspectRenderedPixels(page, locator, label) {
@@ -322,26 +328,69 @@ async function verifyCanvas(page, viewportLabel, sceneLabel) {
   return { ...metrics, ...pixels };
 }
 
+const rectanglesOverlap = (left, right) => (
+  Math.min(left.right, right.right) > Math.max(left.left, right.left)
+  && Math.min(left.bottom, right.bottom) > Math.max(left.top, right.top)
+);
+
 async function getOverlayGeometry(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
+    const { OFFICE_SCENES } = await import(new URL("src/work/officeSceneManifest.js", location.href).href);
     const scene = document.querySelector(".office-scene");
+    const canvas = document.querySelector('canvas[data-office-renderer="pixi"]');
     const sceneRect = scene?.getBoundingClientRect();
+    const canvasRect = canvas?.getBoundingClientRect();
     const overlays = [...document.querySelectorAll("[data-office-actor-overlay]:not([hidden])")];
-    const elementRect = (element, id) => {
+    const elementRect = (element, id, kind = "label") => {
       const rect = element.getBoundingClientRect();
-      return { id, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+      return { id, kind, left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
     };
+    const sceneId = document.querySelector(".office-door-control")?.dataset.scene || "office";
+    const scale = Math.min(canvasRect.width / 1080, canvasRect.height / 1920);
+    const offsetX = canvasRect.left + ((canvasRect.width - (1080 * scale)) / 2);
+    const offsetY = canvasRect.top + ((canvasRect.height - (1920 * scale)) / 2);
+    const furniture = OFFICE_SCENES[sceneId].objects.map((object) => {
+      const colliders = object.colliders?.length ? object.colliders : [object];
+      return {
+        id: object.id,
+        left: offsetX + (Math.min(...colliders.map(({ x }) => x)) * scale),
+        top: offsetY + (Math.min(...colliders.map(({ y }) => y)) * scale),
+        right: offsetX + (Math.max(...colliders.map(({ x, width }) => x + width)) * scale),
+        bottom: offsetY + (Math.max(...colliders.map(({ y, height }) => y + height)) * scale),
+      };
+    });
+    const bodies = overlays.map((element) => {
+      const screenX = Number(element.dataset.screenX);
+      const screenY = Number(element.dataset.screenY);
+      const headY = Number(element.dataset.headScreenY);
+      const height = Math.max(1, screenY - headY);
+      const width = Math.min(90, Math.max(34, height * 0.6));
+      return {
+        id: `${element.dataset.officeActorOverlay}:body`,
+        left: sceneRect.left + screenX - (width / 2),
+        top: sceneRect.top + headY,
+        right: sceneRect.left + screenX + (width / 2),
+        bottom: sceneRect.top + screenY,
+      };
+    });
     return {
+      sceneId,
       scene: sceneRect && { left: sceneRect.left, top: sceneRect.top, right: sceneRect.right, bottom: sceneRect.bottom },
       actorIds: overlays.map((element) => element.dataset.officeActorOverlay),
       labels: overlays.flatMap((element) => [
-        element.querySelector(".office-actor-bubble"),
+        [element.querySelector(".office-actor-bubble"), "bubble"],
+        [element.querySelector(".office-actor-label"), "label"],
+        [element.querySelector(".office-actor-status"), "status"],
+      ].filter(([child]) => Boolean(child)).map(([child, kind]) => (
+        elementRect(child, `${element.dataset.officeActorOverlay}:${kind}`, kind)
+      ))),
+      names: overlays.map((element) => elementRect(
         element.querySelector(".office-actor-name"),
-        element.querySelector(".office-actor-status"),
-      ].filter(Boolean).map((child, index) => elementRect(child, `${element.dataset.officeActorOverlay}:${index}`))),
+        element.dataset.officeActorOverlay,
+      )),
       positions: overlays.map((element) => ({
         id: element.dataset.officeActorOverlay,
-        sceneId: "office",
+        sceneId: element.dataset.sceneId,
         x: Number(element.dataset.worldX),
         y: Number(element.dataset.worldY),
       })),
@@ -349,19 +398,47 @@ async function getOverlayGeometry(page) {
         element.dataset.officeActorOverlay,
         sceneRect.top + Number(element.dataset.headScreenY),
       ])),
+      screenXByActor: Object.fromEntries(overlays.map((element) => [
+        element.dataset.officeActorOverlay,
+        sceneRect.left + Number(element.dataset.screenX),
+      ])),
+      bodies,
+      furniture,
     };
   });
 }
 
-async function verifyOverlays(page, viewportLabel) {
+async function verifyOverlays(page, viewportLabel, expectedSceneId = "office") {
   const geometry = await getOverlayGeometry(page);
-  assert(geometry.actorIds.length === 5, `${viewportLabel}: expected five visible office overlays`);
+  assert(geometry.sceneId === expectedSceneId, `${viewportLabel}: expected ${expectedSceneId} overlay geometry`);
+  assert(geometry.actorIds.length === 5, `${viewportLabel}: expected five visible ${expectedSceneId} overlays`);
   assert(new Set(geometry.actorIds).size === 5, `${viewportLabel}: duplicate actor overlay IDs`);
   assertDisjointRectangles(geometry.labels, geometry.scene);
   assert(geometry.labels.every((rectangle) => {
     const actorId = rectangle.id.split(":")[0];
     return rectangle.bottom <= geometry.headByActor[actorId] - 4;
   }), `${viewportLabel}: an overlay covers its actor instead of staying above the head`);
+  const detached = geometry.labels.filter((rectangle) => {
+    const actorId = rectangle.id.split(":")[0];
+    const maximumGap = rectangle.kind === "bubble" ? 90 : 30.5;
+    return rectangle.bottom < geometry.headByActor[actorId] - maximumGap;
+  }).map((rectangle) => ({
+    id: rectangle.id,
+    bottom: rectangle.bottom,
+    head: geometry.headByActor[rectangle.id.split(":")[0]],
+  }));
+  assert(detached.length === 0, `${viewportLabel}: an overlay is detached from its actor head; ${JSON.stringify(detached)}`);
+  assert(geometry.names.every((rectangle) => (
+    Math.abs(((rectangle.left + rectangle.right) / 2) - geometry.screenXByActor[rectangle.id]) <= 16
+  )), `${viewportLabel}: a name moved too far from its actor head`);
+  assert(geometry.labels.every(({ top }) => top >= geometry.scene.top + 4),
+    `${viewportLabel}: an overlay is clipped against the scene top or navigation`);
+  for (const label of geometry.labels) {
+    const bodyOverlap = geometry.bodies.find((body) => rectanglesOverlap(label, body));
+    assert(!bodyOverlap, `${viewportLabel}: ${label.id} covers actor body ${bodyOverlap?.id}; label=${JSON.stringify(label)} body=${JSON.stringify(bodyOverlap)}`);
+    const furnitureOverlap = geometry.furniture.find((item) => rectanglesOverlap(label, item));
+    assert(!furnitureOverlap, `${viewportLabel}: ${label.id} covers fixed furniture ${furnitureOverlap?.id}; label=${JSON.stringify(label)} furniture=${JSON.stringify(furnitureOverlap)}`);
+  }
   const legality = await page.evaluate(async (positions) => {
     const moduleUrl = new URL("src/work/officePathfinding.js", location.href).href;
     const { isLegalCharacterPosition } = await import(moduleUrl);
@@ -370,7 +447,12 @@ async function verifyOverlays(page, viewportLabel) {
   assert(legality.every(({ legal }) => legal), `${viewportLabel}: at least one character collider is illegal`);
   const forbiddenDom = await page.locator(".work-app-screen").evaluate((element) => /rug|carpet/iu.test(element.innerHTML));
   assert(!forbiddenDom, `${viewportLabel}: forbidden floor-zone DOM found`);
-  return { actorIds: geometry.actorIds, colliderCount: legality.length, overlayRectCount: geometry.labels.length };
+  return {
+    actorIds: geometry.actorIds,
+    colliderCount: legality.length,
+    overlayRectCount: geometry.labels.length,
+    furnitureAvoidCount: geometry.furniture.length,
+  };
 }
 
 async function verifyConversationPanel(page, viewportLabel) {
@@ -404,11 +486,44 @@ async function saveSceneScreenshot(page, viewportLabel, sceneId) {
   return { path, bytes: details.size };
 }
 
+async function verifyDoorAlignment(page, viewportLabel, expectedSceneId) {
+  const evidence = await page.evaluate(async (sceneId) => {
+    const { OFFICE_SCENES } = await import(new URL("src/work/officeSceneManifest.js", location.href).href);
+    const canvasRect = document.querySelector('canvas[data-office-renderer="pixi"]')?.getBoundingClientRect();
+    const button = document.querySelector(".office-door-control");
+    const buttonRect = button?.getBoundingClientRect();
+    const doorId = sceneId === "lounge" ? "lounge-door" : "office-door";
+    const door = OFFICE_SCENES[sceneId].objects.find(({ id }) => id === doorId);
+    const scale = Math.min(canvasRect.width / 1080, canvasRect.height / 1920);
+    const offsetX = canvasRect.left + ((canvasRect.width - (1080 * scale)) / 2);
+    const offsetY = canvasRect.top + ((canvasRect.height - (1920 * scale)) / 2);
+    const doorRect = {
+      left: offsetX + (door.x * scale),
+      top: offsetY + (door.y * scale),
+      right: offsetX + ((door.x + door.width) * scale),
+      bottom: offsetY + ((door.y + door.height) * scale),
+    };
+    const center = { x: (buttonRect.left + buttonRect.right) / 2, y: (buttonRect.top + buttonRect.bottom) / 2 };
+    return {
+      center,
+      doorRect,
+      dataX: Number(button.dataset.doorScreenX) + canvasRect.left,
+      dataY: Number(button.dataset.doorScreenY) + canvasRect.top,
+    };
+  }, expectedSceneId);
+  assert(evidence.center.x >= evidence.doorRect.left && evidence.center.x <= evidence.doorRect.right
+    && evidence.center.y >= evidence.doorRect.top && evidence.center.y <= evidence.doorRect.bottom,
+  `${viewportLabel}: ${expectedSceneId} door control floats outside the drawn door`);
+  assert(Math.hypot(evidence.center.x - evidence.dataX, evidence.center.y - evidence.dataY) <= 1.5,
+    `${viewportLabel}: ${expectedSceneId} door control does not use the projected door anchor`);
+  return evidence;
+}
+
 async function verifySceneSwitch(page, viewportLabel) {
   const door = page.locator(".office-door-control");
   assert(await door.getAttribute("aria-label") === "进入休息区", `${viewportLabel}: office door label is incorrect`);
   const officeCanvas = await verifyCanvas(page, viewportLabel, "office");
-  const officeScreenshot = await saveSceneScreenshot(page, viewportLabel, "office");
+  const officeDoor = await verifyDoorAlignment(page, viewportLabel, "office");
   await door.click();
   await page.locator('.office-door-control[data-scene="lounge"]').waitFor({ state: "visible" });
   assert(await door.getAttribute("aria-label") === "返回办公室", `${viewportLabel}: lounge door label is incorrect`);
@@ -416,13 +531,13 @@ async function verifySceneSwitch(page, viewportLabel) {
   assert(focusedAfterEntering, `${viewportLabel}: door focus was not restored after entering lounge`);
   assert(await page.locator('[data-office-actor-overlay]:visible').count() === 0, `${viewportLabel}: inactive office overlays remain visible in lounge`);
   const loungeCanvas = await verifyCanvas(page, viewportLabel, "lounge");
-  const loungeScreenshot = await saveSceneScreenshot(page, viewportLabel, "lounge");
+  const loungeDoor = await verifyDoorAlignment(page, viewportLabel, "lounge");
   await door.click();
   await page.locator('.office-door-control[data-scene="office"]').waitFor({ state: "visible" });
   assert(await door.getAttribute("aria-label") === "进入休息区", `${viewportLabel}: office door label was not restored`);
   assert(await door.evaluate((element) => document.activeElement === element), `${viewportLabel}: door focus was not restored after returning`);
   assert(await page.locator('[data-office-actor-overlay]:not([hidden])').count() === 5, `${viewportLabel}: office overlay state was not restored`);
-  return { officeCanvas, loungeCanvas, officeScreenshot, loungeScreenshot };
+  return { officeCanvas, loungeCanvas, officeDoor, loungeDoor };
 }
 
 async function inspectLocomotionLegEvidence(page, characterId) {
@@ -476,49 +591,427 @@ async function inspectLocomotionLegEvidence(page, characterId) {
   }, characterId);
 }
 
+async function captureLiveCanvasFrame(page, sceneId) {
+  const dataUrl = await page.evaluate((requestedSceneId) => (
+    window.__CCAT_OFFICE_QA__.captureSceneFrame(requestedSceneId)
+  ), sceneId);
+  assert(typeof dataUrl === "string" && dataUrl.startsWith("data:image/png;base64,"),
+    `${sceneId}: Pixi scene extraction did not return a PNG frame`);
+  return Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+}
+
+async function inspectCanvasCrop(page, screenshot, crop) {
+  return page.evaluate(async ({ base64, crop: requested }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(image, 0, 0);
+    const scaleX = image.naturalWidth / requested.cssWidth;
+    const scaleY = image.naturalHeight / requested.cssHeight;
+    const left = Math.max(0, Math.floor((requested.centerX - (requested.width / 2)) * scaleX));
+    const top = Math.max(0, Math.floor((requested.centerY - (requested.height / 2)) * scaleY));
+    const width = Math.max(1, Math.min(image.naturalWidth - left, Math.ceil(requested.width * scaleX)));
+    const height = Math.max(1, Math.min(image.naturalHeight - top, Math.ceil(requested.height * scaleY)));
+    const pixels = context.getImageData(left, top, width, height).data;
+    let borderR = 0;
+    let borderG = 0;
+    let borderB = 0;
+    let borderCount = 0;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (x > 1 && x < width - 2 && y > 1 && y < height - 2) continue;
+        const index = ((y * width) + x) * 4;
+        borderR += pixels[index];
+        borderG += pixels[index + 1];
+        borderB += pixels[index + 2];
+        borderCount += 1;
+      }
+    }
+    const background = [borderR / borderCount, borderG / borderCount, borderB / borderCount];
+    let fingerprint = 2166136261;
+    let nonBackgroundPixels = 0;
+    for (let index = 0; index + 3 < pixels.length; index += 4) {
+      const distance = Math.abs(pixels[index] - background[0])
+        + Math.abs(pixels[index + 1] - background[1])
+        + Math.abs(pixels[index + 2] - background[2]);
+      if (pixels[index + 3] > 0 && distance > 45) nonBackgroundPixels += 1;
+      fingerprint = Math.imul(fingerprint ^ pixels[index], 16777619) >>> 0;
+      fingerprint = Math.imul(fingerprint ^ pixels[index + 1], 16777619) >>> 0;
+      fingerprint = Math.imul(fingerprint ^ pixels[index + 2], 16777619) >>> 0;
+    }
+    return { cropFingerprint: fingerprint.toString(16), nonBackgroundPixels, width, height };
+  }, { base64: screenshot.toString("base64"), crop });
+}
+
+async function compareCanvasMotionFrames(page, before, after, oldCrop, newCrop) {
+  return page.evaluate(async ({ beforeBase64, afterBase64, oldCrop: oldRequested, newCrop: newRequested }) => {
+    const decode = async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+      return { width: canvas.width, height: canvas.height, context };
+    };
+    const [left, right] = await Promise.all([decode(beforeBase64), decode(afterBase64)]);
+    const compare = (requested) => {
+      const scaleX = left.width / requested.cssWidth;
+      const scaleY = left.height / requested.cssHeight;
+      const x = Math.max(0, Math.floor((requested.centerX - (requested.width / 2)) * scaleX));
+      const y = Math.max(0, Math.floor((requested.centerY - (requested.height / 2)) * scaleY));
+      const width = Math.max(1, Math.min(left.width - x, Math.ceil(requested.width * scaleX)));
+      const height = Math.max(1, Math.min(left.height - y, Math.ceil(requested.height * scaleY)));
+      const beforePixels = left.context.getImageData(x, y, width, height).data;
+      const afterPixels = right.context.getImageData(x, y, width, height).data;
+      let changed = 0;
+      let brightened = 0;
+      let darkened = 0;
+      for (let index = 0; index + 3 < beforePixels.length; index += 4) {
+        const red = afterPixels[index] - beforePixels[index];
+        const green = afterPixels[index + 1] - beforePixels[index + 1];
+        const blue = afterPixels[index + 2] - beforePixels[index + 2];
+        if ((Math.abs(red) + Math.abs(green) + Math.abs(blue)) > 45) changed += 1;
+        const luminanceDelta = (red * 0.2126) + (green * 0.7152) + (blue * 0.0722);
+        if (luminanceDelta > 10) brightened += 1;
+        else if (luminanceDelta < -10) darkened += 1;
+      }
+      return { changed, brightened, darkened };
+    };
+    const oldRegion = compare(oldRequested);
+    const newRegion = compare(newRequested);
+    const lightActorDirection = oldRegion.darkened + newRegion.brightened;
+    const darkActorDirection = oldRegion.brightened + newRegion.darkened;
+    return {
+      oldRegionChangedPixels: oldRegion.changed,
+      newRegionChangedPixels: newRegion.changed,
+      oldRegionClearedPixels: darkActorDirection >= lightActorDirection ? oldRegion.brightened : oldRegion.darkened,
+      newRegionAppearedPixels: darkActorDirection >= lightActorDirection ? newRegion.darkened : newRegion.brightened,
+    };
+  }, {
+    beforeBase64: before.toString("base64"),
+    afterBase64: after.toString("base64"),
+    oldCrop,
+    newCrop,
+  });
+}
+
 async function verifyLiveLocomotion(page, viewportLabel) {
-  const meeting = page.getByRole("button", { name: "开会", exact: true });
-  assert(await meeting.isEnabled(), `${viewportLabel}: deterministic meeting action is unavailable`);
-  await meeting.click();
-  const actorId = "employee1";
+  const qaSpeed = 60;
+  const event = await page.evaluate((speed) => window.__CCAT_OFFICE_QA__.schedule("printing", { speed }), qaSpeed);
+  assert(event?.activityId === "printing" && event.actorIds?.length === 1,
+    `${viewportLabel}: real scheduler did not create the printing route`);
+  const actorId = event.actorIds[0];
   const actor = page.locator(`[data-office-actor-overlay="${actorId}"]`);
   await page.locator(`[data-office-actor-overlay="${actorId}"][data-moving="true"]`).waitFor({ state: "visible", timeout: 5_000 });
   const samples = [];
-  for (let index = 0; index < 16; index += 1) {
+  const screenshots = [];
+  const crops = [];
+  const canvas = page.locator('canvas[data-office-renderer="pixi"]');
+  const canvasMetrics = await canvas.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { cssWidth: rect.width, cssHeight: rect.height };
+  });
+  for (let index = 0; index < 8; index += 1) {
     const sample = await actor.evaluate((element) => ({
       time: performance.now(),
       x: Number(element.dataset.worldX),
       y: Number(element.dataset.worldY),
+      screenX: Number(element.dataset.screenX),
+      screenY: Number(element.dataset.screenY),
+      headScreenY: Number(element.dataset.headScreenY),
       frame: Number(element.dataset.motionFrame),
       clip: element.dataset.motionClip,
       moving: element.dataset.moving,
     }));
     if (sample.moving !== "true") break;
+    const bodyHeight = Math.max(54, sample.screenY - sample.headScreenY);
+    const crop = {
+      ...canvasMetrics,
+      centerX: sample.screenX,
+      centerY: sample.headScreenY + (bodyHeight / 2),
+      width: Math.min(100, Math.max(48, bodyHeight * 0.72)),
+      height: bodyHeight,
+    };
+    const screenshot = await captureLiveCanvasFrame(page, "office");
     samples.push(sample);
-    await delay(90);
+    screenshots.push(screenshot);
+    crops.push(crop);
+    await delay(100);
   }
-  assert(samples.length >= 8, `${viewportLabel}: walking actor arrived before enough live samples were captured`);
+  assert(samples.length >= 6, `${viewportLabel}: walking actor arrived before enough live samples were captured`);
+  for (let index = 0; index < samples.length; index += 1) {
+    Object.assign(samples[index], await inspectCanvasCrop(page, screenshots[index], crops[index]));
+  }
   assert(samples.every(({ clip, moving: isMoving }) => clip === "locomotion" && isMoving === "true"), `${viewportLabel}: live walking actor did not retain locomotion clip`);
-  const positions = new Set(samples.map(({ x, y }) => `${x.toFixed(2)}:${y.toFixed(2)}`));
-  const frames = new Set(samples.map(({ frame }) => frame));
-  assert(positions.size >= 6, `${viewportLabel}: live route did not expose continuous position samples`);
-  assert(frames.size >= 4, `${viewportLabel}: locomotion frames did not advance`);
-  const distances = samples.slice(1).map((sample, index) => Math.hypot(sample.x - samples[index].x, sample.y - samples[index].y));
-  const speeds = samples.slice(1).map((sample, index) => {
-    const elapsedSeconds = Math.max(0.001, (sample.time - samples[index].time) / 1_000);
-    return distances[index] / elapsedSeconds;
-  });
-  assert(
-    speeds.every((speed) => speed >= 0 && speed <= 220),
-    `${viewportLabel}: walking samples exceed physical route speed (${speeds.map((speed) => speed.toFixed(1)).join(", ")})`,
-  );
-  assert(distances.filter((distance) => distance > 0).length >= 6, `${viewportLabel}: walking samples contain too many stalls`);
+  const transitions = [];
+  for (let index = 1; index < samples.length; index += 1) {
+    transitions.push({
+      distance: Math.hypot(samples[index].x - samples[index - 1].x, samples[index].y - samples[index - 1].y),
+      elapsedMs: samples[index].time - samples[index - 1].time,
+      ...await compareCanvasMotionFrames(page, screenshots[index - 1], screenshots[index], crops[index - 1], crops[index]),
+    });
+  }
+  assertActorMotionEvidence({ samples, transitions });
   const assignment = QA_ASSIGNMENTS[actorId] || QA_ASSIGNMENTS.employee1;
   const legEvidence = await inspectLocomotionLegEvidence(page, assignment.chibiId);
   assert(legEvidence.frameCount === 8, `${viewportLabel}: locomotion strip must contain eight frames`);
   assert(legEvidence.uniqueSignatures >= 6, `${viewportLabel}: lower-body locomotion frames are not distinct`);
   assert(legEvidence.balanceRange > 10_000 && legEvidence.directionChanges >= 2, `${viewportLabel}: no alternating left/right leg evidence`);
-  return { actorId, positionSamples: samples.length, distinctPositions: positions.size, distinctFrames: frames.size, legEvidence };
+  await page.waitForFunction((id) => {
+    const character = window.__CCAT_OFFICE_QA__.getState().state.characters[id];
+    return character?.phase === "printing" && character?.targetAnchorId === "printer:front";
+  }, actorId, { timeout: 30_000 });
+  return {
+    actorId,
+    activityId: event.activityId,
+    positionSamples: samples.length,
+    distinctPositions: new Set(samples.map(({ x, y }) => `${x.toFixed(2)}:${y.toFixed(2)}`)).size,
+    distinctFrames: new Set(samples.map(({ frame }) => frame)).size,
+    canvasTransitions: transitions.length,
+    legEvidence,
+  };
+}
+
+async function getWorldCrop(page, { x, y, width, height }) {
+  return page.locator('canvas[data-office-renderer="pixi"]').evaluate((element, worldRect) => {
+    const rect = element.getBoundingClientRect();
+    const scale = Math.min(rect.width / 1080, rect.height / 1920);
+    const offsetX = (rect.width - (1080 * scale)) / 2;
+    const offsetY = (rect.height - (1920 * scale)) / 2;
+    return {
+      cssWidth: rect.width,
+      cssHeight: rect.height,
+      centerX: offsetX + (worldRect.x * scale),
+      centerY: offsetY + (worldRect.y * scale),
+      width: worldRect.width * scale,
+      height: worldRect.height * scale,
+    };
+  }, { x, y, width, height });
+}
+
+async function assertCanvasRegionChanged(page, before, after, worldRect, label) {
+  const crop = await getWorldCrop(page, worldRect);
+  const difference = await compareCanvasMotionFrames(page, before, after, crop, crop);
+  assert(difference.oldRegionChangedPixels >= 40, `${label}: expected live canvas pixels to change`);
+  return difference.oldRegionChangedPixels;
+}
+
+async function scheduleQaActivity(page, viewportLabel, activityId, speed = 900, randomValues = [0], blockedAnchorIds = []) {
+  const event = await page.evaluate(({ requestedActivityId, requestedSpeed, requestedRandomValues, requestedBlockedAnchorIds }) => (
+    window.__CCAT_OFFICE_QA__.schedule(requestedActivityId, {
+      blockedAnchorIds: requestedBlockedAnchorIds,
+      speed: requestedSpeed,
+      randomValues: requestedRandomValues,
+    })
+  ), {
+    requestedActivityId: activityId,
+    requestedSpeed: speed,
+    requestedRandomValues: randomValues,
+    requestedBlockedAnchorIds: blockedAnchorIds,
+  });
+  assert(event?.activityId === activityId, `${viewportLabel}: real scheduler did not create ${activityId}`);
+  return event;
+}
+
+async function waitForQaActivity(page, event, timeout = 15_000) {
+  await page.waitForFunction((expected) => {
+    const state = window.__CCAT_OFFICE_QA__.getState().state;
+    return expected.actorIds.every((actorId) => {
+      const character = state.characters[actorId];
+      return character?.activity === expected.activityId
+        && !["walkingToActivity", "waitingForConversation"].includes(character.phase);
+    });
+  }, { actorIds: event.actorIds, activityId: event.activityId }, { timeout });
+}
+
+async function queueConversationEvidence(page, textByActivityId, speakerOffset = 0) {
+  return page.evaluate(({ requestedTexts, requestedSpeakerOffset }) => {
+    const bridge = window.__CCAT_OFFICE_QA__;
+    const conversations = Object.values(bridge.getState().state.conversations);
+    return conversations.map((conversation, index) => {
+      const text = requestedTexts[conversation.activityId] || "";
+      const speakerId = conversation.memberIds[(index + requestedSpeakerOffset) % conversation.memberIds.length];
+      return {
+        id: conversation.id,
+        activityId: conversation.activityId,
+        memberIds: [...conversation.memberIds],
+        speakerId,
+        text,
+        queued: Boolean(text) && bridge.queueBubble(
+          conversation.id,
+          speakerId,
+          text,
+        ),
+      };
+    });
+  }, { requestedTexts: textByActivityId, requestedSpeakerOffset: speakerOffset });
+}
+
+async function verifyQueuedConversationBubbles(page, expected, viewportLabel) {
+  await page.waitForFunction((requested) => requested.every(({ speakerId, text }) => {
+    const actor = document.querySelector(`[data-office-actor-overlay="${speakerId}"]`);
+    return actor?.querySelector(".office-actor-bubble")?.textContent === text;
+  }), expected);
+  const visible = await page.locator(".office-actor-bubble").evaluateAll((elements) => elements.map((element) => ({
+    speakerId: element.closest("[data-office-actor-overlay]")?.dataset.officeActorOverlay,
+    text: element.textContent,
+  })));
+  assert(visible.length === expected.length, `${viewportLabel}: unexpected visible conversation bubble count`);
+  assert(expected.every((bubble) => visible.some((entry) => (
+    entry.speakerId === bubble.speakerId && entry.text === bubble.text
+  ))), `${viewportLabel}: visible conversation text or speaker crossed sessions`);
+  return visible;
+}
+
+async function runDynamicOfficeEvidence(page, viewportLabel) {
+  const canvas = page.locator('canvas[data-office-renderer="pixi"]');
+  const idleCanvas = await canvas.screenshot();
+  const locomotion = await verifyLiveLocomotion(page, viewportLabel);
+  const whiteboard = await scheduleQaActivity(page, viewportLabel, "whiteboardWork");
+  const chatting = await scheduleQaActivity(
+    page,
+    viewportLabel,
+    "chatting",
+    900,
+    [0.999, 0, 0.999],
+  );
+  assert(/^(?:boss|employee[1-4]):desk$/u.test(chatting.locationId),
+    `${viewportLabel}: evidence chat did not use a real colleague desk`);
+  assert(chatting.anchorByMember[chatting.hostId] === `${chatting.hostId}:seat-approach`
+    && chatting.visitorIds.every((visitorId) => chatting.anchorByMember[visitorId].startsWith(`${chatting.hostId}:visitor-`)),
+  `${viewportLabel}: desk chat did not keep its host seated and route visitors to the desk front`);
+  await Promise.all([waitForQaActivity(page, whiteboard), waitForQaActivity(page, chatting)]);
+  await page.waitForFunction(() => Object.keys(window.__CCAT_OFFICE_QA__.getState().state.conversations).length === 1);
+  const conversations = await queueConversationEvidence(page, {
+    chatting: "发布清单已核对，结论一致。",
+  }, 1);
+  assertConversationActivityCoverage(conversations, ["chatting"]);
+  assert(conversations.length === 1 && conversations[0].queued, `${viewportLabel}: office conversation bubble was not queued`);
+  await verifyQueuedConversationBubbles(page, conversations, viewportLabel);
+  await delay(250);
+  const activeCanvas = await canvas.screenshot();
+  const screenshot = await saveSceneScreenshot(page, viewportLabel, "office");
+  const overlays = await verifyOverlays(page, viewportLabel, "office");
+  const door = await verifyDoorAlignment(page, viewportLabel, "office");
+  const propPixelChanges = {
+    printer: await assertCanvasRegionChanged(page, idleCanvas, activeCanvas,
+      { x: 190, y: 1510, width: 300, height: 250 }, `${viewportLabel} printer`),
+    whiteboard: await assertCanvasRegionChanged(page, idleCanvas, activeCanvas,
+      { x: 900, y: 520, width: 260, height: 400 }, `${viewportLabel} whiteboard`),
+  };
+  const canvasEvidence = await verifyCanvas(page, viewportLabel, "office-dynamic");
+  const runtime = await page.evaluate(() => {
+    const state = window.__CCAT_OFFICE_QA__.getState().state;
+    return Object.fromEntries(Object.entries(state.characters).map(([id, character]) => [id, {
+      activity: character.activity,
+      phase: character.phase,
+      targetAnchorId: character.targetAnchorId,
+    }]));
+  });
+  assert(Object.values(runtime).some(({ activity, targetAnchorId }) => activity === "printing" && targetAnchorId === "printer:front"),
+    `${viewportLabel}: printing actor is not visibly anchored at the printer`);
+  assert(Object.values(runtime).some(({ activity, targetAnchorId }) => activity === "whiteboardWork" && targetAnchorId.startsWith("whiteboard:")),
+    `${viewportLabel}: whiteboard actor is not visibly anchored at the whiteboard`);
+  return {
+    screenshot,
+    canvas: canvasEvidence,
+    overlays,
+    door,
+    locomotion,
+    conversationIds: conversations.map(({ id }) => id),
+    propPixelChanges,
+    runtime,
+  };
+}
+
+async function runDynamicLoungeEvidence(page, appUrl, viewportLabel) {
+  await openWork(page, appUrl);
+  await page.evaluate(() => window.__CCAT_OFFICE_QA__.setVisibleScene("lounge"));
+  await page.locator('.office-door-control[data-scene="lounge"]').waitFor({ state: "visible" });
+  const canvas = page.locator('canvas[data-office-renderer="pixi"]');
+  const idleLounge = await canvas.screenshot();
+  const watchingTv = await scheduleQaActivity(page, viewportLabel, "watchingTv");
+  await waitForQaActivity(page, watchingTv);
+  const tvCanvas = await canvas.screenshot();
+  const tvPixelChanges = await assertCanvasRegionChanged(page, idleLounge, tvCanvas,
+    { x: 850, y: 1400, width: 360, height: 420 }, `${viewportLabel} sofa TV`);
+
+  await openWork(page, appUrl);
+  await page.evaluate(() => window.__CCAT_OFFICE_QA__.setVisibleScene("lounge"));
+  await page.locator('.office-door-control[data-scene="lounge"]').waitFor({ state: "visible" });
+  const diningChat = await scheduleQaActivity(page, viewportLabel, "diningChat");
+  const sofaChat = await scheduleQaActivity(page, viewportLabel, "sofaChat");
+  const drinking = await scheduleQaActivity(page, viewportLabel, "drinking");
+  await Promise.all([
+    waitForQaActivity(page, diningChat),
+    waitForQaActivity(page, sofaChat),
+    waitForQaActivity(page, drinking),
+  ]);
+  await page.waitForFunction(() => Object.keys(window.__CCAT_OFFICE_QA__.getState().state.conversations).length === 2);
+  const conversations = await queueConversationEvidence(page, {
+    diningChat: "午餐组只讨论今天的菜和下午安排。",
+    sofaChat: "沙发组正在聊这部剧的剧情，不会串到午餐组。",
+  });
+  assertConversationActivityCoverage(conversations, ["diningChat", "sofaChat"]);
+  assert(conversations.length === 2 && conversations.every(({ queued }) => queued),
+    `${viewportLabel}: two isolated lounge bubbles were not queued`);
+  assert(conversations.every(({ memberIds }) => memberIds.length === 2)
+    && conversations[0].memberIds.every((id) => !conversations[1].memberIds.includes(id)),
+  `${viewportLabel}: queued lounge conversations crossed members`);
+  await verifyQueuedConversationBubbles(page, conversations, viewportLabel);
+  await delay(250);
+  const activeCanvas = await canvas.screenshot();
+  const screenshot = await saveSceneScreenshot(page, viewportLabel, "lounge");
+  const overlays = await verifyOverlays(page, viewportLabel, "lounge");
+  const door = await verifyDoorAlignment(page, viewportLabel, "lounge");
+  const activityPixelChanges = {
+    dining: await assertCanvasRegionChanged(page, idleLounge, activeCanvas,
+      { x: 540, y: 920, width: 700, height: 520 }, `${viewportLabel} dining chat`),
+    sofa: await assertCanvasRegionChanged(page, idleLounge, activeCanvas,
+      { x: 470, y: 1490, width: 850, height: 500 }, `${viewportLabel} sofa chat`),
+  };
+  const canvasEvidence = await verifyCanvas(page, viewportLabel, "lounge-dynamic");
+  const runtime = await page.evaluate(() => {
+    const state = window.__CCAT_OFFICE_QA__.getState().state;
+    return {
+      characters: Object.fromEntries(Object.entries(state.characters).map(([id, character]) => [id, {
+        activity: character.activity,
+        phase: character.phase,
+        sceneId: character.sceneId,
+        targetAnchorId: character.targetAnchorId,
+      }])),
+      conversations: Object.values(state.conversations).map(({ id, memberIds, activityId, bubbleQueue }) => ({
+        id,
+        memberIds: [...memberIds],
+        activityId,
+        bubbleCount: bubbleQueue.length,
+      })),
+    };
+  });
+  assert(Object.values(runtime.characters).every(({ sceneId }) => sceneId === "lounge"),
+    `${viewportLabel}: not all lounge actors completed the cross-door route`);
+  assert(runtime.conversations.length === 2
+    && runtime.conversations.every(({ memberIds }) => memberIds.length === 2)
+    && runtime.conversations[0].memberIds.every((id) => !runtime.conversations[1].memberIds.includes(id)),
+  `${viewportLabel}: live conversation groups crossed members or bubbles`);
+  return {
+    screenshot,
+    canvas: canvasEvidence,
+    overlays,
+    door,
+    standaloneTvActivityId: watchingTv.activityId,
+    tvPixelChanges,
+    activityPixelChanges,
+    conversationIds: conversations.map(({ id }) => id),
+    runtime,
+  };
 }
 
 async function runDeterministicContractProbes(page) {
@@ -585,7 +1078,7 @@ async function runDeterministicContractProbes(page) {
     ensure(probes.printer.targetAnchors[0] === "printer:front", "printer probe anchor failed");
     ensure(probes.whiteboard.targetAnchors.every((anchor) => anchor.startsWith("whiteboard:")), "whiteboard probe anchor failed");
     ensure(probes.diningChat.sceneId === "lounge" && probes.diningChat.locationId === "dining", "dining chat probe failed");
-    ensure(probes.sofaTv.sceneId === "lounge" && probes.sofaTv.targetAnchors[0] === "tv:view", "sofa TV probe failed");
+    ensure(probes.sofaTv.sceneId === "lounge" && probes.sofaTv.targetAnchors[0].startsWith("sofa:seat-"), "sofa TV probe failed");
 
     const simultaneousState = createState(7_000);
     simultaneousState.forcedActivityId = "chatting";
@@ -641,6 +1134,8 @@ async function runDeterministicContractProbes(page) {
       new Set(scene.objects.map(({ id }) => id)),
     ]));
     let propPlacementCount = 0;
+    let activityVariantCount = 0;
+    let visibleActivityVariantCount = 0;
     for (const definition of manifestEntries) {
       for (const clipId of Object.values(definition.clips)) {
         ensure(clipModule.OFFICE_CLIP_METADATA[clipId]?.bodyOnly === true, `${definition.id}: invalid body-only clip ${clipId}`);
@@ -649,19 +1144,27 @@ async function runDeterministicContractProbes(page) {
         const anchor = templateAnchor.startsWith("$actor:") ? `employee1:${templateAnchor.slice(7)}` : templateAnchor;
         ensure(sceneModule.getSceneAnchor(definition.sceneId, anchor), `${definition.id}: missing furniture anchor ${anchor}`);
       }
-      const actorClip = definition.clips.actor || definition.clips.host;
       const anchorId = definition.targetAnchors[0].startsWith("$actor:")
         ? `employee1:${definition.targetAnchors[0].slice(7)}`
         : definition.targetAnchors[0];
-      const propStates = sceneViewModule.getActivityPropStates([{
-        slotId: definition.requiredActorIds?.[0] || "employee1",
-        sceneId: definition.sceneId,
-        activity: actorClip,
-        anchorId,
-      }]);
-      for (const propState of propStates) {
-        ensure(furnitureByScene[propState.sceneId]?.has(propState.objectId), `${definition.id}: prop is not attached to existing furniture`);
-        ensure(propState.propIds.every((propId) => assetModule.OFFICE_ASSET_MANIFEST.props[propId]), `${definition.id}: missing prop asset`);
+      for (const variant of definition.propState.variants) {
+        activityVariantCount += 1;
+        const [propState] = sceneViewModule.getActivityPropStates([{
+          slotId: definition.requiredActorIds?.[0] || "employee1",
+          sceneId: definition.sceneId,
+          activityId: definition.id,
+          activity: definition.clips.actor || definition.clips.host,
+          anchorId,
+          propState: { category: definition.propState.category, variant },
+        }]);
+        ensure(propState, `${definition.id}:${variant}: runtime prop state did not resolve`);
+        ensure(furnitureByScene[propState.sceneId]?.has(propState.objectId), `${definition.id}:${variant}: prop is not attached to existing furniture`);
+        ensure(propState.generatedFurnitureIds.length === 0, `${definition.id}:${variant}: activity generated duplicate furniture`);
+        ensure(propState.props.length === propState.propIds.length, `${definition.id}:${variant}: prop layout count mismatch`);
+        ensure(propState.propIds.every((propId) => assetModule.OFFICE_ASSET_MANIFEST.props[propId]), `${definition.id}:${variant}: missing prop asset`);
+        const intentionallyPropless = variant === "none";
+        ensure(intentionallyPropless || propState.propIds.length > 0, `${definition.id}:${variant}: required visible prop is missing`);
+        if (!intentionallyPropless) visibleActivityVariantCount += 1;
         propPlacementCount += propState.propIds.length;
       }
     }
@@ -687,6 +1190,8 @@ async function runDeterministicContractProbes(page) {
       deskAlias: deskObjects[0].assetId,
       deskCount: deskObjects.length,
       propPlacementCount,
+      activityVariantCount,
+      visibleActivityVariantCount,
       physicalProbeIds: Object.fromEntries(Object.entries(probes).map(([name, event]) => [name, event.activityId])),
       simultaneousConversationIds: [first.reservationGroupId, second.reservationGroupId],
       crossDoorRouteEntries: route.length,
@@ -720,18 +1225,28 @@ async function verifyViewport(browser, appUrl, viewport) {
     });
 
     await openWork(page, appUrl);
-    const overlays = await verifyOverlays(page, viewportLabel);
+    const overlays = await verifyOverlays(page, viewportLabel, "office");
     const conversations = await verifyConversationPanel(page, viewportLabel);
     const scenes = await verifySceneSwitch(page, viewportLabel);
     await openWork(page, appUrl);
-    const locomotion = await verifyLiveLocomotion(page, viewportLabel);
+    const dynamicOffice = await runDynamicOfficeEvidence(page, viewportLabel);
+    const dynamicLounge = await runDynamicLoungeEvidence(page, appUrl, viewportLabel);
     const contracts = await runDeterministicContractProbes(page);
 
     assert(diagnostics.consoleErrors.length === 0, `${viewportLabel}: console errors: ${diagnostics.consoleErrors.join(" | ")}`);
     assert(diagnostics.pageErrors.length === 0, `${viewportLabel}: page errors: ${diagnostics.pageErrors.join(" | ")}`);
     assert(diagnostics.failedImages.length === 0, `${viewportLabel}: failed images: ${diagnostics.failedImages.join(" | ")}`);
     assert(diagnostics.unexpectedRequests.length === 0, `${viewportLabel}: unexpected requests: ${diagnostics.unexpectedRequests.join(" | ")}`);
-    return { viewport: viewportLabel, overlays, conversations, scenes, contracts, locomotion, diagnostics };
+    return {
+      viewport: viewportLabel,
+      overlays,
+      conversations,
+      scenes,
+      dynamicOffice,
+      dynamicLounge,
+      contracts,
+      diagnostics,
+    };
   } finally {
     await context.close();
   }
@@ -739,24 +1254,24 @@ async function verifyViewport(browser, appUrl, viewport) {
 
 async function writeQaReport(results) {
   const screenshotRows = results.flatMap((result) => [
-    `| ${result.viewport} | office | \`${result.scenes.officeScreenshot.path.replace(`${repositoryRoot}/`, "")}\` | ${result.scenes.officeScreenshot.bytes} |`,
-    `| ${result.viewport} | lounge | \`${result.scenes.loungeScreenshot.path.replace(`${repositoryRoot}/`, "")}\` | ${result.scenes.loungeScreenshot.bytes} |`,
+    `| ${result.viewport} | office: printing + whiteboard + desk chat | \`${result.dynamicOffice.screenshot.path.replace(`${repositoryRoot}/`, "")}\` | ${result.dynamicOffice.screenshot.bytes} |`,
+    `| ${result.viewport} | lounge: dining chat + sofa chat/rest | \`${result.dynamicLounge.screenshot.path.replace(`${repositoryRoot}/`, "")}\` | ${result.dynamicLounge.screenshot.bytes} |`,
   ]).join("\n");
   const contract = results[0].contracts;
   const report = `# Office V2 V${RELEASE_VERSION} Release QA\n\n`
-    + `Date: 2026-07-20\n\n`
-    + `Status: release code and local QA ready; Pages sync, push, online access, and live verification were intentionally not run in this phase. The deploy marker will be written by the later sync step.\n\n`
+    + `Date: 2026-07-21\n\n`
+    + `Status: release code, local QA, and Pages sync are complete; push, online access, and live verification remain. The deploy marker is ${RELEASE_VERSION}.\n\n`
     + `## Automated Evidence\n\n`
     + `- Viewports: ${results.map(({ viewport }) => viewport).join(", ")} at deviceScaleFactor 2.\n`
-    + `- Pixi: exactly one nonblank canvas per viewport; office and lounge each passed pixel variation and 2x backing checks.\n`
+    + `- Pixi: exactly one nonblank canvas per viewport; office and lounge each passed pixel variation and 2x backing checks, with the fallback absent.\n`
     + `- World: ${contract.deskCount} employee desks share \`${contract.deskAlias}\`; ${contract.crossDoorRouteEntries} cross-door route entries cover ${contract.crossDoorSceneIds.join(" and ")}.\n`
-    + `- Activities: ${contract.activityCount} manifest entries checked; ${contract.propPlacementCount} visible prop placements attach to existing furniture with no duplicated furniture.\n`
-    + `- Physical probes: desk visit, boss report, printer, whiteboard, dining chat, sofa TV, and two isolated simultaneous conversations passed.\n`
-    + `- Motion: all viewports exposed continuous live position samples, advancing locomotion frames, and alternating lower-body evidence.\n`
-    + `- Overlays and records: five legal actor colliders; bounded, non-overlapping bubble/name/status stacks remain above their actor heads; long dialogue containment and strict conversation-only history passed.\n`
+    + `- Activities: ${contract.activityCount} manifest entries and ${contract.activityVariantCount} prop variants checked; ${contract.visibleActivityVariantCount} variants require visible props and ${contract.propPlacementCount} prop sprites resolve onto existing furniture with zero generated furniture.\n`
+    + `- Physical probes: desk visit, boss report, printer, whiteboard, dining chat, sofa TV, and two isolated simultaneous conversations passed; live screenshots exercise printing, whiteboard work, desk chat, dining chat, sofa chat/rest, and TV viewing.\n`
+    + `- Motion: all viewports exposed live Canvas actor pixels at old and new positions, old-region clearing, continuous route samples, changing locomotion crop fingerprints, and alternating lower-body evidence.\n`
+    + `- Overlays and records: five legal actor colliders per dynamic scene; bounded, mutually disjoint bubble/name/status stacks stay above heads and avoid actor bodies plus fixed furniture; long dialogue containment and strict conversation-only history passed.\n`
     + `- Runtime hygiene: zero console errors, page errors, failed images, and unexpected API requests.\n\n`
     + `## Screenshots\n\n| Viewport | Scene | File | Bytes |\n| --- | --- | --- | ---: |\n${screenshotRows}\n\n`
-    + `## Release Boundary\n\nPackage, lockfile, visible version, and worldbook cache markers are ${RELEASE_VERSION}. This report does not claim deployment; the controller will run the final Pages sync and live checks after review.\n`;
+    + `## Release Boundary\n\nPackage, lockfile, visible version, worldbook cache markers, and the synchronized Pages deploy marker are ${RELEASE_VERSION}. This report does not claim live deployment until the controller pushes and completes the online checks.\n`;
   const reportPath = resolve(qaDirectory, "office-v2-release.md");
   await writeFile(reportPath, report, "utf8");
   return reportPath;

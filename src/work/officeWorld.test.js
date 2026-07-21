@@ -139,8 +139,8 @@ test("exposes one authoritative validator for legal world routes", () => {
     { sceneId: "lounge", x: 90, y: 1780 },
   ]), false);
   assert.equal(isValidWorldRoute([
-    { sceneId: "lounge", x: 75, y: 1575 },
-    { sceneId: "lounge", x: 45, y: 1545 },
+    { sceneId: "lounge", x: 165, y: 1655 },
+    { sceneId: "lounge", x: 145, y: 1635 },
   ]), false, "a segment through an expanded collider must be rejected");
 });
 
