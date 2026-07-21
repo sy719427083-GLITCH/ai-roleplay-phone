@@ -85,6 +85,7 @@ import {
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
+import { WorkAppScreen } from "./work/WorkAppScreen.jsx";
 
 const MESSAGE_APP_TITLE = "微聊";
 
@@ -123,7 +124,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.94`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.2.95`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2079,7 +2080,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.2.94</p>
+      <p className="version-label">Ccat OS V0.2.95</p>
     </section>
   );
 }
@@ -4678,6 +4679,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isWallet = app.title === "钱包";
   const isMessages = app.title === MESSAGE_APP_TITLE;
   const isWorldbook = app.title === "世界书";
+  const isWork = app.title === "工作";
   const [walletData, setWalletData] = useState(() => {
     try {
       const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
@@ -4750,6 +4752,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
+  if (isWork) return <WorkAppScreen onClose={onClose} />;
 
   return (
     <section

@@ -1,13 +1,14 @@
 {
   "name": "ai-roleplay-phone",
-  "version": "0.2.94",
+  "version": "0.2.95",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/*.test.js"
+    "test": "node --test src/*.test.js src/work/*.test.js",
+    "verify:work": "node scripts/verify-work-office.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",

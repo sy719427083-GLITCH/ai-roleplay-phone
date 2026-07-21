@@ -38,7 +38,7 @@
 .office-door-panel { position: absolute; inset: 0; border: 4px solid #b7834f; border-radius: 25px 25px 4px 4px; background: linear-gradient(90deg,#d7b071,#f1d6a6 55%,#c99759); box-shadow: inset 0 0 0 4px rgba(255,255,255,.22), 0 8px 18px rgba(88,61,34,.18); }
 .office-door-knob { position: absolute; right: 10px; top: 54%; width: 7px; height: 7px; border-radius: 50%; background: #8e754b; box-shadow: 0 0 0 2px #d9c17e; }
 
-.office-object.tea { right: 4%; bottom: 14%; width: 120px; height: 62px; }
+.office-object.tea { right: 4%; bottom: 17%; width: 120px; height: 62px; }
 .office-counter-top { position: absolute; inset: 14px 0 0; border: 1px solid #ad814f; border-radius: 10px 10px 5px 5px; background: linear-gradient(180deg,#ead09f,#cda469); box-shadow: inset 0 4px rgba(255,255,255,.34), 0 9px 17px rgba(84,56,28,.2); }
 .office-kettle { position: absolute; z-index: 2; top: 0; left: 17px; width: 25px; height: 27px; border: 3px solid #779085; border-radius: 7px 7px 11px 11px; background: #dce7df; }
 .office-cups { position: absolute; z-index: 2; top: 7px; right: 17px; width: 14px; height: 17px; border: 2px solid #b77861; border-radius: 3px 3px 6px 6px; background: #f2c4ac; box-shadow: -18px 3px 0 -2px #d6e3d2; }
