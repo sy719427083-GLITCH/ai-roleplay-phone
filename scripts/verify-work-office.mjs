@@ -33,13 +33,21 @@ try {
     await page.getByRole("button", { name: "工作" }).click();
     assert.equal(await page.locator(".work-bottom-nav button").count(), 3);
     assert.equal(await page.locator(".office-character").count(), 0);
+    assert.equal(await page.locator(".office-object").count(), 11);
+    assert.equal(await page.locator(".office-object > img.office-object-art").count(), 11);
+    assert.equal(await page.locator(".office-object > img.office-object-art").evaluateAll(
+      (images) => images.every((image) => image.complete && image.naturalWidth > 0),
+    ), true);
+    assert.equal(await page.locator(".office-door-arrow").count(), 0);
     assert.equal(await page.locator(".office-object.door").count(), 3);
-    assert.equal(await page.locator(".office-object.desk").count(), 5);
+    assert.equal(await page.locator(".office-object.desk").count(), 7);
+    await page.getByRole("button", { name: "老板桌" }).click();
+    await page.getByRole("status").filter({ hasText: "请先在员工管理中安排" }).waitFor();
     await page.getByRole("button", { name: "员工管理" }).click();
     const selects = page.locator(".employee-slot select");
-    assert.equal(await selects.count(), 5);
+    assert.equal(await selects.count(), 7);
     await selects.nth(0).selectOption({ label: "我 APP · 测试我" });
-    assert.deepEqual(await selects.evaluateAll((items) => items.map((item) => item.options.length)), [3, 2, 2, 2, 2]);
+    assert.deepEqual(await selects.evaluateAll((items) => items.map((item) => item.options.length)), [3, 2, 2, 2, 2, 2, 2]);
     await page.getByRole("button", { name: "返回办公室" }).click();
     assert.equal(await page.locator(".office-character").count(), 1);
     const before = await page.locator(".office-character").evaluate((element) => ({ left: getComputedStyle(element).left, top: getComputedStyle(element).top }));
@@ -47,6 +55,10 @@ try {
     await page.waitForTimeout(1800);
     const after = await page.locator(".office-character").evaluate((element) => ({ left: getComputedStyle(element).left, top: getComputedStyle(element).top }));
     assert.notDeepEqual(after, before);
+    await page.getByRole("button", { name: "员工桌 6" }).click();
+    await page.waitForTimeout(1800);
+    const atEmployeeSix = await page.locator(".office-character").evaluate((element) => ({ left: getComputedStyle(element).left, top: getComputedStyle(element).top }));
+    assert.notDeepEqual(atEmployeeSix, after);
     await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     for (const [name, title] of [["项目管理", "项目管理"], ["工作倒计时", "工作倒计时"]]) {
       await page.getByRole("button", { name }).click();

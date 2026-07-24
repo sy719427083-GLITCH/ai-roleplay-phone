@@ -8,9 +8,7 @@ export function OfficeScene({ occupants, meMovement, onObjectClick }) {
       <div className="office-light" aria-hidden="true" />
       {OFFICE_FURNITURE.map((item) => (
         <button type="button" key={item.id} className={`office-object ${item.kind}`} aria-label={item.label} onClick={() => onObjectClick(item.destination)}>
-          {item.kind.includes("desk") && <><span className="office-monitor" /><span className="office-desk-top" /><span className="office-desk-legs" /></>}
-          {item.kind.includes("door") && <><span className="office-door-panel" /><span className="office-door-knob" /></>}
-          {item.kind === "tea" && <><span className="office-kettle" /><span className="office-cups" /><span className="office-counter-top" /></>}
+          <img className="office-object-art" src={item.asset} alt="" draggable="false" />
         </button>
       ))}
       {occupants.map((occupant) => {
