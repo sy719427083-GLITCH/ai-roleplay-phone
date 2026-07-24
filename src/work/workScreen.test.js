@@ -21,6 +21,18 @@ test("office screen uses full-bleed floating controls", () => {
   assert.match(styles, /\.work-topbar\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.work-bottom-nav\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.office-object\.desk\.boss\s*\{[^}]*top:\s*23%/s);
-  assert.match(styles, /\.office-object\.tea\s*\{[^}]*top:\s*6%;[^}]*right:\s*2%/s);
+  assert.match(styles, /\.office-object\.tea\s*\{[^}]*top:\s*6%;[^}]*right:\s*2%;[^}]*width:\s*64%;[^}]*height:\s*18%/s);
+  assert.match(styles, /--walk-duration/);
   assert.doesNotMatch(styles, /\.office-object\.door|\.left-door|\.right-top-door|\.right-mid-door/);
+});
+
+test("office screen measures the scene and advances timed A star segments", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const scene = readFileSync("src/work/OfficeScene.jsx", "utf8");
+  assert.match(screen, /sceneRef/);
+  assert.match(screen, /createOfficeRoute/);
+  assert.match(screen, /durationMs/);
+  assert.doesNotMatch(screen, /430/);
+  assert.match(scene, /getOfficePoint/);
+  assert.doesNotMatch(scene, /OFFICE_NODES/);
 });

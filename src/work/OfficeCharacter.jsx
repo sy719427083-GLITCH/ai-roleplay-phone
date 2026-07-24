@@ -1,9 +1,9 @@
-export function OfficeCharacter({ profile, avatar, node, facing = "right", moving = false }) {
+export function OfficeCharacter({ profile, avatar, node, facing = "right", moving = false, durationMs = 700 }) {
   return (
     <div
       className={`office-character ${moving ? "is-moving" : "is-working"}`}
       data-facing={facing}
-      style={{ "--x": `${node.x}%`, "--y": `${node.y}%` }}
+      style={{ "--x": `${node.x}%`, "--y": `${node.y}%`, "--walk-duration": `${durationMs}ms` }}
     >
       <span className="office-character-name">{profile.name || "未命名角色"}</span>
       <span className="office-character-body">

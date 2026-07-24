@@ -1,19 +1,7 @@
-export const OFFICE_NODES = {
-  "boss-home": { x: 50, y: 24, edges: ["aisle-top"] },
-  "employee1-home": { x: 25, y: 40, edges: ["aisle-center"] },
-  "employee2-home": { x: 75, y: 40, edges: ["aisle-center"] },
-  "employee3-home": { x: 25, y: 56, edges: ["aisle-bottom"] },
-  "employee4-home": { x: 75, y: 56, edges: ["aisle-bottom"] },
-  "employee5-home": { x: 25, y: 72, edges: ["aisle-lower"] },
-  "employee6-home": { x: 75, y: 72, edges: ["aisle-lower"] },
-  "aisle-top": { x: 50, y: 36, edges: ["boss-home", "aisle-center", "tea-counter"] },
-  "aisle-center": { x: 50, y: 52, edges: ["aisle-top", "aisle-bottom", "employee1-home", "employee2-home"] },
-  "aisle-bottom": { x: 50, y: 68, edges: ["aisle-center", "aisle-lower", "employee3-home", "employee4-home"] },
-  "aisle-lower": { x: 50, y: 82, edges: ["aisle-bottom", "employee5-home", "employee6-home"] },
-  "tea-counter": { x: 79, y: 24, edges: ["aisle-top"] },
-};
+import { getOfficeGeometry, getOfficePoint } from "./officeGeometry.js";
+import { getSegmentDuration, getSegmentFacing, planOfficePath } from "./officePathfinding.js";
 
-export const OBJECT_DESTINATIONS = {
+export const OBJECT_DESTINATIONS = Object.freeze({
   bossDesk: "boss-home",
   employee1Desk: "employee1-home",
   employee2Desk: "employee2-home",
@@ -22,27 +10,19 @@ export const OBJECT_DESTINATIONS = {
   employee5Desk: "employee5-home",
   employee6Desk: "employee6-home",
   tea: "tea-counter",
-};
+});
 
-export function findOfficeRoute(fromId, toId) {
-  if (!OFFICE_NODES[fromId] || !OFFICE_NODES[toId]) return [];
-  const queue = [[fromId]];
-  const seen = new Set([fromId]);
-  while (queue.length) {
-    const path = queue.shift();
-    const current = path.at(-1);
-    if (current === toId) return path;
-    for (const next of OFFICE_NODES[current].edges) {
-      if (!seen.has(next)) {
-        seen.add(next);
-        queue.push([...path, next]);
-      }
-    }
-  }
-  return [];
-}
-
-export function getRouteFacing(fromId, toId) {
-  if (!OFFICE_NODES[fromId] || !OFFICE_NODES[toId]) return "right";
-  return OFFICE_NODES[toId].x < OFFICE_NODES[fromId].x ? "left" : "right";
+export function createOfficeRoute({ from, destination, viewport }) {
+  const goal = getOfficePoint(destination);
+  if (!from || !goal || !viewport) return [];
+  const geometry = getOfficeGeometry(viewport);
+  const path = planOfficePath({ start: from, goal, viewport, obstacles: geometry.obstacles });
+  return path.slice(1).map((point, index) => {
+    const previous = path[index];
+    return {
+      point,
+      durationMs: getSegmentDuration(previous, point, viewport),
+      facing: getSegmentFacing(previous, point),
+    };
+  });
 }

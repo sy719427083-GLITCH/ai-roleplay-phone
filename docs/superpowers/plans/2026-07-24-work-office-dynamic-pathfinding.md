@@ -253,7 +253,7 @@ test("creates timed collision-free routes for every clickable destination", () =
 
 Add source checks for `sceneRef`, `durationMs`, `createOfficeRoute`, the `700` ms timing contract, employee centers `22/78`, and CSS tea size `64% × 18%`. Remove checks tied to `OFFICE_NODES` and fixed BFS edges.
 
-Update browser QA before changing production code: sample `.office-character-body` bounds every `100 ms` during a boss-to-employee-six and employee-six-to-tea route, derive visible furniture rectangles from the known PNG alpha bounds, and fail if a moving sample overlaps furniture outside its starting or final reserved pocket. Assert that movement remains active beyond the former `430 ms` step duration.
+Update browser QA before changing production code: sample the `.office-character` foot-anchor position every `100 ms` during a boss-to-employee-six and employee-six-to-tea route, derive visible furniture rectangles from the known PNG alpha bounds, and fail if a moving anchor enters furniture outside its starting or final reserved pocket. The avatar body is taller than the vertical gap between rows, so body-box non-overlap is geometrically impossible in the approved compact layout; the anchor plus the planner's 28px horizontal clearance is the collision contract. Assert that movement remains active beyond the former `430 ms` step duration.
 
 - [ ] **Step 2: Run integration tests and verify RED**
 

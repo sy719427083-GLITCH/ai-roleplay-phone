@@ -1,9 +1,9 @@
 import { normalizeAssignments, OFFICE_SLOT_IDS } from "./officeProfiles.js";
-import { OFFICE_NODES } from "./officeNavigation.js";
+import { OFFICE_HOME_POINTS, OFFICE_INTERACTION_POINTS } from "./officeGeometry.js";
 
 export const OFFICE_STORAGE_KEY = "ccatWorkOfficeV1";
 export const OFFICE_STATE_VERSION = 1;
-export const VALID_WAYPOINTS = new Set(Object.keys(OFFICE_NODES));
+export const VALID_WAYPOINTS = new Set([...Object.keys(OFFICE_HOME_POINTS), ...Object.keys(OFFICE_INTERACTION_POINTS)]);
 
 export const createOfficeState = (profiles = []) => ({
   version: OFFICE_STATE_VERSION,

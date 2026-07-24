@@ -2,7 +2,8 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ChevronLeft, Ellipsis, FolderKanban, Timer, UsersRound } from "lucide-react";
 import { EmployeeManager } from "./EmployeeManager.jsx";
 import { OfficeScene } from "./OfficeScene.jsx";
-import { findOfficeRoute, getRouteFacing } from "./officeNavigation.js";
+import { getOfficePoint } from "./officeGeometry.js";
+import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
 import "./office.css";
@@ -15,8 +16,10 @@ export function WorkAppScreen({ onClose }) {
   const [state, dispatch] = useReducer(officeReducer, null, () => restoreOfficeState(window.localStorage.getItem(OFFICE_STORAGE_KEY), profiles));
   const [view, setView] = useState("office");
   const [notice, setNotice] = useState("");
+  const sceneRef = useRef(null);
   const movementTimer = useRef(null);
-  const [meMovement, setMeMovement] = useState({ nodeId: state.meWaypoint, moving: false, facing: "right" });
+  const movementRun = useRef(0);
+  const [meMovement, setMeMovement] = useState({ point: getOfficePoint(state.meWaypoint), moving: false, facing: "right", durationMs: 0 });
 
   const occupants = useMemo(() => Object.entries(state.assignments).flatMap(([slotId, profileId]) => {
     const profile = profileMap.get(profileId);
@@ -28,12 +31,17 @@ export function WorkAppScreen({ onClose }) {
     window.localStorage.setItem(OFFICE_STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  useEffect(() => () => window.clearTimeout(movementTimer.current), []);
+  useEffect(() => () => {
+    movementRun.current += 1;
+    window.clearTimeout(movementTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!meOccupant) return;
     const home = `${meOccupant.slotId}-home`;
-    setMeMovement({ nodeId: home, moving: false, facing: "right" });
+    movementRun.current += 1;
+    window.clearTimeout(movementTimer.current);
+    setMeMovement({ point: getOfficePoint(home), moving: false, facing: "right", durationMs: 0 });
     dispatch({ type: "SET_WAYPOINT", waypoint: home });
   }, [meOccupant?.profile.id, meOccupant?.slotId]);
 
@@ -44,18 +52,31 @@ export function WorkAppScreen({ onClose }) {
 
   const moveMe = (destination) => {
     if (!meOccupant) return showNotice("请先在员工管理中安排“我 APP”的角色");
-    const route = findOfficeRoute(meMovement.nodeId, destination).slice(1);
-    if (!route.length) return;
+    if (meMovement.moving) return;
+    const bounds = sceneRef.current?.getBoundingClientRect();
+    if (!bounds) return showNotice("办公室路线暂时不可用");
+    const route = createOfficeRoute({
+      from: meMovement.point,
+      destination,
+      viewport: { width: bounds.width, height: bounds.height },
+    });
+    if (!route.length) {
+      if (getOfficePoint(destination) !== meMovement.point) showNotice("这里暂时没有可通行的路线");
+      return;
+    }
     window.clearTimeout(movementTimer.current);
-    let current = meMovement.nodeId;
+    const run = movementRun.current + 1;
+    movementRun.current = run;
     const advance = () => {
-      const next = route.shift();
-      if (!next) return setMeMovement((value) => ({ ...value, moving: false }));
-      const facing = getRouteFacing(current, next);
-      current = next;
-      setMeMovement({ nodeId: next, moving: true, facing });
-      dispatch({ type: "SET_WAYPOINT", waypoint: next });
-      movementTimer.current = window.setTimeout(advance, 430);
+      if (movementRun.current !== run) return;
+      const segment = route.shift();
+      if (!segment) {
+        setMeMovement((value) => ({ ...value, moving: false, durationMs: 0 }));
+        dispatch({ type: "SET_WAYPOINT", waypoint: destination });
+        return;
+      }
+      setMeMovement({ point: segment.point, moving: true, facing: segment.facing, durationMs: segment.durationMs });
+      movementTimer.current = window.setTimeout(advance, segment.durationMs);
     };
     advance();
   };
@@ -76,7 +97,7 @@ export function WorkAppScreen({ onClose }) {
         <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
         <button type="button" onClick={() => setView("settings")} aria-label="工作设置"><Ellipsis size={24} /></button>
       </header>
-      <OfficeScene occupants={occupants} meMovement={meMovement} onObjectClick={moveMe} />
+      <OfficeScene sceneRef={sceneRef} occupants={occupants} meMovement={meMovement} onObjectClick={moveMe} />
       <nav className="work-bottom-nav" aria-label="工作导航">
         <button className="nav-projects" type="button" onClick={() => setView("projects")}><FolderKanban size={24} /><span>项目管理</span></button>
         <button className="is-wide nav-timer" type="button" onClick={() => setView("timer")} aria-label="工作倒计时"><Timer size={27} /><strong>02:45:30</strong><span>工作倒计时</span></button>
