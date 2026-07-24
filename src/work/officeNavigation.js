@@ -1,16 +1,16 @@
 export const OFFICE_NODES = {
-  "boss-home": { x: 50, y: 29, edges: ["aisle-top"] },
-  "employee1-home": { x: 25, y: 45, edges: ["aisle-center"] },
-  "employee2-home": { x: 75, y: 45, edges: ["aisle-center"] },
-  "employee3-home": { x: 25, y: 61, edges: ["aisle-bottom"] },
-  "employee4-home": { x: 75, y: 61, edges: ["aisle-bottom"] },
-  "employee5-home": { x: 25, y: 77, edges: ["aisle-lower"] },
-  "employee6-home": { x: 75, y: 77, edges: ["aisle-lower"] },
+  "boss-home": { x: 50, y: 24, edges: ["aisle-top"] },
+  "employee1-home": { x: 25, y: 40, edges: ["aisle-center"] },
+  "employee2-home": { x: 75, y: 40, edges: ["aisle-center"] },
+  "employee3-home": { x: 25, y: 56, edges: ["aisle-bottom"] },
+  "employee4-home": { x: 75, y: 56, edges: ["aisle-bottom"] },
+  "employee5-home": { x: 25, y: 72, edges: ["aisle-lower"] },
+  "employee6-home": { x: 75, y: 72, edges: ["aisle-lower"] },
   "aisle-top": { x: 50, y: 36, edges: ["boss-home", "aisle-center", "tea-counter"] },
   "aisle-center": { x: 50, y: 52, edges: ["aisle-top", "aisle-bottom", "employee1-home", "employee2-home"] },
   "aisle-bottom": { x: 50, y: 68, edges: ["aisle-center", "aisle-lower", "employee3-home", "employee4-home"] },
   "aisle-lower": { x: 50, y: 82, edges: ["aisle-bottom", "employee5-home", "employee6-home"] },
-  "tea-counter": { x: 76, y: 20, edges: ["aisle-top"] },
+  "tea-counter": { x: 79, y: 24, edges: ["aisle-top"] },
 };
 
 export const OBJECT_DESTINATIONS = {

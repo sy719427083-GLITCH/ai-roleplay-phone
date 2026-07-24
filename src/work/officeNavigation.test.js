@@ -17,7 +17,13 @@ test("removes every door destination and waypoint", () => {
 });
 
 test("derives horizontal facing from waypoint coordinates", () => {
-  assert.equal(getRouteFacing("aisle-center", "door-right-mid"), "right");
+  assert.equal(getRouteFacing("aisle-top", "tea-counter"), "right");
+});
+
+test("positions avatars behind desks and aligns the shifted tea counter", () => {
+  assert.deepEqual(OFFICE_NODES["boss-home"], { x: 50, y: 24, edges: ["aisle-top"] });
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((number) => OFFICE_NODES[`employee${number}-home`].y), [40, 40, 56, 56, 72, 72]);
+  assert.deepEqual(OFFICE_NODES["tea-counter"], { x: 79, y: 24, edges: ["aisle-top"] });
 });
 
 test("routes to all six employee desks", () => {
