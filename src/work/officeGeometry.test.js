@@ -19,15 +19,15 @@ test("centers avatars behind the visible desk art", () => {
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((number) => OFFICE_HOME_POINTS[`employee${number}-home`].y), [40, 40, 56, 56, 72, 72]);
 });
 
-test("uses the approved smaller tea counter and lower-right approach", () => {
+test("uses the approved smaller raised tea counter and lower-right approach", () => {
   assert.deepEqual(OFFICE_LAYOUT.tea, {
-    top: 6,
-    right: 2,
-    width: 64,
-    height: 18,
+    top: 4,
+    right: 0,
+    width: 58,
+    height: 16,
     alpha: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
   });
-  assert.deepEqual(OFFICE_INTERACTION_POINTS["tea-counter"], { x: 93, y: 28 });
+  assert.deepEqual(OFFICE_INTERACTION_POINTS["tea-counter"], { x: 92, y: 24 });
 });
 
 test("derives responsive visible furniture bounds and keeps destinations traversable", () => {
