@@ -59,6 +59,8 @@ try {
     await page.waitForTimeout(1800);
     const atEmployeeSix = await page.locator(".office-character").evaluate((element) => ({ left: getComputedStyle(element).left, top: getComputedStyle(element).top }));
     assert.notDeepEqual(atEmployeeSix, after);
+    await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
+    await page.waitForTimeout(50);
     await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     for (const [name, title] of [["项目管理", "项目管理"], ["工作倒计时", "工作倒计时"]]) {
       await page.getByRole("button", { name }).click();
