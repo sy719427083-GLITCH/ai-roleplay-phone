@@ -96,7 +96,7 @@ export const OFFICE_LAYOUT = Object.freeze({
 });
 ```
 
-Implement clamp sizing, visible alpha rectangles, directional walking clearance, and clear destination points. Use `AVATAR_CLEARANCE_PX = 28`: inflate desk rectangles on the left, right, and bottom only, leaving their alpha-derived top edge uninflated so the approved behind-desk home points remain legal; inflate the tea rectangle on all four sides. Define the tea interaction point at `{ x: 93, y: 28 }`, below and to the right of the visible counter art. Assert in tests that every home/interaction point is outside every returned obstacle.
+Implement clamp sizing, visible alpha rectangles, directional walking clearance, and clear destination points. Each obstacle retains its raw alpha-derived rectangle as `visible` and exposes the inflated rectangle as `left/top/right/bottom`. Use `AVATAR_CLEARANCE_PX = 28`: inflate desk rectangles on the left, right, and bottom only, leaving their visible top edge uninflated; inflate the tea rectangle on all four sides. Define the tea interaction point at `{ x: 93, y: 28 }`, below and to the right of the visible counter art. A behind-desk home anchor may overlap only its own visible desk art and may lie inside other inflated margins; it becomes a reserved endpoint pocket in the planner. No home may overlap another object's visible art.
 
 - [ ] **Step 4: Run the geometry test and verify GREEN**
 
@@ -177,7 +177,7 @@ Expected: FAIL with `ERR_MODULE_NOT_FOUND` because the pathfinder module does no
 
 - [ ] **Step 3: Implement A* and safe smoothing**
 
-Implement an eight-neighbor grid at `gridStep = 2`, pixel-distance edge costs and heuristic, a binary-minimum open set or sorted frontier suitable for the roughly 2,500 grid cells, and parent reconstruction. Insert the exact start and goal points as temporary graph nodes and connect each only to traversable grid cells reachable by collision-free line of sight; this preserves non-grid-aligned desk centers without weakening collision checks.
+Implement an eight-neighbor grid at `gridStep = 2`, pixel-distance edge costs and heuristic, a binary-minimum open set or sorted frontier suitable for the roughly 2,500 grid cells, and parent reconstruction. Insert exact start and goal points as temporary graph nodes. For the first/last connector only, ignore inflated obstacles that contain that endpoint; if the endpoint also lies in its own visible desk rectangle, ignore that one visible rectangle so the character can emerge from or return behind the desk. The connector must end in a normally traversable grid cell and remain collision-free against every other object's visible art. All middle cells and segments use fully inflated collision bounds.
 
 Implement simplification in two passes:
 
