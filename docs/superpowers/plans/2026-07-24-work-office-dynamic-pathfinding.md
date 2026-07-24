@@ -96,7 +96,7 @@ export const OFFICE_LAYOUT = Object.freeze({
 });
 ```
 
-Implement clamp sizing, visible alpha rectangles, directional walking clearance, and clear destination points. Each obstacle retains its raw alpha-derived rectangle as `visible` and exposes the inflated rectangle as `left/top/right/bottom`. Use `AVATAR_CLEARANCE_PX = 28`: inflate desk rectangles on the left, right, and bottom only, leaving their visible top edge uninflated; inflate the tea rectangle on all four sides. Define the tea interaction point at `{ x: 93, y: 28 }`, below and to the right of the visible counter art. A behind-desk home anchor may overlap only its own visible desk art and may lie inside other inflated margins; it becomes a reserved endpoint pocket in the planner. No home may overlap another object's visible art.
+Implement clamp sizing, visible alpha rectangles, directional walking clearance, and clear destination points. Each obstacle retains its raw alpha-derived rectangle as `visible` and exposes the inflated rectangle as `left/top/right/bottom`. Because the character anchor represents the feet while the avatar body extends upward, use `AVATAR_CLEARANCE_PX = 28` on furniture left/right edges and retain the raw alpha-derived top/bottom edges; the tea top edge may also inflate upward, while its bottom remains raw so the real PNG gap above the boss desk stays traversable. Define the tea interaction point at `{ x: 93, y: 28 }`, below and to the right of the visible counter art. A behind-desk home anchor may overlap only its own visible desk art and may lie inside inflated side margins; it becomes a reserved endpoint pocket in the planner. No home may overlap another object's visible art.
 
 - [ ] **Step 4: Run the geometry test and verify GREEN**
 

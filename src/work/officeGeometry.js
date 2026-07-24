@@ -63,7 +63,7 @@ function visibleRectangle(id, container, alpha) {
   };
 }
 
-function inflateRectangle(visible, viewport, includeTop = false) {
+function inflateRectangle(visible, viewport, { includeTop = false, includeBottom = false } = {}) {
   const horizontal = (AVATAR_CLEARANCE_PX / viewport.width) * 100;
   const vertical = (AVATAR_CLEARANCE_PX / viewport.height) * 100;
   return {
@@ -71,7 +71,7 @@ function inflateRectangle(visible, viewport, includeTop = false) {
     left: clamp(visible.left - horizontal, 0, 100),
     top: clamp(visible.top - (includeTop ? vertical : 0), 0, 100),
     right: clamp(visible.right + horizontal, 0, 100),
-    bottom: clamp(visible.bottom + vertical, 0, 100),
+    bottom: clamp(visible.bottom + (includeBottom ? vertical : 0), 0, 100),
     visible,
   };
 }
@@ -111,7 +111,7 @@ function getTeaObstacle(viewport) {
     width: layout.width,
     height: layout.height,
   };
-  return inflateRectangle(visibleRectangle("tea", container, layout.alpha), viewport, true);
+  return inflateRectangle(visibleRectangle("tea", container, layout.alpha), viewport, { includeTop: true, includeBottom: false });
 }
 
 export function getOfficePoint(id) {
