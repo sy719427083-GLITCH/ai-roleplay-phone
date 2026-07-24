@@ -33,13 +33,13 @@ try {
     await page.getByRole("button", { name: "工作" }).click();
     assert.equal(await page.locator(".work-bottom-nav button").count(), 3);
     assert.equal(await page.locator(".office-character").count(), 0);
-    assert.equal(await page.locator(".office-object").count(), 11);
-    assert.equal(await page.locator(".office-object > img.office-object-art").count(), 11);
+    assert.equal(await page.locator(".office-object").count(), 8);
+    assert.equal(await page.locator(".office-object > img.office-object-art").count(), 8);
     assert.equal(await page.locator(".office-object > img.office-object-art").evaluateAll(
       (images) => images.every((image) => image.complete && image.naturalWidth > 0),
     ), true);
     assert.equal(await page.locator(".office-door-arrow").count(), 0);
-    assert.equal(await page.locator(".office-object.door").count(), 3);
+    assert.equal(await page.locator(".office-object.door").count(), 0);
     assert.equal(await page.locator(".office-object.desk").count(), 7);
     await page.getByRole("button", { name: "老板桌" }).click();
     await page.getByRole("status").filter({ hasText: "请先在员工管理中安排" }).waitFor();
@@ -50,6 +50,12 @@ try {
     assert.deepEqual(await selects.evaluateAll((items) => items.map((item) => item.options.length)), [3, 2, 2, 2, 2, 2, 2]);
     await page.getByRole("button", { name: "返回办公室" }).click();
     assert.equal(await page.locator(".office-character").count(), 1);
+    const [avatarBodyBox, bossDeskBox] = await Promise.all([
+      page.locator(".office-character-body").boundingBox(),
+      page.locator(".office-object.desk.boss").boundingBox(),
+    ]);
+    const bossDeskVisibleTop = bossDeskBox.y + (bossDeskBox.height * 67 / 480);
+    assert.ok(avatarBodyBox.y + avatarBodyBox.height <= bossDeskVisibleTop, "boss avatar remains visible behind the desk art");
     const before = await page.locator(".office-character").evaluate((element) => ({ left: getComputedStyle(element).left, top: getComputedStyle(element).top }));
     await page.getByRole("button", { name: "茶水吧台" }).click();
     await page.waitForTimeout(1800);
