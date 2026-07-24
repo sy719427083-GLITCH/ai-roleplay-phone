@@ -12,3 +12,12 @@ test("office scene uses semantic object buttons", () => {
   assert.match(source, /<button/);
   assert.match(source, /aria-label=/);
 });
+
+test("office screen uses full-bleed floating controls", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const styles = readFileSync("src/work/office.css", "utf8");
+  assert.match(screen, /work-office-shell/);
+  assert.match(styles, /\.work-office-shell\s*\{[^}]*grid-template-rows:\s*1fr/s);
+  assert.match(styles, /\.work-topbar\s*\{[^}]*position:\s*absolute/s);
+  assert.match(styles, /\.work-bottom-nav\s*\{[^}]*position:\s*absolute/s);
+});

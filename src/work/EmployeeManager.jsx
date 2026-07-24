@@ -2,7 +2,15 @@ import { getAvailableProfiles, OFFICE_SLOT_IDS } from "./officeProfiles.js";
 import { resolveOfficeAvatar } from "./officeState.js";
 import { WorkAvatarEditor } from "./WorkAvatarEditor.jsx";
 
-const LABELS = { boss: "老板", employee1: "员工 1", employee2: "员工 2", employee3: "员工 3", employee4: "员工 4" };
+const LABELS = {
+  boss: "老板",
+  employee1: "员工 1",
+  employee2: "员工 2",
+  employee3: "员工 3",
+  employee4: "员工 4",
+  employee5: "员工 5",
+  employee6: "员工 6",
+};
 const SOURCE_LABELS = { me: "我 APP", character: "角色 APP", npc: "NPC" };
 
 export function EmployeeManager({ profiles, state, dispatch, onError }) {
@@ -10,7 +18,7 @@ export function EmployeeManager({ profiles, state, dispatch, onError }) {
   return (
     <div className="employee-manager">
       <div className="employee-manager-intro">
-        <p>为五个工位安排角色</p>
+        <p>为七个工位安排角色</p>
         <span>首次为空 · 每个角色只能出现一次</span>
       </div>
       {OFFICE_SLOT_IDS.map((slotId) => {

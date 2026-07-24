@@ -71,17 +71,16 @@ export function WorkAppScreen({ onClose }) {
   }
 
   return (
-    <section className="work-app-screen">
+    <section className="work-app-screen work-office-shell">
       <header className="work-topbar">
         <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
-        <div><strong>WORKROOM</strong><span>今天，也慢慢把事情做好</span></div>
         <button type="button" onClick={() => setView("settings")} aria-label="工作设置"><Ellipsis size={24} /></button>
       </header>
       <OfficeScene occupants={occupants} meMovement={meMovement} onObjectClick={moveMe} />
       <nav className="work-bottom-nav" aria-label="工作导航">
-        <button type="button" onClick={() => setView("projects")}><FolderKanban size={18} /><span>项目管理</span></button>
-        <button className="is-wide" type="button" onClick={() => setView("timer")}><Timer size={20} /><span>工作倒计时</span></button>
-        <button type="button" onClick={() => setView("employees")}><UsersRound size={18} /><span>员工管理</span></button>
+        <button className="nav-projects" type="button" onClick={() => setView("projects")}><FolderKanban size={24} /><span>项目管理</span></button>
+        <button className="is-wide nav-timer" type="button" onClick={() => setView("timer")} aria-label="工作倒计时"><Timer size={27} /><strong>02:45:30</strong><span>工作倒计时</span></button>
+        <button className="nav-employees" type="button" onClick={() => setView("employees")}><UsersRound size={25} /><span>员工管理</span></button>
       </nav>
       {notice && <div className="work-notice" role="status">{notice}</div>}
     </section>

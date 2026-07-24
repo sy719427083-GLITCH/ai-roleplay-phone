@@ -1,4 +1,4 @@
-export const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4"];
+export const OFFICE_SLOT_IDS = ["boss", "employee1", "employee2", "employee3", "employee4", "employee5", "employee6"];
 
 const readObject = (storage, key) => {
   try {

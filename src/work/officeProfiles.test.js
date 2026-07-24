@@ -14,9 +14,23 @@ test("offers Me, main characters, and NPCs to every office slot", () => {
 
 test("starts empty and clears missing or duplicate profiles", () => {
   const profiles = readOfficeProfiles(storage({ apiMeProfiles: "{}", apiCharacters: JSON.stringify({ c1: { name: "顾言" } }) }));
-  assert.deepEqual(normalizeAssignments({}, profiles), { boss: null, employee1: null, employee2: null, employee3: null, employee4: null });
+  assert.deepEqual(normalizeAssignments({}, profiles), {
+    boss: null,
+    employee1: null,
+    employee2: null,
+    employee3: null,
+    employee4: null,
+    employee5: null,
+    employee6: null,
+  });
   assert.deepEqual(normalizeAssignments({ boss: "character:c1", employee1: "character:c1", employee2: "missing" }, profiles), {
-    boss: "character:c1", employee1: null, employee2: null, employee3: null, employee4: null,
+    boss: "character:c1",
+    employee1: null,
+    employee2: null,
+    employee3: null,
+    employee4: null,
+    employee5: null,
+    employee6: null,
   });
 });
 
