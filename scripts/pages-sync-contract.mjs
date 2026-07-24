@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 export const PAGE_ASSET_DIRECTORIES = Object.freeze([
   "assets",
   "worldbook-assets",
+  "work-office-assets",
 ]);
 
 const listFiles = async (rootDirectory, relativeDirectory = "") => {

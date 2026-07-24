@@ -18,18 +18,22 @@ test("syncs only current release directories and matches dist", async () => {
     await writeFixture(root, "dist/index.html", "release html");
     await writeFixture(root, "dist/assets/app.js", "release js");
     await writeFixture(root, "dist/worldbook-assets/cover.webp", "worldbook");
+    await writeFixture(root, "dist/work-office-assets/desk.png", "office desk");
     await writeFixture(root, "docs/assets/stale.js", "stale");
     await writeFixture(root, "docs/worldbook-assets/stale.webp", "stale worldbook");
+    await writeFixture(root, "docs/work-office-assets/stale.png", "stale office asset");
     await writeFixture(root, "docs/notes/keep.txt", "keep");
 
     const result = await syncPages({ repositoryRoot: root });
 
-    assert.deepEqual(result.assetDirectories, ["assets", "worldbook-assets"]);
+    assert.deepEqual(result.assetDirectories, ["assets", "worldbook-assets", "work-office-assets"]);
     assert.equal(await readFile(path.join(root, "docs/index.html"), "utf8"), "release html");
     assert.equal(await readFile(path.join(root, "docs/.deploy-version"), "utf8"), "9.9.9");
     await assert.rejects(readFile(path.join(root, "docs/assets/stale.js"), "utf8"), /ENOENT/u);
     await assert.rejects(readFile(path.join(root, "docs/worldbook-assets/stale.webp"), "utf8"), /ENOENT/u);
     assert.equal(await readFile(path.join(root, "docs/worldbook-assets/cover.webp"), "utf8"), "worldbook");
+    assert.equal(await readFile(path.join(root, "docs/work-office-assets/desk.png"), "utf8"), "office desk");
+    await assert.rejects(readFile(path.join(root, "docs/work-office-assets/stale.png"), "utf8"), /ENOENT/u);
     assert.equal(await readFile(path.join(root, "docs/notes/keep.txt"), "utf8"), "keep");
   } finally {
     await rm(root, { recursive: true, force: true });
