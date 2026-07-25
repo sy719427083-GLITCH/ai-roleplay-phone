@@ -10,7 +10,11 @@ const apiState = {
 };
 const payload = { projects: Array.from({ length: 5 }, (_, index) => ({
   name: `真实项目 ${index + 1}`, durationHours: (index + 2) * 24, amountValue: (index + 1) * 1000,
-  description: `这是项目 ${index + 1} 的实际工作内容`, difficulty: ["简单", "中等", "困难"][index % 3],
+  description: `这是项目 ${index + 1} 的实际工作内容`,
+  scopeItems: [`项目 ${index + 1} 范围一`, `项目 ${index + 1} 范围二`, `项目 ${index + 1} 范围三`],
+  deliverables: `这是项目 ${index + 1} 的具体交付成果`,
+  acceptanceCriteria: `这是项目 ${index + 1} 的明确验收标准`,
+  difficulty: ["简单", "中等", "困难"][index % 3],
 })) };
 
 test("selects enabled secondary before main and ignores disabled secondary", () => {
@@ -36,15 +40,22 @@ test("rejects malformed, incomplete, or unsupported generated projects", () => {
   assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, difficulty: "极难" }) }), 0));
   assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, durationHours: 0 }) }), 0));
   assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, amountValue: -1 }) }), 0));
+  assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, deliverables: "" }) }), 0));
+  assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, acceptanceCriteria: "" }) }), 0));
+  assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, scopeItems: ["仅一条"] }) }), 0));
 });
 
 test("trims and safely truncates generated fields", () => {
   const long = structuredClone(payload);
   long.projects[0].name = `  ${"长".repeat(30)}  `;
   long.projects[0].description = "内容".repeat(80);
+  long.projects[0].deliverables = "交付".repeat(80);
+  long.projects[0].acceptanceCriteria = "验收".repeat(80);
   const parsed = parseWorkProjectResponse(JSON.stringify(long), 0);
   assert.equal(parsed[0].name.length, 24);
   assert.equal(parsed[0].description.length, 100);
+  assert.equal(parsed[0].deliverables.length, 100);
+  assert.equal(parsed[0].acceptanceCriteria.length, 100);
 });
 
 test("retries main once after secondary fails", async () => {

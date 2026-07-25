@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { formatProjectAmount, formatProjectDuration, normalizeWorkProject } from "./workProjectContract.js";
 
-const base = { name: "真实项目", description: "项目内容", difficulty: "中等" };
+const base = {
+  name: "真实项目",
+  description: "项目内容",
+  scopeItems: ["范围一", "范围二", "范围三"],
+  deliverables: "交付成果",
+  acceptanceCriteria: "验收标准",
+  difficulty: "中等",
+};
 
 test("normalizes numeric API fields and derives display labels", () => {
   assert.deepEqual(normalizeWorkProject({ ...base, durationHours: 72, amountValue: 2100 }, "api-1-1"), {
@@ -17,6 +24,23 @@ test("migrates supported legacy duration and money labels", () => {
   assert.equal(migrated.durationHours, 48);
   assert.equal(migrated.amountValue, 2100.5);
   assert.equal(normalizeWorkProject({ id: "old-days", ...base, duration: "3 天", amount: "人民币 800" }).durationHours, 72);
+});
+
+test("keeps older cached contracts readable when detailed API clauses are absent", () => {
+  const legacy = normalizeWorkProject({
+    name: "旧项目", description: "旧合同正文", difficulty: "简单", durationHours: 24, amountValue: 800,
+  }, "legacy");
+  assert.equal(legacy.description, "旧合同正文");
+  assert.deepEqual(legacy.scopeItems, ["旧合同正文"]);
+  assert.equal(legacy.deliverables, null);
+  assert.equal(legacy.acceptanceCriteria, null);
+});
+
+test("rejects malformed new scope lists and trims valid scope items", () => {
+  assert.equal(normalizeWorkProject({ ...base, scopeItems: ["一", "二"], durationHours: 24, amountValue: 100 }, "id"), null);
+  assert.equal(normalizeWorkProject({ ...base, scopeItems: ["一", "", "三"], durationHours: 24, amountValue: 100 }, "id"), null);
+  const project = normalizeWorkProject({ ...base, scopeItems: [" 范围一 ", "范围二", "范围三"], durationHours: 24, amountValue: 100 }, "id");
+  assert.deepEqual(project.scopeItems, ["范围一", "范围二", "范围三"]);
 });
 
 test("rejects invalid numeric or required contract fields", () => {
@@ -35,7 +59,17 @@ test("does not hide invalid new numeric fields behind legacy labels", () => {
 });
 
 test("trims and truncates safe text fields", () => {
-  const project = normalizeWorkProject({ ...base, name: `  ${"长".repeat(30)}  `, description: "内容".repeat(80), durationHours: 24, amountValue: 100 }, "id");
+  const project = normalizeWorkProject({
+    ...base,
+    name: `  ${"长".repeat(30)}  `,
+    description: "内容".repeat(80),
+    deliverables: "交付".repeat(80),
+    acceptanceCriteria: "验收".repeat(80),
+    durationHours: 24,
+    amountValue: 100,
+  }, "id");
   assert.equal(project.name.length, 24);
   assert.equal(project.description.length, 100);
+  assert.equal(project.deliverables.length, 100);
+  assert.equal(project.acceptanceCriteria.length, 100);
 });

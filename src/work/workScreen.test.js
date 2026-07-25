@@ -17,7 +17,7 @@ test("work screen integrates project management and a real project countdown", (
 test("countdown controls meet mobile touch targets", () => {
   const styles = readFileSync("src/work/office.css", "utf8");
   assert.match(styles, /\.work-reward-claim-small\s*\{[^}]*min-height:\s*44px/s);
-  assert.match(styles, /\.work-reward-claim\s*\{[^}]*min-height:\s*48px/s);
+  assert.match(styles, /\.work-countdown-fixed-action\s*\{[^}]*min-height:\s*52px/s);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
 });
 

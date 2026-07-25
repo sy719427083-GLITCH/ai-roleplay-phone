@@ -12,7 +12,7 @@ const runningState = {
 
 test("returns idle when no project is signed", () => {
   assert.deepEqual(deriveProjectTimer({ projects: [], startedProjectId: null }, startMs), {
-    status: "idle", remainingSeconds: null, display: "--:--:--", project: null,
+    status: "idle", remainingSeconds: null, progressPercent: 0, display: "--:--:--", project: null,
   });
   assert.equal(getActiveWorkProject({ projects: [], startedProjectId: null }), null);
 });
@@ -21,13 +21,19 @@ test("formats cumulative hours and the final second", () => {
   assert.equal(formatRemainingTime(259200), "72:00:00");
   assert.equal(deriveProjectTimer(runningState, startMs).display, "72:00:00");
   assert.deepEqual(deriveProjectTimer(runningState, endMs - 1), {
-    status: "running", remainingSeconds: 1, display: "00:00:01", project,
+    status: "running", remainingSeconds: 1, progressPercent: 100, display: "00:00:01", project,
   });
+});
+
+test("derives elapsed progress for the full-screen countdown dial", () => {
+  assert.equal(deriveProjectTimer(runningState, startMs).progressPercent, 0);
+  assert.equal(deriveProjectTimer(runningState, startMs + (endMs - startMs) / 4).progressPercent, 25);
+  assert.equal(deriveProjectTimer(runningState, startMs + (endMs - startMs) / 2).progressPercent, 50);
 });
 
 test("clamps completed work to zero", () => {
   assert.deepEqual(deriveProjectTimer(runningState, endMs + 5000), {
-    status: "finished", remainingSeconds: 0, display: "00:00:00", project,
+    status: "finished", remainingSeconds: 0, progressPercent: 100, display: "00:00:00", project,
   });
 });
 

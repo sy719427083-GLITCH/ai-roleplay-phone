@@ -35,7 +35,9 @@ export function parseWorkProjectResponse(content, revision) {
   }
   return parsed.projects.map((project, index) => {
     const normalized = normalizeWorkProject(project, `api-${revision + 1}-${index + 1}`);
-    if (!normalized) throw new Error("API 返回的项目时间或金额无效");
+    if (!normalized || normalized.scopeItems.length !== 3 || !normalized.deliverables || !normalized.acceptanceCriteria) {
+      throw new Error("API 返回的项目合同内容不完整");
+    }
     return normalized;
   });
 }
@@ -45,7 +47,7 @@ function completionsUrl(baseUrl) {
   return `${base.endsWith("/v1") ? base : `${base}/v1`}/chat/completions`;
 }
 
-const SYSTEM_PROMPT = `你是 CCAT 工作中心的项目经理。生成五份彼此不同、可执行的中文自由职业项目合同。只返回 JSON，不要解释，不要 Markdown。严格使用结构：{"projects":[{"name":"项目名称","durationHours":72,"amountValue":2100,"description":"具体项目内容","difficulty":"简单|中等|困难"}]}。必须正好五项，durationHours 必须是正整数小时数，amountValue 必须是大于零的数字，其他字段不能为空，难度只能是简单、中等、困难。`;
+const SYSTEM_PROMPT = `你是 CCAT 工作中心的项目经理。生成五份彼此不同、可执行的中文自由职业项目合同。只返回 JSON，不要解释，不要 Markdown。严格使用结构：{"projects":[{"name":"项目名称","durationHours":72,"amountValue":2100,"description":"项目的一句话摘要","scopeItems":["具体工作范围一","具体工作范围二","具体工作范围三"],"deliverables":"明确、可核对的交付物","acceptanceCriteria":"明确、可执行的验收标准","difficulty":"简单|中等|困难"}]}。必须正好五项；scopeItems 必须正好三条且每条都具体；durationHours 必须是正整数小时数；amountValue 必须是大于零的数字；description、deliverables、acceptanceCriteria 必须具体且不能为空；难度只能是简单、中等、困难。`;
 
 async function requestProjects(candidate, revision, fetchImpl) {
   const { endpoint, source } = candidate;

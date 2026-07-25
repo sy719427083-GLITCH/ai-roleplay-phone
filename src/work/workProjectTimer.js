@@ -15,12 +15,17 @@ export function deriveProjectTimer(state, now = Date.now()) {
   const project = getActiveWorkProject(state);
   const endMs = Date.parse(state?.endsAt);
   if (!project || !Number.isFinite(endMs)) {
-    return { status: "idle", remainingSeconds: null, display: "--:--:--", project: null };
+    return { status: "idle", remainingSeconds: null, progressPercent: 0, display: "--:--:--", project: null };
   }
   const remainingSeconds = Math.max(0, Math.ceil((endMs - now) / 1000));
+  const startMs = Date.parse(state?.startedAt);
+  const progressPercent = Number.isFinite(startMs) && endMs > startMs
+    ? Math.min(100, Math.max(0, Math.round(((now - startMs) / (endMs - startMs)) * 100)))
+    : remainingSeconds === 0 ? 100 : 0;
   return {
     status: remainingSeconds === 0 ? "finished" : "running",
     remainingSeconds,
+    progressPercent,
     display: formatRemainingTime(remainingSeconds),
     project,
   };

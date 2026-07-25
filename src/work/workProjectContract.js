@@ -5,6 +5,13 @@ function cleanText(value, limit) {
   return value.trim().slice(0, limit);
 }
 
+function normalizeScopeItems(value, description) {
+  if (value === undefined) return [description];
+  if (!Array.isArray(value) || value.length !== 3) return null;
+  const items = value.map((item) => cleanText(item, 80));
+  return items.every(Boolean) ? items : null;
+}
+
 function parseLegacyDuration(value) {
   if (typeof value !== "string") return NaN;
   const match = value.trim().match(/^(\d+)\s*(天|小时)$/);
@@ -32,13 +39,16 @@ export function normalizeWorkProject(project, id = project?.id) {
   const projectId = typeof id === "string" ? id.trim() : "";
   const name = cleanText(project.name, 24);
   const description = cleanText(project.description, 100);
+  const scopeItems = description ? normalizeScopeItems(project.scopeItems, description) : null;
+  const deliverables = cleanText(project.deliverables, 100);
+  const acceptanceCriteria = cleanText(project.acceptanceCriteria, 100);
   const durationHours = Object.hasOwn(project, "durationHours")
     ? project.durationHours
     : parseLegacyDuration(project.duration);
   const rawAmount = Object.hasOwn(project, "amountValue")
     ? project.amountValue
     : parseLegacyAmount(project.amount);
-  if (!projectId || !name || !description || !Number.isInteger(durationHours) || durationHours <= 0
+  if (!projectId || !name || !description || !scopeItems || !Number.isInteger(durationHours) || durationHours <= 0
     || !Number.isFinite(rawAmount) || rawAmount <= 0 || !DIFFICULTIES.has(project.difficulty)) return null;
   const amountValue = Math.round(rawAmount * 100) / 100;
   return {
@@ -49,6 +59,9 @@ export function normalizeWorkProject(project, id = project?.id) {
     duration: formatProjectDuration(durationHours),
     amount: formatProjectAmount(amountValue),
     description,
+    scopeItems,
+    deliverables,
+    acceptanceCriteria,
     difficulty: project.difficulty,
   };
 }
