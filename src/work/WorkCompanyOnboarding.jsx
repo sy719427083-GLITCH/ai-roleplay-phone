@@ -19,7 +19,7 @@ export function WorkCompanyOnboarding({ onClose, onCreate, onComplete }) {
   const [createdCompany, setCreatedCompany] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const reducedMotion = useMemo(
-    () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+    () => window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false,
     [],
   );
   const normalizedPrefix = normalizeWorkCompanyPrefix(prefix);

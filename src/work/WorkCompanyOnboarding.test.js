@@ -18,3 +18,7 @@ test("company form exposes fixed suffix, validation, and accessible actions", ()
   assert.match(source, /aria-label="公司名称前缀"/);
   assert.match(source, /disabled=\{!normalizedPrefix \|\| submitting\}/);
 });
+
+test("reduced-motion detection tolerates browsers without matchMedia", () => {
+  assert.ok(source.includes('window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches'));
+});

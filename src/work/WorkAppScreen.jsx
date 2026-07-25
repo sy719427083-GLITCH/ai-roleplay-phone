@@ -5,10 +5,17 @@ import { EmployeeManager } from "./EmployeeManager.jsx";
 import { OfficeScene } from "./OfficeScene.jsx";
 import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
+import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
+import {
+  WORK_COMPANY_STORAGE_KEY,
+  createWorkCompany,
+  restoreWorkCompany,
+  serializeWorkCompany,
+} from "./workCompanyState.js";
 import {
   WORK_PROJECTS_STORAGE_KEY,
   clearCompletedWorkProject,
@@ -23,6 +30,7 @@ const VIEW_TITLES = { settings: "工作设置", timer: "项目倒计时", employ
 export function WorkAppScreen({ onClose }) {
   const profiles = useMemo(() => readOfficeProfiles(), []);
   const profileMap = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
+  const [company, setCompany] = useState(() => restoreWorkCompany(window.localStorage.getItem(WORK_COMPANY_STORAGE_KEY)));
   const [state, dispatch] = useReducer(officeReducer, null, () => restoreOfficeState(window.localStorage.getItem(OFFICE_STORAGE_KEY), profiles));
   const [projectState, setProjectState] = useState(() => restoreWorkProjectState(window.localStorage.getItem(WORK_PROJECTS_STORAGE_KEY)));
   const [view, setView] = useState("office");
@@ -123,6 +131,22 @@ export function WorkAppScreen({ onClose }) {
       setClaiming(false);
     }
   };
+
+  const persistCompany = (prefix) => {
+    const nextCompany = createWorkCompany(prefix);
+    window.localStorage.setItem(WORK_COMPANY_STORAGE_KEY, serializeWorkCompany(nextCompany));
+    return nextCompany;
+  };
+
+  if (!company) {
+    return (
+      <WorkCompanyOnboarding
+        onClose={onClose}
+        onCreate={persistCompany}
+        onComplete={setCompany}
+      />
+    );
+  }
 
   if (view === "projects") {
     return (

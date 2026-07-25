@@ -50,3 +50,15 @@ test("office screen measures the scene and advances timed A star segments", () =
   assert.match(scene, /getOfficePoint/);
   assert.doesNotMatch(scene, /OFFICE_NODES/);
 });
+
+test("work app gates the office behind one-time company creation", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const styles = readFileSync("src/work/office.css", "utf8");
+  assert.match(screen, /WORK_COMPANY_STORAGE_KEY/);
+  assert.match(screen, /restoreWorkCompany/);
+  assert.match(screen, /<WorkCompanyOnboarding/);
+  assert.match(screen, /window\.localStorage\.setItem\(WORK_COMPANY_STORAGE_KEY/);
+  assert.match(styles, /\.work-company-onboarding/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /\.work-company-skip\s*\{[^}]*min-height:\s*44px/s);
+});
