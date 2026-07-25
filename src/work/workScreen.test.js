@@ -2,14 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-test("work screen integrates project management and keeps timer and settings blank", () => {
+test("work screen integrates project management and a real project countdown", () => {
   const source = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
-  for (const text of ["项目管理", "工作倒计时", "员工管理", "暂时留空", "工作设置"]) assert.match(source, new RegExp(text));
+  for (const text of ["项目管理", "项目倒计时", "工作结束", "点击领取报酬", "员工管理", "工作设置"]) assert.match(source, new RegExp(text));
   assert.match(source, /import \{ ProjectManagementPreview \} from "\.\/ProjectManagementPreview\.jsx"/);
+  assert.match(source, /ProjectCountdownView/);
+  assert.match(source, /deriveProjectTimer/);
+  assert.match(source, /addWalletIncomeOnce/);
+  assert.match(source, /setInterval/);
   assert.match(source, /view === "projects"/);
-  assert.match(source, /<ProjectManagementPreview onBack=\{\(\) => setView\("office"\)\} \/>/);
-  assert.match(source, /view === "timer" \? "T" : "S"/);
-  assert.doesNotMatch(source, /view === "projects" \? "P"/);
+  assert.doesNotMatch(source, /02:45:30|工作倒计时/);
+});
+
+test("countdown controls meet mobile touch targets", () => {
+  const styles = readFileSync("src/work/office.css", "utf8");
+  assert.match(styles, /\.work-reward-claim-small\s*\{[^}]*min-height:\s*44px/s);
+  assert.match(styles, /\.work-reward-claim\s*\{[^}]*min-height:\s*48px/s);
+  assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
 });
 
 test("office scene uses semantic object buttons", () => {

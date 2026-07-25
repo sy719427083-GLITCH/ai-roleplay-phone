@@ -22,14 +22,15 @@ test("project preview provides refresh loading and locked states", () => {
   assert.match(source, /Array\.from\(\{ length: 5 \}\)/);
 });
 
-test("project preview restores cached API contracts and persists signing", () => {
-  assert.match(source, /WORK_PROJECTS_STORAGE_KEY/);
-  assert.match(source, /restoreWorkProjectState/);
-  assert.match(source, /serializeWorkProjectState/);
+test("project preview consumes lifted project state and starts a timed contract", () => {
+  assert.match(source, /projectState/);
+  assert.match(source, /onProjectStateChange/);
+  assert.match(source, /startWorkProject/);
+  assert.match(source, /Date\.now/);
   assert.match(source, /副 API/);
   assert.match(source, /主 API/);
   assert.match(source, /原合同已保留/);
-  assert.doesNotMatch(source, /projectPreviewModel/);
+  assert.doesNotMatch(source, /WORK_PROJECTS_STORAGE_KEY|restoreWorkProjectState|serializeWorkProjectState/);
 });
 
 test("project page controls meet the mobile touch target requirement", () => {

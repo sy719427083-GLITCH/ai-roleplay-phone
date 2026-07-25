@@ -3,26 +3,21 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { STORAGE_KEY, parseConfigs } from "../apiConfig.js";
 import { generateWorkProjects } from "./workProjectApi.js";
 import {
-  WORK_PROJECTS_STORAGE_KEY,
   replaceWorkProjects,
-  restoreWorkProjectState,
-  serializeWorkProjectState,
   startWorkProject,
 } from "./workProjectState.js";
 
-export function ProjectManagementPreview({ onBack }) {
-  const [previewState, setPreviewState] = useState(() => restoreWorkProjectState(window.localStorage.getItem(WORK_PROJECTS_STORAGE_KEY)));
+export function ProjectManagementPreview({ onBack, projectState, onProjectStateChange }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestedOnEntry = useRef(false);
-  const stateRef = useRef(previewState);
-  const locked = Boolean(previewState.startedProjectId);
-  const refreshing = loading && previewState.projects.length === 5;
+  const stateRef = useRef(projectState);
+  const locked = Boolean(projectState.startedProjectId);
+  const refreshing = loading && projectState.projects.length === 5;
 
   useEffect(() => {
-    stateRef.current = previewState;
-    window.localStorage.setItem(WORK_PROJECTS_STORAGE_KEY, serializeWorkProjectState(previewState));
-  }, [previewState]);
+    stateRef.current = projectState;
+  }, [projectState]);
 
   useEffect(() => {
     if (requestedOnEntry.current || stateRef.current.projects.length === 5) return;
@@ -38,7 +33,7 @@ export function ProjectManagementPreview({ onBack }) {
       const result = await generateWorkProjects({ apiState, revision: stateRef.current.revision });
       const nextState = replaceWorkProjects(stateRef.current, result.projects, result.source);
       stateRef.current = nextState;
-      setPreviewState(nextState);
+      onProjectStateChange(nextState);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "合同生成失败，请稍后重试");
     } finally {
@@ -52,11 +47,9 @@ export function ProjectManagementPreview({ onBack }) {
   }
 
   function handleStart(projectId) {
-    setPreviewState((current) => {
-      const nextState = startWorkProject(current, projectId);
-      stateRef.current = nextState;
-      return nextState;
-    });
+    const nextState = startWorkProject(stateRef.current, projectId, Date.now());
+    stateRef.current = nextState;
+    onProjectStateChange(nextState);
   }
 
   return (
@@ -84,17 +77,17 @@ export function ProjectManagementPreview({ onBack }) {
       <main className="work-projects-content">
         <div className={`work-projects-summary${locked ? " is-locked" : ""}`} aria-live="polite">
           <div>
-            <strong>{locked ? "合同已生效，本批合同已锁定" : `待签署合同 ${previewState.projects.length} 份`}</strong>
-            <span>{locked ? "当前合同执行完毕后可获取新合同" : previewState.source ? `${previewState.source === "secondary" ? "副 API" : "主 API"} 生成 · 请审阅后签署` : "正在连接项目中心"}</span>
+            <strong>{locked ? "合同已生效，本批合同已锁定" : `待签署合同 ${projectState.projects.length} 份`}</strong>
+            <span>{locked ? "当前合同执行完毕后可获取新合同" : projectState.source ? `${projectState.source === "secondary" ? "副 API" : "主 API"} 生成 · 请审阅后签署` : "正在连接项目中心"}</span>
           </div>
           <span className="work-projects-count" aria-hidden="true">{locked ? "生效" : "待签"}</span>
         </div>
 
-        {loading && previewState.projects.length === 0 ? (
+        {loading && projectState.projects.length === 0 ? (
           <div className="work-projects-list" aria-label="正在生成项目" aria-busy="true">
             {Array.from({ length: 5 }).map((_, index) => <ProjectSkeleton key={index} />)}
           </div>
-        ) : error && previewState.projects.length === 0 ? (
+        ) : error && projectState.projects.length === 0 ? (
           <div className="work-projects-error" role="alert">
             <strong>暂时无法生成合同</strong>
             <p>{error}</p>
@@ -103,11 +96,11 @@ export function ProjectManagementPreview({ onBack }) {
         ) : (
           <>
             {error && <div className="work-projects-inline-error" role="alert">{error}，原合同已保留。</div>}
-            <div className="work-projects-list" key={previewState.revision} aria-busy={refreshing}>
-              {previewState.projects.map((project, index) => {
-                const isStarted = previewState.startedProjectId === project.id;
+            <div className="work-projects-list" key={projectState.revision} aria-busy={refreshing}>
+              {projectState.projects.map((project, index) => {
+                const isStarted = projectState.startedProjectId === project.id;
                 const isMuted = locked && !isStarted;
-                const contractNumber = `CCAT-2026-${String(previewState.revision * 5 + index + 1).padStart(3, "0")}`;
+                const contractNumber = `CCAT-2026-${String(projectState.revision * 5 + index + 1).padStart(3, "0")}`;
                 return (
                   <article className={`work-project-card${isStarted ? " is-started" : ""}${isMuted ? " is-muted" : ""}`} key={project.id}>
                     <div className="work-contract-heading">
