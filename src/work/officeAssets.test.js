@@ -1,10 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, readFileSync } from "node:fs";
-import { OFFICE_BACKGROUND_URL, OFFICE_FURNITURE, OFFICE_OBJECT_ASSETS } from "./officeAssets.js";
+import {
+  OFFICE_BACKGROUND_URL,
+  OFFICE_FURNITURE,
+  OFFICE_OBJECT_ASSETS,
+  WORK_COMPANY_SCENE_ASSETS,
+} from "./officeAssets.js";
 
 const publicPath = (url) => `public${url.replace("/ai-roleplay-phone", "")}`;
 const pngColorType = (path) => readFileSync(path)[25];
+const pngDimensions = (path) => {
+  const bytes = readFileSync(path);
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+};
+
+test("declares portrait fullscreen company animation scenes", () => {
+  assert.deepEqual(WORK_COMPANY_SCENE_ASSETS, {
+    launch: "/ai-roleplay-phone/work-office-assets/work-company-launch-background.png",
+    enter: "/ai-roleplay-phone/work-office-assets/work-company-enter-background.png",
+  });
+  for (const url of Object.values(WORK_COMPANY_SCENE_ASSETS)) {
+    const path = publicPath(url);
+    assert.equal(existsSync(path), true, `${url} exists`);
+    const { width, height } = pngDimensions(path);
+    assert.ok(height > width, `${url} is portrait`);
+    assert.ok(width >= 1024, `${url} is high resolution`);
+  }
+});
 
 test("declares a separate alpha PNG for every clickable office object", () => {
   assert.equal(OFFICE_BACKGROUND_URL, "/ai-roleplay-phone/work-office-assets/orbit-office-background.png");

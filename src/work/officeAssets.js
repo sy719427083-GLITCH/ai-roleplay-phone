@@ -1,6 +1,10 @@
 import { OBJECT_DESTINATIONS } from "./officeNavigation.js";
 
 export const OFFICE_BACKGROUND_URL = "/ai-roleplay-phone/work-office-assets/orbit-office-background.png";
+export const WORK_COMPANY_SCENE_ASSETS = {
+  launch: "/ai-roleplay-phone/work-office-assets/work-company-launch-background.png",
+  enter: "/ai-roleplay-phone/work-office-assets/work-company-enter-background.png",
+};
 export const OFFICE_OBJECT_ASSETS = {
   bossDesk: "/ai-roleplay-phone/work-office-assets/orbit-boss-desk.png",
   employeeDesk: "/ai-roleplay-phone/work-office-assets/orbit-employee-desk.png",
