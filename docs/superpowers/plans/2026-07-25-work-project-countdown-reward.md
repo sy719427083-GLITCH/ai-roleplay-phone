@@ -47,8 +47,9 @@
 - Modify: `src/App.jsx:284-323,506-513,4678-4745`
 
 **Interfaces:**
-- Produces: `WALLET_STORAGE_KEY`, `readWalletData(storage?)`, `writeWalletData(wallet, storage?)`, `applyWalletTransaction({ type, amount, desc, id? }, storage?)`, `addWalletIncomeOnce({ id, amount, desc }, storage?)`.
+- Produces: `WALLET_STORAGE_KEY`, `readWalletData(storage?, options?)`, `writeWalletData(wallet, storage?)`, `applyWalletTransaction({ type, amount, desc, id? }, storage?)`, `addWalletIncomeOnce({ id, amount, desc }, storage?)`.
 - `addWalletIncomeOnce` returns `{ wallet, credited, duplicate }`; it throws if storage write fails.
+- `readWalletData(storage, { strict: true })` throws when storage cannot be read or parsed; reward claims use strict mode so unreadable wallet data is never overwritten with an empty balance.
 
 - [ ] **Step 1: Write failing wallet tests**
 
@@ -68,6 +69,13 @@ test("throws without inventing success when wallet persistence fails", () => {
   const storage = { getItem: () => null, setItem: () => { throw new Error("quota"); } };
   assert.throws(() => addWalletIncomeOnce({ id: "work:p1:start", amount: 10, desc: "项目报酬" }, storage), /钱包写入失败/);
 });
+
+test("does not overwrite a wallet that cannot be read", () => {
+  let writes = 0;
+  const storage = { getItem: () => { throw new Error("blocked"); }, setItem: () => { writes += 1; } };
+  assert.throws(() => addWalletIncomeOnce({ id: "work:p1:start", amount: 10, desc: "项目报酬" }, storage), /钱包读取失败/);
+  assert.equal(writes, 0);
+});
 ```
 
 - [ ] **Step 2: Run the focused test and verify failure**
@@ -81,7 +89,7 @@ Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `walletStore.js`.
 ```js
 export const WALLET_STORAGE_KEY = "roleplayWallet";
 
-export function readWalletData(storage = window.localStorage) {
+export function readWalletData(storage = window.localStorage, { strict = false } = {}) {
   try {
     const parsed = JSON.parse(storage.getItem(WALLET_STORAGE_KEY) || "{}");
     return {
@@ -89,12 +97,13 @@ export function readWalletData(storage = window.localStorage) {
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
     };
   } catch {
+    if (strict) throw new Error("钱包读取失败，请重试");
     return { balance: 0, transactions: [] };
   }
 }
 
 export function addWalletIncomeOnce({ id, amount, desc }, storage = window.localStorage) {
-  const wallet = readWalletData(storage);
+  const wallet = readWalletData(storage, { strict: true });
   if (wallet.transactions.some((item) => item.id === id)) return { wallet, credited: false, duplicate: true };
   const value = Number(amount);
   if (!id || !Number.isFinite(value) || value <= 0) throw new Error("报酬金额无效");
