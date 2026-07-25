@@ -9,7 +9,7 @@ const apiState = {
   mainDraft: {}, secondaryDraft: {}, secondaryEnabled: true,
 };
 const payload = { projects: Array.from({ length: 5 }, (_, index) => ({
-  name: `真实项目 ${index + 1}`, duration: `${index + 2}天`, amount: `¥${index + 1}000`,
+  name: `真实项目 ${index + 1}`, durationHours: (index + 2) * 24, amountValue: (index + 1) * 1000,
   description: `这是项目 ${index + 1} 的实际工作内容`, difficulty: ["简单", "中等", "困难"][index % 3],
 })) };
 
@@ -34,6 +34,8 @@ test("rejects malformed, incomplete, or unsupported generated projects", () => {
   assert.throws(() => parseWorkProjectResponse("not json", 0));
   assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.slice(1) }), 0));
   assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, difficulty: "极难" }) }), 0));
+  assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, durationHours: 0 }) }), 0));
+  assert.throws(() => parseWorkProjectResponse(JSON.stringify({ projects: payload.projects.map((item, index) => index ? item : { ...item, amountValue: -1 }) }), 0));
 });
 
 test("trims and safely truncates generated fields", () => {

@@ -1,5 +1,4 @@
-const DIFFICULTIES = new Set(["简单", "中等", "困难"]);
-const FIELD_LIMITS = { name: 24, duration: 12, amount: 20, description: 100 };
+import { normalizeWorkProject } from "./workProjectContract.js";
 
 function selectedEndpoint(configs, selectedId, draft) {
   const saved = Array.isArray(configs) ? configs.find((item) => item.id === selectedId) : null;
@@ -20,11 +19,6 @@ export function selectWorkProjectEndpoints(apiState) {
   return candidates;
 }
 
-function cleanField(value, field) {
-  if (typeof value !== "string" || !value.trim()) throw new Error("API 返回的合同字段不完整");
-  return value.trim().slice(0, FIELD_LIMITS[field]);
-}
-
 export function parseWorkProjectResponse(content, revision) {
   if (typeof content !== "string") throw new Error("API 未返回合同内容");
   const trimmed = content.trim();
@@ -40,15 +34,9 @@ export function parseWorkProjectResponse(content, revision) {
     throw new Error("API 必须返回 5 份合同");
   }
   return parsed.projects.map((project, index) => {
-    if (!project || !DIFFICULTIES.has(project.difficulty)) throw new Error("API 返回了不支持的合同难度");
-    return {
-      id: `api-${revision + 1}-${index + 1}`,
-      name: cleanField(project.name, "name"),
-      duration: cleanField(project.duration, "duration"),
-      amount: cleanField(project.amount, "amount"),
-      description: cleanField(project.description, "description"),
-      difficulty: project.difficulty,
-    };
+    const normalized = normalizeWorkProject(project, `api-${revision + 1}-${index + 1}`);
+    if (!normalized) throw new Error("API 返回的项目时间或金额无效");
+    return normalized;
   });
 }
 
@@ -57,7 +45,7 @@ function completionsUrl(baseUrl) {
   return `${base.endsWith("/v1") ? base : `${base}/v1`}/chat/completions`;
 }
 
-const SYSTEM_PROMPT = `你是 CCAT 工作中心的项目经理。生成五份彼此不同、可执行的中文自由职业项目合同。只返回 JSON，不要解释，不要 Markdown。严格使用结构：{"projects":[{"name":"项目名称","duration":"交付时间","amount":"人民币金额","description":"具体项目内容","difficulty":"简单|中等|困难"}]}。必须正好五项，字段都不能为空，难度只能是简单、中等、困难。`;
+const SYSTEM_PROMPT = `你是 CCAT 工作中心的项目经理。生成五份彼此不同、可执行的中文自由职业项目合同。只返回 JSON，不要解释，不要 Markdown。严格使用结构：{"projects":[{"name":"项目名称","durationHours":72,"amountValue":2100,"description":"具体项目内容","difficulty":"简单|中等|困难"}]}。必须正好五项，durationHours 必须是正整数小时数，amountValue 必须是大于零的数字，其他字段不能为空，难度只能是简单、中等、困难。`;
 
 async function requestProjects(candidate, revision, fetchImpl) {
   const { endpoint, source } = candidate;
