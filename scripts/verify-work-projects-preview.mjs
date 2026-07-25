@@ -29,11 +29,11 @@ async function openProjects(page) {
   await page.getByRole("button", { name: "上划解锁" }).click();
   await page.getByRole("button", { name: "工作" }).click();
   await page.getByRole("button", { name: "项目管理" }).click();
-  await page.getByText("WORK BOARD", { exact: true }).waitFor();
-  await page.getByRole("heading", { name: "今日项目", level: 1 }).waitFor();
+  await page.getByRole("heading", { name: "项目合同", level: 1 }).waitFor();
   assert.equal(await page.locator(".work-project-card").count(), 5, "project page shows five project cards");
-  assert.equal(await page.locator(".work-project-price").count(), 5, "every project gives amount editorial emphasis");
-  assert.equal(await page.locator(".work-project-ticket-meta").count(), 5, "every project renders ticket metadata");
+  assert.equal(await page.locator(".work-contract-number").count(), 5, "every contract has a number");
+  assert.equal(await page.locator(".work-contract-parties").count(), 5, "every contract lists both parties");
+  assert.equal(await page.locator(".work-contract-signatures").count(), 5, "every contract includes signature lines");
 }
 
 try {
@@ -65,11 +65,12 @@ try {
 
     const firstStartButton = page.locator(".work-project-start").first();
     await firstStartButton.click();
-    await page.getByText("项目进行中，今日列表已锁定", { exact: true }).waitFor();
+    await page.getByText("合同已生效，本批合同已锁定", { exact: true }).waitFor();
     assert.equal(await refreshButton.isDisabled(), true, "refresh locks after a project starts");
-    assert.equal(await firstStartButton.locator("span").first().textContent(), "项目进行中");
+    assert.equal(await firstStartButton.locator("span").first().textContent(), "合同执行中");
     assert.equal(await page.locator(".work-project-start:disabled").count(), 5, "all start buttons lock after selection");
     assert.equal(await page.locator(".work-project-card.is-muted").count(), 4, "unselected projects de-emphasize after selection");
+    assert.equal(await page.locator(".work-contract-seal").count(), 1, "the signed contract displays one seal");
 
     await page.screenshot({
       path: `artifacts/work-projects-preview/projects-${viewport.width}x${viewport.height}.png`,
