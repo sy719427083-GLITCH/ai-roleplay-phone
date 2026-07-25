@@ -6,7 +6,7 @@ const source = readFileSync("src/work/ProjectManagementPreview.jsx", "utf8");
 const styles = readFileSync("src/work/office.css", "utf8");
 
 test("project preview exposes the full mobile project card content", () => {
-  for (const text of ["项目管理", "今日项目", "项目时间", "项目金额", "项目内容", "开始项目"]) {
+  for (const text of ["项目管理", "项目合同", "交付期限", "合同总额", "项目内容", "签署合同并开始"]) {
     assert.match(source, new RegExp(text));
   }
   assert.match(source, /projects\.map/);
@@ -16,25 +16,26 @@ test("project preview exposes the full mobile project card content", () => {
 test("project preview provides refresh loading and locked states", () => {
   assert.match(source, /650/);
   assert.match(source, /正在刷新项目/);
-  assert.match(source, /项目进行中，今日列表已锁定/);
-  assert.match(source, /项目进行中/);
+  assert.match(source, /合同已生效，本批合同已锁定/);
+  assert.match(source, /合同执行中/);
   assert.match(source, /disabled=\{locked \|\| refreshing\}/);
   assert.match(source, /Array\.from\(\{ length: 5 \}\)/);
 });
 
 test("project page controls meet the mobile touch target requirement", () => {
-  assert.match(styles, /\.work-projects-refresh\s*\{[^}]*min-width:\s*68px;[^}]*min-height:\s*44px/s);
+  assert.match(styles, /\.work-projects-refresh\s*\{[^}]*min-width:\s*76px/s);
+  assert.match(styles, /\.work-projects-refresh\s*\{[^}]*min-height:\s*44px/s);
   assert.match(styles, /\.work-project-start\s*\{[^}]*min-height:\s*46px/s);
 });
 
-test("project preview uses the approved editorial task-board hierarchy", () => {
-  for (const text of ["WORK BOARD", "今日项目", "个新项目等待认领", "刷新"]) {
+test("project preview renders formal contract fields and signed state", () => {
+  for (const text of ["项目合同", "待签署合同", "委托方", "CCAT 工作中心", "承接方", "合同总额", "人民币", "交付期限", "甲方签章", "乙方签章", "签署合同并开始", "已签署", "今日生效"]) {
     assert.match(source, new RegExp(text));
   }
-  for (const className of ["work-projects-kicker", "work-projects-count", "work-project-price", "work-project-ticket-meta", "is-muted"]) {
+  for (const className of ["work-contract-number", "work-contract-parties", "work-contract-terms", "work-contract-signatures", "work-contract-seal"]) {
     assert.match(source, new RegExp(className));
   }
-  assert.match(styles, /--work-editorial-navy:\s*#17233d/);
-  assert.match(styles, /--work-editorial-acid:\s*#b9ee43/);
-  assert.doesNotMatch(styles, /\.work-project-start\s*\{[^}]*linear-gradient/s);
+  assert.match(styles, /--work-contract-seal:\s*#a92c2c/);
+  assert.match(styles, /\.work-project-card::after/);
+  assert.doesNotMatch(source, /WORK BOARD|ASSIGNMENT/);
 });

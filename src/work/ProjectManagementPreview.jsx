@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Clock3, FileText, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 import {
   createProjectPreviewState,
   refreshPreviewProjects,
   startPreviewProject,
 } from "./projectPreviewModel.js";
-
-const DIFFICULTY_CLASS = {
-  简单: "is-easy",
-  中等: "is-medium",
-  困难: "is-hard",
-};
 
 export function ProjectManagementPreview({ onBack }) {
   const [previewState, setPreviewState] = useState(createProjectPreviewState);
@@ -40,28 +34,28 @@ export function ProjectManagementPreview({ onBack }) {
           <ArrowLeft size={21} strokeWidth={2.2} />
         </button>
         <div className="work-projects-title-block">
-          <span className="work-projects-kicker">WORK BOARD</span>
-          <h1>今日项目</h1>
+          <span className="work-projects-kicker">CCAT CONTRACTS</span>
+          <h1>项目合同</h1>
         </div>
         <button
           type="button"
           className={`work-projects-refresh${refreshing ? " is-refreshing" : ""}`}
           onClick={handleRefresh}
           disabled={locked || refreshing}
-          aria-label={locked ? "项目进行中，无法刷新" : refreshing ? "正在刷新项目" : "刷新项目"}
+          aria-label={locked ? "合同已签署，无法换一批" : refreshing ? "正在更换合同" : "换一批合同"}
         >
           <RefreshCw size={17} strokeWidth={2.2} />
-          <span>{locked ? "进行中" : refreshing ? "刷新中" : "刷新"}</span>
+          <span>{locked ? "已锁定" : refreshing ? "更换中" : "换一批"}</span>
         </button>
       </header>
 
       <main className="work-projects-content">
         <div className={`work-projects-summary${locked ? " is-locked" : ""}`} aria-live="polite">
           <div>
-            <strong>{locked ? "项目进行中，今日列表已锁定" : `${previewState.projects.length} 个新项目等待认领`}</strong>
-            <span>{locked ? "完成当前项目后可获取新项目" : "选择一项工作，开始今天的创作"}</span>
+            <strong>{locked ? "合同已生效，本批合同已锁定" : `待签署合同 ${previewState.projects.length} 份`}</strong>
+            <span>{locked ? "当前合同执行完毕后可获取新合同" : "请审阅合同条款后选择签署"}</span>
           </div>
-          <span className="work-projects-count" aria-hidden="true">{locked ? "LOCKED" : "05 / 05"}</span>
+          <span className="work-projects-count" aria-hidden="true">{locked ? "生效" : "待签"}</span>
         </div>
 
         {refreshing ? (
@@ -73,31 +67,33 @@ export function ProjectManagementPreview({ onBack }) {
             {previewState.projects.map((project, index) => {
               const isStarted = previewState.startedProjectId === project.id;
               const isMuted = locked && !isStarted;
+              const contractNumber = `CCAT-2026-${String(previewState.revision * 5 + index + 1).padStart(3, "0")}`;
               return (
                 <article className={`work-project-card${isStarted ? " is-started" : ""}${isMuted ? " is-muted" : ""}`} key={project.id}>
-                  <div className="work-project-card-heading">
-                    <span className="work-project-eyebrow">ASSIGNMENT / {String(index + 1).padStart(2, "0")}</span>
-                    <span className={`work-project-difficulty ${DIFFICULTY_CLASS[project.difficulty] || "is-medium"}`}>
-                      {project.difficulty}
-                    </span>
-                  </div>
-
-                  <div className="work-project-title-row">
+                  <div className="work-contract-heading">
+                    <span className="work-contract-number">合同编号 {contractNumber}</span>
                     <h2>{project.name}</h2>
-                    <div className="work-project-price">
-                      <span>项目金额</span>
-                      <strong>{project.amount}</strong>
-                    </div>
+                    {isStarted && <span className="work-contract-seal">已签署<small>今日生效</small></span>}
                   </div>
 
-                  <div className="work-project-ticket-meta">
-                    <span><Clock3 size={15} aria-hidden="true" />项目时间 <strong>{project.duration}</strong></span>
-                    <span>难度 / <strong>{project.difficulty}</strong></span>
-                  </div>
+                  <dl className="work-contract-parties">
+                    <div><dt>委托方（甲方）</dt><dd>CCAT 工作中心</dd></div>
+                    <div><dt>承接方（乙方）</dt><dd>{isStarted ? "已确认承接" : "待签署"}</dd></div>
+                  </dl>
 
-                  <div className="work-project-description">
-                    <FileText size={15} aria-hidden="true" />
-                    <p><span>项目内容</span>{project.description}</p>
+                  <dl className="work-contract-terms">
+                    <div><dt>合同总额</dt><dd>人民币 {project.amount}</dd></div>
+                    <div><dt>交付期限</dt><dd>{project.duration}</dd></div>
+                    <div><dt>难度等级</dt><dd>{project.difficulty}</dd></div>
+                  </dl>
+
+                  <section className="work-contract-scope">
+                    <h3>第一条 · 项目内容</h3>
+                    <p>{project.description}</p>
+                  </section>
+
+                  <div className="work-contract-signatures" aria-label="合同签章区">
+                    <span>甲方签章</span><span>乙方签章</span>
                   </div>
 
                   <button
@@ -106,8 +102,8 @@ export function ProjectManagementPreview({ onBack }) {
                     onClick={() => handleStart(project.id)}
                     disabled={locked}
                   >
-                    <span>{isStarted ? "项目进行中" : locked ? "已有项目进行中" : "开始项目"}</span>
-                    <span aria-hidden="true">{isStarted ? "ACTIVE" : locked ? "LOCKED" : "START →"}</span>
+                    <span>{isStarted ? "合同执行中" : locked ? "本合同不可签署" : "签署合同并开始"}</span>
+                    <span aria-hidden="true">{isStarted ? "IN FORCE" : locked ? "LOCKED" : "SIGN →"}</span>
                   </button>
                 </article>
               );

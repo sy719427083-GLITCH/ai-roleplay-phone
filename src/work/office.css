@@ -131,6 +131,51 @@
 .skeleton-meta span { height: 44px; border-radius: 3px; }
 .skeleton-line.is-button { height: 46px; margin-top: 9px; border-radius: 5px; }
 
+/* Formal project contract preview */
+.work-projects-page { --work-contract-paper: #fbf7ea; --work-contract-ink: #252522; --work-contract-rule: #77736a; --work-contract-seal: #a92c2c; background-color: #dedbd3; background-image: radial-gradient(rgba(70,66,58,.08) .6px,transparent .7px); background-size: 5px 5px; color: var(--work-contract-ink); }
+.work-projects-header { border-bottom-color: rgba(37,37,34,.28); background: rgba(232,229,220,.96); }
+.work-projects-kicker { color: #76736b; letter-spacing: .14em; }
+.work-projects-header h1 { color: var(--work-contract-ink); font-size: 21px; letter-spacing: .06em; }
+.work-projects-back { border-color: rgba(37,37,34,.28); border-radius: 3px; background: var(--work-contract-paper); color: var(--work-contract-ink); box-shadow: 2px 2px 0 rgba(37,37,34,.12); }
+.work-projects-refresh { min-width: 76px; border-color: var(--work-contract-ink); border-radius: 3px; background: var(--work-contract-ink); color: var(--work-contract-paper); box-shadow: 2px 2px 0 rgba(37,37,34,.18); }
+.work-projects-refresh:disabled { border-color: #aaa69d; background: #d0cdc5; color: #75736d; }
+.work-projects-summary { border-top: 3px double var(--work-contract-ink); border-bottom-color: rgba(37,37,34,.3); }
+.work-projects-summary strong { color: var(--work-contract-ink); font-size: 14px; letter-spacing: .02em; }
+.work-projects-summary div span { color: #6e6b64; }
+.work-projects-count { border-color: var(--work-contract-ink); background: var(--work-contract-paper); color: var(--work-contract-ink); }
+.work-projects-summary.is-locked { border-top-color: var(--work-contract-seal); }
+.work-projects-summary.is-locked .work-projects-count { border-color: var(--work-contract-seal); background: transparent; color: var(--work-contract-seal); }
+.work-projects-list { gap: 16px; }
+.work-project-card { overflow: visible; border: 1px solid rgba(37,37,34,.52); border-radius: 3px; background-color: var(--work-contract-paper); background-image: linear-gradient(rgba(90,82,67,.025) 1px,transparent 1px); background-size: 100% 18px; padding: 19px 18px 16px; box-shadow: inset 0 0 0 3px var(--work-contract-paper),inset 0 0 0 4px rgba(37,37,34,.34),4px 5px 0 rgba(37,37,34,.1); }
+.work-project-card::before { display: none; }
+.work-project-card::after { position: absolute; inset: 7px; border: 1px solid rgba(37,37,34,.18); pointer-events: none; content: ""; }
+.work-project-card.is-started { border-color: rgba(169,44,44,.72); box-shadow: inset 0 0 0 3px var(--work-contract-paper),inset 0 0 0 4px rgba(169,44,44,.35),4px 5px 0 rgba(169,44,44,.11); }
+.work-project-card.is-muted { opacity: .57; }
+.work-contract-heading { position: relative; display: grid; justify-items: center; min-height: 70px; align-content: start; padding: 2px 52px 12px; border-bottom: 3px double var(--work-contract-ink); text-align: center; }
+.work-contract-number { color: #716e68; font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-size: 8px; letter-spacing: .07em; }
+.work-contract-heading h2 { margin: 10px 0 0; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 20px; line-height: 1.2; letter-spacing: .06em; }
+.work-contract-seal { position: absolute; top: 4px; right: -8px; display: grid; width: 58px; height: 58px; place-content: center; border: 3px double var(--work-contract-seal); border-radius: 50%; color: var(--work-contract-seal); font-family: Georgia,"Songti SC",serif; font-size: 13px; font-weight: 800; line-height: 1.05; text-align: center; transform: rotate(-12deg); }
+.work-contract-seal small { display: block; margin-top: 3px; font-family: "PingFang SC",sans-serif; font-size: 7px; font-weight: 600; letter-spacing: 0; }
+.work-contract-parties,.work-contract-terms { display: grid; margin: 0; }
+.work-contract-parties { grid-template-columns: 1fr 1fr; border-bottom: 1px solid rgba(37,37,34,.32); }
+.work-contract-parties > div { min-width: 0; padding: 10px 8px 9px 0; }
+.work-contract-parties > div + div { border-left: 1px solid rgba(37,37,34,.22); padding-right: 0; padding-left: 10px; }
+.work-contract-terms { grid-template-columns: 1.35fr .75fr .65fr; border-bottom: 1px solid rgba(37,37,34,.32); }
+.work-contract-terms > div { min-width: 0; padding: 9px 7px 9px 0; }
+.work-contract-terms > div + div { border-left: 1px solid rgba(37,37,34,.22); padding-right: 0; padding-left: 7px; }
+.work-contract-parties dt,.work-contract-terms dt { color: #79766f; font-size: 8px; letter-spacing: .04em; }
+.work-contract-parties dd,.work-contract-terms dd { overflow: hidden; margin: 3px 0 0; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.work-contract-terms > div:first-child dd { font-size: 13px; }
+.work-contract-scope { padding: 10px 1px 9px; border-bottom: 1px solid rgba(37,37,34,.32); }
+.work-contract-scope h3 { margin: 0 0 4px; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 10px; }
+.work-contract-scope p { display: -webkit-box; overflow: hidden; margin: 0; color: #55524d; font-size: 10px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.work-contract-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 14px 3px 10px; }
+.work-contract-signatures span { border-top: 1px solid var(--work-contract-rule); color: #77736b; font-family: Georgia,"Songti SC",serif; font-size: 8px; padding-top: 4px; }
+.work-project-start { border-radius: 2px; background: var(--work-contract-ink); color: var(--work-contract-paper); }
+.work-project-card.is-started .work-project-start:disabled { border-color: var(--work-contract-seal); background: transparent; color: var(--work-contract-seal); }
+.work-project-skeleton { min-height: 304px; }
+.work-project-skeleton::after { border-style: double; }
+
 @keyframes work-project-spin { to { transform: rotate(360deg); } }
 @keyframes work-project-shimmer { from { background-position: 100% 0; } to { background-position: -120% 0; } }
 
