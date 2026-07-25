@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Clock3, FileText, RefreshCw, WalletCards } from "lucide-react";
+import { ArrowLeft, Clock3, FileText, RefreshCw } from "lucide-react";
 import {
   createProjectPreviewState,
   refreshPreviewProjects,
@@ -34,12 +34,15 @@ export function ProjectManagementPreview({ onBack }) {
   }
 
   return (
-    <section className="work-app-screen work-projects-page">
+    <section className="work-app-screen work-projects-page" aria-label="项目管理">
       <header className="work-projects-header">
         <button type="button" className="work-projects-back" onClick={onBack} aria-label="返回工作室">
           <ArrowLeft size={21} strokeWidth={2.2} />
         </button>
-        <h1>项目管理</h1>
+        <div className="work-projects-title-block">
+          <span className="work-projects-kicker">WORK BOARD</span>
+          <h1>今日项目</h1>
+        </div>
         <button
           type="button"
           className={`work-projects-refresh${refreshing ? " is-refreshing" : ""}`}
@@ -47,17 +50,18 @@ export function ProjectManagementPreview({ onBack }) {
           disabled={locked || refreshing}
           aria-label={locked ? "项目进行中，无法刷新" : refreshing ? "正在刷新项目" : "刷新项目"}
         >
-          <RefreshCw size={20} strokeWidth={2.2} />
+          <RefreshCw size={17} strokeWidth={2.2} />
+          <span>{locked ? "进行中" : refreshing ? "刷新中" : "刷新"}</span>
         </button>
       </header>
 
       <main className="work-projects-content">
         <div className={`work-projects-summary${locked ? " is-locked" : ""}`} aria-live="polite">
-          <span className="work-projects-summary-dot" aria-hidden="true" />
           <div>
-            <strong>{locked ? "项目进行中 · 列表已锁定" : `今日可接 ${previewState.projects.length} 个项目`}</strong>
-            <span>{locked ? "完成当前项目后可获取新项目" : "选择适合你的项目，开始今天的工作"}</span>
+            <strong>{locked ? "项目进行中，今日列表已锁定" : `${previewState.projects.length} 个新项目等待认领`}</strong>
+            <span>{locked ? "完成当前项目后可获取新项目" : "选择一项工作，开始今天的创作"}</span>
           </div>
+          <span className="work-projects-count" aria-hidden="true">{locked ? "LOCKED" : "05 / 05"}</span>
         </div>
 
         {refreshing ? (
@@ -68,32 +72,31 @@ export function ProjectManagementPreview({ onBack }) {
           <div className="work-projects-list" key={previewState.revision}>
             {previewState.projects.map((project, index) => {
               const isStarted = previewState.startedProjectId === project.id;
+              const isMuted = locked && !isStarted;
               return (
-                <article className={`work-project-card${isStarted ? " is-started" : ""}`} key={project.id}>
-                  <div className="work-project-card-accent" data-tone={index % 4} aria-hidden="true" />
+                <article className={`work-project-card${isStarted ? " is-started" : ""}${isMuted ? " is-muted" : ""}`} key={project.id}>
                   <div className="work-project-card-heading">
-                    <div>
-                      <span className="work-project-eyebrow">工作项目 {String(index + 1).padStart(2, "0")}</span>
-                      <h2>{project.name}</h2>
-                    </div>
+                    <span className="work-project-eyebrow">ASSIGNMENT / {String(index + 1).padStart(2, "0")}</span>
                     <span className={`work-project-difficulty ${DIFFICULTY_CLASS[project.difficulty] || "is-medium"}`}>
                       {project.difficulty}
                     </span>
                   </div>
 
-                  <div className="work-project-meta">
-                    <div>
-                      <Clock3 size={17} aria-hidden="true" />
-                      <span>项目时间<strong>{project.duration}</strong></span>
-                    </div>
-                    <div>
-                      <WalletCards size={17} aria-hidden="true" />
-                      <span>项目金额<strong>{project.amount}</strong></span>
+                  <div className="work-project-title-row">
+                    <h2>{project.name}</h2>
+                    <div className="work-project-price">
+                      <span>项目金额</span>
+                      <strong>{project.amount}</strong>
                     </div>
                   </div>
 
+                  <div className="work-project-ticket-meta">
+                    <span><Clock3 size={15} aria-hidden="true" />项目时间 <strong>{project.duration}</strong></span>
+                    <span>难度 / <strong>{project.difficulty}</strong></span>
+                  </div>
+
                   <div className="work-project-description">
-                    <FileText size={16} aria-hidden="true" />
+                    <FileText size={15} aria-hidden="true" />
                     <p><span>项目内容</span>{project.description}</p>
                   </div>
 
@@ -103,7 +106,8 @@ export function ProjectManagementPreview({ onBack }) {
                     onClick={() => handleStart(project.id)}
                     disabled={locked}
                   >
-                    {isStarted ? "项目进行中" : locked ? "已有项目进行中" : "开始项目"}
+                    <span>{isStarted ? "项目进行中" : locked ? "已有项目进行中" : "开始项目"}</span>
+                    <span aria-hidden="true">{isStarted ? "ACTIVE" : locked ? "LOCKED" : "START →"}</span>
                   </button>
                 </article>
               );
