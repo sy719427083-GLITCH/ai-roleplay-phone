@@ -49,8 +49,16 @@ try {
     const skeletonList = page.locator('.work-projects-list[aria-busy="true"]');
     await skeletonList.waitFor();
     assert.equal(await skeletonList.locator(".work-project-skeleton").count(), 5, "refresh shows five skeleton cards");
-    await page.locator(".work-project-card").first().waitFor();
+    await skeletonList.waitFor({ state: "detached" });
+    await page.locator(".work-project-card:not(.work-project-skeleton)").first().waitFor();
     assert.equal(await page.locator(".work-project-card").count(), 5, "refresh returns five project cards");
+
+    await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
+    await page.waitForTimeout(50);
+    await page.screenshot({
+      path: `artifacts/work-projects-preview/projects-ready-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
 
     const firstStartButton = page.locator(".work-project-start").first();
     await firstStartButton.click();
@@ -59,8 +67,6 @@ try {
     assert.equal(await firstStartButton.textContent(), "项目进行中");
     assert.equal(await page.locator(".work-project-start:disabled").count(), 5, "all start buttons lock after selection");
 
-    await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
-    await page.waitForTimeout(50);
     await page.screenshot({
       path: `artifacts/work-projects-preview/projects-${viewport.width}x${viewport.height}.png`,
       fullPage: true,
