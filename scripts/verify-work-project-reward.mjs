@@ -88,8 +88,8 @@ try {
 
     await page.evaluate(() => {
       const state = JSON.parse(localStorage.getItem("ccatWorkProjectsV1"));
-      state.startedAt = new Date(Date.now() - 72 * 60 * 60 * 1000 - 2000).toISOString();
-      state.endsAt = new Date(Date.now() - 2000).toISOString();
+      state.startedAt = "2020-01-01T00:00:00.000Z";
+      state.endsAt = "2020-01-04T00:00:00.000Z";
       localStorage.setItem("ccatWorkProjectsV1", JSON.stringify(state));
     });
     await page.reload();
