@@ -47,6 +47,12 @@ import {
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
 import { tryWriteJson } from "./storageSafety.js";
 import {
+  WALLET_STORAGE_KEY,
+  applyWalletTransaction,
+  readWalletData,
+  writeWalletData,
+} from "./walletStore.js";
+import {
   buildCharacterMomentContext,
   buildMeProfileChatContext,
   buildMomentLikeNames,
@@ -280,53 +286,6 @@ const settingsItems = [
   { id: "system", label: "系统设置", icon: Settings },
 ];
 
-const readWalletData = () => {
-  let current = { balance: 0, transactions: [] };
-  try {
-    const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      current = {
-        balance: Number(parsed.balance) || 0,
-        transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-      };
-    }
-  } catch {
-    current = { balance: 0, transactions: [] };
-  }
-  return current;
-};
-
-const writeWalletData = (walletData) => {
-  window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
-};
-
-const formatWalletDate = () => {
-  const now = new Date();
-  return `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-};
-
-const applyWalletTransaction = ({ type, amount, desc }) => {
-  const value = Number(amount) || 0;
-  if (value <= 0) return false;
-  const current = readWalletData();
-  if (type === "sub" && current.balance < value) return false;
-  writeWalletData({
-    balance: current.balance + (type === "add" ? value : -value),
-    transactions: [
-      {
-        id: Date.now(),
-        type,
-        amount: value,
-        desc,
-        date: formatWalletDate(),
-      },
-      ...current.transactions,
-    ],
-  });
-  return true;
-};
-
 const formatDate = (date) =>
   new Intl.DateTimeFormat("zh-CN", {
     month: "long",
@@ -508,7 +467,6 @@ const LEGACY_CHARACTER_STORAGE_KEY = "ccat-character-profile";
 const RELATION_STORAGE_KEY = "apiRelations";
 const ME_PROFILE_STORAGE_KEY = "apiMeProfiles";
 const USER_CHARACTER_ID = "__USER__";
-const WALLET_STORAGE_KEY = "roleplayWallet";
 const PROACTIVE_MESSAGE_STORAGE_KEY = "ccatLastProactiveMessageAt";
 const PROACTIVE_MESSAGE_SETTINGS_STORAGE_KEY = "ccatProactiveMessageSettings";
 const MOMENTS_STORAGE_KEY = "ccatMessageMoments";
@@ -4680,21 +4638,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const isMessages = app.title === MESSAGE_APP_TITLE;
   const isWorldbook = app.title === "世界书";
   const isWork = app.title === "工作";
-  const [walletData, setWalletData] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(WALLET_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return {
-          balance: Number(parsed.balance) || 0,
-          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
-        };
-      }
-    } catch {
-      return { balance: 0, transactions: [] };
-    }
-    return { balance: 0, transactions: [] };
-  });
+  const [walletData, setWalletData] = useState(readWalletData);
   const [walletAmount, setWalletAmount] = useState("");
   const [walletDesc, setWalletDesc] = useState("");
   const [walletMode, setWalletMode] = useState(null);
@@ -4706,7 +4650,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   useEffect(() => {
     if (!isWallet) return;
-    window.localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify(walletData));
+    writeWalletData(walletData);
   }, [isWallet, walletData]);
 
   const currentMonth = new Date().getMonth() + 1;
