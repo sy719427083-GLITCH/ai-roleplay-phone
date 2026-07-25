@@ -146,6 +146,11 @@
 .work-projects-summary.is-locked { border-top-color: var(--work-contract-seal); }
 .work-projects-summary.is-locked .work-projects-count { border-color: var(--work-contract-seal); background: transparent; color: var(--work-contract-seal); }
 .work-projects-list { gap: 16px; }
+.work-projects-inline-error { margin: -5px 0 13px; border-left: 3px solid var(--work-contract-seal); background: rgba(255,255,255,.72); color: var(--work-contract-seal); padding: 9px 10px; font-size: 10px; line-height: 1.45; }
+.work-projects-error { display: grid; justify-items: center; gap: 8px; border: 1px solid rgba(37,37,34,.45); background: var(--work-contract-paper); padding: 28px 22px; text-align: center; box-shadow: 4px 5px 0 rgba(37,37,34,.1); }
+.work-projects-error strong { font-family: Georgia,"Songti SC",serif; font-size: 16px; }
+.work-projects-error p { margin: 0; color: #6e6b64; font-size: 11px; line-height: 1.55; }
+.work-projects-error button { min-width: 112px; min-height: 44px; margin-top: 5px; border: 1px solid var(--work-contract-ink); border-radius: 2px; background: var(--work-contract-ink); color: #fff; font-weight: 700; }
 .work-project-card { overflow: visible; border: 1px solid rgba(37,37,34,.52); border-radius: 3px; background-color: var(--work-contract-paper); background-image: linear-gradient(rgba(90,82,67,.025) 1px,transparent 1px); background-size: 100% 18px; padding: 19px 18px 16px; box-shadow: inset 0 0 0 3px var(--work-contract-paper),inset 0 0 0 4px rgba(37,37,34,.34),4px 5px 0 rgba(37,37,34,.1); }
 .work-project-card::before { display: none; }
 .work-project-card::after { position: absolute; inset: 7px; border: 1px solid rgba(37,37,34,.18); pointer-events: none; content: ""; }

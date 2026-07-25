@@ -14,12 +14,22 @@ test("project preview exposes the full mobile project card content", () => {
 });
 
 test("project preview provides refresh loading and locked states", () => {
-  assert.match(source, /650/);
-  assert.match(source, /正在刷新项目/);
+  assert.match(source, /generateWorkProjects/);
+  assert.match(source, /正在生成项目/);
   assert.match(source, /合同已生效，本批合同已锁定/);
   assert.match(source, /合同执行中/);
-  assert.match(source, /disabled=\{locked \|\| refreshing\}/);
+  assert.match(source, /disabled=\{locked \|\| loading\}/);
   assert.match(source, /Array\.from\(\{ length: 5 \}\)/);
+});
+
+test("project preview restores cached API contracts and persists signing", () => {
+  assert.match(source, /WORK_PROJECTS_STORAGE_KEY/);
+  assert.match(source, /restoreWorkProjectState/);
+  assert.match(source, /serializeWorkProjectState/);
+  assert.match(source, /副 API/);
+  assert.match(source, /主 API/);
+  assert.match(source, /原合同已保留/);
+  assert.doesNotMatch(source, /projectPreviewModel/);
 });
 
 test("project page controls meet the mobile touch target requirement", () => {
