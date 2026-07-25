@@ -39,3 +39,9 @@ test("project preview renders formal contract fields and signed state", () => {
   assert.match(styles, /\.work-project-card::after/);
   assert.doesNotMatch(source, /WORK BOARD|ASSIGNMENT/);
 });
+
+test("formal contracts use white paper on the existing grey desk", () => {
+  assert.match(styles, /--work-contract-paper:\s*#ffffff/);
+  assert.match(styles, /background-color:\s*#dedbd3/);
+  assert.doesNotMatch(styles, /--work-contract-paper:\s*#fbf7ea/);
+});

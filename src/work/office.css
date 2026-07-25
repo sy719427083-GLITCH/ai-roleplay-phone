@@ -132,7 +132,7 @@
 .skeleton-line.is-button { height: 46px; margin-top: 9px; border-radius: 5px; }
 
 /* Formal project contract preview */
-.work-projects-page { --work-contract-paper: #fbf7ea; --work-contract-ink: #252522; --work-contract-rule: #77736a; --work-contract-seal: #a92c2c; background-color: #dedbd3; background-image: radial-gradient(rgba(70,66,58,.08) .6px,transparent .7px); background-size: 5px 5px; color: var(--work-contract-ink); }
+.work-projects-page { --work-contract-paper: #ffffff; --work-contract-ink: #252522; --work-contract-rule: #77736a; --work-contract-seal: #a92c2c; background-color: #dedbd3; background-image: radial-gradient(rgba(70,66,58,.08) .6px,transparent .7px); background-size: 5px 5px; color: var(--work-contract-ink); }
 .work-projects-header { border-bottom-color: rgba(37,37,34,.28); background: rgba(232,229,220,.96); }
 .work-projects-kicker { color: #76736b; letter-spacing: .14em; }
 .work-projects-header h1 { color: var(--work-contract-ink); font-size: 21px; letter-spacing: .06em; }
