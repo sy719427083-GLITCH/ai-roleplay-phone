@@ -2,9 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-test("work screen contains approved controls and blank management views", () => {
+test("work screen integrates project management and keeps timer and settings blank", () => {
   const source = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
   for (const text of ["项目管理", "工作倒计时", "员工管理", "暂时留空", "工作设置"]) assert.match(source, new RegExp(text));
+  assert.match(source, /import \{ ProjectManagementPreview \} from "\.\/ProjectManagementPreview\.jsx"/);
+  assert.match(source, /view === "projects"/);
+  assert.match(source, /<ProjectManagementPreview onBack=\{\(\) => setView\("office"\)\} \/>/);
+  assert.match(source, /view === "timer" \? "T" : "S"/);
+  assert.doesNotMatch(source, /view === "projects" \? "P"/);
 });
 
 test("office scene uses semantic object buttons", () => {

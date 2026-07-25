@@ -2,13 +2,14 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ChevronLeft, Ellipsis, FolderKanban, Timer, UsersRound } from "lucide-react";
 import { EmployeeManager } from "./EmployeeManager.jsx";
 import { OfficeScene } from "./OfficeScene.jsx";
+import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
 import "./office.css";
 
-const VIEW_TITLES = { settings: "工作设置", projects: "项目管理", timer: "工作倒计时", employees: "员工管理" };
+const VIEW_TITLES = { settings: "工作设置", timer: "工作倒计时", employees: "员工管理" };
 
 export function WorkAppScreen({ onClose }) {
   const profiles = useMemo(() => readOfficeProfiles(), []);
@@ -81,11 +82,15 @@ export function WorkAppScreen({ onClose }) {
     advance();
   };
 
+  if (view === "projects") {
+    return <ProjectManagementPreview onBack={() => setView("office")} />;
+  }
+
   if (view !== "office") {
     return (
       <section className="work-app-screen work-subpage">
         <header className="work-page-header"><button type="button" onClick={() => setView("office")} aria-label="返回办公室"><ChevronLeft size={21} /></button><h1>{VIEW_TITLES[view]}</h1><span /></header>
-        {view === "employees" ? <EmployeeManager profiles={profiles} state={state} dispatch={dispatch} onError={showNotice} /> : <section className="work-placeholder-page"><div className="work-placeholder-mark">{view === "projects" ? "P" : view === "timer" ? "T" : "S"}</div><h2>{VIEW_TITLES[view]}</h2><p>暂时留空</p></section>}
+        {view === "employees" ? <EmployeeManager profiles={profiles} state={state} dispatch={dispatch} onError={showNotice} /> : <section className="work-placeholder-page"><div className="work-placeholder-mark">{view === "timer" ? "T" : "S"}</div><h2>{VIEW_TITLES[view]}</h2><p>暂时留空</p></section>}
         {notice && <div className="work-notice" role="status">{notice}</div>}
       </section>
     );

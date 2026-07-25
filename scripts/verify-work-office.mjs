@@ -126,12 +126,15 @@ try {
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
     await page.waitForTimeout(50);
     await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
-    for (const [name, title] of [["项目管理", "项目管理"], ["工作倒计时", "工作倒计时"]]) {
-      await page.getByRole("button", { name }).click();
-      await page.getByRole("heading", { name: title, level: 1 }).waitFor();
-      await page.getByText("暂时留空", { exact: true }).waitFor();
-      await page.getByRole("button", { name: "返回办公室" }).click();
-    }
+    await page.getByRole("button", { name: "项目管理" }).click();
+    await page.getByRole("heading", { name: "项目管理", level: 1 }).waitFor();
+    assert.equal(await page.locator(".work-project-card").count(), 5);
+    await page.getByRole("button", { name: "刷新项目" }).waitFor();
+    await page.getByRole("button", { name: "返回工作室" }).click();
+    await page.getByRole("button", { name: "工作倒计时" }).click();
+    await page.getByRole("heading", { name: "工作倒计时", level: 1 }).waitFor();
+    await page.getByText("暂时留空", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByRole("button", { name: "工作设置" }).click();
     await page.getByText("暂时留空", { exact: true }).waitFor();
     await context.close();
