@@ -93,8 +93,10 @@ try {
         projects: Array.from({ length: 5 }, (_, index) => ({
           id: `qa-${index + 1}`,
           name: `已缓存项目 ${index + 1}`,
+          durationHours: (index + 2) * 24,
+          amountValue: (index + 1) * 1000,
           duration: `${index + 2} 天`,
-          amount: `¥${index + 1}000`,
+          amount: `¥${(index + 1) * 1000}`,
           description: `办公室浏览器测试合同 ${index + 1}`,
           difficulty: ["简单", "中等", "困难"][index % 3],
         })),
@@ -145,9 +147,9 @@ try {
     assert.equal(await page.locator(".work-project-card").count(), 5);
     await page.getByRole("button", { name: "换一批合同" }).waitFor();
     await page.getByRole("button", { name: "返回工作室" }).click();
-    await page.getByRole("button", { name: "工作倒计时" }).click();
-    await page.getByRole("heading", { name: "工作倒计时", level: 1 }).waitFor();
-    await page.getByText("暂时留空", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "项目倒计时" }).click();
+    await page.getByRole("heading", { name: "项目倒计时", level: 1 }).waitFor();
+    await page.getByText("暂无进行中的项目", { exact: true }).waitFor();
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByRole("button", { name: "工作设置" }).click();
     await page.getByText("暂时留空", { exact: true }).waitFor();

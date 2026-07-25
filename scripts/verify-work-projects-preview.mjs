@@ -20,8 +20,8 @@ async function waitForServer() {
 function generatedPayload(batch) {
   return { projects: Array.from({ length: 5 }, (_, index) => ({
     name: `真实项目 ${batch}-${index + 1}`,
-    duration: `${index + 3} 天`,
-    amount: `¥${batch}${index + 1}00`,
+    durationHours: (index + 3) * 24,
+    amountValue: Number(`${batch}${index + 1}00`),
     description: `由主 API 生成的第 ${batch} 批真实项目内容 ${index + 1}`,
     difficulty: ["简单", "中等", "困难"][index % 3],
   })) };
