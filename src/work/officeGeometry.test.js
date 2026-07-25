@@ -21,13 +21,13 @@ test("centers avatars behind the visible desk art", () => {
 
 test("uses the approved smaller lowered tea counter and lower-right approach", () => {
   assert.deepEqual(OFFICE_LAYOUT.tea, {
-    top: 6,
+    top: 8,
     right: 0,
     width: 58,
     height: 16,
     alpha: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
   });
-  assert.deepEqual(OFFICE_INTERACTION_POINTS["tea-counter"], { x: 92, y: 26 });
+  assert.deepEqual(OFFICE_INTERACTION_POINTS["tea-counter"], { x: 92, y: 28 });
 });
 
 test("derives responsive visible furniture bounds and keeps destinations traversable", () => {
