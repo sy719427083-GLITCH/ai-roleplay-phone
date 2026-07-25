@@ -75,28 +75,101 @@
 .employee-slot-select { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; margin-top: 12px; color: var(--work-muted); font-size: 11px; }.employee-slot-select select { min-width: 0; height: 38px; border: 1px solid #dfd2ba; border-radius: 12px; background: #fffdf8; color: var(--work-ink); padding: 0 10px; }
 .work-avatar-editor { display: grid; grid-template-columns: auto 1fr; gap: 9px; margin-top: 12px; border-top: 1px dashed #e1d4bd; padding-top: 12px; }.work-upload-button,.work-avatar-restore,.work-url-row button { display: grid; min-height: 38px; place-items: center; border: 1px solid #d7c7a9; border-radius: 12px; background: #f3ead9; color: #6f604c; font-size: 11px; padding: 0 12px; }.work-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }.work-url-row { display: flex; gap: 7px; }.work-url-row label { flex: 1; display: grid; gap: 3px; color: var(--work-muted); font-size: 9px; }.work-url-row input { width: 100%; min-width: 0; height: 25px; border: 0; border-bottom: 1px solid #d9c9ae; background: transparent; }.work-avatar-restore { grid-column: 1/-1; background: transparent; }
 .work-placeholder-page { display: grid; min-height: calc(100vh - 72px); place-content: center; justify-items: center; color: var(--work-muted); }.work-placeholder-mark { display: grid; width: 70px; height: 70px; place-items: center; border: 1px solid #d9c8a9; border-radius: 24px; background: rgba(255,253,248,.8); color: #a18863; font-family: Georgia,serif; font-size: 28px; box-shadow: 0 12px 30px rgba(94,66,32,.08); }.work-placeholder-page h2 { margin: 18px 0 4px; color: var(--work-ink); font-family: Georgia,"Songti SC",serif; font-size: 20px; }.work-placeholder-page p { margin: 0; font-size: 12px; }
-.work-project-countdown-page { background: #ece9e1; color: #292824; }
-.work-countdown-empty { display: grid; min-height: calc(100vh - 72px); place-content: center; justify-items: center; padding: 28px; text-align: center; }
-.work-countdown-empty-icon { display: grid; width: 72px; height: 72px; place-items: center; border: 1px solid rgba(42,41,37,.28); border-radius: 50%; background: #fff; box-shadow: 4px 5px 0 rgba(42,41,37,.1); }
-.work-countdown-empty h2 { margin: 18px 0 6px; font-family: Georgia,"Songti SC",serif; font-size: 21px; }
-.work-countdown-empty p { max-width: 260px; margin: 0; color: #74716a; font-size: 12px; line-height: 1.6; }
-.work-countdown-empty button { display: flex; min-height: 48px; align-items: center; gap: 8px; margin-top: 22px; border: 1px solid #292824; border-radius: 3px; background: #292824; color: #fff; padding: 0 20px; font-weight: 750; }
-.work-countdown-content { display: grid; align-content: start; justify-items: center; min-height: 0; overflow-y: auto; padding: 34px 18px calc(36px + env(safe-area-inset-bottom,0px)); }
-.work-countdown-status { border: 1px solid #4f8e66; border-radius: 999px; color: #39764f; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 6px 12px; }
-.work-countdown-content.is-finished .work-countdown-status { border-color: #a92c2c; color: #a92c2c; }
-.work-countdown-clock { margin-top: 22px; color: #292824; font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-size: clamp(38px,12vw,54px); font-weight: 750; line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
-.work-countdown-content.is-finished .work-countdown-clock { color: #a92c2c; }
-.work-countdown-caption { margin: 9px 0 28px; color: #858078; font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-size: 8px; letter-spacing: .12em; text-align: center; }
-.work-countdown-contract { width: min(100%,420px); border: 1px solid rgba(42,41,37,.46); border-radius: 3px; background: #fff; padding: 20px 18px; box-shadow: inset 0 0 0 3px #fff,inset 0 0 0 4px rgba(42,41,37,.2),4px 5px 0 rgba(42,41,37,.09); }
-.work-countdown-contract > span { color: #7a766e; font-size: 8px; letter-spacing: .12em; }
-.work-countdown-contract h2 { margin: 9px 0 17px; padding-bottom: 14px; border-bottom: 3px double #292824; font-family: Georgia,"Songti SC",serif; font-size: 21px; text-align: center; }
-.work-countdown-meta { display: grid; margin: 0; }
-.work-countdown-meta > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; border-bottom: 1px solid rgba(42,41,37,.2); padding: 10px 1px; }
-.work-countdown-meta dt { display: flex; align-items: center; gap: 6px; color: #77736b; font-size: 10px; }
-.work-countdown-meta dd { margin: 0; font-family: Georgia,"Songti SC",serif; font-size: 12px; font-weight: 700; }
-.work-reward-claim { display: flex; width: min(100%,420px); min-height: 48px; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; border: 1px solid #a92c2c; border-radius: 3px; background: #a92c2c; color: #fff; font-size: 13px; font-weight: 800; }
-.work-reward-claim:disabled { opacity: .58; }
-.work-reward-error { width: min(100%,420px); margin: 10px 0 0; color: #a92c2c; font-size: 11px; text-align: center; }
+.work-project-countdown-page {
+  --countdown-ink: #20345c;
+  --countdown-muted: #6e7c9a;
+  --countdown-live: #df574e;
+  --countdown-live-dark: #bd3435;
+  --countdown-reward-icon: #f06b43;
+  --countdown-duration-icon: #3f86f8;
+  --countdown-difficulty-icon: #5778f3;
+  --countdown-completion-icon: #765df6;
+  --countdown-scope-icon: #5979f4;
+  --countdown-delivery-icon: #7b5bf5;
+  --countdown-acceptance-icon: #33b982;
+  grid-template-rows: minmax(0,1fr);
+  background-color: #f8f9fd;
+  background-image: url("/ai-roleplay-phone/work-office-assets/project-countdown-background.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: var(--countdown-ink);
+}
+.work-countdown-header { position: absolute; z-index: 4; top: 0; right: 0; left: 0; display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 8px; padding: calc(15px + env(safe-area-inset-top,0px)) 16px 25px; pointer-events: none; }
+.work-countdown-header button { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid rgba(99,119,163,.16); border-radius: 50%; background: rgba(255,255,255,.9); color: var(--countdown-ink); box-shadow: 0 8px 24px rgba(63,87,139,.11); pointer-events: auto; -webkit-tap-highlight-color: transparent; }
+.work-countdown-header button:active { background: #eef3fd; }
+.work-countdown-header button:focus-visible,.work-countdown-fixed-action:focus-visible,.work-countdown-empty button:focus-visible { outline: 3px solid rgba(62,141,245,.7); outline-offset: 3px; }
+.work-countdown-header h1 { margin: 0; color: var(--countdown-ink); font-family: Georgia,"Songti SC",serif; font-size: 21px; font-weight: 650; letter-spacing: .04em; text-align: center; }
+.work-countdown-empty { display: grid; min-height: 100%; place-content: center; justify-items: center; padding: calc(92px + env(safe-area-inset-top,0px)) 28px calc(40px + env(safe-area-inset-bottom,0px)); text-align: center; }
+.work-countdown-empty-icon { display: grid; width: 76px; height: 76px; place-items: center; border: 1px solid rgba(99,119,163,.18); border-radius: 50%; background: rgba(255,255,255,.92); color: var(--countdown-live); box-shadow: 0 12px 30px rgba(63,87,139,.11); }
+.work-countdown-empty h2 { margin: 20px 0 7px; font-family: Georgia,"Songti SC",serif; font-size: 22px; }
+.work-countdown-empty p { max-width: 286px; margin: 0; color: var(--countdown-muted); font-size: 14px; line-height: 1.65; }
+.work-countdown-empty button { display: flex; min-height: 48px; align-items: center; gap: 8px; margin-top: 24px; border: 0; border-radius: 14px; background: var(--countdown-ink); color: #fff; padding: 0 22px; font-size: 14px; font-weight: 750; }
+.work-countdown-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: calc(112px + env(safe-area-inset-top,0px)) 12px calc(82px + env(safe-area-inset-bottom,0px)); scrollbar-width: none; }
+.work-countdown-content::-webkit-scrollbar { display: none; }
+.work-countdown-hero { box-sizing: border-box; width: min(100%,430px); margin: 0 auto; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.72); padding: 13px 13px 14px; box-shadow: 0 14px 36px rgba(55,78,126,.08); backdrop-filter: blur(7px); }
+.work-countdown-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 28px; color: var(--countdown-live); font-size: 13px; font-weight: 800; letter-spacing: .03em; }
+.work-countdown-status-clock { width: 16px; height: 16px; padding: 2px; border: 1.5px dashed currentColor; border-radius: 50%; }
+.work-countdown-status-line { width: 15px; height: 15px; opacity: .48; }
+.work-countdown-content.is-finished .work-countdown-status { color: var(--countdown-live-dark); }
+.work-countdown-hero-body { display: grid; grid-template-columns: 124px minmax(0,1fr); align-items: center; gap: 12px; margin-top: 5px; }
+.work-countdown-dial { width: 124px; margin: 0; }
+.work-countdown-dial .CircularProgressbar { overflow: visible; }
+.work-countdown-dial .CircularProgressbar-path { filter: drop-shadow(0 2px 4px rgba(198,68,60,.12)); }
+.work-countdown-dial .CircularProgressbar-trail { stroke-width: 2; }
+.work-countdown-dial .CircularProgressbarWithChildren__children { width: 82%; }
+.work-countdown-project-details { min-width: 0; }
+.work-countdown-project-details h2 { margin: 0 0 13px; overflow: hidden; color: var(--countdown-ink); font-family: Georgia,"Songti SC",serif; font-size: 20px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.work-countdown-clock { display: flex; align-items: start; justify-content: center; gap: 1px; color: var(--countdown-live-dark); font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-variant-numeric: tabular-nums; }
+.work-countdown-clock > span { display: grid; justify-items: center; }
+.work-countdown-clock strong { font-size: 24px; line-height: 1; letter-spacing: -.08em; }
+.work-countdown-clock small { margin-top: 8px; color: var(--countdown-muted); font-family: "Avenir Next","PingFang SC",sans-serif; font-size: 8px; font-weight: 700; }
+.work-countdown-clock b { color: var(--countdown-live-dark); font-size: 21px; font-weight: 600; line-height: .88; }
+.work-countdown-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 6px; margin: 0; }
+.work-countdown-summary > div { display: grid; grid-template-columns: 30px minmax(0,1fr); align-items: center; gap: 4px; min-width: 0; }
+.work-countdown-summary dt { color: var(--countdown-muted); font-size: 9px; white-space: nowrap; }
+.work-countdown-summary dd { margin: 3px 0 0; overflow: hidden; color: var(--countdown-ink); font-family: Georgia,"Songti SC",serif; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.work-countdown-summary > div:nth-child(4) dd { font-size: 9px; letter-spacing: -.02em; }
+.work-countdown-fact-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; }
+.work-countdown-summary .work-countdown-fact-icon { width: 30px; height: 30px; }
+.work-countdown-fact-icon.is-reward { background: rgba(240,107,67,.09); color: var(--countdown-reward-icon); }
+.work-countdown-fact-icon.is-duration { background: rgba(63,134,248,.09); color: var(--countdown-duration-icon); }
+.work-countdown-fact-icon.is-difficulty { background: rgba(87,120,243,.09); color: var(--countdown-difficulty-icon); }
+.work-countdown-fact-icon.is-completion { background: rgba(118,93,246,.09); color: var(--countdown-completion-icon); }
+.work-countdown-fact-icon.is-scope { background: rgba(89,121,244,.09); color: var(--countdown-scope-icon); }
+.work-countdown-fact-icon.is-delivery { background: rgba(123,91,245,.09); color: var(--countdown-delivery-icon); }
+.work-countdown-fact-icon.is-acceptance { background: rgba(51,185,130,.09); color: var(--countdown-acceptance-icon); }
+.work-countdown-contract { box-sizing: border-box; width: min(100%,430px); margin: 10px auto 0; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.76); padding: 12px 12px 4px; box-shadow: 0 12px 32px rgba(55,78,126,.07); backdrop-filter: blur(7px); }
+.work-countdown-contract > header { border-left: 3px solid var(--countdown-live); padding: 0 0 7px 8px; }
+.work-countdown-contract h3 { margin: 0; font-family: Georgia,"Songti SC",serif; font-size: 17px; letter-spacing: .03em; }
+.work-countdown-clause { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 9px; padding: 11px 2px 12px; border-bottom: 1px solid rgba(101,119,159,.13); }
+.work-countdown-clause .work-countdown-fact-icon { margin-top: 1px; }
+.work-countdown-clause h4 { margin: 0; color: var(--countdown-ink); font-family: Georgia,"Songti SC",serif; font-size: 14px; font-weight: 700; }
+.work-countdown-clause p { margin: 7px 0 0; color: #53627f; font-size: 11px; line-height: 1.5; white-space: pre-wrap; }
+.work-countdown-clause ol { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 18px; color: #53627f; font-size: 11px; line-height: 1.45; }
+.work-countdown-contract-facts { margin: 0; }
+.work-countdown-contract-facts > div { display: flex; min-height: 43px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(101,119,159,.13); }
+.work-countdown-contract-facts > div:last-child { border-bottom: 0; }
+.work-countdown-contract-facts dt { display: flex; align-items: center; gap: 9px; color: #53627f; font-size: 12px; }
+.work-countdown-contract-facts .work-countdown-fact-icon { width: 32px; height: 32px; }
+.work-countdown-contract-facts dd { margin: 0; color: var(--countdown-ink); font-family: Georgia,"Songti SC",serif; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.work-countdown-action-bar { position: absolute; z-index: 5; right: 0; bottom: 0; left: 0; display: grid; justify-items: center; gap: 6px; background: rgba(248,249,253,.94); padding: 8px 16px calc(10px + env(safe-area-inset-bottom,0px)); }
+.work-countdown-action-bar.is-running { background: transparent; pointer-events: none; }
+.work-countdown-fixed-action { display: flex; width: min(100%,430px); min-height: 52px; align-items: center; justify-content: center; gap: 9px; border: 1px solid var(--countdown-live); border-radius: 17px; background: rgba(255,255,255,.96); color: var(--countdown-live-dark); font-size: 15px; font-weight: 800; -webkit-tap-highlight-color: transparent; }
+.work-countdown-action-bar.is-running .work-countdown-fixed-action { width: 58px; height: 58px; min-height: 58px; border: 0; border-radius: 50%; background: var(--countdown-live); color: #fff; box-shadow: 0 12px 28px rgba(189,52,53,.3); pointer-events: auto; }
+.work-countdown-action-bar.is-running .work-countdown-fixed-action:active { background: var(--countdown-live-dark); opacity: 1; }
+.work-countdown-fixed-action.is-claim { border-color: var(--countdown-live-dark); background: var(--countdown-live-dark); color: #fff; }
+.work-countdown-fixed-action:active { opacity: .78; }
+.work-countdown-fixed-action:disabled { opacity: .55; }
+.work-reward-error { width: min(100%,430px); margin: 0; color: var(--countdown-live-dark); font-size: 12px; text-align: center; }
+@media (max-height:720px) {
+  .work-countdown-content { padding-top: calc(96px + env(safe-area-inset-top,0px)); }
+  .work-countdown-hero-body { grid-template-columns: 118px minmax(0,1fr); }
+  .work-countdown-dial { width: 118px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .work-countdown-dial .CircularProgressbar-path { transition: none !important; }
+}
 .work-notice { position: fixed; z-index: 100; left: 50%; bottom: 92px; max-width: 82%; transform: translateX(-50%); border-radius: 999px; background: rgba(66,59,49,.9); color: white; font-size: 12px; padding: 10px 16px; box-shadow: 0 8px 22px rgba(0,0,0,.18); }
 
 .work-projects-page { --work-editorial-paper: #f3efe4; --work-editorial-card: #fffdf7; --work-editorial-navy: #17233d; --work-editorial-acid: #b9ee43; --work-editorial-muted: #697186; grid-template-rows: auto minmax(0,1fr); background-color: var(--work-editorial-paper); background-image: linear-gradient(rgba(23,35,61,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(23,35,61,.025) 1px,transparent 1px); background-size: 24px 24px; color: var(--work-editorial-navy); }
