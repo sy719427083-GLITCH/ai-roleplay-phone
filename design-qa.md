@@ -1,78 +1,36 @@
-# Work APP Pastel Orbit Design QA
+# Project Countdown Full-Screen Design QA
 
-- Source visual truth: `designs/work-office-pastel-orbit-selected.png`
-- Implementation screenshot: `artifacts/work-office-qa/orbit-implementation-pass1.png`
-- Combined comparison: `artifacts/work-office-qa/orbit-comparison-pass1.png`
-- Viewport: 390 × 844 CSS px at device scale 1
-- Source pixels: 852 × 1846, normalized to 390 × 844
-- Implementation pixels: 390 × 844
-- State: persisted single-occupant office; empty or partially occupied desks are an intentional product state
+- Source visual truth: `designs/project-countdown-fullscreen-reference.png`
+- Implementation screenshot: `artifacts/project-countdown-fullscreen/implementation-floating-action-390x844.jpg`
+- Combined comparison: `artifacts/project-countdown-fullscreen/comparison-floating-action-390x844.png`
+- Browser: Codex in-app browser
+- Viewport: 390 x 844 CSS px at device pixel ratio 1
+- Normalization: source resized from 853 x 1844 px to 390 x 844 px. The in-app browser's viewport capture surface pads below 720 px, so the implementation was captured as two non-overlapping browser-rendered clips at y=0..124 and y=124..844 and joined without resizing or content alteration.
+- State: running project, 74% progress, 18:42:16 remaining
 
-## Comparison History
+## Full-view comparison
 
-### Pass 1
+The reference and browser-rendered implementation were placed side by side in a single 800 x 884 px comparison image. Both use the same mobile viewport, project data, cool-white paper surface, navy text, coral timer accent, botanical background, colored circular icons, the four project facts in both required locations, and three contract sections. The source's outlined footer action is intentionally replaced by the approved coral circular floating action.
 
-**Findings**
+## Focused-region comparison
 
-- [P2] Employee desks render too small compared with the selected visual.
-  - Location: `.office-object.desk`.
-  - Evidence: the source desks occupy roughly 44–47% of the screen width per pair, while the implementation leaves noticeably larger central and side gaps.
-  - Impact: the implementation feels sparse and loses the selected mock’s lively office density.
-  - Fix: increase employee and boss desk widths while preserving the paired aisle.
-- [P2] Side-door arrow controls are visually prominent but absent from the selected visual.
-  - Location: `.office-door-arrow`.
-  - Evidence: three opaque blue circular arrows compete with the source’s two top controls.
-  - Impact: creates extra navigation chrome and weakens visual fidelity.
-  - Fix: retain semantic click targets but make their visual indicator nearly transparent until press or keyboard focus.
-- [P2] Bottom navigation is undersized.
-  - Location: `.work-bottom-nav`.
-  - Evidence: source icons and labels form a clear final visual row; implementation icons and copy are much smaller.
-  - Impact: persistent actions have insufficient hierarchy.
-  - Fix: enlarge icons, labels, and countdown copy without adding boxes or a footer band.
+No separate crop was needed because all typography, icons, values, contract rows, and botanical edges remain legible in the original-size comparison. The final comparison specifically verifies the colored icons, three numbered scope lines, repeated contract facts, the white-on-coral floating action, top vines, and the newly visible bottom flowers.
 
-**Required fidelity surfaces**
+## Findings and fixes
 
-- Typography: Chinese labels use the existing PingFang/Avenir stack and match the clean sans-serif direction; sizes need adjustment at the bottom navigation.
-- Spacing/layout: full-bleed composition matches; desk scale and bottom hierarchy need correction.
-- Colors/tokens: white, blue, green, purple, coral, and pale wood align with the source.
-- Image quality: generated PNG assets are sharp at 390 × 844; desk and tea assets have clean transparency.
-- Copy/content: required Chinese labels are correct. The single visible occupant is a persisted runtime state, not baked artwork.
+1. P1 fixed: oversized progress ring. Reduced it to the left column and moved the four project facts into a two-by-two summary on the right.
+2. P1 fixed: acceptance criteria fell below the initial viewport. Tightened card padding, typography, and clause rhythm so project content, deliverables, and acceptance criteria are visible together.
+3. P2 fixed: first-pass card radii and vertical spacing were softer and larger than the selected contract direction. Reduced radii and spacing to match the reference.
+4. P1 fixed: previous implementation omitted the four repeated contract fact rows. Added contract reward, duration, mapped difficulty, and localized completion time below the clauses.
+5. P1 fixed: previous contract content used one paragraph. The API schema now requires exactly three concrete scope items and the screen renders them as the numbered contract range shown in the source.
+6. P2 fixed: monochrome/incorrect icons. Replaced them with source-matching colored circular receipt, clock, bar-chart, calendar, document, package, shield, and briefcase icons.
+7. P2 fixed: card content overflowed its 366 px source width and clipped the completion value. Added border-box sizing and tuned the metadata tracks; the full `7月28日 18:30` value now fits.
+8. P1 fixed: the previous 358 x 52 px red outlined footer action was rejected. Running state now uses the approved 58 x 58 px coral circular action with a white document icon, no visible text, and accessible name `打开完整合同`.
+9. P1 fixed: the background asset existed but the opaque footer and cards hid the botanical artwork. The running footer is now transparent, cards use 0.64/0.68 white alpha with 3 px backdrop blur, and the background is bottom-aligned. Top vines and bottom flowers are visibly present in the final comparison while contract text remains legible.
+10. Intentional product constraint: the reference's decorative arc does not represent 74%, while the implementation arc truthfully renders the real project progress and exposes progress value 74 to accessibility APIs.
+11. Passed: back button is 48 x 48 px and the running action is 58 x 58 px; both resolved uniquely, were clicked in the browser, and produced no error or warning logs.
+12. Passed: browser-rendered DOM exposes all source content and contract facts. The fresh full suite passed 113/113, the Vite production build completed, and `git diff --check` returned no errors.
 
-**Focused region evidence**
+## Final result
 
-- The top tea-counter/boss region and bottom navigation were readable in the normalized combined comparison; no additional crops were required for this pass.
-
-**Implementation Checklist**
-
-1. Increase desk footprint.
-2. De-emphasize side-door indicators.
-3. Increase bottom action hierarchy.
-4. Recapture and compare at the same viewport.
-
-**Follow-up Polish**
-
-- Recheck avatar-ring contrast when all seven positions are populated.
-
-### Pass 2 — layered PNG implementation
-
-**Evidence**
-
-- `artifacts/work-office-qa/office-375x812.png`
-- `artifacts/work-office-qa/office-390x844.png`
-
-**Findings**
-
-- [PASS] The room background is now a clean shell. It contains no baked-in desk, computer, tea counter, door, avatar, or navigation control.
-- [PASS] Seven computer-desk PNG buttons render as independent layers: one larger boss desk and six paired employee desks.
-- [PASS] The tea counter is a separate transparent PNG and appears once in the upper office area.
-- [PASS] Three separately layered doorway PNG buttons render at the left, upper-right, and middle-right edges without CSS-drawn arrows.
-- [PASS] The central walking lane remains open at both target viewport sizes.
-- [PASS] Back/settings and the three bottom controls float above the room without introducing header or footer bands.
-- [PASS] Browser QA verifies all eleven PNGs load, empty-office clicks show the assignment notice, and tea/employee-desk clicks move the assigned Me APP avatar to different destinations.
-- [PASS] The assigned avatar lands adjacent to the selected employee desk and remains visually above the floor while non-Me occupants remain stationary by design.
-
-**Residual polish**
-
-- Recheck avatar-ring contrast only when a real seven-occupant state is available; this does not block the empty/partial office implementation.
-
-final result: pass
+passed

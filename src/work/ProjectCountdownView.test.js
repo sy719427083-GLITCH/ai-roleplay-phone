@@ -45,6 +45,7 @@ test("uses the approved coral floating action and transparent running footer", (
   assert.match(source, /work-countdown-action-bar \$\{finished \? "is-finished" : "is-running"\}/);
   assert.match(styles, /\.work-countdown-action-bar\.is-running\s*\{[^}]*background:\s*transparent/s);
   assert.match(styles, /\.work-countdown-action-bar\.is-running \.work-countdown-fixed-action\s*\{[^}]*width:\s*58px[^}]*height:\s*58px[^}]*border:\s*0[^}]*border-radius:\s*50%[^}]*background:\s*var\(--countdown-live\)[^}]*color:\s*#fff/s);
-  assert.match(styles, /\.work-countdown-hero\s*\{[^}]*background:\s*rgba\(255,255,255,\.72\)/s);
-  assert.match(styles, /\.work-countdown-contract\s*\{[^}]*background:\s*rgba\(255,255,255,\.76\)/s);
+  assert.match(styles, /\.work-project-countdown-page\s*\{[^}]*background-position:\s*center bottom/s);
+  assert.match(styles, /\.work-countdown-hero\s*\{[^}]*background:\s*rgba\(255,255,255,\.64\)/s);
+  assert.match(styles, /\.work-countdown-contract\s*\{[^}]*background:\s*rgba\(255,255,255,\.68\)/s);
 });

@@ -90,7 +90,7 @@
   grid-template-rows: minmax(0,1fr);
   background-color: #f8f9fd;
   background-image: url("/ai-roleplay-phone/work-office-assets/project-countdown-background.png");
-  background-position: center;
+  background-position: center bottom;
   background-repeat: no-repeat;
   background-size: cover;
   color: var(--countdown-ink);
@@ -107,7 +107,7 @@
 .work-countdown-empty button { display: flex; min-height: 48px; align-items: center; gap: 8px; margin-top: 24px; border: 0; border-radius: 14px; background: var(--countdown-ink); color: #fff; padding: 0 22px; font-size: 14px; font-weight: 750; }
 .work-countdown-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: calc(112px + env(safe-area-inset-top,0px)) 12px calc(82px + env(safe-area-inset-bottom,0px)); scrollbar-width: none; }
 .work-countdown-content::-webkit-scrollbar { display: none; }
-.work-countdown-hero { box-sizing: border-box; width: min(100%,430px); margin: 0 auto; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.72); padding: 13px 13px 14px; box-shadow: 0 14px 36px rgba(55,78,126,.08); backdrop-filter: blur(7px); }
+.work-countdown-hero { box-sizing: border-box; width: min(100%,430px); margin: 0 auto; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.64); padding: 13px 13px 14px; box-shadow: 0 14px 36px rgba(55,78,126,.08); backdrop-filter: blur(3px); }
 .work-countdown-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 28px; color: var(--countdown-live); font-size: 13px; font-weight: 800; letter-spacing: .03em; }
 .work-countdown-status-clock { width: 16px; height: 16px; padding: 2px; border: 1.5px dashed currentColor; border-radius: 50%; }
 .work-countdown-status-line { width: 15px; height: 15px; opacity: .48; }
@@ -139,7 +139,7 @@
 .work-countdown-fact-icon.is-scope { background: rgba(89,121,244,.09); color: var(--countdown-scope-icon); }
 .work-countdown-fact-icon.is-delivery { background: rgba(123,91,245,.09); color: var(--countdown-delivery-icon); }
 .work-countdown-fact-icon.is-acceptance { background: rgba(51,185,130,.09); color: var(--countdown-acceptance-icon); }
-.work-countdown-contract { box-sizing: border-box; width: min(100%,430px); margin: 10px auto 0; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.76); padding: 12px 12px 4px; box-shadow: 0 12px 32px rgba(55,78,126,.07); backdrop-filter: blur(7px); }
+.work-countdown-contract { box-sizing: border-box; width: min(100%,430px); margin: 10px auto 0; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(255,255,255,.68); padding: 12px 12px 4px; box-shadow: 0 12px 32px rgba(55,78,126,.07); backdrop-filter: blur(3px); }
 .work-countdown-contract > header { border-left: 3px solid var(--countdown-live); padding: 0 0 7px 8px; }
 .work-countdown-contract h3 { margin: 0; font-family: Georgia,"Songti SC",serif; font-size: 17px; letter-spacing: .03em; }
 .work-countdown-clause { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 9px; padding: 11px 2px 12px; border-bottom: 1px solid rgba(101,119,159,.13); }
