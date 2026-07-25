@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Building2, ChevronLeft } from "lucide-react";
+import { Building2, ChevronLeft } from "lucide-react";
+import { WORK_COMPANY_SCENE_ASSETS } from "./officeAssets.js";
 import {
   WORK_COMPANY_MAX_PREFIX_LENGTH,
   WORK_COMPANY_SUFFIX,
@@ -7,8 +8,8 @@ import {
   normalizeWorkCompanyPrefix,
 } from "./workCompanyState.js";
 
-const LAUNCH_DURATION_MS = 1200;
-const ENTER_DURATION_MS = 1400;
+const LAUNCH_DURATION_MS = 2200;
+const ENTER_DURATION_MS = 2400;
 const REDUCED_DURATION_MS = 150;
 
 export function WorkCompanyOnboarding({ onClose, onCreate, onComplete }) {
@@ -61,10 +62,17 @@ export function WorkCompanyOnboarding({ onClose, onCreate, onComplete }) {
   if (phase === "launch") {
     return (
       <section className="work-company-onboarding is-launch" aria-label="工作 APP 启动">
+        <div
+          className="work-company-scene is-launch-scene"
+          style={{ "--work-company-scene-image": `url(${WORK_COMPANY_SCENE_ASSETS.launch})` }}
+          aria-hidden="true"
+        >
+          <span className="work-company-cloud is-one" />
+          <span className="work-company-cloud is-two" />
+          <span className="work-company-camera" />
+        </div>
         <button className="work-company-skip" type="button" onClick={() => setPhase("create")}>跳过动画</button>
-        <div className="work-company-launch-center">
-          <span className="work-company-launch-glow" aria-hidden="true" />
-          <span className="work-company-launch-icon"><BriefcaseBusiness size={42} /></span>
+        <div className="work-company-copy is-launch-copy">
           <strong>工作中心</strong>
           <span>CCAT WORK</span>
         </div>
@@ -75,15 +83,20 @@ export function WorkCompanyOnboarding({ onClose, onCreate, onComplete }) {
   if (phase === "enter") {
     return (
       <section className="work-company-onboarding is-enter" aria-label="正在进入公司">
+        <div
+          className="work-company-scene is-enter-scene"
+          style={{ "--work-company-scene-image": `url(${WORK_COMPANY_SCENE_ASSETS.enter})` }}
+          aria-hidden="true"
+        >
+          <span className="work-company-camera" />
+          <span className="work-company-door is-left" />
+          <span className="work-company-door is-right" />
+          <span className="work-company-office-dissolve" />
+        </div>
         <button className="work-company-skip" type="button" onClick={() => onComplete(createdCompany)}>跳过动画</button>
-        <div className="work-company-enter-center">
-          <div className="work-company-entry" aria-hidden="true">
-            <span className="work-company-entry-door is-left" />
-            <span className="work-company-entry-door is-right" />
-            <Building2 size={46} />
-          </div>
-          <strong className="work-company-plaque">{createdCompany.fullName}</strong>
-          <span className="work-company-enter-label">正在进入公司</span>
+        <div className="work-company-copy is-enter-copy">
+          <strong>{createdCompany.fullName}</strong>
+          <span>正在进入公司</span>
         </div>
       </section>
     );
