@@ -89,6 +89,20 @@ try {
       localStorage.setItem("apiMeProfiles", JSON.stringify({ qaMe: { name: "测试我", avatar: "" } }));
       localStorage.setItem("apiCharacters", JSON.stringify({ qaRole: { name: "测试角色", type: "main", avatar: "" } }));
       localStorage.removeItem("ccatWorkOfficeV1");
+      localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
+        projects: Array.from({ length: 5 }, (_, index) => ({
+          id: `qa-${index + 1}`,
+          name: `已缓存项目 ${index + 1}`,
+          duration: `${index + 2} 天`,
+          amount: `¥${index + 1}000`,
+          description: `办公室浏览器测试合同 ${index + 1}`,
+          difficulty: ["简单", "中等", "困难"][index % 3],
+        })),
+        startedProjectId: null,
+        revision: 1,
+        source: "main",
+        generatedAt: "2026-07-25T00:00:00.000Z",
+      }));
     });
     await page.goto(url);
     await page.getByRole("button", { name: "上划解锁" }).click();
