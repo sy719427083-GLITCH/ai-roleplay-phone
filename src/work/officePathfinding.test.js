@@ -61,6 +61,25 @@ test("reroutes when a new obstacle blocks the direct line", () => {
   assertCollisionFree(blocked, [obstacle]);
 });
 
+test("same-column routes leave the purple and yellow desks before walking down", () => {
+  const viewport = { width: 390, height: 844 };
+  const geometry = getOfficeGeometry(viewport);
+  const cases = [
+    ["employee3-home", "employee5-home", "employee3Desk", (point, obstacle) => point.x > obstacle.right],
+    ["employee4-home", "employee6-home", "employee4Desk", (point, obstacle) => point.x < obstacle.left],
+  ];
+
+  for (const [fromId, toId, deskId, leavesAroundSide] of cases) {
+    const start = geometry.homePoints[fromId];
+    const goal = geometry.homePoints[toId];
+    const obstacle = geometry.obstacles.find(({ id }) => id === deskId);
+    const path = planOfficePath({ start, goal, viewport, obstacles: geometry.obstacles });
+
+    assert.ok(path.length > 2, `${fromId} to ${toId} is not a direct vertical crossing`);
+    assert.equal(path.slice(1, -1).some((point) => leavesAroundSide(point, obstacle)), true, `${fromId} exits around the desk side`);
+  }
+});
+
 test("uses approved distance timing and horizontal facing", () => {
   const viewport = { width: 390, height: 844 };
   assert.equal(getSegmentDuration({ x: 10, y: 50 }, { x: 22, y: 50 }, viewport), 700);

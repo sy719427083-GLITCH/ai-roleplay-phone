@@ -45,7 +45,9 @@ function segmentIsClear(from, to, obstacles) {
 function endpointConnectorIsClear(endpoint, gridPoint, obstacles) {
   return obstacles.every((obstacle) => {
     if (!pointInsideRect(endpoint, obstacle)) return !segmentIntersectsRect(endpoint, gridPoint, obstacle);
-    if (obstacle.visible && pointInsideRect(endpoint, obstacle.visible)) return true;
+    if (obstacle.visible && pointInsideRect(endpoint, obstacle.visible)) {
+      return gridPoint.y < obstacle.visible.top;
+    }
     return !obstacle.visible || !segmentIntersectsRect(endpoint, gridPoint, obstacle.visible);
   });
 }

@@ -11,7 +11,7 @@ export const OFFICE_HOME_POINTS = Object.freeze({
 });
 
 export const OFFICE_INTERACTION_POINTS = Object.freeze({
-  "tea-counter": Object.freeze({ x: 92, y: 24 }),
+  "tea-counter": Object.freeze({ x: 92, y: 26 }),
 });
 
 export const OFFICE_LAYOUT = Object.freeze({
@@ -28,7 +28,7 @@ export const OFFICE_LAYOUT = Object.freeze({
     alpha: Object.freeze([55 / 520, 41 / 360, 449 / 520, 303 / 360]),
   }),
   tea: Object.freeze({
-    top: 4,
+    top: 6,
     right: 0,
     width: 58,
     height: 16,

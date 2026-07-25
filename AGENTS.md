@@ -13,3 +13,5 @@ When implementing from a selected generated mock, treat that image as the source
 - Avoid a rectangular boxed-room feeling. Use bright white flooring, curved sky windows, rounded cloud-shaped desks, pale wood tea counter, and vivid pastel blue, green, pink, yellow, lilac, and coral accents.
 - Support one boss slot plus six employee slots. All seven slots start empty and can use Me APP, Character APP, or NPC profiles.
 - No chairs, carpet, or floor grid. Visible office props remain individually clickable and provide subtle press feedback.
+- Keep the tea counter at the approved compact `58% × 16%` size and right alignment; its current vertical position is `top: 6%`.
+- Same-column walking between the purple and green desks and between the yellow and orange desks must leave from behind the upper desk and go around its side; never use a direct vertical segment through either desk PNG.
