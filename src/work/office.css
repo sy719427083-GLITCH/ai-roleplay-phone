@@ -358,3 +358,19 @@
 @media (max-width: 360px) { .work-projects-content { padding-inline: 11px; }.work-project-card { padding: 13px; }.work-projects-refresh { min-width: 62px; padding-inline: 8px; }.work-project-card h2 { font-size: 18px; } }
 
 @media (prefers-reduced-motion: reduce) { .office-character, .office-character-body,.work-projects-refresh.is-refreshing svg,.skeleton-line,.skeleton-meta span { transition: none !important; animation: none !important; }.work-company-create-card,.work-company-camera,.work-company-cloud,.work-company-door,.work-company-copy,.work-company-office-dissolve { animation-duration: .15s !important; transform: none !important; } }
+/* Combined tea room and employee restaurant */
+.breakroom-scene { position:relative; min-height:0; overflow:hidden; background-color:#f8fbff; background-position:center; background-size:100% 100%; background-repeat:no-repeat; isolation:isolate; animation:work-scene-slide-in .28s cubic-bezier(.2,.72,.2,1) both; }
+.breakroom-back { position:absolute; z-index:20; top:calc(14px + env(safe-area-inset-top,0px)); left:14px; display:grid; width:46px; height:46px; place-items:center; border:1px solid rgba(255,255,255,.88); border-radius:50%; background:rgba(255,255,255,.78); color:#417ad4; box-shadow:0 8px 24px rgba(58,92,153,.16); backdrop-filter:blur(11px); }
+.breakroom-object { position:absolute; z-index:3; min-width:44px; min-height:44px; border:0; background:transparent; padding:0; -webkit-tap-highlight-color:transparent; }
+.breakroom-object img { width:100%; height:100%; object-fit:contain; pointer-events:none; }
+.breakroom-object:focus-visible { outline:3px solid rgba(69,143,245,.78); outline-offset:3px; border-radius:24px; }
+.breakroom-object:active { transform:scale(.975); }
+.breakroom-object.drink-counter { top:7%; left:0; width:55%; height:18%; }
+.breakroom-object.coffee-machine { top:9%; left:70%; width:26%; height:15%; }
+.breakroom-object.fridge { top:26%; left:1%; width:29%; height:20%; }
+.breakroom-object.microwave { top:28%; left:70%; width:29%; height:17%; }
+.breakroom-object.dining-table { top:57%; left:15%; width:70%; height:16%; }
+.breakroom-object.snack-cabinet { top:69%; left:71%; width:28%; height:17%; }
+.work-breakroom-entry { position:absolute; z-index:19; top:50%; right:8px; display:grid; width:46px; height:46px; place-items:center; border:1px solid rgba(255,255,255,.9); border-radius:50%; background:rgba(255,255,255,.76); color:#417ad4; box-shadow:0 8px 24px rgba(58,92,153,.18); backdrop-filter:blur(11px); transform:translateY(-50%); }
+.work-breakroom-entry:active { transform:translateY(-50%) scale(.94); }
+@keyframes work-scene-slide-in { from { opacity:.5; transform:translateX(8%); } to { opacity:1; transform:translateX(0); } }
