@@ -5,6 +5,11 @@ export const OFFICE_STORAGE_KEY = "ccatWorkOfficeV1";
 export const OFFICE_STATE_VERSION = 1;
 export const VALID_WAYPOINTS = new Set([...Object.keys(OFFICE_HOME_POINTS), ...Object.keys(OFFICE_INTERACTION_POINTS)]);
 
+function restoreWaypoint(waypoint) {
+  if (waypoint === "tea-counter") return "print-station";
+  return VALID_WAYPOINTS.has(waypoint) ? waypoint : "boss-home";
+}
+
 export const createOfficeState = (profiles = []) => ({
   version: OFFICE_STATE_VERSION,
   assignments: normalizeAssignments({}, profiles),
@@ -19,7 +24,7 @@ export function restoreOfficeState(raw, profiles) {
     version: OFFICE_STATE_VERSION,
     assignments: normalizeAssignments(parsed.assignments, profiles),
     avatarOverrides: parsed.avatarOverrides && typeof parsed.avatarOverrides === "object" && !Array.isArray(parsed.avatarOverrides) ? parsed.avatarOverrides : {},
-    meWaypoint: VALID_WAYPOINTS.has(parsed.meWaypoint) ? parsed.meWaypoint : "boss-home",
+    meWaypoint: restoreWaypoint(parsed.meWaypoint),
   };
 }
 

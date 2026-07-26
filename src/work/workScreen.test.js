@@ -81,6 +81,7 @@ test("office switches to a navigable breakroom without changing persistent state
   assert.match(screen, /createBreakroomRoute/);
   assert.match(screen, /getBreakroomPoint\("entry"\)/);
   assert.match(screen, /<BreakroomScene/);
+  assert.match(screen, /\{activeScene === "office" \? \(\s*<button[^>]*aria-label="返回主页"/s);
   assert.match(officeScene, /aria-label="进入茶水间和员工餐厅"/);
   assert.match(styles, /\.work-breakroom-entry\s*\{[^}]*width:\s*46px;[^}]*height:\s*46px/s);
   assert.doesNotMatch(screen, /localStorage[^\n]*breakroom|BREAKROOM_STORAGE_KEY/i);

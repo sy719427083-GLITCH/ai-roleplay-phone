@@ -27,6 +27,7 @@ test("restores safely and removes deleted profile assignments", () => {
 });
 
 test("persists named destinations but rejects removed fixed-route aisles", () => {
-  assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "tea-counter" }), profiles).meWaypoint, "tea-counter");
+  assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "print-station" }), profiles).meWaypoint, "print-station");
+  assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "tea-counter" }), profiles).meWaypoint, "print-station");
   assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "aisle-center" }), profiles).meWaypoint, "boss-home");
 });

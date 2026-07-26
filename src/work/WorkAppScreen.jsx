@@ -222,7 +222,9 @@ export function WorkAppScreen({ onClose }) {
   return (
     <section className="work-app-screen work-office-shell">
       <header className="work-topbar">
-        <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
+        {activeScene === "office" ? (
+          <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
+        ) : <span aria-hidden="true" />}
         <button type="button" onClick={() => setView("settings")} aria-label="工作设置"><Ellipsis size={24} /></button>
       </header>
       {activeScene === "breakroom" ? (
