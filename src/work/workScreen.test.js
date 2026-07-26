@@ -71,3 +71,25 @@ test("work settings clears cache through a clean app remount", () => {
   assert.match(screen, /onBack=\{\(\) => setView\("office"\)\}/);
   assert.match(screen, /onCleared=\{onClose\}/);
 });
+
+test("office switches to a navigable breakroom without changing persistent state", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const officeScene = readFileSync("src/work/OfficeScene.jsx", "utf8");
+  const styles = readFileSync("src/work/office.css", "utf8");
+  assert.match(screen, /import \{ BreakroomScene \} from "\.\/BreakroomScene\.jsx"/);
+  assert.match(screen, /activeScene/);
+  assert.match(screen, /createBreakroomRoute/);
+  assert.match(screen, /getBreakroomPoint\("entry"\)/);
+  assert.match(screen, /<BreakroomScene/);
+  assert.match(officeScene, /aria-label="进入茶水间和员工餐厅"/);
+  assert.match(styles, /\.work-breakroom-entry\s*\{[^}]*width:\s*46px;[^}]*height:\s*46px/s);
+  assert.doesNotMatch(screen, /localStorage[^\n]*breakroom|BREAKROOM_STORAGE_KEY/i);
+});
+
+test("scene targets carry their approved arrival messages", () => {
+  const officeScene = readFileSync("src/work/OfficeScene.jsx", "utf8");
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  assert.match(officeScene, /onObjectClick\(item\)/);
+  assert.match(screen, /target\.message/);
+  assert.match(screen, /window\.setTimeout\(.*2000/s);
+});
