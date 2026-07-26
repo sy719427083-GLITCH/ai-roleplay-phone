@@ -35,7 +35,7 @@ test("office screen uses full-bleed floating controls", () => {
   assert.match(styles, /\.work-topbar\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.work-bottom-nav\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.office-object\.desk\.boss\s*\{[^}]*top:\s*23%/s);
-  assert.match(styles, /\.office-object\.tea\s*\{[^}]*top:\s*9%;[^}]*right:\s*0;[^}]*width:\s*54%;[^}]*height:\s*16%/s);
+  assert.match(styles, /\.office-object\.print-station\s*\{[^}]*top:\s*9%;[^}]*right:\s*0;[^}]*width:\s*54%;[^}]*height:\s*16%/s);
   assert.match(styles, /--walk-duration/);
   assert.doesNotMatch(styles, /\.office-object\.door|\.left-door|\.right-top-door|\.right-mid-door/);
 });

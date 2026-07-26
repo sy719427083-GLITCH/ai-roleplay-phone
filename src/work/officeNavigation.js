@@ -9,7 +9,7 @@ export const OBJECT_DESTINATIONS = Object.freeze({
   employee4Desk: "employee4-home",
   employee5Desk: "employee5-home",
   employee6Desk: "employee6-home",
-  tea: "tea-counter",
+  printStation: "print-station",
 });
 
 export function createOfficeRoute({ from, destination, viewport }) {

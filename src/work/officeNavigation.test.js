@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute, OBJECT_DESTINATIONS } from "./officeNavigation.js";
@@ -19,7 +20,7 @@ test("creates timed routes for every clickable office destination", () => {
   }
 });
 
-test("keeps all furniture destinations and removes every door destination", () => {
+test("keeps every desk and replaces the tea counter with a print station", () => {
   assert.deepEqual(Object.keys(OBJECT_DESTINATIONS), [
     "bossDesk",
     "employee1Desk",
@@ -28,9 +29,18 @@ test("keeps all furniture destinations and removes every door destination", () =
     "employee4Desk",
     "employee5Desk",
     "employee6Desk",
-    "tea",
+    "printStation",
   ]);
-  assert.equal(Object.keys(OBJECT_DESTINATIONS).some((key) => key.toLowerCase().includes("door")), false);
+  assert.equal(OBJECT_DESTINATIONS.printStation, "print-station");
+  assert.equal(Object.keys(OBJECT_DESTINATIONS).includes("tea"), false);
+});
+
+test("office declares the clickable smart print station", () => {
+  const assets = readFileSync("src/work/officeAssets.js", "utf8");
+  assert.match(assets, /智能打印资料区/);
+  assert.match(assets, /正在处理文件/);
+  assert.match(assets, /orbit-print-station\.png/);
+  assert.doesNotMatch(assets, /茶水吧台|orbit-tea-counter\.png/);
 });
 
 test("returns an empty route for invalid destinations", () => {

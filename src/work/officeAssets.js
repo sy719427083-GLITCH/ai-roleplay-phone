@@ -8,7 +8,7 @@ export const WORK_COMPANY_SCENE_ASSETS = {
 export const OFFICE_OBJECT_ASSETS = {
   bossDesk: "/ai-roleplay-phone/work-office-assets/orbit-boss-desk.png",
   employeeDesk: "/ai-roleplay-phone/work-office-assets/orbit-employee-desk.png",
-  tea: "/ai-roleplay-phone/work-office-assets/orbit-tea-counter.png",
+  printStation: "/ai-roleplay-phone/work-office-assets/orbit-print-station.png",
 };
 
 export const OFFICE_FURNITURE = [
@@ -20,5 +20,5 @@ export const OFFICE_FURNITURE = [
     destination: OBJECT_DESTINATIONS[`employee${number}Desk`],
     asset: OFFICE_OBJECT_ASSETS.employeeDesk,
   })),
-  { id: "tea", kind: "tea", label: "茶水吧台", destination: OBJECT_DESTINATIONS.tea, asset: OFFICE_OBJECT_ASSETS.tea },
+  { id: "printStation", kind: "print-station", label: "智能打印资料区", destination: OBJECT_DESTINATIONS.printStation, message: "正在处理文件", asset: OFFICE_OBJECT_ASSETS.printStation },
 ];
