@@ -62,3 +62,12 @@ test("work app gates the office behind one-time company creation", () => {
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /\.work-company-skip\s*\{[^}]*min-height:\s*44px/s);
 });
+
+test("work settings clears cache through a clean app remount", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  assert.match(screen, /import \{ WorkSettings \} from "\.\/WorkSettings\.jsx"/);
+  assert.match(screen, /view === "settings"/);
+  assert.match(screen, /<WorkSettings/);
+  assert.match(screen, /onBack=\{\(\) => setView\("office"\)\}/);
+  assert.match(screen, /onCleared=\{onClose\}/);
+});

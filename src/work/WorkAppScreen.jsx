@@ -6,6 +6,7 @@ import { OfficeScene } from "./OfficeScene.jsx";
 import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
+import { WorkSettings } from "./WorkSettings.jsx";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
@@ -146,6 +147,10 @@ export function WorkAppScreen({ onClose }) {
         onComplete={setCompany}
       />
     );
+  }
+
+  if (view === "settings") {
+    return <WorkSettings onBack={() => setView("office")} onCleared={onClose} />;
   }
 
   if (view === "projects") {
