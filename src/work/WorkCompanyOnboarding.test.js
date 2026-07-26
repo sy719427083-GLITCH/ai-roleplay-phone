@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/work/WorkCompanyOnboarding.jsx", "utf8");
+const styles = readFileSync("src/work/office.css", "utf8");
 
 test("onboarding preserves launch, create, and enter order", () => {
   assert.match(source, /useState\("launch"\)/);
@@ -34,4 +35,15 @@ test("launch and enter use fullscreen Orbit camera scenes", () => {
   assert.match(source, /work-company-door is-right/);
   assert.doesNotMatch(source, /work-company-launch-icon/);
   assert.doesNotMatch(source, /work-company-entry"/);
+});
+
+test("company animations fill the viewport and respect reduced motion", () => {
+  assert.match(styles, /\.work-company-scene\s*\{[^}]*position:\s*absolute[^}]*inset:\s*0/s);
+  assert.match(styles, /background-image:\s*var\(--work-company-scene-image\)/);
+  assert.match(styles, /@keyframes work-company-camera-launch/);
+  assert.match(styles, /@keyframes work-company-camera-enter/);
+  assert.match(styles, /@keyframes work-company-door-open-left/);
+  assert.match(styles, /@keyframes work-company-door-open-right/);
+  assert.match(styles, /prefers-reduced-motion:\s*reduce[\s\S]*animation-duration:\s*\.15s/);
+  assert.match(styles, /\.work-company-skip\s*\{[^}]*min-height:\s*44px/s);
 });
