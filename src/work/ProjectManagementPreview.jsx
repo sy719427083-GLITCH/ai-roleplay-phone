@@ -104,8 +104,11 @@ export function ProjectManagementPreview({ onBack, projectState, onProjectStateC
                 return (
                   <article className={`work-project-card${isStarted ? " is-started" : ""}${isMuted ? " is-muted" : ""}`} key={project.id}>
                     <div className="work-contract-heading">
-                      <span className="work-contract-number">合同编号 {contractNumber}</span>
-                      <h2>{project.name}</h2>
+                      <span className="work-contract-sequence" aria-hidden="true">{index + 1}.</span>
+                      <div>
+                        <span className="work-contract-number">合同编号 {contractNumber}</span>
+                        <h2>{project.name}</h2>
+                      </div>
                       {isStarted && <span className="work-contract-seal">已签署<small>今日生效</small></span>}
                     </div>
 

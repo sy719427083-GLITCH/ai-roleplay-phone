@@ -39,20 +39,22 @@ test("project page controls meet the mobile touch target requirement", () => {
   assert.match(styles, /\.work-project-start\s*\{[^}]*min-height:\s*46px/s);
 });
 
-test("project preview renders formal contract fields and signed state", () => {
+test("project preview renders quiet-luxury ledger fields and signed state", () => {
   for (const text of ["项目合同", "待签署合同", "委托方", "CCAT 工作中心", "承接方", "合同总额", "人民币", "交付期限", "甲方签章", "乙方签章", "签署合同并开始", "已签署", "今日生效"]) {
     assert.match(source, new RegExp(text));
   }
-  for (const className of ["work-contract-number", "work-contract-parties", "work-contract-terms", "work-contract-signatures", "work-contract-seal"]) {
+  for (const className of ["work-contract-sequence", "work-contract-number", "work-contract-parties", "work-contract-terms", "work-contract-signatures", "work-contract-seal"]) {
     assert.match(source, new RegExp(className));
   }
-  assert.match(styles, /--work-contract-seal:\s*#a92c2c/);
-  assert.match(styles, /\.work-project-card::after/);
+  assert.match(styles, /--work-luxury-gold:\s*#9a6a24/);
+  assert.match(styles, /\.work-contract-sequence/);
   assert.doesNotMatch(source, /WORK BOARD|ASSIGNMENT/);
 });
 
-test("formal contracts use white paper on the existing grey desk", () => {
-  assert.match(styles, /--work-contract-paper:\s*#ffffff/);
-  assert.match(styles, /background-color:\s*#dedbd3/);
-  assert.doesNotMatch(styles, /--work-contract-paper:\s*#fbf7ea/);
+test("quiet-luxury contracts use crisp white surfaces without paper effects", () => {
+  assert.match(styles, /--work-luxury-surface:\s*#ffffff/);
+  assert.match(styles, /\.work-projects-page\s*\{[^}]*background:\s*var\(--work-luxury-surface\)/s);
+  assert.match(styles, /\.work-project-card\s*\{[^}]*border-radius:\s*0/s);
+  assert.doesNotMatch(styles, /background-image:\s*radial-gradient\(rgba\(70,66,58/);
+  assert.doesNotMatch(styles, /\.work-project-card::after\s*\{/);
 });

@@ -232,54 +232,54 @@
 .skeleton-line.is-button { height: 46px; margin-top: 9px; border-radius: 5px; }
 
 /* Formal project contract preview */
-.work-projects-page { --work-contract-paper: #ffffff; --work-contract-ink: #252522; --work-contract-rule: #77736a; --work-contract-seal: #a92c2c; background-color: #dedbd3; background-image: radial-gradient(rgba(70,66,58,.08) .6px,transparent .7px); background-size: 5px 5px; color: var(--work-contract-ink); }
-.work-projects-header { border-bottom-color: rgba(37,37,34,.28); background: rgba(232,229,220,.96); }
-.work-projects-kicker { color: #76736b; letter-spacing: .14em; }
-.work-projects-header h1 { color: var(--work-contract-ink); font-size: 21px; letter-spacing: .06em; }
-.work-projects-back { border-color: rgba(37,37,34,.28); border-radius: 3px; background: var(--work-contract-paper); color: var(--work-contract-ink); box-shadow: 2px 2px 0 rgba(37,37,34,.12); }
-.work-projects-refresh { min-width: 76px; border-color: var(--work-contract-ink); border-radius: 3px; background: var(--work-contract-ink); color: var(--work-contract-paper); box-shadow: 2px 2px 0 rgba(37,37,34,.18); }
-.work-projects-refresh:disabled { border-color: #aaa69d; background: #d0cdc5; color: #75736d; }
-.work-projects-summary { border-top: 3px double var(--work-contract-ink); border-bottom-color: rgba(37,37,34,.3); }
-.work-projects-summary strong { color: var(--work-contract-ink); font-size: 14px; letter-spacing: .02em; }
-.work-projects-summary div span { color: #6e6b64; }
-.work-projects-count { border-color: var(--work-contract-ink); background: var(--work-contract-paper); color: var(--work-contract-ink); }
-.work-projects-summary.is-locked { border-top-color: var(--work-contract-seal); }
-.work-projects-summary.is-locked .work-projects-count { border-color: var(--work-contract-seal); background: transparent; color: var(--work-contract-seal); }
-.work-projects-list { gap: 16px; }
-.work-projects-inline-error { margin: -5px 0 13px; border-left: 3px solid var(--work-contract-seal); background: rgba(255,255,255,.72); color: var(--work-contract-seal); padding: 9px 10px; font-size: 10px; line-height: 1.45; }
-.work-projects-error { display: grid; justify-items: center; gap: 8px; border: 1px solid rgba(37,37,34,.45); background: var(--work-contract-paper); padding: 28px 22px; text-align: center; box-shadow: 4px 5px 0 rgba(37,37,34,.1); }
-.work-projects-error strong { font-family: Georgia,"Songti SC",serif; font-size: 16px; }
-.work-projects-error p { margin: 0; color: #6e6b64; font-size: 11px; line-height: 1.55; }
-.work-projects-error button { min-width: 112px; min-height: 44px; margin-top: 5px; border: 1px solid var(--work-contract-ink); border-radius: 2px; background: var(--work-contract-ink); color: #fff; font-weight: 700; }
-.work-project-card { overflow: visible; border: 1px solid rgba(37,37,34,.52); border-radius: 3px; background-color: var(--work-contract-paper); background-image: linear-gradient(rgba(90,82,67,.025) 1px,transparent 1px); background-size: 100% 18px; padding: 19px 18px 16px; box-shadow: inset 0 0 0 3px var(--work-contract-paper),inset 0 0 0 4px rgba(37,37,34,.34),4px 5px 0 rgba(37,37,34,.1); }
+.work-projects-page { --work-luxury-surface: #ffffff; --work-luxury-ink: #171714; --work-luxury-muted: #696865; --work-luxury-line: #d7d4cd; --work-luxury-gold: #9a6a24; --work-luxury-seal: #8f3131; grid-template-rows: auto minmax(0,1fr); background: var(--work-luxury-surface); color: var(--work-luxury-ink); }
+.work-projects-header { border-bottom: 1px solid var(--work-luxury-line); background: var(--work-luxury-surface); padding-block: calc(14px + env(safe-area-inset-top,0px)) 13px; }
+.work-projects-kicker { color: #777571; font-size: 8px; letter-spacing: .2em; }
+.work-projects-header h1 { color: var(--work-luxury-ink); font-family: Georgia,"Songti SC","STSong",serif; font-size: 24px; font-weight: 600; letter-spacing: .05em; }
+.work-projects-back { border: 0; border-radius: 0; background: transparent; color: var(--work-luxury-ink); box-shadow: none; }
+.work-projects-refresh { min-width: 76px; min-height: 44px; border: 0; border-radius: 0; background: transparent; color: var(--work-luxury-ink); box-shadow: none; font-size: 12px; }
+.work-projects-refresh:disabled { background: transparent; color: #9d9b96; }
+.work-projects-content { padding: 0 18px calc(34px + env(safe-area-inset-bottom,0px)); }
+.work-projects-summary { box-sizing: border-box; min-height: 74px; margin: 0; border-top: 0; border-bottom: 1px solid var(--work-luxury-line); padding: 14px 4px; }
+.work-projects-summary strong { color: var(--work-luxury-ink); font-family: Georgia,"Songti SC","STSong",serif; font-size: 17px; font-weight: 600; letter-spacing: .03em; }
+.work-projects-summary div span { color: var(--work-luxury-muted); font-size: 11px; }
+.work-projects-count { border: 1px solid #aaa7a0; border-radius: 4px; background: var(--work-luxury-surface); color: var(--work-luxury-ink); font-family: inherit; font-size: 11px; font-weight: 650; letter-spacing: 0; padding: 8px 10px; }
+.work-projects-summary.is-locked { border-bottom-color: var(--work-luxury-gold); }
+.work-projects-summary.is-locked .work-projects-count { border-color: var(--work-luxury-gold); background: transparent; color: var(--work-luxury-gold); }
+.work-projects-list { gap: 0; }
+.work-projects-inline-error { margin: 0; border: 0; border-bottom: 1px solid #dcbdbd; background: #fffafa; color: var(--work-luxury-seal); padding: 12px 4px; font-size: 11px; line-height: 1.5; }
+.work-projects-error { display: grid; justify-items: center; gap: 9px; border: 0; border-bottom: 1px solid var(--work-luxury-line); background: var(--work-luxury-surface); padding: 40px 20px; text-align: center; box-shadow: none; }
+.work-projects-error strong { font-family: Georgia,"Songti SC",serif; font-size: 18px; }
+.work-projects-error p { margin: 0; color: var(--work-luxury-muted); font-size: 12px; line-height: 1.6; }
+.work-projects-error button { min-width: 132px; min-height: 46px; margin-top: 8px; border: 0; border-radius: 4px; background: var(--work-luxury-ink); color: #fff; font-weight: 700; }
+.work-project-card { position: relative; overflow: visible; border: 0; border-bottom: 1px solid var(--work-luxury-line); border-radius: 0; background: var(--work-luxury-surface); padding: 20px 4px 22px; box-shadow: none; }
 .work-project-card::before { display: none; }
-.work-project-card::after { position: absolute; inset: 7px; border: 1px solid rgba(37,37,34,.18); pointer-events: none; content: ""; }
-.work-project-card.is-started { border-color: rgba(169,44,44,.72); box-shadow: inset 0 0 0 3px var(--work-contract-paper),inset 0 0 0 4px rgba(169,44,44,.35),4px 5px 0 rgba(169,44,44,.11); }
-.work-project-card.is-muted { opacity: .57; }
-.work-contract-heading { position: relative; display: grid; justify-items: center; min-height: 70px; align-content: start; padding: 2px 52px 12px; border-bottom: 3px double var(--work-contract-ink); text-align: center; }
-.work-contract-number { color: #716e68; font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-size: 8px; letter-spacing: .07em; }
-.work-contract-heading h2 { margin: 10px 0 0; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 20px; line-height: 1.2; letter-spacing: .06em; }
-.work-contract-seal { position: absolute; top: 4px; right: -8px; display: grid; width: 58px; height: 58px; place-content: center; border: 3px double var(--work-contract-seal); border-radius: 50%; color: var(--work-contract-seal); font-family: Georgia,"Songti SC",serif; font-size: 13px; font-weight: 800; line-height: 1.05; text-align: center; transform: rotate(-12deg); }
-.work-contract-seal small { display: block; margin-top: 3px; font-family: "PingFang SC",sans-serif; font-size: 7px; font-weight: 600; letter-spacing: 0; }
+.work-project-card.is-started { border-color: var(--work-luxury-gold); box-shadow: none; }
+.work-project-card.is-muted { opacity: .5; }
+.work-contract-heading { position: relative; display: grid; grid-template-columns: 30px minmax(0,1fr); align-items: start; gap: 8px; min-height: 0; padding: 0 0 14px; border-bottom: 1px solid var(--work-luxury-line); text-align: left; }
+.work-contract-sequence { color: var(--work-luxury-gold); font-family: Georgia,"Songti SC",serif; font-size: 21px; line-height: 1; }
+.work-contract-number { color: var(--work-luxury-muted); font-family: ui-monospace,"SFMono-Regular",Menlo,monospace; font-size: 9px; letter-spacing: .05em; }
+.work-contract-heading h2 { margin: 10px 0 0; color: var(--work-luxury-ink); font-family: Georgia,"Songti SC","STSong",serif; font-size: 19px; font-weight: 600; line-height: 1.3; letter-spacing: .015em; }
+.work-contract-seal { position: absolute; top: -9px; right: 0; display: grid; width: 54px; height: 54px; place-content: center; border: 2px solid var(--work-luxury-seal); border-radius: 50%; color: var(--work-luxury-seal); font-family: Georgia,"Songti SC",serif; font-size: 12px; font-weight: 800; line-height: 1.05; text-align: center; transform: rotate(-10deg); }
+.work-contract-seal small { display: block; margin-top: 3px; font-family: "PingFang SC",sans-serif; font-size: 7px; font-weight: 600; }
 .work-contract-parties,.work-contract-terms { display: grid; margin: 0; }
-.work-contract-parties { grid-template-columns: 1fr 1fr; border-bottom: 1px solid rgba(37,37,34,.32); }
-.work-contract-parties > div { min-width: 0; padding: 10px 8px 9px 0; }
-.work-contract-parties > div + div { border-left: 1px solid rgba(37,37,34,.22); padding-right: 0; padding-left: 10px; }
-.work-contract-terms { grid-template-columns: 1.35fr .75fr .65fr; border-bottom: 1px solid rgba(37,37,34,.32); }
-.work-contract-terms > div { min-width: 0; padding: 9px 7px 9px 0; }
-.work-contract-terms > div + div { border-left: 1px solid rgba(37,37,34,.22); padding-right: 0; padding-left: 7px; }
-.work-contract-parties dt,.work-contract-terms dt { color: #79766f; font-size: 8px; letter-spacing: .04em; }
-.work-contract-parties dd,.work-contract-terms dd { overflow: hidden; margin: 3px 0 0; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.work-contract-terms > div:first-child dd { font-size: 13px; }
-.work-contract-scope { padding: 10px 1px 9px; border-bottom: 1px solid rgba(37,37,34,.32); }
-.work-contract-scope h3 { margin: 0 0 4px; color: var(--work-contract-ink); font-family: Georgia,"Songti SC",serif; font-size: 10px; }
-.work-contract-scope p { display: -webkit-box; overflow: hidden; margin: 0; color: #55524d; font-size: 10px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.work-contract-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 14px 3px 10px; }
-.work-contract-signatures span { border-top: 1px solid var(--work-contract-rule); color: #77736b; font-family: Georgia,"Songti SC",serif; font-size: 8px; padding-top: 4px; }
-.work-project-start { border-radius: 2px; background: var(--work-contract-ink); color: var(--work-contract-paper); }
-.work-project-card.is-started .work-project-start:disabled { border-color: var(--work-contract-seal); background: transparent; color: var(--work-contract-seal); }
-.work-project-skeleton { min-height: 304px; }
-.work-project-skeleton::after { border-style: double; }
+.work-contract-parties { border-bottom: 1px solid var(--work-luxury-line); padding: 9px 0; }
+.work-contract-parties > div { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 14px; padding: 7px 0; }
+.work-contract-terms { border-bottom: 1px solid var(--work-luxury-line); padding: 8px 0; }
+.work-contract-terms > div { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 14px; padding: 6px 0; }
+.work-contract-parties dt,.work-contract-terms dt { color: var(--work-luxury-muted); font-size: 12px; letter-spacing: .02em; }
+.work-contract-parties dd,.work-contract-terms dd { overflow: hidden; margin: 0; color: var(--work-luxury-ink); font-size: 13px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.work-contract-terms > div:first-child dd { color: var(--work-luxury-gold); font-family: Georgia,"Songti SC",serif; font-size: 17px; }
+.work-contract-scope { padding: 14px 0 15px; border-bottom: 1px solid var(--work-luxury-line); }
+.work-contract-scope h3 { margin: 0 0 10px; color: var(--work-luxury-ink); font-family: Georgia,"Songti SC",serif; font-size: 14px; font-weight: 600; }
+.work-contract-scope p { display: -webkit-box; overflow: hidden; margin: 0; color: #454440; font-size: 13px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.work-contract-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 18px 0 14px; }
+.work-contract-signatures span { box-sizing: border-box; min-height: 62px; border: 1px dashed #c4c0b8; border-radius: 6px; color: var(--work-luxury-muted); font-family: Georgia,"Songti SC",serif; font-size: 12px; padding: 10px; }
+.work-project-start { min-height: 46px; border: 0; border-radius: 4px; background: var(--work-luxury-ink); color: #fff; font-size: 14px; box-shadow: none; }
+.work-project-start > span:last-child { color: var(--work-luxury-gold); }
+.work-project-card.is-started .work-project-start:disabled { border: 1px solid var(--work-luxury-gold); background: var(--work-luxury-surface); color: var(--work-luxury-gold); }
+.work-project-skeleton { min-height: 370px; }
+.work-project-skeleton .skeleton-line,.work-project-skeleton .skeleton-meta span { background: linear-gradient(90deg,#efefed 20%,#fafafa 50%,#efefed 80%); background-size: 220% 100%; }
 
 /* First-run company creation */
 .work-company-onboarding { position: fixed; inset: 0; z-index: 120; display: grid; min-height: 100vh; min-height: 100dvh; overflow: hidden; background: #f7f9fc; color: #24334f; font-family: "Avenir Next","PingFang SC",sans-serif; isolation: isolate; }
