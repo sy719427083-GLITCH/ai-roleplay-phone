@@ -32,7 +32,7 @@ export const OFFICE_LAYOUT = Object.freeze({
     right: 0,
     width: 48,
     height: 14,
-    rotation: 2,
+    rotation: 3,
     alpha: Object.freeze([79 / 900, 9 / 520, 820 / 900, 505 / 520]),
   }),
 });
