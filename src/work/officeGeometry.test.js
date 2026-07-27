@@ -29,7 +29,7 @@ test("uses the approved smart print station and lower-right approach", () => {
     right: 0,
     width: 48,
     height: 14,
-    rotation: 2,
+    rotation: 3,
     alpha: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
   });
   assert.deepEqual(OFFICE_INTERACTION_POINTS["print-station"], { x: 93, y: 31 });
@@ -39,10 +39,10 @@ test("rotates the print station bounds clockwise around its left-bottom anchor",
   const geometry = getOfficeGeometry({ width: 390, height: 844 });
   const print = geometry.obstacles.find((obstacle) => obstacle.id === "printStation");
   assert.ok(print);
-  assertNear(print.visible.left, 56.224860712021595, "rotated left");
-  assertNear(print.visible.top, 11.397731719514338, "rotated top");
-  assertNear(print.visible.right, 96.18682870562813, "rotated right");
-  assertNear(print.visible.bottom, 26.122671180775257, "right edge moves down");
+  assertNear(print.visible.left, 56.22869478106918, "rotated left");
+  assertNear(print.visible.top, 11.481670960442923, "rotated top");
+  assertNear(print.visible.right, 96.39342030255264, "rotated right");
+  assertNear(print.visible.bottom, 26.885533122963604, "right edge moves down");
   assert.equal(pointInsideRect(OFFICE_INTERACTION_POINTS["print-station"], print.visible), false);
 });
 
