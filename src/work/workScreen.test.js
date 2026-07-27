@@ -35,7 +35,7 @@ test("office screen uses full-bleed floating controls", () => {
   assert.match(styles, /\.work-topbar\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.work-bottom-nav\s*\{[^}]*position:\s*absolute/s);
   assert.match(styles, /\.office-object\.desk\.boss\s*\{[^}]*top:\s*23%/s);
-  assert.match(styles, /\.office-object\.print-station\s*\{[^}]*top:\s*9%;[^}]*right:\s*0;[^}]*width:\s*54%;[^}]*height:\s*16%/s);
+  assert.match(styles, /\.office-object\.print-station\s*\{[^}]*top:\s*11%;[^}]*right:\s*0;[^}]*width:\s*48%;[^}]*height:\s*14%/s);
   assert.match(styles, /--walk-duration/);
   assert.doesNotMatch(styles, /\.office-object\.door|\.left-door|\.right-top-door|\.right-mid-door/);
 });
@@ -72,19 +72,16 @@ test("work settings clears cache through a clean app remount", () => {
   assert.match(screen, /onCleared=\{onClose\}/);
 });
 
-test("office switches to a navigable breakroom without changing persistent state", () => {
+test("office has no breakroom entry or scene switching", () => {
   const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
   const officeScene = readFileSync("src/work/OfficeScene.jsx", "utf8");
   const styles = readFileSync("src/work/office.css", "utf8");
-  assert.match(screen, /import \{ BreakroomScene \} from "\.\/BreakroomScene\.jsx"/);
-  assert.match(screen, /activeScene/);
-  assert.match(screen, /createBreakroomRoute/);
-  assert.match(screen, /getBreakroomPoint\("entry"\)/);
-  assert.match(screen, /<BreakroomScene/);
-  assert.match(screen, /\{activeScene === "office" \? \(\s*<button[^>]*aria-label="返回主页"/s);
-  assert.match(officeScene, /aria-label="进入茶水间和员工餐厅"/);
-  assert.match(styles, /\.work-breakroom-entry\s*\{[^}]*width:\s*46px;[^}]*height:\s*46px/s);
-  assert.doesNotMatch(screen, /localStorage[^\n]*breakroom|BREAKROOM_STORAGE_KEY/i);
+  for (const source of [screen, officeScene, styles]) {
+    assert.doesNotMatch(source, /breakroom|茶水间/i);
+  }
+  assert.match(screen, /<OfficeScene/);
+  assert.match(screen, /aria-label="返回主页"/);
+  assert.doesNotMatch(officeScene, /ChevronRight|onEnterBreakroom/);
 });
 
 test("scene targets carry their approved arrival messages", () => {

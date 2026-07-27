@@ -11,7 +11,7 @@ export const OFFICE_HOME_POINTS = Object.freeze({
 });
 
 export const OFFICE_INTERACTION_POINTS = Object.freeze({
-  "print-station": Object.freeze({ x: 93, y: 29 }),
+  "print-station": Object.freeze({ x: 93, y: 31 }),
 });
 
 export const OFFICE_LAYOUT = Object.freeze({
@@ -28,10 +28,10 @@ export const OFFICE_LAYOUT = Object.freeze({
     alpha: Object.freeze([55 / 520, 41 / 360, 449 / 520, 303 / 360]),
   }),
   printStation: Object.freeze({
-    top: 9,
+    top: 11,
     right: 0,
-    width: 54,
-    height: 16,
+    width: 48,
+    height: 14,
     alpha: Object.freeze([79 / 900, 9 / 520, 820 / 900, 505 / 520]),
   }),
 });

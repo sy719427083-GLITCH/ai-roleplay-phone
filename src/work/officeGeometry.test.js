@@ -21,13 +21,13 @@ test("centers avatars behind the visible desk art", () => {
 
 test("uses the approved smart print station and lower-right approach", () => {
   assert.deepEqual(OFFICE_LAYOUT.printStation, {
-    top: 9,
+    top: 11,
     right: 0,
-    width: 54,
-    height: 16,
+    width: 48,
+    height: 14,
     alpha: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
   });
-  assert.deepEqual(OFFICE_INTERACTION_POINTS["print-station"], { x: 93, y: 29 });
+  assert.deepEqual(OFFICE_INTERACTION_POINTS["print-station"], { x: 93, y: 31 });
 });
 
 test("derives responsive visible furniture bounds and keeps destinations traversable", () => {

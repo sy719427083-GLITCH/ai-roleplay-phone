@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ChevronLeft, Ellipsis, FolderKanban, Timer, UsersRound } from "lucide-react";
 import { addWalletIncomeOnce } from "../walletStore.js";
-import { BreakroomScene } from "./BreakroomScene.jsx";
 import { EmployeeManager } from "./EmployeeManager.jsx";
 import { OfficeScene } from "./OfficeScene.jsx";
 import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
 import { WorkSettings } from "./WorkSettings.jsx";
-import { getBreakroomPoint } from "./breakroomGeometry.js";
-import { createBreakroomRoute } from "./breakroomNavigation.js";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
@@ -38,13 +35,11 @@ export function WorkAppScreen({ onClose }) {
   const [state, dispatch] = useReducer(officeReducer, null, () => restoreOfficeState(window.localStorage.getItem(OFFICE_STORAGE_KEY), profiles));
   const [projectState, setProjectState] = useState(() => restoreWorkProjectState(window.localStorage.getItem(WORK_PROJECTS_STORAGE_KEY)));
   const [view, setView] = useState("office");
-  const [activeScene, setActiveScene] = useState("office");
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [claiming, setClaiming] = useState(false);
   const [rewardError, setRewardError] = useState("");
   const sceneRef = useRef(null);
-  const breakroomSceneRef = useRef(null);
   const movementTimer = useRef(null);
   const movementRun = useRef(0);
   const noticeTimer = useRef(null);
@@ -91,25 +86,18 @@ export function WorkAppScreen({ onClose }) {
     noticeTimer.current = window.setTimeout(() => setNotice(""), durationMs);
   };
 
-  const cancelMovement = () => {
-    movementRun.current += 1;
-    window.clearTimeout(movementTimer.current);
-  };
-
   const moveMe = (target) => {
     if (!meOccupant) return showNotice("请先在员工管理中安排“我 APP”的角色");
     if (meMovement.moving) return;
-    const activeRef = activeScene === "breakroom" ? breakroomSceneRef : sceneRef;
-    const bounds = activeRef.current?.getBoundingClientRect();
-    if (!bounds) return showNotice(activeScene === "breakroom" ? "茶水间路线暂时不可用" : "办公室路线暂时不可用");
-    const routeFactory = activeScene === "breakroom" ? createBreakroomRoute : createOfficeRoute;
-    const route = routeFactory({
+    const bounds = sceneRef.current?.getBoundingClientRect();
+    if (!bounds) return showNotice("办公室路线暂时不可用");
+    const route = createOfficeRoute({
       from: meMovement.point,
       destination: target.destination,
       viewport: { width: bounds.width, height: bounds.height },
     });
     if (!route.length) {
-      const point = activeScene === "breakroom" ? getBreakroomPoint(target.destination) : getOfficePoint(target.destination);
+      const point = getOfficePoint(target.destination);
       const alreadyThere = point && point.x === meMovement.point.x && point.y === meMovement.point.y;
       if (!alreadyThere) showNotice("这里暂时没有可通行的路线");
       else if (target.message) showNotice(target.message, 2000);
@@ -123,7 +111,7 @@ export function WorkAppScreen({ onClose }) {
       const segment = route.shift();
       if (!segment) {
         setMeMovement((value) => ({ ...value, moving: false, durationMs: 0 }));
-        if (activeScene === "office") dispatch({ type: "SET_WAYPOINT", waypoint: target.destination });
+        dispatch({ type: "SET_WAYPOINT", waypoint: target.destination });
         if (target.message) showNotice(target.message, 2000);
         return;
       }
@@ -131,19 +119,6 @@ export function WorkAppScreen({ onClose }) {
       movementTimer.current = window.setTimeout(advance, segment.durationMs);
     };
     advance();
-  };
-
-  const enterBreakroom = () => {
-    cancelMovement();
-    setActiveScene("breakroom");
-    setMeMovement({ point: getBreakroomPoint("entry"), moving: false, facing: "right", durationMs: 0 });
-  };
-
-  const returnToOffice = () => {
-    cancelMovement();
-    setActiveScene("office");
-    const home = meOccupant ? `${meOccupant.slotId}-home` : state.meWaypoint;
-    setMeMovement({ point: getOfficePoint(home), moving: false, facing: "right", durationMs: 0 });
   };
 
   const claimReward = () => {
@@ -222,28 +197,15 @@ export function WorkAppScreen({ onClose }) {
   return (
     <section className="work-app-screen work-office-shell">
       <header className="work-topbar">
-        {activeScene === "office" ? (
-          <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
-        ) : <span aria-hidden="true" />}
+        <button type="button" onClick={onClose} aria-label="返回主页"><ChevronLeft size={21} /></button>
         <button type="button" onClick={() => setView("settings")} aria-label="工作设置"><Ellipsis size={24} /></button>
       </header>
-      {activeScene === "breakroom" ? (
-        <BreakroomScene
-          sceneRef={breakroomSceneRef}
-          meOccupant={meOccupant}
-          movement={meMovement}
-          onFacilityClick={moveMe}
-          onBack={returnToOffice}
-        />
-      ) : (
-        <OfficeScene
-          sceneRef={sceneRef}
-          occupants={occupants}
-          meMovement={meMovement}
-          onObjectClick={moveMe}
-          onEnterBreakroom={enterBreakroom}
-        />
-      )}
+      <OfficeScene
+        sceneRef={sceneRef}
+        occupants={occupants}
+        meMovement={meMovement}
+        onObjectClick={moveMe}
+      />
       <nav className="work-bottom-nav" aria-label="工作导航">
         <button className="nav-projects" type="button" onClick={() => setView("projects")}><FolderKanban size={24} /><span>项目管理</span></button>
         <div className={`work-timer-nav is-${projectTimer.status}`}>
