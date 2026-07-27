@@ -12,6 +12,10 @@ function pointInsideRect(point, rect) {
   return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom;
 }
 
+function assertNear(actual, expected, message) {
+  assert.ok(Math.abs(actual - expected) < 1e-9, `${message}: expected ${expected}, got ${actual}`);
+}
+
 test("centers avatars behind the visible desk art", () => {
   assert.deepEqual(OFFICE_HOME_POINTS["boss-home"], { x: 50, y: 24 });
   assert.deepEqual([1, 3, 5].map((number) => OFFICE_HOME_POINTS[`employee${number}-home`].x), [22, 22, 22]);
@@ -25,9 +29,21 @@ test("uses the approved smart print station and lower-right approach", () => {
     right: 0,
     width: 48,
     height: 14,
+    rotation: 2,
     alpha: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
   });
   assert.deepEqual(OFFICE_INTERACTION_POINTS["print-station"], { x: 93, y: 31 });
+});
+
+test("rotates the print station bounds clockwise around its left-bottom anchor", () => {
+  const geometry = getOfficeGeometry({ width: 390, height: 844 });
+  const print = geometry.obstacles.find((obstacle) => obstacle.id === "printStation");
+  assert.ok(print);
+  assertNear(print.visible.left, 56.224860712021595, "rotated left");
+  assertNear(print.visible.top, 11.397731719514338, "rotated top");
+  assertNear(print.visible.right, 96.18682870562813, "rotated right");
+  assertNear(print.visible.bottom, 26.122671180775257, "right edge moves down");
+  assert.equal(pointInsideRect(OFFICE_INTERACTION_POINTS["print-station"], print.visible), false);
 });
 
 test("derives responsive visible furniture bounds and keeps destinations traversable", () => {

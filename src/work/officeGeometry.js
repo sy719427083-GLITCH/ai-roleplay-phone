@@ -32,6 +32,7 @@ export const OFFICE_LAYOUT = Object.freeze({
     right: 0,
     width: 48,
     height: 14,
+    rotation: 2,
     alpha: Object.freeze([79 / 900, 9 / 520, 820 / 900, 505 / 520]),
   }),
 });
@@ -60,6 +61,34 @@ function visibleRectangle(id, container, alpha) {
     top: container.top + container.height * alpha[1],
     right: container.left + container.width * alpha[2],
     bottom: container.top + container.height * alpha[3],
+  };
+}
+
+function rotatePoint(point, pivot, degrees) {
+  const radians = (degrees * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const x = point.x - pivot.x;
+  const y = point.y - pivot.y;
+  return {
+    x: pivot.x + x * cosine - y * sine,
+    y: pivot.y + x * sine + y * cosine,
+  };
+}
+
+function rotateRectangle(rectangle, pivot, degrees) {
+  const corners = [
+    { x: rectangle.left, y: rectangle.top },
+    { x: rectangle.right, y: rectangle.top },
+    { x: rectangle.right, y: rectangle.bottom },
+    { x: rectangle.left, y: rectangle.bottom },
+  ].map((point) => rotatePoint(point, pivot, degrees));
+  return {
+    id: rectangle.id,
+    left: Math.min(...corners.map((point) => point.x)),
+    top: Math.min(...corners.map((point) => point.y)),
+    right: Math.max(...corners.map((point) => point.x)),
+    bottom: Math.max(...corners.map((point) => point.y)),
   };
 }
 
@@ -111,7 +140,10 @@ function getPrintStationObstacle(viewport) {
     width: layout.width,
     height: layout.height,
   };
-  return inflateRectangle(visibleRectangle("printStation", container, layout.alpha), viewport, { includeTop: true, includeBottom: false });
+  const visible = visibleRectangle("printStation", container, layout.alpha);
+  const pivot = { x: container.left, y: container.top + container.height };
+  const rotatedVisible = rotateRectangle(visible, pivot, layout.rotation);
+  return inflateRectangle(rotatedVisible, viewport, { includeTop: true, includeBottom: false });
 }
 
 export function getOfficePoint(id) {

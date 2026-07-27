@@ -35,7 +35,8 @@
 .office-object.employee-5 { top: 69%; left: -2%; filter: hue-rotate(164deg) saturate(.86); }
 .office-object.employee-6 { top: 69%; right: -2%; filter: hue-rotate(18deg) saturate(.94); }
 
-.office-object.print-station { z-index: 2; top: 11%; right: 0; width: 48%; height: 14%; }
+.office-object.print-station { z-index: 2; top: 11%; right: 0; width: 48%; height: 14%; transform-origin: left bottom; transform: rotate(2deg); }
+.office-object.print-station:active { transform: rotate(2deg) scale(.975); }
 
 .office-character { position: absolute; z-index: 2; left: var(--x); top: var(--y); display: grid; width: 58px; justify-items: center; transform: translate(-50%,-92%); transition: left var(--walk-duration,700ms) linear, top var(--walk-duration,700ms) linear; pointer-events: none; }
 .office-character.is-moving { z-index: 4; }
