@@ -4,6 +4,7 @@ export function OfficeCharacter({ profile, avatar, node, facing = "right", movin
       className={`office-character ${moving ? "is-moving" : "is-active"}`}
       data-facing={facing}
       data-activity={activity}
+      data-profile-id={profile.id}
       style={{ "--x": `${node.x}%`, "--y": `${node.y}%`, "--walk-duration": `${durationMs}ms` }}
     >
       {bubble && <span className="office-character-bubble" role="status" aria-live="polite">{bubble}</span>}

@@ -38,8 +38,8 @@ async function readVisibleFurniture(page) {
   }), alphaBounds);
 }
 
-async function readCharacterAnchor(page) {
-  return page.locator(".office-character").evaluate((element) => {
+async function readCharacterAnchor(character) {
+  return character.evaluate((element) => {
     const scene = element.closest(".office-scene").getBoundingClientRect();
     const styles = getComputedStyle(element);
     return {
@@ -50,15 +50,16 @@ async function readCharacterAnchor(page) {
   });
 }
 
-async function walkWithoutCrossingFurniture(page, destination, allowedLabels) {
+async function walkWithoutCrossingFurniture(page, character, destination, allowedLabels) {
   const furniture = await readVisibleFurniture(page);
   const startedAt = Date.now();
   let observedSlowMovement = false;
   await page.getByRole("button", { name: destination }).click();
-  await page.locator(".office-character.is-moving").waitFor();
+  const profileId = await character.getAttribute("data-profile-id");
+  await page.waitForFunction((id) => document.querySelector(`.office-character[data-profile-id="${id}"]`)?.classList.contains("is-moving"), profileId);
 
   while (Date.now() - startedAt < 25000) {
-    const anchor = await readCharacterAnchor(page);
+    const anchor = await readCharacterAnchor(character);
     const elapsed = Date.now() - startedAt;
     if (anchor.moving && elapsed > 500) observedSlowMovement = true;
     const collision = furniture.find((item) => (
@@ -87,8 +88,9 @@ try {
     const page = await context.newPage();
     await page.addInitScript(() => {
       localStorage.setItem("apiMeProfiles", JSON.stringify({ qaMe: { name: "测试我", avatar: "" } }));
-      localStorage.setItem("apiCharacters", JSON.stringify({ qaRole: { name: "测试角色", type: "main", avatar: "" } }));
-      localStorage.removeItem("ccatWorkOfficeV1");
+      localStorage.setItem("apiCharacters", JSON.stringify(Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`qa${index + 1}`, { name: `测试角色${index + 1}`, type: index > 3 ? "npc" : "main", personality: index % 2 ? "开朗健谈，喜欢游戏" : "认真负责，擅长报表", persona: index === 4 ? "喜欢刷抖音" : "办公室同事", avatar: "" }]))));
+      localStorage.setItem("ccatWorkCompanyV1", JSON.stringify({ version: 1, prefix: "测试", fullName: "测试有限公司", createdAt: "2026-07-28T00:00:00.000Z" }));
+      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify({ version: 2, assignments: { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: "character:qa3", employee4: "character:qa4", employee5: "character:qa5", employee6: "character:qa6" }, avatarOverrides: {}, meWaypoint: "boss-home", simulation: { mode: "local", plan: null } }));
       localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
         projects: Array.from({ length: 5 }, (_, index) => ({
           id: `qa-${index + 1}`,
@@ -110,7 +112,9 @@ try {
     await page.getByRole("button", { name: "上划解锁" }).click();
     await page.getByRole("button", { name: "工作" }).click();
     assert.equal(await page.locator(".work-bottom-nav button").count(), 3);
-    assert.equal(await page.locator(".office-character").count(), 0);
+    await page.locator(".office-character").first().waitFor();
+    assert.equal(await page.locator(".office-character").count(), 7);
+    assert.equal(await page.locator(".office-character-activity").count(), 7);
     assert.equal(await page.locator(".office-object").count(), 8);
     assert.equal(await page.locator(".office-object > img.office-object-art").count(), 8);
     assert.equal(await page.locator(".office-object > img.office-object-art").evaluateAll(
@@ -119,25 +123,22 @@ try {
     assert.equal(await page.locator(".office-door-arrow").count(), 0);
     assert.equal(await page.locator(".office-object.door").count(), 0);
     assert.equal(await page.locator(".office-object.desk").count(), 7);
-    await page.getByRole("button", { name: "老板桌" }).click();
-    await page.getByRole("status").filter({ hasText: "请先在员工管理中安排" }).waitFor();
     await page.getByRole("button", { name: "员工管理" }).click();
     const selects = page.locator(".employee-slot select");
     assert.equal(await selects.count(), 7);
-    await selects.nth(0).selectOption({ label: "我 APP · 测试我" });
-    assert.deepEqual(await selects.evaluateAll((items) => items.map((item) => item.options.length)), [3, 2, 2, 2, 2, 2, 2]);
     await page.getByRole("button", { name: "返回办公室" }).click();
-    assert.equal(await page.locator(".office-character").count(), 1);
+    assert.equal(await page.locator(".office-character").count(), 7);
+    const meCharacter = page.locator('.office-character[data-profile-id="me:qaMe"]');
     const [avatarBodyBox, bossDeskBox] = await Promise.all([
-      page.locator(".office-character-body").boundingBox(),
+      meCharacter.locator(".office-character-body").boundingBox(),
       page.locator(".office-object.desk.boss").boundingBox(),
     ]);
     const bossDeskVisibleTop = bossDeskBox.y + (bossDeskBox.height * 67 / 480);
     assert.ok(avatarBodyBox.y + avatarBodyBox.height <= bossDeskVisibleTop, "boss avatar remains visible behind the desk art");
-    const before = await readCharacterAnchor(page);
-    const atEmployeeSix = await walkWithoutCrossingFurniture(page, "员工桌 6", ["老板桌", "员工桌 6"]);
+    const before = await readCharacterAnchor(meCharacter);
+    const atEmployeeSix = await walkWithoutCrossingFurniture(page, meCharacter, "员工桌 6", ["老板桌", "员工桌 6"]);
     assert.notDeepEqual({ x: atEmployeeSix.x, y: atEmployeeSix.y }, { x: before.x, y: before.y });
-    const atTea = await walkWithoutCrossingFurniture(page, "茶水吧台", ["员工桌 6", "茶水吧台"]);
+    const atTea = await walkWithoutCrossingFurniture(page, meCharacter, "智能打印资料区", ["员工桌 6", "智能打印资料区"]);
     assert.notDeepEqual({ x: atTea.x, y: atTea.y }, { x: atEmployeeSix.x, y: atEmployeeSix.y });
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
     await page.waitForTimeout(50);
@@ -152,7 +153,10 @@ try {
     await page.getByText("暂无进行中的项目", { exact: true }).waitFor();
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByRole("button", { name: "工作设置" }).click();
-    await page.getByText("暂时留空", { exact: true }).waitFor();
+    await page.getByRole("radiogroup", { name: "自主行为模式" }).waitFor();
+    await page.getByRole("radio", { name: /B AI 导演/ }).click();
+    await page.getByRole("button", { name: "返回办公室" }).click();
+    await page.getByText("AI 导演暂不可用，已使用本地调度", { exact: true }).waitFor();
     await context.close();
   }
   await browser.close();
