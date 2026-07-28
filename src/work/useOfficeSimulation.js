@@ -3,8 +3,10 @@ import { parseConfigs, STORAGE_KEY } from "../apiConfig.js";
 import { createLocalConversation, generateAiOfficePlan, generateOfficeConversation } from "./officeConversation.js";
 import { OFFICE_ACTIVITY_POINTS, getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
-import { allocateOfficeActivities } from "./officeScenePlan.js";
+import { allocateOfficeActivities, getDistinctConversationIds } from "./officeScenePlan.js";
 import { createLocalOfficePlan, createOfficeDailySeed, getOfficeIntervalKey } from "./officeSimulation.js";
+
+export const ME_MANUAL_IDLE_MS = 10_000;
 
 export function deriveCurrentSimulation({ persisted = {}, intervalKey, occupants = [], createPlan }) {
   const ids = new Set(occupants.map((item) => item.profile.id));
@@ -18,9 +20,20 @@ export function interruptMePlan(plan, profileId, { destination, now = Date.now()
   return {
     ...plan,
     id: `${plan?.id || "scene"}:manual:${now}`,
-    characters: { ...(plan?.characters || {}), [profileId]: { activity: "walking", label, destination, startsAt: now, endsAt: now + 120_000, priority: "manual" } },
+    characters: { ...(plan?.characters || {}), [profileId]: { activity: "walking", label, destination, startsAt: now, endsAt: now + ME_MANUAL_IDLE_MS, priority: "manual" } },
     conversation: participants.length >= 2 ? { ...plan.conversation, participantIds: participants } : null,
   };
+}
+
+export function resumeMeAutonomy({ plan, meId, autonomousActivity, now = Date.now() }) {
+  return { ...plan, id: `${plan?.id || "scene"}:resume:${now}`, characters: { ...(plan?.characters || {}), [meId]: autonomousActivity } };
+}
+
+export function getRuntimeConversationParticipants(occupants = [], participantIds = []) {
+  const assignedIds = new Set(occupants.map((item) => item.profile.id));
+  const distinctIds = getDistinctConversationIds(participantIds, assignedIds);
+  if (distinctIds.length < 2) return [];
+  return distinctIds.map((id) => occupants.find((item) => item.profile.id === id)).filter(Boolean);
 }
 
 export function useOfficeSimulation({ occupants, simulation, dispatch, companyName = "office", projectContext = "", sceneRef, now, showNotice }) {
@@ -30,6 +43,9 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
   const [turnIndex, setTurnIndex] = useState(0);
   const timers = useRef(new Map());
   const planRun = useRef(0);
+  const manualTimer = useRef(null);
+  const manualRun = useRef(0);
+  const me = occupants.find((item) => item.profile.source === "me");
   const key = `${getOfficeIntervalKey(new Date(now))}:${simulation.mode}:${occupants.map((item) => `${item.slotId}:${item.profile.id}`).join("|")}`;
 
   const clearTimers = () => {
@@ -37,13 +53,19 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     timers.current.clear();
   };
 
-  useEffect(() => () => { planRun.current += 1; clearTimers(); }, []);
+  useEffect(() => () => {
+    planRun.current += 1;
+    manualRun.current += 1;
+    clearTimers();
+    window.clearTimeout(manualTimer.current);
+  }, []);
 
   useEffect(() => {
     const intervalKey = getOfficeIntervalKey(new Date(now));
     const seed = simulation.seed || createOfficeDailySeed(new Date(now), companyName);
     const createPlan = () => allocateOfficeActivities(createLocalOfficePlan({ occupants, now: new Date(now), seed, projectContext, previousPlan: simulation.plan }), occupants);
-    const localPlan = deriveCurrentSimulation({ persisted: simulation, intervalKey, occupants, createPlan });
+    let localPlan = deriveCurrentSimulation({ persisted: simulation, intervalKey, occupants, createPlan });
+    if (simulation.manualMe && me && Number(simulation.manualMe.endsAt) > now) localPlan = { ...localPlan, id: `${localPlan.id}:manual-restored`, characters: { ...localPlan.characters, [me.profile.id]: simulation.manualMe } };
     setPlan(localPlan);
     dispatch({ type: "SET_SCENE_PLAN", value: { dateKey: seed.split(":").at(-1), seed, intervalKey, plan: localPlan, nextTransitionAt: localPlan.endsAt } });
     if (simulation.mode !== "ai" || occupants.length === 0) return undefined;
@@ -59,6 +81,26 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
       .catch(() => { if (!cancelled) showNotice("AI 导演暂不可用，已使用本地调度"); });
     return () => { cancelled = true; };
   }, [key]);
+
+  useEffect(() => {
+    window.clearTimeout(manualTimer.current);
+    const run = manualRun.current + 1;
+    manualRun.current = run;
+    if (!simulation.manualMe || !me) return undefined;
+    const resume = () => {
+      if (manualRun.current !== run) return;
+      const resumedAt = Date.now();
+      const seed = simulation.seed || createOfficeDailySeed(new Date(resumedAt), companyName);
+      const freshPlan = allocateOfficeActivities(createLocalOfficePlan({ occupants, now: new Date(resumedAt), seed, projectContext, previousPlan: plan }), occupants);
+      const autonomousActivity = freshPlan.characters[me.profile.id];
+      dispatch({ type: "END_MANUAL_ME" });
+      if (autonomousActivity) setPlan((current) => resumeMeAutonomy({ plan: current || freshPlan, meId: me.profile.id, autonomousActivity, now: resumedAt }));
+    };
+    const remaining = Number(simulation.manualMe.endsAt) - Date.now();
+    if (remaining <= 0) resume();
+    else manualTimer.current = window.setTimeout(resume, remaining);
+    return () => window.clearTimeout(manualTimer.current);
+  }, [simulation.manualMe?.endsAt, me?.profile.id]);
 
   useEffect(() => {
     if (!plan) return;
@@ -95,9 +137,8 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
   useEffect(() => {
     setConversation(null);
     setTurnIndex(0);
-    const participantIds = plan?.conversation?.participantIds || [];
-    if (participantIds.length < 2) return undefined;
-    const participants = occupants.filter((item) => participantIds.includes(item.profile.id));
+    const participants = getRuntimeConversationParticipants(occupants, plan?.conversation?.participantIds || []);
+    if (participants.length < 2) return undefined;
     const context = { participants, projectContext, now };
     const fallback = createLocalConversation(context);
     setConversation(fallback);
@@ -116,7 +157,6 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
   }, [conversation, turnIndex]);
 
   const commandMe = (target) => {
-    const me = occupants.find((item) => item.profile.source === "me");
     if (!me) return showNotice("请先在员工管理中安排“我 APP”的角色");
     if (!getOfficePoint(target.destination)) return showNotice("这里暂时没有可通行的路线");
     const next = interruptMePlan(plan, me.profile.id, { destination: target.destination, now: Date.now(), label: target.message || "前往指定位置" });

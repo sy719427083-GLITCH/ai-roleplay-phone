@@ -47,3 +47,9 @@ test("updates mode and caps cached dialogue", () => {
   assert.equal(state.simulation.conversationCache.turns.length, 6);
   assert.ok(state.simulation.conversationCache.turns.every((turn) => turn.text.length <= 42));
 });
+
+test("restores manual Me only before its ten-second expiry", () => {
+  const raw = JSON.stringify({ simulation: { manualMe: { activity: "walking", endsAt: 12_000 } } });
+  assert.equal(restoreOfficeState(raw, profiles, 11_999).simulation.manualMe.endsAt, 12_000);
+  assert.equal(restoreOfficeState(raw, profiles, 12_000).simulation.manualMe, null);
+});

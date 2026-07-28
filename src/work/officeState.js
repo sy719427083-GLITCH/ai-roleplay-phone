@@ -12,7 +12,7 @@ function sanitizeConversation(value) {
   return { ...value, turns: (Array.isArray(value.turns) ? value.turns : []).slice(0, 6).map((turn) => ({ speakerId: String(turn?.speakerId || ""), text: String(turn?.text || "").slice(0, 42) })).filter((turn) => turn.speakerId && turn.text) };
 }
 
-function restoreSimulation(value = {}) {
+function restoreSimulation(value = {}, now = Date.now()) {
   return {
     ...createSimulationState(),
     mode: value.mode === "ai" ? "ai" : "local",
@@ -22,7 +22,7 @@ function restoreSimulation(value = {}) {
     plan: value.plan && typeof value.plan === "object" ? value.plan : null,
     nextTransitionAt: Number.isFinite(Number(value.nextTransitionAt)) ? Number(value.nextTransitionAt) : 0,
     conversationCache: sanitizeConversation(value.conversationCache),
-    manualMe: value.manualMe && Number(value.manualMe.endsAt) > Date.now() ? value.manualMe : null,
+    manualMe: value.manualMe && Number(value.manualMe.endsAt) > now ? value.manualMe : null,
   };
 }
 
@@ -39,7 +39,7 @@ export const createOfficeState = (profiles = []) => ({
   simulation: createSimulationState(),
 });
 
-export function restoreOfficeState(raw, profiles) {
+export function restoreOfficeState(raw, profiles, now = Date.now()) {
   let parsed = {};
   try { parsed = JSON.parse(raw || "{}"); } catch { parsed = {}; }
   return {
@@ -47,7 +47,7 @@ export function restoreOfficeState(raw, profiles) {
     assignments: normalizeAssignments(parsed.assignments, profiles),
     avatarOverrides: parsed.avatarOverrides && typeof parsed.avatarOverrides === "object" && !Array.isArray(parsed.avatarOverrides) ? parsed.avatarOverrides : {},
     meWaypoint: restoreWaypoint(parsed.meWaypoint),
-    simulation: restoreSimulation(parsed.simulation),
+    simulation: restoreSimulation(parsed.simulation, now),
   };
 }
 
