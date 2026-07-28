@@ -68,6 +68,31 @@ function profilePrompt(profile) {
   return { id: profile.id, name: profile.name, identity: context.identity || profile.identity || "", personality: profile.personality || "", persona: context.persona || profile.persona || "", relations: context.relationshipSummary || "" };
 }
 
+function selectedMainEndpoint(apiState = {}) {
+  return apiState.mainConfigs?.find((item) => item.id === apiState.selectedMainId) || apiState.mainDraft || null;
+}
+
+function requireMainEndpoint(apiState) {
+  const endpoint = selectedMainEndpoint(apiState);
+  if (!endpoint?.apiKey?.trim()) throw new Error("主 API 未填写 API Key");
+  if (!endpoint?.baseUrl?.trim()) throw new Error("主 API 未填写 Base URL");
+  if (!(endpoint.model || endpoint.customModel)?.trim()) throw new Error("主 API 未选择模型");
+  return endpoint;
+}
+
+export function formatOfficeAiError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (/401|403/.test(message)) return "API Key 无效或没有访问权限";
+  if (/404/.test(message)) return "接口地址不兼容，请检查 Base URL";
+  if (/429/.test(message)) return "请求过于频繁或额度不足";
+  if (["AbortError", "TimeoutError"].includes(error?.name) || /timeout|超时/i.test(message)) return "请求超时，请检查网络或接口速度";
+  if (/JSON|scene plan|办公室聊天至少需要/.test(message)) return "API 返回的办公室场景格式不正确";
+  if (/主 API/.test(message)) return message;
+  const status = message.match(/请求失败（(\d+)）/)?.[1];
+  if (status) return `API 请求失败（${status}）`;
+  return "网络请求失败，请检查接口地址、跨域设置或网络状态";
+}
+
 export async function generateOfficeConversation({ apiState, context, fetchImpl = fetch }) {
   const profiles = participantProfiles(context.participants);
   const content = await requestWithFailover(apiState, [
@@ -89,8 +114,20 @@ export function parseAiOfficePlan(content, { occupants = [], now = Date.now() } 
 export async function generateAiOfficePlan({ apiState, context, fetchImpl = fetch }) {
   const profiles = participantProfiles(context.occupants);
   const content = await requestWithFailover(apiState, [
-    { role: "system", content: "你是办公室场景导演。只返回 JSON scene plan。活动仅可用 working,reporting,printing,chatting,resting,gaming,scrolling,slacking,offDuty；目的地仅使用用户提供的ID；打印机最多一人；聊天2到4人。" },
+    { role: "system", content: "你是办公室场景导演。只返回 JSON，不要解释或 Markdown。顶层结构必须是 {\"id\":\"scene-id\",\"startsAt\":数字,\"endsAt\":数字,\"characters\":{\"人物ID\":{\"activity\":\"working\",\"label\":\"工作中\",\"destination\":\"目的地ID\",\"startsAt\":数字,\"endsAt\":数字}},\"conversation\":null}。characters 必须包含用户提供的每个人物ID。活动仅可用 working,reporting,printing,chatting,resting,gaming,scrolling,slacking,offDuty；目的地仅使用用户提供的ID；打印机最多一人；聊天时 conversation 使用 {\"id\":\"chat-id\",\"participantIds\":[\"人物ID\"],\"turns\":[],\"startsAt\":数字,\"endsAt\":数字} 且必须有2到4名不同人物；不聊天时 conversation 必须为 null。" },
     { role: "user", content: JSON.stringify({ profiles: profiles.map(profilePrompt), destinations: context.destinations, startsAt: context.now, endsAt: context.endsAt, project: context.projectContext || "" }) },
   ], fetchImpl);
   return parseAiOfficePlan(content, context);
+}
+
+export async function testOfficeAiDirector({ apiState, fetchImpl = fetch, now = Date.now() }) {
+  const endpoint = requireMainEndpoint(apiState);
+  const mainOnlyState = { ...apiState, mainConfigs: [endpoint], selectedMainId: endpoint.id, mainDraft: endpoint, secondaryEnabled: false };
+  const occupant = { slotId: "boss", profile: { id: "office-api-test", name: "测试角色", personality: "认真负责" } };
+  await generateAiOfficePlan({
+    apiState: mainOnlyState,
+    context: { occupants: [occupant], now, endsAt: now + 900_000, projectContext: "连接测试", destinations: ["boss-home"] },
+    fetchImpl,
+  });
+  return { source: "main", model: (endpoint.model || endpoint.customModel).trim() };
 }
