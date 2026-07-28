@@ -103,6 +103,16 @@ test("work screen runs autonomous office simulation and mode settings", () => {
   assert.match(screen, /characterStates/);
 });
 
+test("simulation enforces distinct chatters and a resettable ten-second Me timer", () => {
+  const simulation = readFileSync("src/work/useOfficeSimulation.js", "utf8");
+  assert.match(simulation, /getRuntimeConversationParticipants/);
+  assert.match(simulation, /ME_MANUAL_IDLE_MS\s*=\s*10_000/);
+  assert.match(simulation, /manualRun/);
+  assert.match(simulation, /manualTimer/);
+  assert.match(simulation, /END_MANUAL_ME/);
+  assert.match(simulation, /clearTimeout\(manualTimer\.current\)/);
+});
+
 test("characters render activity below avatars and bubbles above them", () => {
   const character = readFileSync("src/work/OfficeCharacter.jsx", "utf8");
   const scene = readFileSync("src/work/OfficeScene.jsx", "utf8");

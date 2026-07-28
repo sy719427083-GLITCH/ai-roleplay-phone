@@ -90,7 +90,9 @@ try {
       localStorage.setItem("apiMeProfiles", JSON.stringify({ qaMe: { name: "测试我", avatar: "" } }));
       localStorage.setItem("apiCharacters", JSON.stringify(Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`qa${index + 1}`, { name: `测试角色${index + 1}`, type: index > 3 ? "npc" : "main", personality: index % 2 ? "开朗健谈，喜欢游戏" : "认真负责，擅长报表", persona: index === 4 ? "喜欢刷抖音" : "办公室同事", avatar: "" }]))));
       localStorage.setItem("ccatWorkCompanyV1", JSON.stringify({ version: 1, prefix: "测试", fullName: "测试有限公司", createdAt: "2026-07-28T00:00:00.000Z" }));
-      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify({ version: 2, assignments: { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: "character:qa3", employee4: "character:qa4", employee5: "character:qa5", employee6: "character:qa6" }, avatarOverrides: {}, meWaypoint: "boss-home", simulation: { mode: "local", plan: null } }));
+      if (!localStorage.getItem("ccatWorkOfficeV1")) {
+        localStorage.setItem("ccatWorkOfficeV1", JSON.stringify({ version: 2, assignments: { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: "character:qa3", employee4: "character:qa4", employee5: "character:qa5", employee6: "character:qa6" }, avatarOverrides: {}, meWaypoint: "boss-home", simulation: { mode: "local", plan: null } }));
+      }
       localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
         projects: Array.from({ length: 5 }, (_, index) => ({
           id: `qa-${index + 1}`,
@@ -136,10 +138,20 @@ try {
     const bossDeskVisibleTop = bossDeskBox.y + (bossDeskBox.height * 67 / 480);
     assert.ok(avatarBodyBox.y + avatarBodyBox.height <= bossDeskVisibleTop, "boss avatar remains visible behind the desk art");
     const before = await readCharacterAnchor(meCharacter);
-    const atEmployeeSix = await walkWithoutCrossingFurniture(page, meCharacter, "员工桌 6", ["老板桌", "员工桌 6"]);
-    assert.notDeepEqual({ x: atEmployeeSix.x, y: atEmployeeSix.y }, { x: before.x, y: before.y });
-    const atTea = await walkWithoutCrossingFurniture(page, meCharacter, "智能打印资料区", ["员工桌 6", "智能打印资料区"]);
-    assert.notDeepEqual({ x: atTea.x, y: atTea.y }, { x: atEmployeeSix.x, y: atEmployeeSix.y });
+    await page.getByRole("button", { name: "员工桌 6" }).click();
+    await page.waitForTimeout(1200);
+    const afterManualClick = await readCharacterAnchor(meCharacter);
+    assert.notDeepEqual({ x: afterManualClick.x, y: afterManualClick.y }, { x: before.x, y: before.y }, "manual click starts movement before autonomy resumes");
+    await page.getByRole("button", { name: "老板桌" }).click();
+    await page.waitForFunction(() => Boolean(JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe));
+    const firstManualEndsAt = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe.endsAt);
+    await page.waitForTimeout(1000);
+    await page.getByRole("button", { name: "员工桌 1" }).click();
+    await page.waitForFunction((endsAt) => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe?.endsAt > endsAt, firstManualEndsAt);
+    const secondManualEndsAt = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe.endsAt);
+    assert.ok(secondManualEndsAt >= firstManualEndsAt + 900, "latest furniture click resets the full ten-second window");
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe === null, null, { timeout: 12000 });
+    assert.doesNotMatch(await meCharacter.locator(".office-character-activity").innerText(), /前往指定位置/);
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
     await page.waitForTimeout(50);
     await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
@@ -157,6 +169,21 @@ try {
     await page.getByRole("radio", { name: /B AI 导演/ }).click();
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByText("AI 导演暂不可用，已使用本地调度", { exact: true }).waitFor();
+    await page.evaluate(() => {
+      const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
+      office.assignments = { boss: "me:qaMe", employee1: null, employee2: null, employee3: null, employee4: null, employee5: null, employee6: null };
+      office.simulation = { ...office.simulation, mode: "local", intervalKey: "", plan: null, conversationCache: { participantIds: ["me:qaMe"], turns: [{ speakerId: "me:qaMe", text: "我一个人说话" }] }, manualMe: null };
+      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify(office));
+      location.href = "about:blank";
+    });
+    await page.waitForURL("about:blank");
+    await page.goto(url);
+    await page.getByRole("button", { name: "上划解锁" }).click();
+    await page.getByRole("button", { name: "工作" }).click();
+    await page.locator(".office-character").first().waitFor();
+    assert.equal(await page.locator(".office-character").count(), 1);
+    await page.waitForTimeout(7000);
+    assert.equal(await page.locator(".office-character-bubble").count(), 0, "one-person office never displays a chat bubble");
     await context.close();
   }
   await browser.close();
