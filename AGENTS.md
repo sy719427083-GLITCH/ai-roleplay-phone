@@ -15,3 +15,12 @@ When implementing from a selected generated mock, treat that image as the source
 - No chairs, carpet, or floor grid. Visible office props remain individually clickable and provide subtle press feedback.
 - Keep the tea counter at the approved compact `54% × 16%` size and right alignment; its current vertical position is `top: 9%`. This narrower footprint lets it sit lower without covering the centered boss avatar at `y: 24%`.
 - Same-column walking between the purple and green desks and between the yellow and orange desks must leave from behind the upper desk and go around its side; never use a direct vertical segment through either desk PNG.
+
+## Work APP autonomous office behavior (2026-07-28)
+
+- All assigned Me, Character, and NPC profiles participate in a shared real-time office timeline. Closing the Work APP must not freeze the simulation; reopening derives the current scene directly without replaying missed events or making hidden API calls.
+- Work Settings exposes two selectable modes: A uses a deterministic local scheduler and calls AI only when a conversation starts; B asks AI for bounded scene plans. A is the default and fallback when B is unavailable or returns invalid data.
+- Behavior is driven by current China time, weekday/weekend rhythm, profile identity, personality, persona/background, and known relationships. The Me profile follows the same autonomous system, but a user furniture click interrupts it immediately and has the highest priority.
+- Supported visible states include walking, working, making reports, printing, chatting, resting, gaming, scrolling Douyin, slacking, and off duty. Keep `摸鱼ing` and `刷抖音` as separate activities and separate display labels; never merge them into one phrase.
+- Show the current activity below each character. During a 2-4 person conversation, show short alternating speech bubbles above participants whose content fits their personas, relationships, current time, and project context.
+- Route every activity through collision-safe points. Characters must not overlap furniture or each other; the print station has one active user and a queue/waiting rule, and mobile scenes should visually emphasize at most one conversation group at a time.
