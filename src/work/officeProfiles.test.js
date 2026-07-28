@@ -38,3 +38,16 @@ test("excludes profiles assigned to another slot", () => {
   const profiles = [{ id: "me:me1" }, { id: "character:c1" }];
   assert.deepEqual(getAvailableProfiles(profiles, { boss: "me:me1", employee1: null }, "employee1").map((item) => item.id), ["character:c1"]);
 });
+
+test("profiles include persona-aware office context", () => {
+  const storage = {
+    getItem(key) {
+      if (key === "apiCharacters") return JSON.stringify({ c1: { name: "林序", personality: "认真自律" } });
+      if (key === "apiRelations") return JSON.stringify({ c1: { c2: { label: "同事" } } });
+      return "{}";
+    },
+  };
+  const [profile] = readOfficeProfiles(storage);
+  assert.ok(profile.officeContext.affinities.focus > 0.5);
+  assert.match(profile.officeContext.relationshipSummary, /同事/);
+});
