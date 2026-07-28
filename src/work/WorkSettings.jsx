@@ -2,10 +2,26 @@ import { useState } from "react";
 import { Bot, ChevronLeft, Database, Sparkles, Trash2, X } from "lucide-react";
 import { clearWorkCache } from "./workCache.js";
 
-export function WorkSettings({ simulationMode = "local", onSimulationModeChange = () => {}, onBack, onCleared }) {
+export function WorkSettings({ simulationMode = "local", onSimulationModeChange = () => {}, onTestAiDirector = async () => {}, onBack, onCleared }) {
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
+  const [testingAi, setTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState(null);
+
+  const runAiTest = async () => {
+    if (testingAi) return;
+    setTestingAi(true);
+    setAiTestResult(null);
+    try {
+      await onTestAiDirector();
+      setAiTestResult({ tone: "ok", text: "AI 导演连接成功，可以使用。" });
+    } catch (testError) {
+      setAiTestResult({ tone: "error", text: testError instanceof Error ? testError.message : "AI 导演测试失败" });
+    } finally {
+      setTestingAi(false);
+    }
+  };
 
   const confirmClear = () => {
     if (clearing) return;
@@ -49,6 +65,18 @@ export function WorkSettings({ simulationMode = "local", onSimulationModeChange 
             </button>
           </div>
           <p className="work-mode-note">AI 不可用时自动使用本地调度</p>
+          <div className="work-ai-test-panel">
+            <div>
+              <strong>连接诊断</strong>
+              <small>使用当前主 API 测试真实办公室场景</small>
+            </div>
+            <button className="work-ai-test-button" type="button" onClick={runAiTest} disabled={testingAi}>
+              <Bot size={17} />
+              {testingAi ? "测试中…" : "测试 AI 导演"}
+            </button>
+            {aiTestResult?.tone === "ok" && <p className="work-ai-test-result is-ok" role="status">{aiTestResult.text}</p>}
+            {aiTestResult?.tone === "error" && <p className="work-ai-test-result is-error" role="alert">{aiTestResult.text}</p>}
+          </div>
         </section>
         <section className="work-settings-section">
           <span className="work-settings-icon"><Database size={22} /></span>

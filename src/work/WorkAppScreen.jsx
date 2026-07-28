@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ChevronLeft, Ellipsis, FolderKanban, Timer, UsersRound } from "lucide-react";
+import { parseConfigs, STORAGE_KEY } from "../apiConfig.js";
 import { addWalletIncomeOnce } from "../walletStore.js";
 import { EmployeeManager } from "./EmployeeManager.jsx";
 import { OfficeScene } from "./OfficeScene.jsx";
@@ -7,6 +8,7 @@ import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
 import { WorkSettings } from "./WorkSettings.jsx";
+import { formatOfficeAiError, testOfficeAiDirector } from "./officeConversation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
 import {
@@ -97,6 +99,15 @@ export function WorkAppScreen({ onClose }) {
     return nextCompany;
   };
 
+  const testAiDirector = async () => {
+    const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+    try {
+      return await testOfficeAiDirector({ apiState });
+    } catch (testError) {
+      throw new Error(formatOfficeAiError(testError));
+    }
+  };
+
   if (!company) {
     return (
       <WorkCompanyOnboarding
@@ -108,7 +119,7 @@ export function WorkAppScreen({ onClose }) {
   }
 
   if (view === "settings") {
-    return <WorkSettings simulationMode={state.simulation.mode} onSimulationModeChange={(mode) => dispatch({ type: "SET_SIMULATION_MODE", mode })} onBack={() => setView("office")} onCleared={onClose} />;
+    return <WorkSettings simulationMode={state.simulation.mode} onSimulationModeChange={(mode) => dispatch({ type: "SET_SIMULATION_MODE", mode })} onTestAiDirector={testAiDirector} onBack={() => setView("office")} onCleared={onClose} />;
   }
 
   if (view === "projects") {

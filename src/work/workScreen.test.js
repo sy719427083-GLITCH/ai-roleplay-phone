@@ -103,6 +103,21 @@ test("work screen runs autonomous office simulation and mode settings", () => {
   assert.match(screen, /characterStates/);
 });
 
+test("work settings tests the real main AI director endpoint", () => {
+  const settings = readFileSync("src/work/WorkSettings.jsx", "utf8");
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const styles = readFileSync("src/work/office.css", "utf8");
+  assert.match(settings, /测试 AI 导演/);
+  assert.match(settings, /测试中…/);
+  assert.match(settings, /AI 导演连接成功，可以使用。/);
+  assert.match(settings, /role="status"/);
+  assert.match(settings, /role="alert"/);
+  assert.match(screen, /testOfficeAiDirector/);
+  assert.match(screen, /formatOfficeAiError/);
+  assert.match(screen, /parseConfigs/);
+  assert.match(styles, /\.work-ai-test-button\s*\{[^}]*min-height:\s*44px/s);
+});
+
 test("simulation enforces distinct chatters and a resettable ten-second Me timer", () => {
   const simulation = readFileSync("src/work/useOfficeSimulation.js", "utf8");
   assert.match(simulation, /getRuntimeConversationParticipants/);
