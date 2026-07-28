@@ -7,8 +7,6 @@ import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
 import { WorkSettings } from "./WorkSettings.jsx";
-import { getOfficePoint } from "./officeGeometry.js";
-import { createOfficeRoute } from "./officeNavigation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
 import {
@@ -24,6 +22,7 @@ import {
   serializeWorkProjectState,
 } from "./workProjectState.js";
 import { createProjectRewardId, deriveProjectTimer } from "./workProjectTimer.js";
+import { useOfficeSimulation } from "./useOfficeSimulation.js";
 import "./office.css";
 
 const VIEW_TITLES = { settings: "工作设置", timer: "项目倒计时", employees: "员工管理" };
@@ -40,16 +39,12 @@ export function WorkAppScreen({ onClose }) {
   const [claiming, setClaiming] = useState(false);
   const [rewardError, setRewardError] = useState("");
   const sceneRef = useRef(null);
-  const movementTimer = useRef(null);
-  const movementRun = useRef(0);
   const noticeTimer = useRef(null);
-  const [meMovement, setMeMovement] = useState({ point: getOfficePoint(state.meWaypoint), moving: false, facing: "right", durationMs: 0 });
 
   const occupants = useMemo(() => Object.entries(state.assignments).flatMap(([slotId, profileId]) => {
     const profile = profileMap.get(profileId);
     return profile ? [{ slotId, profile, avatar: resolveOfficeAvatar(profile, state.avatarOverrides) }] : [];
   }), [profileMap, state.assignments, state.avatarOverrides]);
-  const meOccupant = occupants.find((item) => item.profile.source === "me");
   const projectTimer = deriveProjectTimer(projectState, now);
 
   useEffect(() => {
@@ -66,19 +61,8 @@ export function WorkAppScreen({ onClose }) {
   }, []);
 
   useEffect(() => () => {
-    movementRun.current += 1;
-    window.clearTimeout(movementTimer.current);
     window.clearTimeout(noticeTimer.current);
   }, []);
-
-  useEffect(() => {
-    if (!meOccupant) return;
-    const home = `${meOccupant.slotId}-home`;
-    movementRun.current += 1;
-    window.clearTimeout(movementTimer.current);
-    setMeMovement({ point: getOfficePoint(home), moving: false, facing: "right", durationMs: 0 });
-    dispatch({ type: "SET_WAYPOINT", waypoint: home });
-  }, [meOccupant?.profile.id, meOccupant?.slotId]);
 
   const showNotice = (text, durationMs = 2200) => {
     setNotice(text);
@@ -86,40 +70,7 @@ export function WorkAppScreen({ onClose }) {
     noticeTimer.current = window.setTimeout(() => setNotice(""), durationMs);
   };
 
-  const moveMe = (target) => {
-    if (!meOccupant) return showNotice("请先在员工管理中安排“我 APP”的角色");
-    if (meMovement.moving) return;
-    const bounds = sceneRef.current?.getBoundingClientRect();
-    if (!bounds) return showNotice("办公室路线暂时不可用");
-    const route = createOfficeRoute({
-      from: meMovement.point,
-      destination: target.destination,
-      viewport: { width: bounds.width, height: bounds.height },
-    });
-    if (!route.length) {
-      const point = getOfficePoint(target.destination);
-      const alreadyThere = point && point.x === meMovement.point.x && point.y === meMovement.point.y;
-      if (!alreadyThere) showNotice("这里暂时没有可通行的路线");
-      else if (target.message) showNotice(target.message, 2000);
-      return;
-    }
-    window.clearTimeout(movementTimer.current);
-    const run = movementRun.current + 1;
-    movementRun.current = run;
-    const advance = () => {
-      if (movementRun.current !== run) return;
-      const segment = route.shift();
-      if (!segment) {
-        setMeMovement((value) => ({ ...value, moving: false, durationMs: 0 }));
-        dispatch({ type: "SET_WAYPOINT", waypoint: target.destination });
-        if (target.message) showNotice(target.message, 2000);
-        return;
-      }
-      setMeMovement({ point: segment.point, moving: true, facing: segment.facing, durationMs: segment.durationMs });
-      movementTimer.current = window.setTimeout(advance, segment.durationMs);
-    };
-    advance();
-  };
+  const { characterStates, activeConversation, commandMe } = useOfficeSimulation({ occupants, simulation: state.simulation, dispatch, companyName: company?.name, projectContext: projectTimer.project?.name || "", sceneRef, now, showNotice });
 
   const claimReward = () => {
     if (claiming || projectTimer.status !== "finished") return;
@@ -157,7 +108,7 @@ export function WorkAppScreen({ onClose }) {
   }
 
   if (view === "settings") {
-    return <WorkSettings onBack={() => setView("office")} onCleared={onClose} />;
+    return <WorkSettings simulationMode={state.simulation.mode} onSimulationModeChange={(mode) => dispatch({ type: "SET_SIMULATION_MODE", mode })} onBack={() => setView("office")} onCleared={onClose} />;
   }
 
   if (view === "projects") {
@@ -203,8 +154,9 @@ export function WorkAppScreen({ onClose }) {
       <OfficeScene
         sceneRef={sceneRef}
         occupants={occupants}
-        meMovement={meMovement}
-        onObjectClick={moveMe}
+        characterStates={characterStates}
+        activeConversation={activeConversation}
+        onObjectClick={commandMe}
       />
       <nav className="work-bottom-nav" aria-label="工作导航">
         <button className="nav-projects" type="button" onClick={() => setView("projects")}><FolderKanban size={24} /><span>项目管理</span></button>

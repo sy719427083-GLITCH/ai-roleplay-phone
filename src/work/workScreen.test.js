@@ -42,12 +42,13 @@ test("office screen uses full-bleed floating controls", () => {
   assert.doesNotMatch(styles, /\.office-object\.door|\.left-door|\.right-top-door|\.right-mid-door/);
 });
 
-test("office screen measures the scene and advances timed A star segments", () => {
+test("office screen delegates timed A star segments to the simulation hook", () => {
   const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const simulation = readFileSync("src/work/useOfficeSimulation.js", "utf8");
   const scene = readFileSync("src/work/OfficeScene.jsx", "utf8");
   assert.match(screen, /sceneRef/);
-  assert.match(screen, /createOfficeRoute/);
-  assert.match(screen, /durationMs/);
+  assert.match(simulation, /createOfficeRoute/);
+  assert.match(simulation, /durationMs/);
   assert.doesNotMatch(screen, /430/);
   assert.match(scene, /getOfficePoint/);
   assert.doesNotMatch(scene, /OFFICE_NODES/);
@@ -88,8 +89,16 @@ test("office has no breakroom entry or scene switching", () => {
 
 test("scene targets carry their approved arrival messages", () => {
   const officeScene = readFileSync("src/work/OfficeScene.jsx", "utf8");
-  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  const screen = readFileSync("src/work/useOfficeSimulation.js", "utf8");
   assert.match(officeScene, /onObjectClick\(item\)/);
   assert.match(screen, /target\.message/);
   assert.match(screen, /window\.setTimeout\(.*2000/s);
+});
+
+test("work screen runs autonomous office simulation and mode settings", () => {
+  const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  assert.match(screen, /useOfficeSimulation/);
+  assert.match(screen, /simulationMode/);
+  assert.match(screen, /onSimulationModeChange/);
+  assert.match(screen, /characterStates/);
 });
