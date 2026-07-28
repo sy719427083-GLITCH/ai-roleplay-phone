@@ -66,7 +66,7 @@ test("derives responsive visible furniture bounds and keeps destinations travers
 });
 
 test("keeps shared activity points outside furniture at mobile sizes", () => {
-  const ids = ["social-left", "social-center", "social-right", "rest-left", "rest-right", "play-left", "play-right", "print-wait", "off-duty"];
+  const ids = ["social-left", "social-center", "social-right", "chat-1", "chat-2", "chat-3", "chat-4", "rest-left", "rest-right", "play-left", "play-right", "print-wait", "off-duty"];
   for (const viewport of [{ width: 375, height: 812 }, { width: 390, height: 844 }]) {
     const { obstacles } = getOfficeGeometry(viewport);
     for (const id of ids) {
