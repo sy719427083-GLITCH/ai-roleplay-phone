@@ -1,7 +1,7 @@
 export function OfficeCharacter({ profile, avatar, node, facing = "right", moving = false, durationMs = 700, activity = "working", label = "工作中", bubble = "" }) {
   return (
     <div
-      className={`office-character ${moving ? "is-moving" : "is-active"}`}
+      className={`office-character ${moving ? "is-moving" : "is-active"} ${bubble ? "has-bubble" : ""}`}
       data-facing={facing}
       data-activity={activity}
       data-profile-id={profile.id}

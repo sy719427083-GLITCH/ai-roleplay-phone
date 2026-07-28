@@ -110,6 +110,7 @@ test("characters render activity below avatars and bubbles above them", () => {
   assert.match(character, /office-character-bubble/);
   assert.match(character, /office-character-activity/);
   assert.match(character, /role="status"/);
+  assert.match(character, /has-bubble/);
   assert.match(scene, /characterStates/);
   assert.match(styles, /\.office-character-bubble\s*\{[^}]*max-width:/s);
   assert.match(styles, /\.office-character-activity\s*\{[^}]*text-overflow:\s*ellipsis/s);
