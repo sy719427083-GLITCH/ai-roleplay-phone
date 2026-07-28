@@ -345,6 +345,14 @@
 .work-settings-section p { margin: 0; color: var(--work-muted); font-size: 12px; line-height: 1.55; }
 .work-settings-clear { grid-column: 1/-1; display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(198,68,68,.32); border-radius: 15px; background: #fff7f7; color: #ba3d3d; font-weight: 800; }
 .work-settings-error { grid-column: 1/-1; color: #bd3d3d !important; }
+.work-settings-content { display: grid; gap: 14px; }
+.work-mode-options { grid-column: 1/-1; display: grid; gap: 10px; }
+.work-mode-option { display: flex; min-height: 52px; width: 100%; align-items: center; gap: 11px; padding: 11px 13px; border: 1px solid rgba(107,133,177,.18); border-radius: 16px; background: #fff; color: #46516a; text-align: left; }
+.work-mode-option span { display: grid; gap: 3px; }
+.work-mode-option strong { font-size: 13px; }
+.work-mode-option small { color: var(--work-muted); font-size: 11px; }
+.work-mode-option.is-selected { border-color: #7798d8; background: #f4f7ff; color: #315fba; box-shadow: 0 8px 22px rgba(78,111,177,.1); }
+.work-mode-note { grid-column: 1/-1; padding-left: 2px; }
 .work-cache-confirm-backdrop { position: fixed; inset: 0; z-index: 130; display: grid; place-items: end center; background: rgba(31,44,70,.34); padding: 16px 16px calc(16px + env(safe-area-inset-bottom,0px)); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .work-cache-confirm { position: relative; width: min(100%,430px); border: 1px solid rgba(255,255,255,.8); border-radius: 26px; background: #fff; padding: 27px 22px 20px; box-shadow: 0 28px 70px rgba(30,46,75,.24); }
 .work-cache-confirm h2 { margin: 0 42px 9px 0; font-family: Georgia,"Songti SC",serif; font-size: 23px; }

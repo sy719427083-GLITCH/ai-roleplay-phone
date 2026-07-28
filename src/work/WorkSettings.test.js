@@ -25,3 +25,11 @@ test("settings explains and confirms the Work-only reset", () => {
   assert.match(styles, /\.work-settings-clear\s*\{[^}]*min-height:\s*48px/s);
   assert.match(styles, /\.work-cache-confirm-action\s*\{[^}]*min-height:\s*48px/s);
 });
+
+test("settings exposes accessible local and AI director modes", () => {
+  for (const text of ["自主行为模式", "A 本地调度（推荐）", "B AI 导演", "AI 不可用时自动使用本地调度"]) assert.match(source, new RegExp(text));
+  assert.match(source, /role="radiogroup"/);
+  assert.match(source, /role="radio"/);
+  assert.match(source, /aria-checked=/);
+  assert.match(styles, /\.work-mode-option\s*\{[^}]*min-height:\s*52px/s);
+});

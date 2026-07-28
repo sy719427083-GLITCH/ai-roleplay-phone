@@ -31,3 +31,19 @@ test("persists named destinations but rejects removed fixed-route aisles", () =>
   assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "tea-counter" }), profiles).meWaypoint, "print-station");
   assert.equal(restoreOfficeState(JSON.stringify({ meWaypoint: "aisle-center" }), profiles).meWaypoint, "boss-home");
 });
+
+test("migrates version one state to local autonomous scheduling", () => {
+  const state = restoreOfficeState(JSON.stringify({ version: 1, assignments: {}, meWaypoint: "boss-home" }), profiles);
+  assert.equal(state.version, 2);
+  assert.equal(state.simulation.mode, "local");
+  assert.equal(state.simulation.plan, null);
+});
+
+test("updates mode and caps cached dialogue", () => {
+  let state = createOfficeState(profiles);
+  state = officeReducer(state, { type: "SET_SIMULATION_MODE", mode: "ai" });
+  assert.equal(state.simulation.mode, "ai");
+  state = officeReducer(state, { type: "CACHE_CONVERSATION", conversation: { turns: Array.from({ length: 10 }, (_, index) => ({ speakerId: "c", text: `第${index}句`.repeat(30) })) } });
+  assert.equal(state.simulation.conversationCache.turns.length, 6);
+  assert.ok(state.simulation.conversationCache.turns.every((turn) => turn.text.length <= 42));
+});
