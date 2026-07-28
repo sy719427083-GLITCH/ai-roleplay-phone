@@ -64,3 +64,14 @@ test("derives responsive visible furniture bounds and keeps destinations travers
   assert.deepEqual(getOfficePoint("employee6-home"), { x: 78, y: 72 });
   assert.equal(getOfficePoint("missing"), null);
 });
+
+test("keeps shared activity points outside furniture at mobile sizes", () => {
+  const ids = ["social-left", "social-center", "social-right", "rest-left", "rest-right", "play-left", "play-right", "print-wait", "off-duty"];
+  for (const viewport of [{ width: 375, height: 812 }, { width: 390, height: 844 }]) {
+    const { obstacles } = getOfficeGeometry(viewport);
+    for (const id of ids) {
+      const point = getOfficePoint(id);
+      assert.ok(obstacles.every((item) => point.x < item.left || point.x > item.right || point.y < item.top || point.y > item.bottom), `${id} overlaps at ${viewport.width}`);
+    }
+  }
+});

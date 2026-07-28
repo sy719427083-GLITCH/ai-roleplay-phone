@@ -14,6 +14,18 @@ export const OFFICE_INTERACTION_POINTS = Object.freeze({
   "print-station": Object.freeze({ x: 93, y: 31 }),
 });
 
+export const OFFICE_ACTIVITY_POINTS = Object.freeze({
+  "social-left": Object.freeze({ x: 30, y: 84 }),
+  "social-center": Object.freeze({ x: 50, y: 84 }),
+  "social-right": Object.freeze({ x: 70, y: 84 }),
+  "rest-left": Object.freeze({ x: 7, y: 34 }),
+  "rest-right": Object.freeze({ x: 93, y: 34 }),
+  "play-left": Object.freeze({ x: 22, y: 86 }),
+  "play-right": Object.freeze({ x: 78, y: 86 }),
+  "print-wait": Object.freeze({ x: 47, y: 22 }),
+  "off-duty": Object.freeze({ x: 50, y: 89 }),
+});
+
 export const OFFICE_LAYOUT = Object.freeze({
   boss: Object.freeze({
     top: 23,
@@ -147,7 +159,7 @@ function getPrintStationObstacle(viewport) {
 }
 
 export function getOfficePoint(id) {
-  return OFFICE_HOME_POINTS[id] ?? OFFICE_INTERACTION_POINTS[id] ?? null;
+  return OFFICE_HOME_POINTS[id] ?? OFFICE_INTERACTION_POINTS[id] ?? OFFICE_ACTIVITY_POINTS[id] ?? null;
 }
 
 export function getOfficeGeometry(viewport) {
@@ -162,5 +174,6 @@ export function getOfficeGeometry(viewport) {
     ],
     homePoints: OFFICE_HOME_POINTS,
     interactionPoints: OFFICE_INTERACTION_POINTS,
+    activityPoints: OFFICE_ACTIVITY_POINTS,
   };
 }
