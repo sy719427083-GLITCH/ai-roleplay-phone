@@ -1,5 +1,5 @@
 import { selectWorkProjectEndpoints } from "./workProjectApi.js";
-import { validateOfficeScenePlan } from "./officeScenePlan.js";
+import { getDistinctConversationIds, validateOfficeScenePlan } from "./officeScenePlan.js";
 
 function stripJson(content) {
   const text = String(content || "").trim();
@@ -18,8 +18,9 @@ export function parseOfficeConversation(content, participants, { now = Date.now(
     .map((turn) => ({ speakerId: turn?.speakerId, text: cleanLine(turn?.text) }))
     .filter((turn) => known.has(turn.speakerId) && turn.text)
     .slice(0, 6);
-  if (turns.length < 2) throw new Error("AI 没有返回可用的办公室对话");
-  return { id: `chat:${now}`, participantIds: [...new Set(turns.map((turn) => turn.speakerId))].slice(0, 4), turns, startsAt: now, endsAt: now + Math.max(30_000, turns.length * 6_000) };
+  const participantIds = getDistinctConversationIds(turns.map((turn) => turn.speakerId), known);
+  if (participantIds.length < 2) throw new Error("办公室聊天至少需要两名人物");
+  return { id: `chat:${now}`, participantIds, turns, startsAt: now, endsAt: now + Math.max(30_000, turns.length * 6_000) };
 }
 
 export function createLocalConversation({ participants = [], projectContext = "当前项目", now = Date.now() } = {}) {

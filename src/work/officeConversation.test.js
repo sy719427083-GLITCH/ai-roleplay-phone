@@ -16,6 +16,14 @@ test("parses bounded turns from known participants", () => {
   assert.deepEqual(plan.turns.map((turn) => turn.speakerId), ["character:c1", "character:c2"]);
 });
 
+test("rejects two AI turns from one speaker", () => {
+  const content = JSON.stringify({ turns: [
+    { speakerId: "character:c1", text: "我先核一下。" },
+    { speakerId: "character:c1", text: "已经核完了。" },
+  ] });
+  assert.throws(() => parseOfficeConversation(content, participants, { now: 1_000 }), /至少需要两名人物/);
+});
+
 test("creates persona-aware local fallback dialogue", () => {
   const plan = createLocalConversation({ participants, projectContext: "品牌改版", now: 1000 });
   assert.ok(plan.turns.length >= 2);

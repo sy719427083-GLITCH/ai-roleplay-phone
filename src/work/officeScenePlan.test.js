@@ -24,3 +24,13 @@ test("rejects unknown profiles, activities, and destinations", () => {
   assert.match(result.issues.join(" "), /activity/);
   assert.match(result.issues.join(" "), /destination/);
 });
+
+test("rejects duplicate-only conversation participants", () => {
+  const plan = { characters: {
+    c1: { activity: "chatting", destination: "chat-1", startsAt: 1, endsAt: 5 },
+    c2: { activity: "chatting", destination: "chat-2", startsAt: 1, endsAt: 5 },
+  }, conversation: { participantIds: ["c1", "c1"] } };
+  const result = validateOfficeScenePlan(plan, { profileIds: new Set(["c1", "c2"]), now: 1 });
+  assert.equal(result.valid, false);
+  assert.match(result.issues.join(" "), /conversation/);
+});
