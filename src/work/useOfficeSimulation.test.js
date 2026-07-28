@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { ME_MANUAL_IDLE_MS, deriveCurrentSimulation, getRuntimeConversationParticipants, interruptMePlan, resumeMeAutonomy } from "./useOfficeSimulation.js";
 
 const occupants = [{ slotId: "boss", profile: { id: "me:m1" } }, { slotId: "employee1", profile: { id: "character:c1" } }];
@@ -34,4 +35,11 @@ test("resume replaces only Me manual activity", () => {
 test("runtime conversation requires two distinct assigned profiles", () => {
   assert.deepEqual(getRuntimeConversationParticipants(occupants, ["me:m1", "me:m1"]), []);
   assert.deepEqual(getRuntimeConversationParticipants(occupants, ["me:m1", "character:c1"]).map((item) => item.profile.id), ["me:m1", "character:c1"]);
+});
+
+test("automatic AI fallback keeps the concrete failure reason", () => {
+  const source = readFileSync("src/work/useOfficeSimulation.js", "utf8");
+  assert.match(source, /formatOfficeAiError/);
+  assert.match(source, /AI 导演暂不可用：\$\{reason\}。已使用本地调度/);
+  assert.doesNotMatch(source, /\.catch\(\(\) =>/);
 });

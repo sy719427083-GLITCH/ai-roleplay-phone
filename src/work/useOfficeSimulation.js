@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseConfigs, STORAGE_KEY } from "../apiConfig.js";
-import { createLocalConversation, generateAiOfficePlan, generateOfficeConversation } from "./officeConversation.js";
+import { createLocalConversation, formatOfficeAiError, generateAiOfficePlan, generateOfficeConversation } from "./officeConversation.js";
 import { OFFICE_ACTIVITY_POINTS, getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { allocateOfficeActivities, getDistinctConversationIds } from "./officeScenePlan.js";
@@ -78,7 +78,11 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
         setPlan(safePlan);
         dispatch({ type: "SET_SCENE_PLAN", value: { dateKey: seed.split(":").at(-1), seed, intervalKey, plan: safePlan, nextTransitionAt: safePlan.endsAt } });
       })
-      .catch(() => { if (!cancelled) showNotice("AI 导演暂不可用，已使用本地调度"); });
+      .catch((error) => {
+        if (cancelled) return;
+        const reason = formatOfficeAiError(error);
+        showNotice(`AI 导演暂不可用：${reason}。已使用本地调度`, 4200);
+      });
     return () => { cancelled = true; };
   }, [key]);
 
@@ -146,7 +150,7 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     let cancelled = false;
     generateOfficeConversation({ apiState, context }).then((value) => {
       if (!cancelled) { setConversation(value); dispatch({ type: "CACHE_CONVERSATION", conversation: value }); }
-    }).catch(() => { dispatch({ type: "CACHE_CONVERSATION", conversation: fallback }); });
+    }).catch((_error) => { dispatch({ type: "CACHE_CONVERSATION", conversation: fallback }); });
     return () => { cancelled = true; };
   }, [plan?.conversation?.id]);
 

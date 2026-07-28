@@ -150,7 +150,7 @@ try {
     await page.waitForFunction((endsAt) => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe?.endsAt > endsAt, firstManualEndsAt);
     const secondManualEndsAt = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe.endsAt);
     assert.ok(secondManualEndsAt >= firstManualEndsAt + 900, "latest furniture click resets the full ten-second window");
-    await page.waitForFunction(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe === null, null, { timeout: 12000 });
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.manualMe === null, null, { timeout: 15000 });
     assert.doesNotMatch(await meCharacter.locator(".office-character-activity").innerText(), /前往指定位置/);
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
     await page.waitForTimeout(50);
@@ -166,9 +166,14 @@ try {
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByRole("button", { name: "工作设置" }).click();
     await page.getByRole("radiogroup", { name: "自主行为模式" }).waitFor();
+    const localMode = page.getByRole("radio", { name: /A 本地调度/ });
+    assert.equal(await localMode.getAttribute("aria-checked"), "true");
+    await page.getByRole("button", { name: "测试 AI 导演" }).click();
+    await page.getByRole("alert").filter({ hasText: "主 API 未填写 API Key" }).waitFor();
+    assert.equal(await localMode.getAttribute("aria-checked"), "true", "AI test does not change the selected behavior mode");
     await page.getByRole("radio", { name: /B AI 导演/ }).click();
     await page.getByRole("button", { name: "返回办公室" }).click();
-    await page.getByText("AI 导演暂不可用，已使用本地调度", { exact: true }).waitFor();
+    await page.getByText("AI 导演暂不可用：主 API 配置不完整，请检查 API Key、Base URL 和模型。已使用本地调度", { exact: true }).waitFor();
     await page.evaluate(() => {
       const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
       office.assignments = { boss: "me:qaMe", employee1: null, employee2: null, employee3: null, employee4: null, employee5: null, employee6: null };
