@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalConversation, formatOfficeAiError, generateOfficeConversation, parseAiOfficePlan, parseOfficeConversation, testOfficeAiDirector } from "./officeConversation.js";
+import { OFFICE_CONVERSATION_TIMEOUT_MS, OFFICE_SCENE_TIMEOUT_MS, buildOfficeAiContext, createLocalConversation, formatOfficeAiError, generateOfficeConversation, parseAiOfficePlan, parseOfficeConversation, testOfficeAiDirector } from "./officeConversation.js";
 
 const participants = [
   { profile: { id: "character:c1", name: "林序", personality: "认真", officeContext: { identity: "财务", persona: "严谨", relationshipSummary: "与周夏是好友" } } },
@@ -45,30 +45,52 @@ test("uses configured endpoint and returns normalized conversation", async () =>
   assert.equal(result.turns.length, 2);
 });
 
-test("tests the selected main endpoint with the real office scene contract", async () => {
-  const calls = [];
-  const result = await testOfficeAiDirector({
-    apiState: mainApiState,
-    now: 1_000,
-    fetchImpl: async (url, options) => {
-      calls.push({ url, options });
-      return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
-        id: "test-plan",
-        startsAt: 1_000,
-        endsAt: 901_000,
-        characters: { "office-api-test": { activity: "working", label: "工作中", destination: "boss-home", startsAt: 1_000, endsAt: 901_000 } },
-        conversation: null,
-      }) } }] }) };
-    },
-  });
+test("builds the same full context for testing and live AI direction", () => {
+  const occupants = [
+    { slotId: "boss", profile: { id: "me:m1", name: "我" } },
+    { slotId: "employee1", profile: { id: "character:c1", name: "甲" } },
+    { slotId: "employee2", profile: { id: "character:c2", name: "乙" } },
+  ];
+  const context = buildOfficeAiContext({ occupants, now: 1_000, endsAt: 901_000, projectContext: "品牌项目" });
+  assert.deepEqual(context.occupants, occupants);
+  assert.equal(context.projectContext, "品牌项目");
+  assert.ok(context.destinations.includes("boss-home"));
+  assert.ok(context.destinations.includes("employee1-home"));
+  assert.equal(OFFICE_SCENE_TIMEOUT_MS, 30_000);
+  assert.equal(OFFICE_CONVERSATION_TIMEOUT_MS, 12_000);
+});
+
+test("realistic AI test sends every current occupant and rejects an empty office", async () => {
+  const occupants = [
+    { slotId: "boss", profile: { id: "character:c1", name: "林序" } },
+    { slotId: "employee1", profile: { id: "character:c2", name: "周夏" } },
+  ];
+  const context = buildOfficeAiContext({ occupants, now: 1_000, endsAt: 901_000, projectContext: "品牌项目" });
+  let request;
+  const result = await testOfficeAiDirector({ apiState: mainApiState, context, fetchImpl: async (url, options) => {
+    request = { url, body: JSON.parse(options.body) };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+      id: "realistic-test", startsAt: 1_000, endsAt: 901_000,
+      characters: {
+        "character:c1": { activity: "working", label: "工作中", destination: "boss-home", startsAt: 1_000, endsAt: 901_000 },
+        "character:c2": { activity: "reporting", label: "做报表", destination: "employee1-home", startsAt: 1_000, endsAt: 901_000 },
+      },
+      conversation: null,
+    }) } }] }) };
+  } });
   assert.deepEqual(result, { source: "main", model: "model" });
-  assert.equal(calls[0].url, "https://example.com/v1/chat/completions");
-  assert.equal(JSON.parse(calls[0].options.body).model, "model");
+  assert.equal(request.url, "https://example.com/v1/chat/completions");
+  assert.deepEqual(JSON.parse(request.body.messages[1].content).profiles.map((item) => item.id), ["character:c1", "character:c2"]);
+  await assert.rejects(
+    testOfficeAiDirector({ apiState: mainApiState, context: buildOfficeAiContext({ occupants: [], now: 1_000, endsAt: 901_000 }), fetchImpl: async () => assert.fail("must not request") }),
+    /至少一名人物/,
+  );
 });
 
 test("reports missing main fields before requesting", async () => {
+  const context = buildOfficeAiContext({ occupants: [{ slotId: "boss", profile: { id: "character:c1" } }], now: 1_000, endsAt: 901_000 });
   await assert.rejects(
-    testOfficeAiDirector({ apiState: { ...mainApiState, mainConfigs: [{ ...mainApiState.mainConfigs[0], model: "" }], mainDraft: {} }, fetchImpl: async () => assert.fail("must not request") }),
+    testOfficeAiDirector({ apiState: { ...mainApiState, mainConfigs: [{ ...mainApiState.mainConfigs[0], model: "" }], mainDraft: {} }, context, fetchImpl: async () => assert.fail("must not request") }),
     /主 API 未选择模型/,
   );
 });

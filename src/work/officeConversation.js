@@ -1,5 +1,9 @@
 import { selectWorkProjectEndpoints } from "./workProjectApi.js";
+import { OFFICE_ACTIVITY_POINTS } from "./officeGeometry.js";
 import { getDistinctConversationIds, validateOfficeScenePlan } from "./officeScenePlan.js";
+
+export const OFFICE_SCENE_TIMEOUT_MS = 30_000;
+export const OFFICE_CONVERSATION_TIMEOUT_MS = 12_000;
 
 function stripJson(content) {
   const text = String(content || "").trim();
@@ -40,25 +44,25 @@ function completionUrl(baseUrl) {
   return `${base.endsWith("/v1") ? base : `${base}/v1`}/chat/completions`;
 }
 
-async function requestJson(candidate, messages, fetchImpl) {
+async function requestJson(candidate, messages, fetchImpl, timeoutMs) {
   const endpoint = candidate.endpoint;
   const response = await fetchImpl(completionUrl(endpoint.baseUrl), {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${endpoint.apiKey.trim()}` },
     body: JSON.stringify({ model: (endpoint.model || endpoint.customModel).trim(), temperature: Math.min(1, Number(endpoint.temperature ?? .7)), messages }),
-    signal: typeof AbortSignal?.timeout === "function" ? AbortSignal.timeout(12_000) : undefined,
+    signal: typeof AbortSignal?.timeout === "function" ? AbortSignal.timeout(timeoutMs) : undefined,
   });
   if (!response.ok) throw new Error(`请求失败（${response.status}）`);
   const data = await response.json();
   return data?.choices?.[0]?.message?.content;
 }
 
-async function requestWithFailover(apiState, messages, fetchImpl) {
+async function requestWithFailover(apiState, messages, fetchImpl, timeoutMs) {
   const candidates = selectWorkProjectEndpoints(apiState);
   if (!candidates.length) throw new Error("请先配置可用 API");
   let lastError;
   for (const candidate of candidates) {
-    try { return await requestJson(candidate, messages, fetchImpl); } catch (error) { lastError = error; }
+    try { return await requestJson(candidate, messages, fetchImpl, timeoutMs); } catch (error) { lastError = error; }
   }
   throw lastError || new Error("AI 请求失败");
 }
@@ -66,6 +70,20 @@ async function requestWithFailover(apiState, messages, fetchImpl) {
 function profilePrompt(profile) {
   const context = profile.officeContext || {};
   return { id: profile.id, name: profile.name, identity: context.identity || profile.identity || "", personality: profile.personality || "", persona: context.persona || profile.persona || "", relations: context.relationshipSummary || "" };
+}
+
+export function buildOfficeAiContext({ occupants = [], now = Date.now(), endsAt = now + 900_000, projectContext = "" } = {}) {
+  return {
+    occupants,
+    now,
+    endsAt,
+    projectContext,
+    destinations: [...new Set([
+      ...Object.keys(OFFICE_ACTIVITY_POINTS),
+      ...occupants.map((item) => `${item.slotId}-home`),
+      "print-station",
+    ])],
+  };
 }
 
 function selectedMainEndpoint(apiState = {}) {
@@ -99,7 +117,7 @@ export async function generateOfficeConversation({ apiState, context, fetchImpl 
   const content = await requestWithFailover(apiState, [
     { role: "system", content: "你在扮演办公室角色。只返回 JSON：{\"turns\":[{\"speakerId\":\"已知ID\",\"text\":\"自然中文短句\"}]}。仅使用已知ID，2到6句，每句不超过42字，不写旁白，内容符合人设、关系、时间和项目。" },
     { role: "user", content: JSON.stringify({ participants: profiles.map(profilePrompt), project: context.projectContext || "", time: new Date(context.now || Date.now()).toISOString() }) },
-  ], fetchImpl);
+  ], fetchImpl, OFFICE_CONVERSATION_TIMEOUT_MS);
   return parseOfficeConversation(content, profiles, { now: context.now });
 }
 
@@ -117,18 +135,14 @@ export async function generateAiOfficePlan({ apiState, context, fetchImpl = fetc
   const content = await requestWithFailover(apiState, [
     { role: "system", content: "你是办公室场景导演。只返回 JSON，不要解释或 Markdown。顶层结构必须是 {\"id\":\"scene-id\",\"startsAt\":数字,\"endsAt\":数字,\"characters\":{\"人物ID\":{\"activity\":\"working\",\"label\":\"工作中\",\"destination\":\"目的地ID\",\"startsAt\":数字,\"endsAt\":数字}},\"conversation\":null}。characters 必须包含用户提供的每个人物ID。活动仅可用 working,reporting,printing,chatting,resting,gaming,scrolling,slacking,offDuty；目的地仅使用用户提供的ID；打印机最多一人；聊天时 conversation 使用 {\"id\":\"chat-id\",\"participantIds\":[\"人物ID\"],\"turns\":[],\"startsAt\":数字,\"endsAt\":数字} 且必须有2到4名不同人物；不聊天时 conversation 必须为 null。" },
     { role: "user", content: JSON.stringify({ profiles: profiles.map(profilePrompt), destinations: context.destinations, startsAt: context.now, endsAt: context.endsAt, project: context.projectContext || "" }) },
-  ], fetchImpl);
+  ], fetchImpl, OFFICE_SCENE_TIMEOUT_MS);
   return parseAiOfficePlan(content, context);
 }
 
-export async function testOfficeAiDirector({ apiState, fetchImpl = fetch, now = Date.now() }) {
+export async function testOfficeAiDirector({ apiState, context, fetchImpl = fetch }) {
+  if (!context?.occupants?.length) throw new Error("请先在员工管理中安排至少一名人物");
   const endpoint = requireMainEndpoint(apiState);
   const mainOnlyState = { ...apiState, mainConfigs: [endpoint], selectedMainId: endpoint.id, mainDraft: endpoint, secondaryEnabled: false };
-  const occupant = { slotId: "boss", profile: { id: "office-api-test", name: "测试角色", personality: "认真负责" } };
-  await generateAiOfficePlan({
-    apiState: mainOnlyState,
-    context: { occupants: [occupant], now, endsAt: now + 900_000, projectContext: "连接测试", destinations: ["boss-home"] },
-    fetchImpl,
-  });
+  await generateAiOfficePlan({ apiState: mainOnlyState, context, fetchImpl });
   return { source: "main", model: (endpoint.model || endpoint.customModel).trim() };
 }

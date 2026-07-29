@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseConfigs, STORAGE_KEY } from "../apiConfig.js";
-import { createLocalConversation, formatOfficeAiError, generateAiOfficePlan, generateOfficeConversation } from "./officeConversation.js";
-import { OFFICE_ACTIVITY_POINTS, getOfficePoint } from "./officeGeometry.js";
+import { buildOfficeAiContext, createLocalConversation, formatOfficeAiError, generateAiOfficePlan, generateOfficeConversation } from "./officeConversation.js";
+import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
 import { allocateOfficeActivities, getDistinctConversationIds } from "./officeScenePlan.js";
 import { createLocalOfficePlan, createOfficeDailySeed, getOfficeIntervalKey } from "./officeSimulation.js";
@@ -71,7 +71,7 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     if (simulation.mode !== "ai" || occupants.length === 0) return undefined;
     let cancelled = false;
     const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
-    generateAiOfficePlan({ apiState, context: { occupants, now, endsAt: localPlan.endsAt, projectContext, destinations: [...Object.keys(OFFICE_ACTIVITY_POINTS), ...occupants.map((item) => `${item.slotId}-home`), "print-station"] } })
+    generateAiOfficePlan({ apiState, context: buildOfficeAiContext({ occupants, now, endsAt: localPlan.endsAt, projectContext }) })
       .then((aiPlan) => {
         if (cancelled) return;
         const safePlan = allocateOfficeActivities(aiPlan, occupants);

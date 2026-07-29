@@ -39,6 +39,7 @@ test("runtime conversation requires two distinct assigned profiles", () => {
 
 test("automatic AI fallback keeps the concrete failure reason", () => {
   const source = readFileSync("src/work/useOfficeSimulation.js", "utf8");
+  assert.match(source, /buildOfficeAiContext/);
   assert.match(source, /formatOfficeAiError/);
   assert.match(source, /AI 导演暂不可用：\$\{reason\}。已使用本地调度/);
   assert.doesNotMatch(source, /\.catch\(\(\) =>/);
