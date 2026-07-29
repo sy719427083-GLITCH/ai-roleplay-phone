@@ -14,9 +14,9 @@ test("opens the restored Work office from the launcher", () => {
   assert.match(workStyles, /\.work-office-shell/);
 });
 
-test("publishes the 0.3.23 release markers", () => {
-  assert.equal(packageJson.version, "0.3.23");
-  assert.match(app, /worldbook-assets\/\$\{fileName\}\?v=0\.3\.23/);
-  assert.match(app, /Ccat OS V0\.3\.23/);
-  assert.match(styles, /worldbook-assets\/hero-worldbook-atlas\.png\?v=0\.3\.23/);
+test("publishes the 0.3.24 release markers", () => {
+  assert.equal(packageJson.version, "0.3.24");
+  assert.match(app, /worldbook-assets\/\$\{fileName\}\?v=0\.3\.24/);
+  assert.match(app, /Ccat OS V0\.3\.24/);
+  assert.match(styles, /worldbook-assets\/hero-worldbook-atlas\.png\?v=0\.3\.24/);
 });
