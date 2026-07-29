@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { allocateOfficeActivities } from "./officeScenePlan.js";
 import { ME_MANUAL_IDLE_MS, deriveCurrentSimulation, getRuntimeConversationParticipants, interruptMePlan, releaseOfficeConversationPlan, resumeMeAutonomy } from "./useOfficeSimulation.js";
 
 const occupants = [{ slotId: "boss", profile: { id: "me:m1" } }, { slotId: "employee1", profile: { id: "character:c1" } }];
@@ -21,6 +22,40 @@ test("manual Me interruption releases chat and applies priority", () => {
   assert.equal(next.characters["me:m1"].destination, "print-station");
   assert.equal(ME_MANUAL_IDLE_MS, 10_000);
   assert.equal(next.characters["me:m1"].endsAt, 12_000);
+});
+
+test("a restored stale chat is normalized before runtime movement", () => {
+  const soloOccupants = [{ slotId: "boss", profile: { id: "me:1" } }];
+  const persistedPlan = {
+    characters: { "me:1": { activity: "chatting", label: "聊天中", destination: "social-center" } },
+    conversation: { id: "stale", participantIds: ["missing", "me:1"] },
+  };
+  const restored = deriveCurrentSimulation({
+    persisted: { intervalKey: "same", plan: persistedPlan },
+    intervalKey: "same",
+    occupants: soloOccupants,
+    createPlan: () => assert.fail("matching interval should reuse the saved plan"),
+  });
+  const safe = allocateOfficeActivities(restored, soloOccupants);
+  assert.equal(safe.conversation, null);
+  assert.equal(safe.characters["me:1"].activity, "working");
+  assert.equal(safe.characters["me:1"].destination, "boss-home");
+});
+
+test("manual Me interruption cannot leave the other participant chatting alone", () => {
+  const plan = {
+    id: "group",
+    characters: {
+      "me:m1": { activity: "chatting", label: "聊天中", destination: "boss-home" },
+      "character:c1": { activity: "chatting", label: "聊天中", destination: "employee1-home" },
+    },
+    conversation: { id: "chat", participantIds: ["me:m1", "character:c1"] },
+  };
+  const interrupted = interruptMePlan(plan, "me:m1", { destination: "print-station", now: 100 });
+  const safe = allocateOfficeActivities(interrupted, occupants);
+  assert.equal(safe.conversation, null);
+  assert.equal(safe.characters["character:c1"].activity, "working");
+  assert.equal(safe.characters["character:c1"].destination, "employee1-home");
 });
 
 test("resume replaces only Me manual activity", () => {

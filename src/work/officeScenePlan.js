@@ -26,6 +26,31 @@ export function validateOfficeScenePlan(plan, { profileIds = new Set(), now = Da
   return { valid: issues.length === 0, plan, issues };
 }
 
+export function normalizeOfficeConversation(plan, occupants = []) {
+  const next = {
+    ...plan,
+    characters: Object.fromEntries(Object.entries(plan?.characters || {}).map(([id, item]) => [id, { ...item }])),
+  };
+  const assignedIds = new Set(occupants.map((occupant) => occupant.profile.id));
+  const participantIds = getDistinctConversationIds(next.conversation?.participantIds || [], assignedIds);
+  const hasConversation = Boolean(next.conversation) && participantIds.length >= 2;
+  next.conversation = hasConversation ? { ...next.conversation, participantIds } : null;
+  const activeChatters = new Set(hasConversation ? participantIds : []);
+  for (const occupant of occupants) {
+    const profileId = occupant.profile.id;
+    const activity = next.characters[profileId];
+    if (activity?.activity === "chatting" && !activeChatters.has(profileId)) {
+      next.characters[profileId] = {
+        ...activity,
+        activity: "working",
+        label: "工作中",
+        destination: `${occupant.slotId}-home`,
+      };
+    }
+  }
+  return next;
+}
+
 export function allocateOfficeActivities(plan, occupants = []) {
   const next = { ...plan, characters: Object.fromEntries(Object.entries(plan?.characters || {}).map(([id, item]) => [id, { ...item }])) };
   let printerTaken = false;
@@ -42,6 +67,5 @@ export function allocateOfficeActivities(plan, occupants = []) {
       printerTaken = true;
     }
   }
-  if (next.conversation?.participantIds?.length > 4) next.conversation = { ...next.conversation, participantIds: next.conversation.participantIds.slice(0, 4) };
-  return next;
+  return normalizeOfficeConversation(next, occupants);
 }

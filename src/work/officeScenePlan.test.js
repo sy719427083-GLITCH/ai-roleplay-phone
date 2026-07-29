@@ -41,6 +41,51 @@ test("normalizes AI desk activities without changing their metadata", () => {
   assert.deepEqual({ ...result.characters.c3, destination: "social-center" }, plan.characters.c3);
 });
 
+test("turns an orphaned chatting activity into work at the assigned workstation", () => {
+  const plan = {
+    id: "solo",
+    characters: {
+      c1: { activity: "chatting", label: "聊天中", destination: "social-center", startsAt: 10, endsAt: 20, priority: "scheduled" },
+    },
+    conversation: null,
+  };
+  const result = allocateOfficeActivities(plan, [{ slotId: "employee3", profile: { id: "c1" } }]);
+  assert.deepEqual(result.characters.c1, {
+    activity: "working", label: "工作中", destination: "employee3-home", startsAt: 10, endsAt: 20, priority: "scheduled",
+  });
+  assert.equal(result.conversation, null);
+});
+
+test("removes stale participants instead of moving one remaining person to chat alone", () => {
+  const plan = {
+    id: "stale",
+    characters: {
+      c1: { activity: "chatting", label: "聊天中", destination: "social-left", startsAt: 10, endsAt: 20 },
+    },
+    conversation: { id: "stale-chat", participantIds: ["missing", "c1", "c1"], turns: [], startsAt: 10, endsAt: 20 },
+  };
+  const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }]);
+  assert.equal(result.conversation, null);
+  assert.deepEqual(result.characters.c1, { activity: "working", label: "工作中", destination: "boss-home", startsAt: 10, endsAt: 20 });
+});
+
+test("preserves a valid group and normalizes unrelated chatting characters", () => {
+  const characters = Object.fromEntries(["c1", "c2", "c3"].map((id) => [id, {
+    activity: "chatting", label: "聊天中", destination: "social-center", startsAt: 10, endsAt: 20,
+  }]));
+  const plan = { characters, conversation: { id: "group", participantIds: ["c1", "c2", "c2"], turns: [], startsAt: 10, endsAt: 20 } };
+  const occupants = [
+    { slotId: "boss", profile: { id: "c1" } },
+    { slotId: "employee1", profile: { id: "c2" } },
+    { slotId: "employee2", profile: { id: "c3" } },
+  ];
+  const result = allocateOfficeActivities(plan, occupants);
+  assert.deepEqual(result.conversation.participantIds, ["c1", "c2"]);
+  assert.equal(result.characters.c1.activity, "chatting");
+  assert.equal(result.characters.c2.activity, "chatting");
+  assert.deepEqual(result.characters.c3, { activity: "working", label: "工作中", destination: "employee2-home", startsAt: 10, endsAt: 20 });
+});
+
 test("registers every shared activity point", () => {
   for (const id of ["social-left", "social-center", "social-right", "rest-left", "rest-right", "play-left", "play-right", "print-wait", "off-duty"]) assert.ok(getOfficePoint(id), id);
 });

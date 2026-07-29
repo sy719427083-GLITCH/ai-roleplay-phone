@@ -86,6 +86,7 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     const seed = simulation.seed || createOfficeDailySeed(new Date(now), companyName);
     const createPlan = () => allocateOfficeActivities(createLocalOfficePlan({ occupants, now: new Date(now), seed, projectContext, previousPlan: simulation.plan }), occupants);
     let localPlan = deriveCurrentSimulation({ persisted: simulation, intervalKey, occupants, createPlan });
+    localPlan = allocateOfficeActivities(localPlan, occupants);
     if (simulation.manualMe && me && Number(simulation.manualMe.endsAt) > now) localPlan = { ...localPlan, id: `${localPlan.id}:manual-restored`, characters: { ...localPlan.characters, [me.profile.id]: simulation.manualMe } };
     setPlan(localPlan);
     dispatch({ type: "SET_SCENE_PLAN", value: { dateKey: seed.split(":").at(-1), seed, intervalKey, plan: localPlan, nextTransitionAt: localPlan.endsAt } });
@@ -215,7 +216,10 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
   const commandMe = (target) => {
     if (!me) return showNotice("请先在员工管理中安排“我 APP”的角色");
     if (!getOfficePoint(target.destination)) return showNotice("这里暂时没有可通行的路线");
-    const next = interruptMePlan(plan, me.profile.id, { destination: target.destination, now: Date.now(), label: target.message || "前往指定位置" });
+    const next = allocateOfficeActivities(
+      interruptMePlan(plan, me.profile.id, { destination: target.destination, now: Date.now(), label: target.message || "前往指定位置" }),
+      occupants,
+    );
     dispatch({ type: "START_MANUAL_ME", value: next.characters[me.profile.id] });
     setPlan(next);
     if (target.message) window.setTimeout(() => showNotice(target.message, 2000), 300);

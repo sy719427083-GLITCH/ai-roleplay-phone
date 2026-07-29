@@ -1,4 +1,4 @@
-import { resolveOfficeActivityDestination } from "./officeScenePlan.js";
+import { allocateOfficeActivities, resolveOfficeActivityDestination } from "./officeScenePlan.js";
 
 export const OFFICE_ACTIVITIES = Object.freeze({
   working: { id: "working", label: "工作中", minutes: [12, 35] },
@@ -108,5 +108,6 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
   });
   const chatters = occupants.filter((item) => characters[item.profile.id]?.activity === "chatting").slice(0, 4);
   const conversation = chatters.length >= 2 ? { id: `chat:${intervalKey}`, participantIds: chatters.map((item) => item.profile.id), turns: [], startsAt, endsAt: Math.min(...chatters.map((item) => characters[item.profile.id].endsAt)) } : null;
-  return { id: `local:${intervalKey}`, modeUsed: "local", period, startsAt, endsAt: startsAt + 15 * 60_000, characters, conversation };
+  const plan = { id: `local:${intervalKey}`, modeUsed: "local", period, startsAt, endsAt: startsAt + 15 * 60_000, characters, conversation };
+  return allocateOfficeActivities(plan, occupants);
 }
