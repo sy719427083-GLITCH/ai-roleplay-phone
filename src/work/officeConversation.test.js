@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { OFFICE_CONVERSATION_TIMEOUT_MS, OFFICE_SCENE_TIMEOUT_MS, buildOfficeAiContext, createLocalConversation, formatOfficeAiError, generateOfficeConversation, parseAiOfficePlan, parseOfficeConversation, testOfficeAiDirector } from "./officeConversation.js";
+import { MAX_OFFICE_CONVERSATION_BATCHES, OFFICE_CONVERSATION_TIMEOUT_MS, OFFICE_SCENE_TIMEOUT_MS, buildOfficeAiContext, createLocalConversation, formatOfficeAiError, generateOfficeConversation, normalizeOfficeLine, parseAiOfficePlan, parseOfficeConversation, testOfficeAiDirector } from "./officeConversation.js";
 
 const participants = [
   { profile: { id: "character:c1", name: "林序", personality: "认真", officeContext: { identity: "财务", persona: "严谨", relationshipSummary: "与周夏是好友" } } },
@@ -16,6 +16,46 @@ test("parses bounded turns from known participants", () => {
     { speakerId: "unknown", text: "不应出现" },
   ] }), participants, { now: 1000 });
   assert.deepEqual(plan.turns.map((turn) => turn.speakerId), ["character:c1", "character:c2"]);
+  assert.equal(plan.shouldContinue, false);
+  assert.equal(plan.batchIndex, 1);
+});
+
+test("parses continuation metadata and removes repeated history", () => {
+  const result = parseOfficeConversation(JSON.stringify({
+    shouldContinue: true,
+    turns: [
+      { speakerId: "character:c2", text: "进度不错！" },
+      { speakerId: "character:c2", text: "我继续调整配色。" },
+      { speakerId: "character:c1", text: "我看完再告诉你。" },
+    ],
+  }), participants, {
+    now: 1_000,
+    history: [{ speakerId: "character:c1", text: "进度不错" }],
+    batchIndex: 2,
+  });
+  assert.equal(result.shouldContinue, true);
+  assert.equal(result.batchIndex, 2);
+  assert.deepEqual(result.turns.map((turn) => turn.text), ["我继续调整配色。", "我看完再告诉你。"]);
+  assert.equal(normalizeOfficeLine("进度不错！"), normalizeOfficeLine(" 进度，不错。 "));
+});
+
+test("rejects a batch that continues with the previous speaker", () => {
+  assert.throws(() => parseOfficeConversation(JSON.stringify({
+    shouldContinue: false,
+    turns: [
+      { speakerId: "character:c1", text: "我再补一句。" },
+      { speakerId: "character:c2", text: "可以。" },
+    ],
+  }), participants, { history: [{ speakerId: "character:c1", text: "先这样处理。" }] }), /连续说话/);
+});
+
+test("caps continuation at three batches", () => {
+  const result = parseOfficeConversation(JSON.stringify({ shouldContinue: true, turns: [
+    { speakerId: "character:c1", text: "第三批第一句。" },
+    { speakerId: "character:c2", text: "第三批第二句。" },
+  ] }), participants, { batchIndex: 3 });
+  assert.equal(MAX_OFFICE_CONVERSATION_BATCHES, 3);
+  assert.equal(result.shouldContinue, false);
 });
 
 test("rejects two AI turns from one speaker", () => {
@@ -23,13 +63,16 @@ test("rejects two AI turns from one speaker", () => {
     { speakerId: "character:c1", text: "我先核一下。" },
     { speakerId: "character:c1", text: "已经核完了。" },
   ] });
-  assert.throws(() => parseOfficeConversation(content, participants, { now: 1_000 }), /至少需要两名人物/);
+  assert.throws(() => parseOfficeConversation(content, participants, { now: 1_000 }), /连续说话/);
 });
 
 test("creates persona-aware local fallback dialogue", () => {
   const plan = createLocalConversation({ participants, projectContext: "品牌改版", now: 1000 });
   assert.ok(plan.turns.length >= 2);
   assert.match(plan.turns.map((turn) => turn.text).join(" "), /品牌改版|进度|方案/);
+  assert.equal(plan.shouldContinue, false);
+  const continued = createLocalConversation({ participants, projectContext: "品牌改版", now: 2000, batchIndex: 2, history: plan.turns });
+  assert.equal(continued.turns.some((turn) => plan.turns.some((previous) => normalizeOfficeLine(previous.text) === normalizeOfficeLine(turn.text))), false);
 });
 
 test("rejects unsafe AI scene plans", () => {
@@ -41,8 +84,16 @@ test("rejects unsafe AI scene plans", () => {
 });
 
 test("uses configured endpoint and returns normalized conversation", async () => {
-  const result = await generateOfficeConversation({ apiState: mainApiState, context: { participants, projectContext: "品牌改版", now: 1000 }, fetchImpl: async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"turns":[{"speakerId":"character:c1","text":"进度不错。"},{"speakerId":"character:c2","text":"继续完善方案。"}]}' } }] }) }) });
+  let request;
+  const history = [{ speakerId: "character:c2", text: "先确认方向。" }];
+  const result = await generateOfficeConversation({ apiState: mainApiState, context: { participants, projectContext: "品牌改版", now: 1000, history, batchIndex: 2 }, fetchImpl: async (_url, options) => {
+    request = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '{"shouldContinue":true,"turns":[{"speakerId":"character:c1","text":"进度不错。"},{"speakerId":"character:c2","text":"继续完善方案。"}]}' } }] }) };
+  } });
   assert.equal(result.turns.length, 2);
+  assert.equal(result.shouldContinue, true);
+  assert.deepEqual(JSON.parse(request.messages[1].content).history, history);
+  assert.equal(JSON.parse(request.messages[1].content).batchIndex, 2);
 });
 
 test("builds the same full context for testing and live AI direction", () => {

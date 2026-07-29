@@ -4,6 +4,7 @@ import { getDistinctConversationIds, validateOfficeScenePlan } from "./officeSce
 
 export const OFFICE_SCENE_TIMEOUT_MS = 30_000;
 export const OFFICE_CONVERSATION_TIMEOUT_MS = 12_000;
+export const MAX_OFFICE_CONVERSATION_BATCHES = 3;
 
 function stripJson(content) {
   const text = String(content || "").trim();
@@ -14,29 +15,70 @@ function stripJson(content) {
 const cleanLine = (value) => String(value || "").replace(/[\r\n]+/g, " ").trim().slice(0, 42);
 const participantProfiles = (participants = []) => participants.map((item) => item.profile || item).filter((item) => item?.id);
 
-export function parseOfficeConversation(content, participants, { now = Date.now() } = {}) {
+export function normalizeOfficeLine(value) {
+  return cleanLine(value).toLocaleLowerCase("zh-CN").replace(/[\s，。！？、,.!?：:；;“”‘’（）()\-—]/g, "");
+}
+
+export function parseOfficeConversation(content, participants, { now = Date.now(), history = [], batchIndex = 1 } = {}) {
   const profiles = participantProfiles(participants);
   const known = new Set(profiles.map((item) => item.id));
   const parsed = stripJson(content);
-  const turns = (Array.isArray(parsed.turns) ? parsed.turns : [])
-    .map((turn) => ({ speakerId: turn?.speakerId, text: cleanLine(turn?.text) }))
-    .filter((turn) => known.has(turn.speakerId) && turn.text)
-    .slice(0, 6);
+  const seen = new Set(history.map((turn) => normalizeOfficeLine(turn?.text)).filter(Boolean));
+  const turns = [];
+  let lastSpeakerId = history.at(-1)?.speakerId || "";
+  for (const raw of Array.isArray(parsed.turns) ? parsed.turns : []) {
+    const turn = { speakerId: raw?.speakerId, text: cleanLine(raw?.text) };
+    const key = normalizeOfficeLine(turn.text);
+    if (!known.has(turn.speakerId) || !key || seen.has(key)) continue;
+    if (turn.speakerId === lastSpeakerId) throw new Error("办公室聊天不能由同一人物连续说话");
+    turns.push(turn);
+    seen.add(key);
+    lastSpeakerId = turn.speakerId;
+    if (turns.length === 6) break;
+  }
   const participantIds = getDistinctConversationIds(turns.map((turn) => turn.speakerId), known);
   if (participantIds.length < 2) throw new Error("办公室聊天至少需要两名人物");
-  return { id: `chat:${now}`, participantIds, turns, startsAt: now, endsAt: now + Math.max(30_000, turns.length * 6_000) };
+  return {
+    id: `chat:${now}:${batchIndex}`,
+    participantIds: profiles.map((item) => item.id).slice(0, 4),
+    turns,
+    shouldContinue: Boolean(parsed.shouldContinue) && batchIndex < MAX_OFFICE_CONVERSATION_BATCHES,
+    batchIndex,
+    startsAt: now,
+    endsAt: now + turns.length * 6_500,
+  };
 }
 
-export function createLocalConversation({ participants = [], projectContext = "当前项目", now = Date.now() } = {}) {
+export function createLocalConversation({ participants = [], projectContext = "当前项目", now = Date.now(), history = [], batchIndex = 1 } = {}) {
   const profiles = participantProfiles(participants).slice(0, 4);
   const topic = cleanLine(projectContext) || "当前项目";
+  const seen = new Set(history.map((turn) => normalizeOfficeLine(turn?.text)).filter(Boolean));
   const lines = [
     `刚看了${topic}，进度还顺利吗？`,
     "整体不错，我再把方案细节收一下。",
     "好，等会儿一起确认最后一版。",
-  ];
-  const turns = profiles.length < 2 ? [] : lines.slice(0, Math.min(3, profiles.length + 1)).map((text, index) => ({ speakerId: profiles[index % profiles.length].id, text }));
-  return { id: `local-chat:${now}`, participantIds: profiles.map((item) => item.id), turns, startsAt: now, endsAt: now + Math.max(30_000, turns.length * 6_000) };
+    `我会继续核对${topic}的重点。`,
+    "有需要调整的地方直接告诉我。",
+    "那就先按刚才说的方向推进。",
+    "我整理好以后发给大家确认。",
+    "可以，剩下的细节我们边做边看。",
+  ].filter((text) => !seen.has(normalizeOfficeLine(text)));
+  const desiredCount = Math.min(4, Math.max(2, profiles.length + 1));
+  let speakerIndex = profiles.findIndex((profile) => profile.id === history.at(-1)?.speakerId) + 1;
+  const turns = profiles.length < 2 ? [] : lines.slice(0, desiredCount).map((text) => {
+    const speakerId = profiles[speakerIndex % profiles.length].id;
+    speakerIndex += 1;
+    return { speakerId, text };
+  });
+  return {
+    id: `local-chat:${now}:${batchIndex}`,
+    participantIds: profiles.map((item) => item.id),
+    turns,
+    shouldContinue: false,
+    batchIndex,
+    startsAt: now,
+    endsAt: now + turns.length * 6_500,
+  };
 }
 
 function completionUrl(baseUrl) {
@@ -116,10 +158,10 @@ export function formatOfficeAiError(error) {
 export async function generateOfficeConversation({ apiState, context, fetchImpl = fetch }) {
   const profiles = participantProfiles(context.participants);
   const content = await requestWithFailover(apiState, [
-    { role: "system", content: "你在扮演办公室角色。只返回 JSON：{\"turns\":[{\"speakerId\":\"已知ID\",\"text\":\"自然中文短句\"}]}。仅使用已知ID，2到6句，每句不超过42字，不写旁白，内容符合人设、关系、时间和项目。" },
-    { role: "user", content: JSON.stringify({ participants: profiles.map(profilePrompt), project: context.projectContext || "", time: new Date(context.now || Date.now()).toISOString() }) },
+    { role: "system", content: "你在扮演办公室角色。只返回 JSON：{\"shouldContinue\":布尔值,\"turns\":[{\"speakerId\":\"已知ID\",\"text\":\"自然中文短句\"}]}。仅使用已知ID，2到6句，每句不超过42字，不写旁白；不能复述 history；同一人物不能连续说话；内容符合人设、关系、时间和项目；话题自然结束时 shouldContinue=false。" },
+    { role: "user", content: JSON.stringify({ participants: profiles.map(profilePrompt), project: context.projectContext || "", time: new Date(context.now || Date.now()).toISOString(), history: context.history || [], batchIndex: context.batchIndex || 1 }) },
   ], fetchImpl, OFFICE_CONVERSATION_TIMEOUT_MS);
-  return parseOfficeConversation(content, profiles, { now: context.now });
+  return parseOfficeConversation(content, profiles, context);
 }
 
 export function parseAiOfficePlan(content, { occupants = [], now = Date.now() } = {}) {
