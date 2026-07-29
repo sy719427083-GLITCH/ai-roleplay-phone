@@ -308,8 +308,33 @@ try {
     await page.getByText("AI 导演暂不可用：网络请求失败，请检查接口地址、跨域设置或网络状态。已使用本地调度", { exact: true }).waitFor();
     await page.evaluate(() => {
       const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
+      const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(new Date()).map(({ type, value }) => [type, value]));
+      const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+      const minutes = Number(dateParts.hour) * 60 + Number(dateParts.minute);
+      const intervalKey = `${dateKey}:${String(Math.floor(minutes / 15)).padStart(2, "0")}`;
+      const startsAt = Date.now();
+      const endsAt = startsAt + 120_000;
       office.assignments = { boss: "me:qaMe", employee1: null, employee2: null, employee3: null, employee4: null, employee5: null, employee6: null };
-      office.simulation = { ...office.simulation, mode: "local", intervalKey: "", plan: null, conversationCache: { participantIds: ["me:qaMe"], turns: [{ speakerId: "me:qaMe", text: "我一个人说话" }] }, manualMe: null };
+      office.simulation = {
+        ...office.simulation,
+        mode: "local",
+        dateKey,
+        intervalKey,
+        plan: {
+          id: `qa-stale-solo:${startsAt}`,
+          modeUsed: "local",
+          startsAt,
+          endsAt,
+          characters: {
+            "me:qaMe": { activity: "chatting", label: "聊天中", destination: "social-center", startsAt, endsAt, priority: "scheduled" },
+          },
+          conversation: { id: `qa-stale-chat:${startsAt}`, participantIds: ["missing", "me:qaMe"], turns: [], startsAt, endsAt },
+        },
+        conversationCache: null,
+        manualMe: null,
+      };
       localStorage.setItem("ccatWorkOfficeV1", JSON.stringify(office));
       location.href = "about:blank";
     });
@@ -317,10 +342,22 @@ try {
     await page.goto(url);
     await page.getByRole("button", { name: "上划解锁" }).click();
     await page.getByRole("button", { name: "工作" }).click();
-    await page.locator(".office-character").first().waitFor();
+    const solo = page.locator('.office-character[data-profile-id="me:qaMe"]');
+    await solo.waitFor();
     assert.equal(await page.locator(".office-character").count(), 1);
-    await page.waitForTimeout(7000);
-    assert.equal(await page.locator(".office-character-bubble").count(), 0, "one-person office never displays a chat bubble");
+    await page.waitForFunction(() => {
+      const plan = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"))?.simulation?.plan;
+      return plan?.conversation === null && plan?.characters?.["me:qaMe"]?.activity === "working";
+    });
+    const beforeSolo = await readCharacterAnchor(solo);
+    assert.equal(await solo.getAttribute("data-activity"), "working");
+    assert.equal(await solo.locator(".office-character-activity").innerText(), "工作中");
+    assert.equal(await page.locator(".office-character-bubble").count(), 0);
+    await page.waitForTimeout(2500);
+    const afterSolo = await readCharacterAnchor(solo);
+    assert.ok(Math.abs(afterSolo.x - beforeSolo.x) <= 1 && Math.abs(afterSolo.y - beforeSolo.y) <= 1, "stale solo chatter stays at the boss workstation");
+    assert.equal(await page.locator(".office-character-bubble").count(), 0, "stale solo chat never displays a bubble");
+    await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     await context.close();
   }
   await browser.close();
