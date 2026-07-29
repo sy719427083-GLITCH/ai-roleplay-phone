@@ -12,8 +12,8 @@ export const OBJECT_DESTINATIONS = Object.freeze({
   printStation: "print-station",
 });
 
-export function createOfficeRoute({ from, destination, viewport }) {
-  const goal = getOfficePoint(destination);
+export function createOfficeRoute({ from, destination, destinationPoint, viewport }) {
+  const goal = destinationPoint || getOfficePoint(destination);
   if (!from || !goal || !viewport) return [];
   const geometry = getOfficeGeometry(viewport);
   const path = planOfficePath({ start: from, goal, viewport, obstacles: geometry.obstacles });

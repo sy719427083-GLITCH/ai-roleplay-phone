@@ -46,3 +46,10 @@ test("office declares the clickable smart print station", () => {
 test("returns an empty route for invalid destinations", () => {
   assert.deepEqual(createOfficeRoute({ from: getOfficePoint("boss-home"), destination: "missing", viewport: { width: 390, height: 844 } }), []);
 });
+
+test("routes a guest to a runtime conversation point", () => {
+  const destinationPoint = { x: 59, y: 64 };
+  const route = createOfficeRoute({ from: getOfficePoint("employee1-home"), destinationPoint, viewport: { width: 390, height: 844 } });
+  assert.ok(route.length > 0);
+  assert.deepEqual(route.at(-1).point, destinationPoint);
+});

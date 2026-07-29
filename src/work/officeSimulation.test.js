@@ -33,11 +33,11 @@ test("never creates a solo conversation", () => {
   assert.equal(Object.keys(plan.characters).length, 1);
 });
 
-test("conversation participants gather at distinct nearby chat points", () => {
+test("conversation participants retain normal destinations for runtime gathering", () => {
   let plan;
   for (let index = 0; index < 100 && !plan?.conversation; index += 1) plan = createLocalOfficePlan({ occupants, now: new Date("2026-07-27T04:30:00Z"), seed: `chat-${index}` });
   assert.ok(plan.conversation);
   const destinations = plan.conversation.participantIds.map((id) => plan.characters[id].destination);
-  assert.ok(destinations.every((id) => id.startsWith("chat-")));
-  assert.equal(new Set(destinations).size, destinations.length);
+  assert.ok(destinations.every((id) => !id.startsWith("chat-")));
+  assert.ok(plan.conversation.participantIds.length >= 2 && plan.conversation.participantIds.length <= 4);
 });

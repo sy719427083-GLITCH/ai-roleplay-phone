@@ -105,7 +105,6 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
     };
   });
   const chatters = occupants.filter((item) => characters[item.profile.id]?.activity === "chatting").slice(0, 4);
-  if (chatters.length >= 2) chatters.forEach((item, index) => { characters[item.profile.id] = { ...characters[item.profile.id], destination: `chat-${index + 1}` }; });
   const conversation = chatters.length >= 2 ? { id: `chat:${intervalKey}`, participantIds: chatters.map((item) => item.profile.id), turns: [], startsAt, endsAt: Math.min(...chatters.map((item) => characters[item.profile.id].endsAt)) } : null;
   return { id: `local:${intervalKey}`, modeUsed: "local", period, startsAt, endsAt: startsAt + 15 * 60_000, characters, conversation };
 }
