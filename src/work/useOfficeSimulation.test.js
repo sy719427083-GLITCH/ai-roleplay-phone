@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { ME_MANUAL_IDLE_MS, deriveCurrentSimulation, getRuntimeConversationParticipants, interruptMePlan, resumeMeAutonomy } from "./useOfficeSimulation.js";
+import { ME_MANUAL_IDLE_MS, deriveCurrentSimulation, getRuntimeConversationParticipants, interruptMePlan, releaseOfficeConversationPlan, resumeMeAutonomy } from "./useOfficeSimulation.js";
 
 const occupants = [{ slotId: "boss", profile: { id: "me:m1" } }, { slotId: "employee1", profile: { id: "character:c1" } }];
 
@@ -43,4 +43,30 @@ test("automatic AI fallback keeps the concrete failure reason", () => {
   assert.match(source, /formatOfficeAiError/);
   assert.match(source, /AI 导演暂不可用：\$\{reason\}。已使用本地调度/);
   assert.doesNotMatch(source, /\.catch\(\(\) =>/);
+});
+
+test("simulation delegates finite group chat and runtime gathering", () => {
+  const source = readFileSync("src/work/useOfficeSimulation.js", "utf8");
+  assert.match(source, /createConversationGatherLayout/);
+  assert.match(source, /useOfficeConversation/);
+  assert.match(source, /conversationReadyId/);
+  assert.match(source, /destinationPoint/);
+  assert.match(source, /after-chat/);
+  assert.doesNotMatch(source, /% conversation\.turns\.length/);
+});
+
+test("completed conversations release chatters into non-chat activities", () => {
+  const generatedPlan = {
+    id: "fresh",
+    characters: {
+      "me:m1": { activity: "chatting", label: "聊天中", destination: "social-left" },
+      "character:c1": { activity: "printing", label: "打印中", destination: "print-station" },
+    },
+    conversation: { participantIds: ["me:m1", "character:c1"] },
+  };
+  const released = releaseOfficeConversationPlan({ generatedPlan, occupants, completedAt: 9_000 });
+  assert.equal(released.conversation, null);
+  assert.deepEqual(released.characters["me:m1"], { activity: "working", label: "工作中", destination: "boss-home" });
+  assert.equal(released.characters["character:c1"].activity, "printing");
+  assert.match(released.id, /after-chat:9000/);
 });
