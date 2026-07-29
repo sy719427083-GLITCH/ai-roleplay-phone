@@ -23,6 +23,14 @@ const alphaBounds = {
   tea: [79 / 900, 9 / 520, 820 / 900, 505 / 520],
 };
 
+const profileHomePoints = {
+  "me:qaMe": { destination: "boss-home", x: 50, y: 24 },
+  ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => [
+    `character:qa${index + 1}`,
+    { destination: `employee${index + 1}-home`, x: index % 2 ? 78 : 22, y: 40 + Math.floor(index / 2) * 16 },
+  ])),
+};
+
 async function readVisibleFurniture(page) {
   return page.locator(".office-object").evaluateAll((elements, bounds) => elements.map((element) => {
     const box = element.getBoundingClientRect();
@@ -79,6 +87,20 @@ async function walkWithoutCrossingFurniture(page, character, destination, allowe
   throw new Error(`${destination} route did not finish within 25 seconds`);
 }
 
+async function assertCharactersAtAssignedWorkstations(page) {
+  await page.waitForFunction((expected) => {
+    const plan = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"))?.simulation?.plan;
+    return plan?.modeUsed === "ai" && Object.entries(expected).every(([profileId, home]) => plan.characters?.[profileId]?.destination === home.destination);
+  }, profileHomePoints, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelectorAll(".office-character.is-moving").length === 0, null, { timeout: 30000 });
+  const scene = await page.locator(".office-scene").boundingBox();
+  for (const [profileId, home] of Object.entries(profileHomePoints)) {
+    const anchor = await readCharacterAnchor(page.locator(`.office-character[data-profile-id="${profileId}"]`));
+    assert.ok(Math.abs(anchor.x - (scene.x + scene.width * home.x / 100)) <= 2, `${profileId} reaches ${home.destination} x`);
+    assert.ok(Math.abs(anchor.y - (scene.y + scene.height * home.y / 100)) <= 2, `${profileId} reaches ${home.destination} y`);
+  }
+}
+
 try {
   await waitForServer();
   await mkdir("artifacts/work-office-qa", { recursive: true });
@@ -108,8 +130,16 @@ try {
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ shouldContinue: batchIndex === 1, turns }) } }] }) });
       }
       testedProfileIds = prompt.profiles.map((profile) => profile.id);
-      const characters = Object.fromEntries(prompt.profiles.map((profile) => [profile.id, {
-        activity: "working", label: "工作中", destination: "boss-home", startsAt: prompt.startsAt, endsAt: prompt.endsAt,
+      const qaActivities = [
+        { activity: "gaming", label: "打游戏", destination: "play-left" },
+        { activity: "scrolling", label: "刷抖音", destination: "rest-right" },
+        { activity: "slacking", label: "摸鱼ing", destination: "social-center" },
+      ];
+      const characters = Object.fromEntries(prompt.profiles.map((profile, index) => [profile.id, {
+        ...(qaActivities[index] || { activity: "working", label: "工作中", destination: "boss-home" }),
+        startsAt: prompt.startsAt,
+        endsAt: prompt.endsAt,
+        priority: "scheduled",
       }]));
       return route.fulfill({
         status: 200,
@@ -209,7 +239,6 @@ try {
     const guestDuringChat = await readCharacterAnchor(groupGuest);
     assert.deepEqual({ x: hostDuringChat.x, y: hostDuringChat.y }, { x: hostBeforeChat.x, y: hostBeforeChat.y }, "conversation host stays in place");
     assert.notDeepEqual({ x: guestDuringChat.x, y: guestDuringChat.y }, { x: guestBeforeChat.x, y: guestBeforeChat.y }, "conversation guest walks to the host");
-    await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     const observedBubbleTexts = [];
     const conversationDeadline = Date.now() + 45000;
     while (Date.now() < conversationDeadline) {
@@ -261,6 +290,18 @@ try {
     await page.getByRole("status").filter({ hasText: "AI 导演连接成功，可以使用。" }).waitFor();
     assert.deepEqual(testedProfileIds.sort(), ["me:qaMe", ...Array.from({ length: 6 }, (_, index) => `character:qa${index + 1}`)].sort(), "AI test sends every current occupant");
     assert.equal(await localMode.getAttribute("aria-checked"), "true", "AI test does not change the selected behavior mode");
+    await page.getByRole("radio", { name: /B AI 导演/ }).click();
+    await page.getByRole("button", { name: "返回办公室" }).click();
+    await assertCharactersAtAssignedWorkstations(page);
+    assert.equal(await page.locator('.office-character[data-profile-id="me:qaMe"]').getAttribute("data-activity"), "gaming");
+    assert.equal(await page.locator('.office-character[data-profile-id="me:qaMe"] .office-character-activity').innerText(), "打游戏");
+    assert.equal(await page.locator('.office-character[data-profile-id="character:qa1"]').getAttribute("data-activity"), "scrolling");
+    assert.equal(await page.locator('.office-character[data-profile-id="character:qa1"] .office-character-activity').innerText(), "刷抖音");
+    assert.equal(await page.locator('.office-character[data-profile-id="character:qa2"]').getAttribute("data-activity"), "slacking");
+    assert.equal(await page.locator('.office-character[data-profile-id="character:qa2"] .office-character-activity').innerText(), "摸鱼ing");
+    await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
+    await page.getByRole("button", { name: "工作设置" }).click();
+    await page.getByRole("radio", { name: /A 本地调度/ }).click();
     aiRequestMode = "failure";
     await page.getByRole("radio", { name: /B AI 导演/ }).click();
     await page.getByRole("button", { name: "返回办公室" }).click();
