@@ -8,7 +8,7 @@ import { ProjectCountdownView } from "./ProjectCountdownView.jsx";
 import { ProjectManagementPreview } from "./ProjectManagementPreview.jsx";
 import { WorkCompanyOnboarding } from "./WorkCompanyOnboarding.jsx";
 import { WorkSettings } from "./WorkSettings.jsx";
-import { formatOfficeAiError, testOfficeAiDirector } from "./officeConversation.js";
+import { buildOfficeAiContext, formatOfficeAiError, testOfficeAiDirector } from "./officeConversation.js";
 import { readOfficeProfiles } from "./officeProfiles.js";
 import { OFFICE_STORAGE_KEY, officeReducer, resolveOfficeAvatar, restoreOfficeState } from "./officeState.js";
 import {
@@ -101,8 +101,15 @@ export function WorkAppScreen({ onClose }) {
 
   const testAiDirector = async () => {
     const apiState = parseConfigs(window.localStorage.getItem(STORAGE_KEY));
+    const testNow = Date.now();
+    const context = buildOfficeAiContext({
+      occupants,
+      now: testNow,
+      endsAt: testNow + 15 * 60_000,
+      projectContext: projectTimer.project?.name || "",
+    });
     try {
-      return await testOfficeAiDirector({ apiState });
+      return await testOfficeAiDirector({ apiState, context });
     } catch (testError) {
       throw new Error(formatOfficeAiError(testError));
     }

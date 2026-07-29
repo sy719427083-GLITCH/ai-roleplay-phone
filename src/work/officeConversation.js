@@ -100,6 +100,7 @@ function requireMainEndpoint(apiState) {
 
 export function formatOfficeAiError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
+  if (/请先在员工管理中安排至少一名人物/.test(message)) return message;
   if (/请先配置可用 API/.test(message)) return "主 API 配置不完整，请检查 API Key、Base URL 和模型";
   if (/401|403/.test(message)) return "API Key 无效或没有访问权限";
   if (/404/.test(message)) return "接口地址不兼容，请检查 Base URL";

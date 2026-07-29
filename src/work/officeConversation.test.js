@@ -96,6 +96,7 @@ test("reports missing main fields before requesting", async () => {
 });
 
 test("formats office API failures for people", () => {
+  assert.equal(formatOfficeAiError(new Error("请先在员工管理中安排至少一名人物")), "请先在员工管理中安排至少一名人物");
   assert.equal(formatOfficeAiError(new Error("请先配置可用 API")), "主 API 配置不完整，请检查 API Key、Base URL 和模型");
   assert.equal(formatOfficeAiError(new Error("请求失败（401）")), "API Key 无效或没有访问权限");
   assert.equal(formatOfficeAiError(new Error("请求失败（404）")), "接口地址不兼容，请检查 Base URL");

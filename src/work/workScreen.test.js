@@ -113,8 +113,11 @@ test("work settings tests the real main AI director endpoint", () => {
   assert.match(settings, /role="status"/);
   assert.match(settings, /role="alert"/);
   assert.match(screen, /testOfficeAiDirector/);
+  assert.match(screen, /buildOfficeAiContext/);
   assert.match(screen, /formatOfficeAiError/);
   assert.match(screen, /parseConfigs/);
+  assert.match(screen, /projectTimer\.project\?\.name/);
+  assert.match(screen, /testOfficeAiDirector\(\{ apiState, context \}\)/);
   assert.match(styles, /\.work-ai-test-button\s*\{[^}]*min-height:\s*44px/s);
 });
 

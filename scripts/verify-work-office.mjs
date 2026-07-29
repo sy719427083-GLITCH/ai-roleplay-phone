@@ -86,10 +86,32 @@ try {
   for (const viewport of [{ width: 375, height: 812 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
+    let aiRequestMode = "success";
+    let testedProfileIds = [];
+    await page.route("https://qa.example/v1/chat/completions", async (route) => {
+      if (aiRequestMode === "failure") return route.abort("failed");
+      const requestBody = route.request().postDataJSON();
+      const prompt = JSON.parse(requestBody.messages[1].content);
+      if (Array.isArray(prompt.participants)) {
+        const turns = prompt.participants.slice(0, 2).map((profile, index) => ({ speakerId: profile.id, text: index ? "我来补充细节。" : "我们确认一下进度。" }));
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ turns }) } }] }) });
+      }
+      testedProfileIds = prompt.profiles.map((profile) => profile.id);
+      const characters = Object.fromEntries(prompt.profiles.map((profile) => [profile.id, {
+        activity: "working", label: "工作中", destination: "boss-home", startsAt: prompt.startsAt, endsAt: prompt.endsAt,
+      }]));
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ id: "qa-ai-scene", startsAt: prompt.startsAt, endsAt: prompt.endsAt, characters, conversation: null }) } }] }),
+      });
+    });
     await page.addInitScript(() => {
       localStorage.setItem("apiMeProfiles", JSON.stringify({ qaMe: { name: "测试我", avatar: "" } }));
       localStorage.setItem("apiCharacters", JSON.stringify(Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`qa${index + 1}`, { name: `测试角色${index + 1}`, type: index > 3 ? "npc" : "main", personality: index % 2 ? "开朗健谈，喜欢游戏" : "认真负责，擅长报表", persona: index === 4 ? "喜欢刷抖音" : "办公室同事", avatar: "" }]))));
       localStorage.setItem("ccatWorkCompanyV1", JSON.stringify({ version: 1, prefix: "测试", fullName: "测试有限公司", createdAt: "2026-07-28T00:00:00.000Z" }));
+      const qaEndpoint = { id: "qa-main", name: "QA 主 API", apiKey: "qa-key", baseUrl: "https://qa.example/v1", model: "qa-model", customModel: "", temperature: 0.7 };
+      localStorage.setItem("ccat-ai-api-configs", JSON.stringify({ mainConfigs: [qaEndpoint], selectedMainId: qaEndpoint.id, mainDraft: qaEndpoint, secondaryConfigs: [], selectedSecondaryId: "", secondaryDraft: {}, secondaryEnabled: false }));
       if (!localStorage.getItem("ccatWorkOfficeV1")) {
         localStorage.setItem("ccatWorkOfficeV1", JSON.stringify({ version: 2, assignments: { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: "character:qa3", employee4: "character:qa4", employee5: "character:qa5", employee6: "character:qa6" }, avatarOverrides: {}, meWaypoint: "boss-home", simulation: { mode: "local", plan: null } }));
       }
@@ -168,12 +190,15 @@ try {
     await page.getByRole("radiogroup", { name: "自主行为模式" }).waitFor();
     const localMode = page.getByRole("radio", { name: /A 本地调度/ });
     assert.equal(await localMode.getAttribute("aria-checked"), "true");
+    testedProfileIds = [];
     await page.getByRole("button", { name: "测试 AI 导演" }).click();
-    await page.getByRole("alert").filter({ hasText: "主 API 未填写 API Key" }).waitFor();
+    await page.getByRole("status").filter({ hasText: "AI 导演连接成功，可以使用。" }).waitFor();
+    assert.deepEqual(testedProfileIds.sort(), ["me:qaMe", ...Array.from({ length: 6 }, (_, index) => `character:qa${index + 1}`)].sort(), "AI test sends every current occupant");
     assert.equal(await localMode.getAttribute("aria-checked"), "true", "AI test does not change the selected behavior mode");
+    aiRequestMode = "failure";
     await page.getByRole("radio", { name: /B AI 导演/ }).click();
     await page.getByRole("button", { name: "返回办公室" }).click();
-    await page.getByText("AI 导演暂不可用：主 API 配置不完整，请检查 API Key、Base URL 和模型。已使用本地调度", { exact: true }).waitFor();
+    await page.getByText("AI 导演暂不可用：网络请求失败，请检查接口地址、跨域设置或网络状态。已使用本地调度", { exact: true }).waitFor();
     await page.evaluate(() => {
       const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
       office.assignments = { boss: "me:qaMe", employee1: null, employee2: null, employee3: null, employee4: null, employee5: null, employee6: null };
