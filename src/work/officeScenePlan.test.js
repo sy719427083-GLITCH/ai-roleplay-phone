@@ -1,7 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateOfficeActivities, validateOfficeScenePlan } from "./officeScenePlan.js";
+import * as officeScenePlan from "./officeScenePlan.js";
 import { getOfficePoint } from "./officeGeometry.js";
+
+const { allocateOfficeActivities, validateOfficeScenePlan } = officeScenePlan;
+
+test("keeps desk activities at each occupant's own workstation", () => {
+  assert.equal(typeof officeScenePlan.resolveOfficeActivityDestination, "function");
+  assert.deepEqual([...officeScenePlan.OFFICE_DESK_ACTIVITIES], ["working", "reporting", "scrolling", "gaming", "slacking"]);
+  for (const activity of officeScenePlan.OFFICE_DESK_ACTIVITIES) {
+    assert.equal(officeScenePlan.resolveOfficeActivityDestination(activity, { slotId: "boss" }, "rest-left"), "boss-home");
+    assert.equal(officeScenePlan.resolveOfficeActivityDestination(activity, { slotId: "employee4" }, "play-right"), "employee4-home");
+  }
+});
+
+test("preserves specialized destinations for non-desk activities", () => {
+  assert.equal(typeof officeScenePlan.resolveOfficeActivityDestination, "function");
+  for (const [activity, destination] of [["printing", "print-station"], ["chatting", "social-left"], ["resting", "rest-right"], ["offDuty", "off-duty"]]) {
+    assert.equal(officeScenePlan.resolveOfficeActivityDestination(activity, { slotId: "employee2" }, destination), destination);
+  }
+});
+
+test("normalizes AI desk activities without changing their metadata", () => {
+  const plan = { characters: {
+    c1: { activity: "gaming", label: "打游戏", destination: "play-left", startsAt: 10, endsAt: 20, priority: "scheduled" },
+    c2: { activity: "scrolling", label: "刷抖音", destination: "rest-right", startsAt: 10, endsAt: 20, priority: "scheduled" },
+    c3: { activity: "slacking", label: "摸鱼ing", destination: "social-center", startsAt: 10, endsAt: 20, priority: "scheduled" },
+  } };
+  const occupants = [
+    { slotId: "boss", profile: { id: "c1" } },
+    { slotId: "employee1", profile: { id: "c2" } },
+    { slotId: "employee2", profile: { id: "c3" } },
+  ];
+  const result = allocateOfficeActivities(plan, occupants);
+  assert.equal(result.characters.c1.destination, "boss-home");
+  assert.equal(result.characters.c2.destination, "employee1-home");
+  assert.equal(result.characters.c3.destination, "employee2-home");
+  assert.deepEqual({ ...result.characters.c1, destination: "play-left" }, plan.characters.c1);
+  assert.deepEqual({ ...result.characters.c2, destination: "rest-right" }, plan.characters.c2);
+  assert.deepEqual({ ...result.characters.c3, destination: "social-center" }, plan.characters.c3);
+});
 
 test("registers every shared activity point", () => {
   for (const id of ["social-left", "social-center", "social-right", "rest-left", "rest-right", "play-left", "play-right", "print-wait", "off-duty"]) assert.ok(getOfficePoint(id), id);

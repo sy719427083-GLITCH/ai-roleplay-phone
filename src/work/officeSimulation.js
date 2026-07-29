@@ -1,3 +1,5 @@
+import { resolveOfficeActivityDestination } from "./officeScenePlan.js";
+
 export const OFFICE_ACTIVITIES = Object.freeze({
   working: { id: "working", label: "工作中", minutes: [12, 35] },
   reporting: { id: "reporting", label: "做报表", minutes: [10, 25] },
@@ -79,8 +81,7 @@ function weightedActivity(weights, affinities, random) {
 
 const sharedDestination = (activity, index) => ({
   printing: "print-station", chatting: `social-${["left", "center", "right"][index % 3]}`,
-  resting: `rest-${index % 2 ? "right" : "left"}`, gaming: `play-${index % 2 ? "right" : "left"}`,
-  scrolling: `rest-${index % 2 ? "right" : "left"}`, slacking: `social-${index % 2 ? "right" : "left"}`, offDuty: "off-duty",
+  resting: `rest-${index % 2 ? "right" : "left"}`, offDuty: "off-duty",
 }[activity]);
 
 export function createLocalOfficePlan({ occupants = [], now = new Date(), seed = "office", projectContext = "", previousPlan = null } = {}) {
@@ -99,8 +100,9 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
     if (previousPlan?.characters?.[occupant.profile.id]?.activity === activity && random() < .35) activity = "working";
     const definition = OFFICE_ACTIVITIES[activity];
     const minutes = definition.minutes[0] + Math.floor(random() * (definition.minutes[1] - definition.minutes[0] + 1));
+    const fallbackDestination = sharedDestination(activity, index) || `${occupant.slotId}-home`;
     characters[occupant.profile.id] = {
-      activity, label: definition.label, destination: sharedDestination(activity, index) || `${occupant.slotId}-home`,
+      activity, label: definition.label, destination: resolveOfficeActivityDestination(activity, occupant, fallbackDestination),
       startsAt, endsAt: startsAt + minutes * 60_000, priority: "scheduled",
     };
   });

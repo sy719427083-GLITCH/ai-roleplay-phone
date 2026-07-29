@@ -1,6 +1,12 @@
 import { getOfficePoint } from "./officeGeometry.js";
 
 export const VALID_OFFICE_ACTIVITIES = new Set(["working", "reporting", "printing", "chatting", "resting", "gaming", "scrolling", "slacking", "offDuty"]);
+export const OFFICE_DESK_ACTIVITIES = new Set(["working", "reporting", "scrolling", "gaming", "slacking"]);
+
+export function resolveOfficeActivityDestination(activity, occupant, fallbackDestination) {
+  if (OFFICE_DESK_ACTIVITIES.has(activity) && occupant?.slotId) return `${occupant.slotId}-home`;
+  return fallbackDestination;
+}
 
 export function getDistinctConversationIds(ids = [], validIds = null) {
   return [...new Set(ids.filter((id) => typeof id === "string" && id && (!validIds || validIds.has(id))))].slice(0, 4);
@@ -26,8 +32,13 @@ export function allocateOfficeActivities(plan, occupants = []) {
   for (const occupant of occupants) {
     const item = next.characters[occupant.profile.id];
     if (!item) continue;
-    if (item.destination === "print-station") {
-      if (printerTaken) next.characters[occupant.profile.id] = { ...item, destination: "print-wait", label: "等待打印" };
+    const corrected = {
+      ...item,
+      destination: resolveOfficeActivityDestination(item.activity, occupant, item.destination),
+    };
+    next.characters[occupant.profile.id] = corrected;
+    if (corrected.destination === "print-station") {
+      if (printerTaken) next.characters[occupant.profile.id] = { ...corrected, destination: "print-wait", label: "等待打印" };
       printerTaken = true;
     }
   }

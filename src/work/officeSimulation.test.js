@@ -27,6 +27,25 @@ test("keeps slacking and Douyin as separate exact labels", () => {
   assert.notEqual(OFFICE_ACTIVITIES.slacking.id, OFFICE_ACTIVITIES.scrolling.id);
 });
 
+test("keeps every locally scheduled desk activity at its occupant's workstation", () => {
+  const deskActivities = new Set(["working", "reporting", "scrolling", "gaming", "slacking"]);
+  const seen = new Set();
+  const hours = [0, 2, 4, 7, 10, 13, 16, 20];
+  for (let index = 0; index < 300; index += 1) {
+    const day = 27 + (index % 7);
+    const hour = hours[index % hours.length];
+    const now = new Date(Date.UTC(2026, 6, day, hour));
+    const plan = createLocalOfficePlan({ occupants, now, seed: `desk-${index}`, projectContext: `项目-${index % 5}` });
+    for (const occupant of occupants) {
+      const item = plan.characters[occupant.profile.id];
+      if (!deskActivities.has(item.activity)) continue;
+      seen.add(item.activity);
+      assert.equal(item.destination, `${occupant.slotId}-home`, `${item.activity}:${occupant.slotId}`);
+    }
+  }
+  assert.deepEqual([...seen].sort(), [...deskActivities].sort());
+});
+
 test("never creates a solo conversation", () => {
   const plan = createLocalOfficePlan({ occupants: occupants.slice(0, 1), now: new Date("2026-07-27T04:30:00Z"), seed: "solo" });
   assert.equal(plan.conversation, null);
