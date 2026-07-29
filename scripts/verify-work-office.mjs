@@ -88,13 +88,24 @@ try {
     const page = await context.newPage();
     let aiRequestMode = "success";
     let testedProfileIds = [];
+    const conversationPrompts = [];
     await page.route("https://qa.example/v1/chat/completions", async (route) => {
       if (aiRequestMode === "failure") return route.abort("failed");
       const requestBody = route.request().postDataJSON();
       const prompt = JSON.parse(requestBody.messages[1].content);
       if (Array.isArray(prompt.participants)) {
-        const turns = prompt.participants.slice(0, 2).map((profile, index) => ({ speakerId: profile.id, text: index ? "我来补充细节。" : "我们确认一下进度。" }));
-        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ turns }) } }] }) });
+        conversationPrompts.push(prompt);
+        const batchIndex = prompt.batchIndex || 1;
+        const turns = batchIndex === 1
+          ? [
+              { speakerId: prompt.participants[0].id, text: "我们确认一下进度。" },
+              { speakerId: prompt.participants[1].id, text: "我来补充设计细节。" },
+            ]
+          : [
+              { speakerId: prompt.participants[2].id, text: "报表数据也已经核对好了。" },
+              { speakerId: prompt.participants[0].id, text: "好，那我们先按这个版本推进。" },
+            ];
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ shouldContinue: batchIndex === 1, turns }) } }] }) });
       }
       testedProfileIds = prompt.profiles.map((profile) => profile.id);
       const characters = Object.fromEntries(prompt.profiles.map((profile) => [profile.id, {
@@ -159,6 +170,62 @@ try {
     ]);
     const bossDeskVisibleTop = bossDeskBox.y + (bossDeskBox.height * 67 / 480);
     assert.ok(avatarBodyBox.y + avatarBodyBox.height <= bossDeskVisibleTop, "boss avatar remains visible behind the desk art");
+    await page.evaluate(() => {
+      const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(new Date()).map(({ type, value }) => [type, value]));
+      const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+      const minutes = Number(dateParts.hour) * 60 + Number(dateParts.minute);
+      const intervalKey = `${dateKey}:${String(Math.floor(minutes / 15)).padStart(2, "0")}`;
+      const startsAt = Date.now();
+      const endsAt = startsAt + 120_000;
+      const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
+      const destinations = { "me:qaMe": "boss-home", ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`character:qa${index + 1}`, `employee${index + 1}-home`])) };
+      const participantIds = ["me:qaMe", "character:qa1", "character:qa2"];
+      const characters = Object.fromEntries(Object.entries(destinations).map(([id, destination]) => [id, {
+        activity: participantIds.includes(id) ? "chatting" : "working",
+        label: participantIds.includes(id) ? "聊天中" : "工作中",
+        destination,
+        startsAt,
+        endsAt,
+        priority: "scheduled",
+      }]));
+      const plan = { id: `qa-group-plan:${startsAt}`, modeUsed: "local", startsAt, endsAt, characters, conversation: { id: `qa-group-chat:${startsAt}`, participantIds, turns: [], startsAt, endsAt } };
+      office.simulation = { ...office.simulation, mode: "local", dateKey, seed: `qa:${dateKey}`, intervalKey, plan, nextTransitionAt: endsAt, conversationCache: null, manualMe: null };
+      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify(office));
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "上划解锁" }).click();
+    await page.getByRole("button", { name: "工作" }).click();
+    const groupHost = page.locator('.office-character[data-profile-id="me:qaMe"]');
+    const groupGuest = page.locator('.office-character[data-profile-id="character:qa1"]');
+    await groupHost.waitFor();
+    const hostBeforeChat = await readCharacterAnchor(groupHost);
+    const guestBeforeChat = await readCharacterAnchor(groupGuest);
+    await page.locator(".office-character-bubble").waitFor({ timeout: 25000 });
+    const bubbleBox = await page.locator(".office-character-bubble").boundingBox();
+    assert.equal(Math.round(bubbleBox.width), 112, "chat bubble stays about two avatars wide");
+    const hostDuringChat = await readCharacterAnchor(groupHost);
+    const guestDuringChat = await readCharacterAnchor(groupGuest);
+    assert.deepEqual({ x: hostDuringChat.x, y: hostDuringChat.y }, { x: hostBeforeChat.x, y: hostBeforeChat.y }, "conversation host stays in place");
+    assert.notDeepEqual({ x: guestDuringChat.x, y: guestDuringChat.y }, { x: guestBeforeChat.x, y: guestBeforeChat.y }, "conversation guest walks to the host");
+    await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
+    const observedBubbleTexts = [];
+    const conversationDeadline = Date.now() + 45000;
+    while (Date.now() < conversationDeadline) {
+      const bubble = page.locator(".office-character-bubble");
+      if (await bubble.count()) {
+        const text = await bubble.innerText();
+        if (text && observedBubbleTexts.at(-1) !== text) observedBubbleTexts.push(text);
+      }
+      const storedPlan = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.plan);
+      if (storedPlan?.conversation === null && observedBubbleTexts.length >= 4) break;
+      await page.waitForTimeout(200);
+    }
+    assert.equal(conversationPrompts.length, 2, "conversation requests exactly one continuation batch");
+    assert.equal(conversationPrompts[1].history.length, 2, "continuation receives the first batch history");
+    assert.equal(new Set(observedBubbleTexts).size, 4, "four conversation lines play once without repetition");
+    assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.plan.conversation)), null, "characters leave after dialogue finishes");
     const before = await readCharacterAnchor(meCharacter);
     await page.getByRole("button", { name: "员工桌 6" }).click();
     await page.waitForTimeout(1200);
@@ -176,7 +243,6 @@ try {
     assert.doesNotMatch(await meCharacter.locator(".office-character-activity").innerText(), /前往指定位置/);
     await page.addStyleTag({ content: "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}" });
     await page.waitForTimeout(50);
-    await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     await page.getByRole("button", { name: "项目管理" }).click();
     await page.getByRole("heading", { name: "项目合同", level: 1 }).waitFor();
     assert.equal(await page.locator(".work-project-card").count(), 5);

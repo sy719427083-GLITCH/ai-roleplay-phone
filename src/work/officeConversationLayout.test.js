@@ -9,8 +9,9 @@ test("keeps the first participant in place and gives guests distinct nearby targ
   assert.deepEqual(layout.targets.a, currentNodes.a);
   assert.equal(new Set(["b", "c", "d"].map((id) => `${layout.targets[id].x}:${layout.targets[id].y}`)).size, 3);
   for (const id of ["b", "c", "d"]) {
-    assert.ok(Math.abs(layout.targets[id].x - currentNodes.a.x) <= 11);
-    assert.ok(Math.abs(layout.targets[id].y - currentNodes.a.y) <= 8);
+    const horizontalPx = ((layout.targets[id].x - currentNodes.a.x) / 100) * 375;
+    const verticalPx = ((layout.targets[id].y - currentNodes.a.y) / 100) * 812;
+    assert.ok(Math.hypot(horizontalPx, verticalPx) >= 52, `${id} clears the 50px host avatar`);
   }
 });
 

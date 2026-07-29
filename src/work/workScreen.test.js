@@ -131,7 +131,7 @@ test("simulation enforces distinct chatters and a resettable ten-second Me timer
   assert.match(simulation, /clearTimeout\(manualTimer\.current\)/);
 });
 
-test("characters render activity below avatars and bubbles above them", () => {
+test("characters render activity below avatars and compact bubbles above them", () => {
   const character = readFileSync("src/work/OfficeCharacter.jsx", "utf8");
   const scene = readFileSync("src/work/OfficeScene.jsx", "utf8");
   const styles = readFileSync("src/work/office.css", "utf8");
@@ -140,6 +140,11 @@ test("characters render activity below avatars and bubbles above them", () => {
   assert.match(character, /role="status"/);
   assert.match(character, /has-bubble/);
   assert.match(scene, /characterStates/);
-  assert.match(styles, /\.office-character-bubble\s*\{[^}]*max-width:/s);
+  assert.match(styles, /\.office-character-bubble\s*\{[^}]*box-sizing:\s*border-box[^}]*width:\s*112px[^}]*white-space:\s*nowrap/s);
+  assert.doesNotMatch(styles, /\.office-character-bubble\s*\{[^}]*max-width:\s*126px/s);
+  assert.match(character, /is-near-left/);
+  assert.match(character, /is-near-right/);
+  assert.match(styles, /\.office-character\.is-near-left \.office-character-bubble/);
+  assert.match(styles, /\.office-character\.is-near-right \.office-character-bubble/);
   assert.match(styles, /\.office-character-activity\s*\{[^}]*text-overflow:\s*ellipsis/s);
 });

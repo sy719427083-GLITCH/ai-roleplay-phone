@@ -50,8 +50,12 @@
 .office-character.is-active .office-character-body { animation: office-work 2.1s ease-in-out infinite; }
 .office-character.is-moving .office-character-body { animation: office-walk .58s ease-in-out infinite alternate; }
 .office-character-activity { box-sizing: border-box; max-width: 84px; margin-top: 3px; overflow: hidden; border: 1px solid rgba(88,110,157,.14); border-radius: 999px; background: rgba(255,255,255,.9); color: #52617e; padding: 2px 7px; font-size: 8px; font-weight: 700; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 3px 10px rgba(67,83,124,.1); }
-.office-character-bubble { position: relative; max-width: 126px; min-width: 58px; margin-bottom: 7px; border: 1px solid rgba(96,112,151,.14); border-radius: 13px; background: rgba(255,255,255,.97); color: #31394b; padding: 6px 8px; font-size: 9px; font-weight: 650; line-height: 1.35; text-align: center; box-shadow: 0 8px 22px rgba(57,72,111,.16); overflow-wrap: anywhere; }
+.office-character-bubble { position: relative; box-sizing: border-box; width: 112px; margin-bottom: 7px; overflow: hidden; border: 1px solid rgba(96,112,151,.14); border-radius: 999px; background: rgba(255,255,255,.97); color: #31394b; padding: 7px 10px; font-size: 9px; font-weight: 650; line-height: 1.35; text-align: center; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 8px 22px rgba(57,72,111,.16); }
 .office-character-bubble::after { position: absolute; bottom: -5px; left: 50%; width: 9px; height: 9px; background: #fff; content: ""; transform: translateX(-50%) rotate(45deg); border-right: 1px solid rgba(96,112,151,.12); border-bottom: 1px solid rgba(96,112,151,.12); }
+.office-character.is-near-left .office-character-bubble { transform: translateX(28px); }
+.office-character.is-near-right .office-character-bubble { transform: translateX(-28px); }
+.office-character.is-near-left .office-character-bubble::after { left: 25%; }
+.office-character.is-near-right .office-character-bubble::after { left: 75%; }
 .office-character[data-activity="resting"] .office-character-body { animation-duration: 3.2s; }
 .office-character[data-activity="gaming"] .office-character-body,.office-character[data-activity="scrolling"] .office-character-body { animation-duration: 1.25s; }
 .office-conversation-presence { display: none; }

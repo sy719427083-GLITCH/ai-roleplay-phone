@@ -1,7 +1,8 @@
 export function OfficeCharacter({ profile, avatar, node, facing = "right", moving = false, durationMs = 700, activity = "working", label = "工作中", bubble = "" }) {
+  const edgeClass = node.x < 16 ? "is-near-left" : node.x > 84 ? "is-near-right" : "";
   return (
     <div
-      className={`office-character ${moving ? "is-moving" : "is-active"} ${bubble ? "has-bubble" : ""}`}
+      className={`office-character ${moving ? "is-moving" : "is-active"} ${bubble ? "has-bubble" : ""} ${edgeClass}`}
       data-facing={facing}
       data-activity={activity}
       data-profile-id={profile.id}
