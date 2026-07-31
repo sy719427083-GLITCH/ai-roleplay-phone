@@ -45,7 +45,7 @@ import {
   STORAGE_KEY,
 } from "./apiConfig.js";
 import { AVATAR_CROP_OUTPUT_SIZE, getAvatarCropDraw } from "./avatarCrop.js";
-import { tryWriteJson } from "./storageSafety.js";
+import { tryWriteJson, tryWriteValue } from "./storageSafety.js";
 import {
   WALLET_STORAGE_KEY,
   applyWalletTransaction,
@@ -130,7 +130,7 @@ const tabs = [
 
 const WORLDBOOK_STORAGE_KEY = "ccat-worldbook-worlds-v1";
 const MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY = "ccatMessageChatMeProfileId";
-const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.3.27`;
+const worldbookAsset = (fileName) => `${import.meta.env.BASE_URL}worldbook-assets/${fileName}?v=0.3.28`;
 
 const worldbookCoverMaterials = [
   { id: "aether", name: "高魔", tag: "高魔史诗", image: "cover-aether.png", note: "群星之下，万界由此书写" },
@@ -2038,7 +2038,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.3.27</p>
+      <p className="version-label">Ccat OS V0.3.28</p>
     </section>
   );
 }
@@ -3059,7 +3059,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   );
 
   useEffect(() => {
-    window.localStorage.setItem(MESSAGE_STORAGE_KEY, JSON.stringify(messageState));
+    tryWriteJson(window.localStorage, MESSAGE_STORAGE_KEY, messageState);
     onUnreadChange?.(getMessageUnreadCount(messageState));
   }, [messageState]);
 
@@ -3072,18 +3072,19 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   useEffect(() => {
     if (!selectedChatMeId) return;
-    window.localStorage.setItem(MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY, selectedChatMeId);
+    tryWriteValue(window.localStorage, MESSAGE_CHAT_ME_PROFILE_STORAGE_KEY, selectedChatMeId);
   }, [selectedChatMeId]);
 
   useEffect(() => {
-    window.localStorage.setItem(
+    tryWriteJson(
+      window.localStorage,
       PROACTIVE_MESSAGE_SETTINGS_STORAGE_KEY,
-      JSON.stringify(normalizeProactiveMessageSettings(proactiveSettings)),
+      normalizeProactiveMessageSettings(proactiveSettings),
     );
   }, [proactiveSettings]);
 
   useEffect(() => {
-    window.localStorage.setItem(MOMENTS_STORAGE_KEY, JSON.stringify(momentState));
+    tryWriteJson(window.localStorage, MOMENTS_STORAGE_KEY, momentState);
   }, [momentState]);
 
   useEffect(() => {
