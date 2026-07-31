@@ -91,7 +91,7 @@ import {
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
-import { WorkAppScreen } from "./work/WorkAppScreen.jsx";
+import { WorkPlaceholder } from "./WorkPlaceholder.jsx";
 
 const MESSAGE_APP_TITLE = "微聊";
 
@@ -4696,7 +4696,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
-  if (isWork) return <WorkAppScreen onClose={onClose} />;
+  if (isWork) return <WorkPlaceholder onClose={onClose} />;
 
   return (
     <section
