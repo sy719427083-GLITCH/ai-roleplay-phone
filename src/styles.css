@@ -3358,6 +3358,56 @@ select {
   background: #d6d6d6;
 }
 
+.message-navigation-stage {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  overflow: hidden;
+  background: #ffffff;
+  isolation: isolate;
+}
+
+.message-navigation-stage .message-page {
+  position: absolute;
+  inset: 0;
+}
+
+.message-list-layer {
+  z-index: 1;
+  transform: translate3d(0, 0, 0);
+  opacity: 1;
+  will-change: transform, opacity;
+  transition:
+    transform 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.message-chat-layer {
+  z-index: 2;
+  transform: translate3d(100%, 0, 0);
+  box-shadow: -18px 0 36px rgba(24, 32, 42, 0.12);
+  will-change: transform;
+  pointer-events: none;
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.message-navigation-stage.is-chat .message-list-layer {
+  transform: translate3d(-18%, 0, 0);
+  opacity: 0.94;
+}
+
+.message-navigation-stage.is-chat .message-chat-layer {
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+}
+
+.message-navigation-stage.is-entering .message-list-layer,
+.message-navigation-stage.is-leaving .message-list-layer,
+.message-navigation-stage.is-entering .message-chat-layer,
+.message-navigation-stage.is-leaving .message-chat-layer {
+  pointer-events: none;
+}
+
 
 .message-page {
   display: flex;
@@ -7611,6 +7661,16 @@ select {
   .wechat-transfer-brand span {
     animation: none !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .message-list-layer,
+  .message-chat-layer {
+    transition-duration: 0.01ms !important;
+  }
+
+  .message-navigation-stage.is-chat .message-list-layer {
+    transform: none;
+    opacity: 1;
   }
 }
 

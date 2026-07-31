@@ -25,3 +25,13 @@ test("microchat transition guards repeated navigation and has a cleanup fallback
   assert.match(app, /window\.clearTimeout/);
   assert.match(app, /event\.target !== event\.currentTarget/);
 });
+
+test("microchat page transition uses compositor-friendly motion and reduced-motion fallback", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(styles, /\.message-chat-layer\s*\{[\s\S]*transform: translate3d\(100%, 0, 0\)/);
+  assert.match(styles, /transition: transform 280ms cubic-bezier\(0\.32, 0\.72, 0, 1\)/);
+  assert.match(styles, /\.message-navigation-stage\.is-chat \.message-list-layer/);
+  assert.match(styles, /pointer-events: none/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.message-chat-layer/);
+});
