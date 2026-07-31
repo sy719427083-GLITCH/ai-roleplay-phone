@@ -11,7 +11,7 @@
   --app-safe-top-clearance: max(54px, env(safe-area-inset-top, 0px));
   --editor-safe-top: max(82px, calc(env(safe-area-inset-top, 0px) + 18px));
   --me-edit-safe-top: max(58px, calc(env(safe-area-inset-top, 0px) + 8px));
-  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.3.26");
+  --wb-hero-image: url("/ai-roleplay-phone/worldbook-assets/hero-worldbook-atlas.png?v=0.3.27");
   color: #111111;
   width: 100%;
   height: 100%;
@@ -25,7 +25,7 @@
   -webkit-text-size-adjust: 100%;
 }
 
-.full-page.work-placeholder-page { position: relative; background: #fff; }
+.full-page.work-placeholder-page { background: #fff; }
 .work-placeholder-back { position: absolute; top: max(14px, env(safe-area-inset-top, 0px)); left: 14px; display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #111; }
 .work-placeholder-back:focus-visible { outline: 3px solid rgba(40,110,220,.55); outline-offset: 2px; }
 
