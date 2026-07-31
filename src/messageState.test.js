@@ -1,14 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CHAT_HISTORY_PAGE_SIZE,
   acceptFriendRequest,
   appendChatMessage,
   deleteChatMessage,
   deleteConversation,
+  getVisibleChatHistory,
   markConversationRead,
   rejectFriendRequest,
   updateChatMessage,
 } from "./messageState.js";
+
+test("returns only the recent chat history window", () => {
+  const history = Array.from({ length: 250 }, (_, index) => ({ id: `m-${index}` }));
+  const result = getVisibleChatHistory(history, CHAT_HISTORY_PAGE_SIZE);
+  assert.equal(result.messages.length, 120);
+  assert.equal(result.messages[0].id, "m-130");
+  assert.equal(result.hiddenCount, 130);
+});
+
+test("expands chat history and safely handles invalid input", () => {
+  const history = Array.from({ length: 250 }, (_, index) => ({ id: `m-${index}` }));
+  assert.deepEqual(getVisibleChatHistory(history, 240), {
+    messages: history.slice(10),
+    hiddenCount: 10,
+  });
+  assert.deepEqual(getVisibleChatHistory(null), { messages: [], hiddenCount: 0 });
+  assert.equal(getVisibleChatHistory(history, 0).messages.length, 120);
+});
 
 test("accepting a friend request adds the role to contacts and opens a conversation", () => {
   const state = {

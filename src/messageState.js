@@ -1,8 +1,22 @@
 export const MESSAGE_STORAGE_KEY = "ccatMessageState";
+export const CHAT_HISTORY_PAGE_SIZE = 120;
 
 const nowStamp = () => new Date().toISOString();
 
 const createMessageId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+export function getVisibleChatHistory(history, visibleCount = CHAT_HISTORY_PAGE_SIZE) {
+  const normalizedHistory = Array.isArray(history) ? history : [];
+  const parsedCount = Math.floor(Number(visibleCount));
+  const safeCount = Number.isFinite(parsedCount) && parsedCount > 0
+    ? parsedCount
+    : CHAT_HISTORY_PAGE_SIZE;
+  const startIndex = Math.max(0, normalizedHistory.length - safeCount);
+  return {
+    messages: normalizedHistory.slice(startIndex),
+    hiddenCount: startIndex,
+  };
+}
 
 export function createEmptyMessageState() {
   return {
