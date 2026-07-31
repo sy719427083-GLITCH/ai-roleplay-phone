@@ -96,6 +96,8 @@ import {
 import { WorkPlaceholder } from "./WorkPlaceholder.jsx";
 
 const MESSAGE_APP_TITLE = "微聊";
+const CHAT_PAGE_TRANSITION_MS = 280;
+const CHAT_PAGE_TRANSITION_FALLBACK_MS = CHAT_PAGE_TRANSITION_MS + 80;
 
 const appGroups = [
   [
@@ -3006,6 +3008,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [messageBackTarget, setMessageBackTarget] = useState("");
   const [chatId, setChatId] = useState("");
+  const [chatTransition, setChatTransition] = useState("list");
   const [visibleMessageCount, setVisibleMessageCount] = useState(CHAT_HISTORY_PAGE_SIZE);
   const [draft, setDraft] = useState("");
   const [actionPanelOpen, setActionPanelOpen] = useState(false);
@@ -3035,6 +3038,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
   const historyLoadAnchorRef = useRef(null);
+  const chatTransitionTimerRef = useRef(null);
+  const chatTransitionFrameRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
   const meProfileMap = useMemo(readMessageMeProfiles, []);
   const meProfiles = useMemo(() => toMessageMeProfileList(meProfileMap), [meProfileMap]);
@@ -3166,11 +3171,42 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     });
   }, [characters.length, contacts.length]);
 
-  const closeChat = () => {
-    setProactiveSettingsOpen(false);
-    setActionPanelOpen(false);
+  const clearChatTransitionSchedule = () => {
+    if (chatTransitionTimerRef.current) {
+      window.clearTimeout(chatTransitionTimerRef.current);
+      chatTransitionTimerRef.current = null;
+    }
+    if (chatTransitionFrameRef.current) {
+      window.cancelAnimationFrame(chatTransitionFrameRef.current);
+      chatTransitionFrameRef.current = null;
+    }
+  };
+
+  const resetChatAfterTransition = () => {
+    clearChatTransitionSchedule();
     setVisibleMessageCount(CHAT_HISTORY_PAGE_SIZE);
     setChatId("");
+    setChatTransition("list");
+  };
+
+  const finishChatTransition = (event) => {
+    if (event && event.target !== event.currentTarget) return;
+    if (event && event.propertyName !== "transform") return;
+    if (chatTransition === "leaving") resetChatAfterTransition();
+  };
+
+  useEffect(() => () => clearChatTransitionSchedule(), []);
+
+  const closeChat = () => {
+    if (chatTransition !== "chat") return;
+    setProactiveSettingsOpen(false);
+    setActionPanelOpen(false);
+    clearChatTransitionSchedule();
+    setChatTransition("leaving");
+    chatTransitionTimerRef.current = window.setTimeout(
+      resetChatAfterTransition,
+      CHAT_PAGE_TRANSITION_FALLBACK_MS,
+    );
   };
 
   const openMessageTab = (nextTab, backTarget = "") => {
@@ -3190,10 +3226,18 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
 
   const openChat = (character) => {
     if (!character?.id) return;
+    if (chatTransition !== "list") return;
     setMessageState((current) => markConversationRead(createConversationForCharacter(current, character), character.id));
     setSwipedId("");
     setVisibleMessageCount(CHAT_HISTORY_PAGE_SIZE);
     setChatId(character.id);
+    setChatTransition("entering");
+    chatTransitionFrameRef.current = window.requestAnimationFrame(() => {
+      chatTransitionFrameRef.current = window.requestAnimationFrame(() => {
+        chatTransitionFrameRef.current = null;
+        setChatTransition("chat");
+      });
+    });
   };
 
   const loadEarlierMessages = () => {
@@ -3878,12 +3922,17 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   );
 
   const activeCharacter = chatId ? characterMap[chatId] || { id: chatId, name: "聊天" } : null;
-  if (activeCharacter) {
+  const renderChatPage = () => {
+    if (!activeCharacter) return null;
     const history = messageState.histories[chatId] || [];
     const { messages: visibleHistory, hiddenCount } = getVisibleChatHistory(history, visibleMessageCount);
     const activeTransferMessage = history.find((message) => message.id === activeTransferMessageId && message.kind === "transfer");
     return (
-      <section className="full-page message-page chat-page">
+      <section
+        className="full-page message-page chat-page message-chat-layer"
+        onTransitionEnd={finishChatTransition}
+        aria-hidden={chatTransition === "entering" || chatTransition === "leaving"}
+      >
         <header className="message-topbar">
           <button onClick={closeChat} aria-label="返回">
             <ChevronLeft size={21} />
@@ -4141,10 +4190,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         )}
       </section>
     );
-  }
+  };
 
-  return (
-    <section className="full-page message-page wechat-page">
+  const renderMessageListPage = () => (
+    <section className="full-page message-page wechat-page message-list-layer">
       <header className="message-topbar wechat-topbar">
         {messageTab === "contacts" ? (
           <span></span>
@@ -4188,6 +4237,13 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         </nav>
       )}
     </section>
+  );
+
+  return (
+    <div className={`message-navigation-stage is-${chatTransition}`}>
+      {renderMessageListPage()}
+      {renderChatPage()}
+    </div>
   );
 }
 
