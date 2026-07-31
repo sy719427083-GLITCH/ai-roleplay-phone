@@ -3931,7 +3931,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
       <section
         className="full-page message-page chat-page message-chat-layer"
         onTransitionEnd={finishChatTransition}
-        aria-hidden={chatTransition === "entering" || chatTransition === "leaving"}
+        inert={chatTransition !== "chat"}
       >
         <header className="message-topbar">
           <button onClick={closeChat} aria-label="返回">
@@ -4193,7 +4193,10 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   };
 
   const renderMessageListPage = () => (
-    <section className="full-page message-page wechat-page message-list-layer">
+    <section
+      className="full-page message-page wechat-page message-list-layer"
+      inert={chatTransition !== "list"}
+    >
       <header className="message-topbar wechat-topbar">
         {messageTab === "contacts" ? (
           <span></span>

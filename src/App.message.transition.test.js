@@ -35,3 +35,10 @@ test("microchat page transition uses compositor-friendly motion and reduced-moti
   assert.match(styles, /pointer-events: none/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.message-chat-layer/);
 });
+
+test("microchat exposes only the active navigation layer to assistive technology", () => {
+  const app = readFileSync("src/App.jsx", "utf8");
+
+  assert.match(app, /inert=\{chatTransition !== "list"\}/);
+  assert.match(app, /inert=\{chatTransition !== "chat"\}/);
+});
