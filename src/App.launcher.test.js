@@ -12,9 +12,9 @@ test("opens the blank Work placeholder from the launcher", () => {
   assert.match(app, /if \(isWork\) return <WorkPlaceholder onClose=\{onClose\} \/>/);
 });
 
-test("publishes the 0.3.25 release markers", () => {
-  assert.equal(packageJson.version, "0.3.25");
-  assert.match(app, /worldbook-assets\/\$\{fileName\}\?v=0\.3\.25/);
-  assert.match(app, /Ccat OS V0\.3\.25/);
-  assert.match(styles, /worldbook-assets\/hero-worldbook-atlas\.png\?v=0\.3\.25/);
+test("publishes the 0.3.26 release markers", () => {
+  assert.equal(packageJson.version, "0.3.26");
+  assert.match(app, /worldbook-assets\/\$\{fileName\}\?v=0\.3\.26/);
+  assert.match(app, /Ccat OS V0\.3\.26/);
+  assert.match(styles, /worldbook-assets\/hero-worldbook-atlas\.png\?v=0\.3\.26/);
 });
