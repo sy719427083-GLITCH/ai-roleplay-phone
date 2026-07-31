@@ -6,6 +6,10 @@ import { chromium } from "playwright";
 const port = 4174;
 const origin = `http://127.0.0.1:${port}`;
 const url = `${origin}/ai-roleplay-phone/`;
+const approvedProjectTaskLabels = new Set([
+  "做 PPT", "做表格", "写项目方案", "整理项目资料", "收集项目数据",
+  "分析项目数据", "制作项目报表", "核对项目预算", "编写交付文档", "检查项目成果",
+]);
 const server = spawn("npm", ["run", "dev", "--", "--port", String(port), "--strictPort"], { stdio: "ignore", detached: true });
 server.unref();
 
@@ -101,6 +105,13 @@ async function assertCharactersAtAssignedWorkstations(page) {
   }
 }
 
+async function assertConcreteProjectWorkLabels(page) {
+  const labels = await page.locator('.office-character[data-activity="working"] .office-character-activity').allInnerTexts();
+  assert.ok(labels.length > 0, "running project renders at least one concrete work task");
+  assert.equal(labels.includes("工作中"), false, "generic work label never renders");
+  assert.equal(labels.every((label) => approvedProjectTaskLabels.has(label)), true, "every work label belongs to the approved task list");
+}
+
 try {
   await waitForServer();
   await mkdir("artifacts/work-office-qa", { recursive: true });
@@ -156,18 +167,24 @@ try {
       if (!localStorage.getItem("ccatWorkOfficeV1")) {
         localStorage.setItem("ccatWorkOfficeV1", JSON.stringify({ version: 2, assignments: { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: "character:qa3", employee4: "character:qa4", employee5: "character:qa5", employee6: "character:qa6" }, avatarOverrides: {}, meWaypoint: "boss-home", simulation: { mode: "local", plan: null } }));
       }
-      localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
+      const projectClock = Date.now();
+      if (!localStorage.getItem("ccatWorkProjectsV1")) localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
         projects: Array.from({ length: 5 }, (_, index) => ({
           id: `qa-${index + 1}`,
-          name: `已缓存项目 ${index + 1}`,
+          name: index === 0 ? "经营数据与品牌汇报升级" : `已缓存项目 ${index + 1}`,
           durationHours: (index + 2) * 24,
           amountValue: (index + 1) * 1000,
           duration: `${index + 2} 天`,
           amount: `¥${(index + 1) * 1000}`,
-          description: `办公室浏览器测试合同 ${index + 1}`,
+          description: index === 0 ? "收集并分析经营数据，形成预算方案" : `办公室浏览器测试合同 ${index + 1}`,
+          scopeItems: index === 0 ? ["整理项目资料", "制作表格与项目报表", "检查项目成果"] : ["整理项目资料", "编写项目方案", "检查交付成果"],
+          deliverables: index === 0 ? "演示 PPT、项目报表和交付文档" : "项目方案、表格和交付文档",
+          acceptanceCriteria: "预算与数据准确，成果检查通过",
           difficulty: ["简单", "中等", "困难"][index % 3],
         })),
-        startedProjectId: null,
+        startedProjectId: "qa-1",
+        startedAt: new Date(projectClock - 60_000).toISOString(),
+        endsAt: new Date(projectClock + 48 * 60 * 60 * 1000).toISOString(),
         revision: 1,
         source: "main",
         generatedAt: "2026-07-25T00:00:00.000Z",
@@ -230,6 +247,11 @@ try {
     const groupHost = page.locator('.office-character[data-profile-id="me:qaMe"]');
     const groupGuest = page.locator('.office-character[data-profile-id="character:qa1"]');
     await groupHost.waitFor();
+    await page.waitForFunction((approved) => {
+      const labels = [...document.querySelectorAll('.office-character[data-activity="working"] .office-character-activity')].map((element) => element.textContent);
+      return labels.length > 0 && labels.every((label) => approved.includes(label));
+    }, [...approvedProjectTaskLabels]);
+    await assertConcreteProjectWorkLabels(page);
     const hostBeforeChat = await readCharacterAnchor(groupHost);
     const guestBeforeChat = await readCharacterAnchor(groupGuest);
     await page.locator(".office-character-bubble").waitFor({ timeout: 25000 });
@@ -275,11 +297,11 @@ try {
     await page.getByRole("button", { name: "项目管理" }).click();
     await page.getByRole("heading", { name: "项目合同", level: 1 }).waitFor();
     assert.equal(await page.locator(".work-project-card").count(), 5);
-    await page.getByRole("button", { name: "换一批合同" }).waitFor();
+    await page.getByRole("button", { name: "合同已签署，无法换一批" }).waitFor();
     await page.getByRole("button", { name: "返回工作室" }).click();
     await page.getByRole("button", { name: "项目倒计时" }).click();
     await page.getByRole("heading", { name: "项目倒计时", level: 1 }).waitFor();
-    await page.getByText("暂无进行中的项目", { exact: true }).waitFor();
+    await page.getByText("经营数据与品牌汇报升级", { exact: true }).waitFor();
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByRole("button", { name: "工作设置" }).click();
     await page.getByRole("radiogroup", { name: "自主行为模式" }).waitFor();
@@ -299,6 +321,52 @@ try {
     assert.equal(await page.locator('.office-character[data-profile-id="character:qa1"] .office-character-activity').innerText(), "刷抖音");
     assert.equal(await page.locator('.office-character[data-profile-id="character:qa2"]').getAttribute("data-activity"), "slacking");
     assert.equal(await page.locator('.office-character[data-profile-id="character:qa2"] .office-character-activity').innerText(), "摸鱼ing");
+    await assertConcreteProjectWorkLabels(page);
+
+    await page.evaluate(() => {
+      const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
+      const startsAt = Date.now();
+      const endsAt = startsAt + 1_500;
+      const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(new Date()).map(({ type, value }) => [type, value]));
+      const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+      const minutes = Number(dateParts.hour) * 60 + Number(dateParts.minute);
+      const intervalKey = `${dateKey}:${String(Math.floor(minutes / 15)).padStart(2, "0")}`;
+      const characters = Object.fromEntries(Object.entries(office.assignments).filter(([, profile]) => profile).map(([slotId, profileId]) => [profileId, {
+        activity: profileId === "me:qaMe" ? "printing" : "working",
+        label: profileId === "me:qaMe" ? "打印中" : "工作中",
+        destination: profileId === "me:qaMe" ? "print-station" : `${slotId}-home`,
+        startsAt,
+        endsAt: profileId === "me:qaMe" ? endsAt : startsAt + 120_000,
+        priority: "scheduled",
+      }]));
+      office.simulation = {
+        ...office.simulation,
+        mode: "local",
+        dateKey,
+        intervalKey,
+        plan: { id: `qa-short-print:${startsAt}`, modeUsed: "local", startsAt, endsAt: startsAt + 120_000, characters, conversation: null },
+        nextTransitionAt: startsAt + 120_000,
+        conversationCache: null,
+        manualMe: null,
+      };
+      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify(office));
+      location.href = "about:blank";
+    });
+    await page.waitForURL("about:blank");
+    await page.goto(url);
+    await page.getByRole("button", { name: "上划解锁" }).click();
+    await page.getByRole("button", { name: "工作" }).click();
+    await page.locator('.office-character[data-profile-id="me:qaMe"]').waitFor();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.plan.characters["me:qaMe"].label), "打印中");
+    await page.waitForFunction(() => {
+      const item = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"))?.simulation?.plan?.characters?.["me:qaMe"];
+      return item?.activity === "working" && item.label !== "打印中" && item.destination === "boss-home";
+    }, null, { timeout: 5000 });
+    const expiredPrintPlan = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.plan);
+    assert.equal(Object.values(expiredPrintPlan.characters).some((item) => item.activity === "printing" && Number(item.endsAt) <= Date.now()), false, "persisted plan never keeps expired printing");
+    assert.ok(approvedProjectTaskLabels.has(expiredPrintPlan.characters["me:qaMe"].label), "printer returns to a concrete project task");
     await page.screenshot({ path: `artifacts/work-office-qa/office-${viewport.width}x${viewport.height}.png`, fullPage: true });
     await page.getByRole("button", { name: "工作设置" }).click();
     await page.getByRole("radio", { name: /A 本地调度/ }).click();
@@ -306,6 +374,52 @@ try {
     await page.getByRole("radio", { name: /B AI 导演/ }).click();
     await page.getByRole("button", { name: "返回办公室" }).click();
     await page.getByText("AI 导演暂不可用：网络请求失败，请检查接口地址、跨域设置或网络状态。已使用本地调度", { exact: true }).waitFor();
+    await page.evaluate(() => {
+      const projects = JSON.parse(localStorage.getItem("ccatWorkProjectsV1"));
+      localStorage.setItem("ccatWorkProjectsV1", JSON.stringify({
+        ...projects, startedProjectId: null, startedAt: null, endsAt: null,
+      }));
+      const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
+      const startsAt = Date.now();
+      const endsAt = startsAt + 120_000;
+      office.assignments = { boss: "me:qaMe", employee1: "character:qa1", employee2: "character:qa2", employee3: null, employee4: null, employee5: null, employee6: null };
+      office.simulation = {
+        ...office.simulation,
+        mode: "local",
+        plan: {
+          id: `qa-idle-cache:${startsAt}`,
+          modeUsed: "local",
+          startsAt,
+          endsAt,
+          characters: {
+            "me:qaMe": { activity: "working", label: "工作中", destination: "rest-left", startsAt, endsAt, priority: "scheduled" },
+            "character:qa1": { activity: "reporting", label: "做报表", destination: "rest-right", startsAt, endsAt, priority: "scheduled" },
+            "character:qa2": { activity: "printing", label: "打印中", destination: "print-station", startsAt, endsAt, priority: "scheduled" },
+          },
+          conversation: null,
+        },
+        nextTransitionAt: endsAt,
+        conversationCache: null,
+        manualMe: null,
+      };
+      localStorage.setItem("ccatWorkOfficeV1", JSON.stringify(office));
+      location.href = "about:blank";
+    });
+    await page.waitForURL("about:blank");
+    await page.goto(url);
+    await page.getByRole("button", { name: "上划解锁" }).click();
+    await page.getByRole("button", { name: "工作" }).click();
+    await page.locator(".office-character").first().waitFor();
+    await page.waitForFunction(() => {
+      const plan = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"))?.simulation?.plan;
+      return plan && Object.values(plan.characters || {}).every((item) => item.activity === "idle" && item.label === "待命中");
+    });
+    assert.equal(await page.locator('.office-character[data-activity="printing"]').count(), 0, "no project suppresses cached printing");
+    assert.deepEqual(await page.locator(".office-character-activity").allInnerTexts(), ["待命中", "待命中", "待命中"]);
+    const idlePlan = await page.evaluate(() => JSON.parse(localStorage.getItem("ccatWorkOfficeV1")).simulation.plan);
+    assert.deepEqual(Object.fromEntries(Object.entries(idlePlan.characters).map(([id, item]) => [id, item.destination])), {
+      "me:qaMe": "boss-home", "character:qa1": "employee1-home", "character:qa2": "employee2-home",
+    });
     await page.evaluate(() => {
       const office = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"));
       const dateParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
@@ -347,11 +461,11 @@ try {
     assert.equal(await page.locator(".office-character").count(), 1);
     await page.waitForFunction(() => {
       const plan = JSON.parse(localStorage.getItem("ccatWorkOfficeV1"))?.simulation?.plan;
-      return plan?.conversation === null && plan?.characters?.["me:qaMe"]?.activity === "working";
+      return plan?.conversation === null && plan?.characters?.["me:qaMe"]?.activity === "idle";
     });
     const beforeSolo = await readCharacterAnchor(solo);
-    assert.equal(await solo.getAttribute("data-activity"), "working");
-    assert.equal(await solo.locator(".office-character-activity").innerText(), "工作中");
+    assert.equal(await solo.getAttribute("data-activity"), "idle");
+    assert.equal(await solo.locator(".office-character-activity").innerText(), "待命中");
     assert.equal(await page.locator(".office-character-bubble").count(), 0);
     await page.waitForTimeout(2500);
     const afterSolo = await readCharacterAnchor(solo);
