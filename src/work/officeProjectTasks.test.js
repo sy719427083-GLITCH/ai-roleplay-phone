@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  OFFICE_PRINT_MAX_MS,
+  OFFICE_PRINT_MIN_MS,
   OFFICE_PROJECT_TASKS,
+  getNextOfficePrintExpiry,
   hasRunningOfficeProject,
   normalizeProjectOfficePlan,
   selectOfficeProjectTask,
@@ -84,4 +87,25 @@ test("maps generic work and reporting to concrete project tasks", () => {
     assert.ok(OFFICE_PROJECT_TASKS.some((item) => item.label === result.characters[id].label));
     assert.equal(result.characters[id].destination, `${slotId}-home`);
   }
+});
+
+test("declares the approved print window and finds only future print expiry", () => {
+  assert.equal(OFFICE_PRINT_MIN_MS, 15_000);
+  assert.equal(OFFICE_PRINT_MAX_MS, 30_000);
+  assert.equal(getNextOfficePrintExpiry({ characters: { a: { activity: "printing", endsAt: 900 } } }, 1000), null);
+  assert.equal(getNextOfficePrintExpiry({ characters: {
+    a: { activity: "printing", endsAt: 1200 },
+    b: { activity: "printing", endsAt: 1500 },
+    c: { activity: "working", endsAt: 1100 },
+  } }, 1000), 1200);
+});
+
+test("replaces expired cached printing with a concrete project task", () => {
+  const plan = { id: "expired", characters: {
+    "me:1": { activity: "printing", label: "打印中", destination: "print-station", startsAt: 100, endsAt: 900 },
+  }, conversation: null };
+  const result = normalizeProjectOfficePlan(plan, { occupants: occupants.slice(0, 1), projectContext: runningProject, intervalKey: "active", now: 1000 });
+  assert.equal(result.characters["me:1"].activity, "working");
+  assert.notEqual(result.characters["me:1"].label, "工作中");
+  assert.equal(result.characters["me:1"].destination, "boss-home");
 });

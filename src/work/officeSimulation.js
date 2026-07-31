@@ -1,5 +1,5 @@
 import { allocateOfficeActivities, resolveOfficeActivityDestination } from "./officeScenePlan.js";
-import { hasRunningOfficeProject } from "./officeProjectTasks.js";
+import { OFFICE_PRINT_MAX_MS, OFFICE_PRINT_MIN_MS, hasRunningOfficeProject } from "./officeProjectTasks.js";
 
 export const OFFICE_ACTIVITIES = Object.freeze({
   idle: { id: "idle", label: "待命中", minutes: [8, 25] },
@@ -114,10 +114,13 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
     if (previousPlan?.characters?.[occupant.profile.id]?.activity === activity && random() < .35) activity = hasRunningOfficeProject(projectContext) ? "working" : "idle";
     const definition = OFFICE_ACTIVITIES[activity];
     const minutes = definition.minutes[0] + Math.floor(random() * (definition.minutes[1] - definition.minutes[0] + 1));
+    const durationMs = activity === "printing"
+      ? OFFICE_PRINT_MIN_MS + Math.floor(random() * (OFFICE_PRINT_MAX_MS - OFFICE_PRINT_MIN_MS + 1))
+      : minutes * 60_000;
     const fallbackDestination = sharedDestination(activity, index) || `${occupant.slotId}-home`;
     characters[occupant.profile.id] = {
       activity, label: definition.label, destination: resolveOfficeActivityDestination(activity, occupant, fallbackDestination),
-      startsAt, endsAt: startsAt + minutes * 60_000, priority: "scheduled",
+      startsAt, endsAt: startsAt + durationMs, priority: "scheduled",
     };
   });
   const chatters = occupants.filter((item) => characters[item.profile.id]?.activity === "chatting").slice(0, 4);

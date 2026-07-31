@@ -91,12 +91,21 @@ test("simulation delegates finite group chat and runtime gathering", () => {
   assert.doesNotMatch(source, /% conversation\.turns\.length/);
 });
 
+test("simulation owns and clears an independent print expiry timer", () => {
+  const source = readFileSync("src/work/useOfficeSimulation.js", "utf8");
+  assert.match(source, /printTimer/);
+  assert.match(source, /getNextOfficePrintExpiry/);
+  assert.match(source, /after-print/);
+  assert.match(source, /clearTimeout\(printTimer\.current\)/);
+  assert.match(source, /SET_SCENE_PLAN/);
+});
+
 test("completed conversations release chatters into non-chat activities", () => {
   const generatedPlan = {
     id: "fresh",
     characters: {
       "me:m1": { activity: "chatting", label: "聊天中", destination: "social-left" },
-      "character:c1": { activity: "printing", label: "打印中", destination: "print-station" },
+      "character:c1": { activity: "printing", label: "打印中", destination: "print-station", startsAt: 5_000, endsAt: 20_000 },
     },
     conversation: { participantIds: ["me:m1", "character:c1"] },
   };

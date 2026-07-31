@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { OFFICE_PRINT_MAX_MS, OFFICE_PRINT_MIN_MS } from "./officeProjectTasks.js";
 import { OFFICE_ACTIVITIES, createLocalOfficePlan, createOfficeDailySeed, getChinaOfficePeriod, getOfficeIntervalKey } from "./officeSimulation.js";
 
 const occupants = Array.from({ length: 7 }, (_, index) => ({
@@ -106,4 +107,17 @@ test("uses concrete project task labels whenever active work is scheduled", () =
     }
   }
   assert.ok(workCount > 0);
+});
+
+test("bounds every locally scheduled print to fifteen through thirty seconds", () => {
+  let printCount = 0;
+  for (let index = 0; index < 500; index += 1) {
+    const plan = createLocalOfficePlan({ occupants, now: new Date("2026-07-27T02:00:00Z"), seed: `print-${index}`, projectContext: runningProject });
+    for (const item of Object.values(plan.characters).filter((value) => value.activity === "printing")) {
+      printCount += 1;
+      assert.ok(item.endsAt - item.startsAt >= OFFICE_PRINT_MIN_MS);
+      assert.ok(item.endsAt - item.startsAt <= OFFICE_PRINT_MAX_MS);
+    }
+  }
+  assert.ok(printCount > 0);
 });

@@ -11,6 +11,9 @@ export const OFFICE_PROJECT_TASKS = Object.freeze([
   { id: "qa", label: "检查项目成果", keywords: ["验收", "检查", "测试", "质量", "校验", "成果"] },
 ]);
 
+export const OFFICE_PRINT_MIN_MS = 15_000;
+export const OFFICE_PRINT_MAX_MS = 30_000;
+
 const WORK_ACTIVITY_IDS = new Set(["working", "reporting", "printing"]);
 
 function hashString(value) {
@@ -37,6 +40,13 @@ export function isOfficeProjectWorkActivity(activity) {
   return WORK_ACTIVITY_IDS.has(activity);
 }
 
+export function getNextOfficePrintExpiry(plan, now = Date.now()) {
+  const expiries = Object.values(plan?.characters || {})
+    .filter((item) => item?.activity === "printing" && Number(item.endsAt) > now)
+    .map((item) => Number(item.endsAt));
+  return expiries.length ? Math.min(...expiries) : null;
+}
+
 export function selectOfficeProjectTask({ project, profileId = "", intervalKey = "", usedLabels = new Set() }) {
   const text = getProjectText(project);
   const scored = OFFICE_PROJECT_TASKS.map((task, index) => ({
@@ -58,8 +68,11 @@ export function normalizeProjectOfficePlan(plan, {
   const usedLabels = new Set();
   for (const occupant of occupants) {
     const profileId = occupant.profile.id;
-    const current = next.characters[profileId];
-    if (!current || !isOfficeProjectWorkActivity(current.activity)) continue;
+    const stored = next.characters[profileId];
+    if (!stored || !isOfficeProjectWorkActivity(stored.activity)) continue;
+    const current = stored.activity === "printing" && !(Number(stored.endsAt) > now)
+      ? { ...stored, activity: "working", label: "工作中", destination: `${occupant.slotId}-home` }
+      : stored;
     if (!running) {
       next.characters[profileId] = {
         ...current,

@@ -93,10 +93,10 @@ test("registers every shared activity point", () => {
 
 test("allows only one active printer user", () => {
   const plan = { characters: {
-    c1: { activity: "printing", destination: "print-station" },
-    c2: { activity: "printing", destination: "print-station" },
+    c1: { activity: "printing", destination: "print-station", startsAt: 1000, endsAt: 5000 },
+    c2: { activity: "printing", destination: "print-station", startsAt: 1000, endsAt: 5000 },
   } };
-  const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }, { slotId: "employee1", profile: { id: "c2" } }], { projectContext: runningProject });
+  const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }, { slotId: "employee1", profile: { id: "c2" } }], { projectContext: runningProject, now: 1000 });
   assert.equal(Object.values(result.characters).filter((item) => item.destination === "print-station").length, 1);
   assert.equal(result.characters.c2.destination, "print-wait");
 });

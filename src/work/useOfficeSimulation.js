@@ -4,6 +4,7 @@ import { buildOfficeAiContext, formatOfficeAiError, generateAiOfficePlan } from 
 import { createConversationGatherLayout } from "./officeConversationLayout.js";
 import { getOfficePoint } from "./officeGeometry.js";
 import { createOfficeRoute } from "./officeNavigation.js";
+import { getNextOfficePrintExpiry } from "./officeProjectTasks.js";
 import { allocateOfficeActivities, getDistinctConversationIds } from "./officeScenePlan.js";
 import { createLocalOfficePlan, createOfficeDailySeed, getOfficeIntervalKey } from "./officeSimulation.js";
 import { useOfficeConversation } from "./useOfficeConversation.js";
@@ -56,6 +57,7 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
   const timers = useRef(new Map());
   const planRun = useRef(0);
   const manualTimer = useRef(null);
+  const printTimer = useRef(null);
   const manualRun = useRef(0);
   const me = occupants.find((item) => item.profile.source === "me");
   const projectKey = `${projectContext?.status || "idle"}:${projectContext?.project?.id || "none"}`;
@@ -82,6 +84,7 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     manualRun.current += 1;
     clearTimers();
     window.clearTimeout(manualTimer.current);
+    window.clearTimeout(printTimer.current);
   }, []);
 
   useEffect(() => {
@@ -131,6 +134,27 @@ export function useOfficeSimulation({ occupants, simulation, dispatch, companyNa
     else manualTimer.current = window.setTimeout(resume, remaining);
     return () => window.clearTimeout(manualTimer.current);
   }, [simulation.manualMe?.endsAt, me?.profile.id]);
+
+  useEffect(() => {
+    window.clearTimeout(printTimer.current);
+    const expiresAt = getNextOfficePrintExpiry(plan, Date.now());
+    if (!expiresAt) return undefined;
+    const expire = () => {
+      const completedAt = Date.now();
+      const intervalKey = getOfficeIntervalKey(new Date(completedAt));
+      const seed = simulation.seed || createOfficeDailySeed(new Date(completedAt), companyName);
+      const replacement = allocateOfficeActivities({ ...plan, id: `${plan.id}:after-print:${completedAt}` }, occupants, {
+        projectContext, intervalKey, now: completedAt,
+      });
+      setPlan(replacement);
+      dispatch({ type: "SET_SCENE_PLAN", value: {
+        dateKey: seed.split(":").at(-1), seed, intervalKey,
+        plan: replacement, nextTransitionAt: replacement.endsAt,
+      } });
+    };
+    printTimer.current = window.setTimeout(expire, Math.max(0, expiresAt - Date.now()));
+    return () => window.clearTimeout(printTimer.current);
+  }, [plan?.id, projectKey]);
 
   useEffect(() => {
     if (!plan) return;
