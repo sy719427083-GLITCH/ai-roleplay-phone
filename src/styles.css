@@ -4002,6 +4002,17 @@ select {
   scrollbar-width: none;
 }
 
+.chat-load-earlier {
+  align-self: center;
+  margin: 0 auto 14px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #7a7a80;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
 .chat-page:has(.chat-input-area.expanded) .chat-list {
   padding-bottom: 238px;
 }

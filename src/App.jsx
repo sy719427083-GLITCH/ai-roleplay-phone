@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   BookMarked,
@@ -72,6 +72,7 @@ import {
   splitChatMessages,
 } from "./messageLogic.js";
 import {
+  CHAT_HISTORY_PAGE_SIZE,
   MESSAGE_STORAGE_KEY,
   acceptFriendRequest,
   appendChatMessage,
@@ -80,6 +81,7 @@ import {
   createConversationForCharacter,
   deleteChatMessage,
   deleteConversation,
+  getVisibleChatHistory,
   markConversationRead,
   normalizeMessageState,
   rejectFriendRequest,
@@ -3004,6 +3006,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const [messageTab, setMessageTab] = useState("messages");
   const [messageBackTarget, setMessageBackTarget] = useState("");
   const [chatId, setChatId] = useState("");
+  const [visibleMessageCount, setVisibleMessageCount] = useState(CHAT_HISTORY_PAGE_SIZE);
   const [draft, setDraft] = useState("");
   const [actionPanelOpen, setActionPanelOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -3031,6 +3034,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const swipeRef = useRef(null);
   const recallPressRef = useRef(null);
   const chatListRef = useRef(null);
+  const historyLoadAnchorRef = useRef(null);
   const characters = useMemo(readMessageCharacters, []);
   const meProfileMap = useMemo(readMessageMeProfiles, []);
   const meProfiles = useMemo(() => toMessageMeProfileList(meProfileMap), [meProfileMap]);
@@ -3165,6 +3169,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const closeChat = () => {
     setProactiveSettingsOpen(false);
     setActionPanelOpen(false);
+    setVisibleMessageCount(CHAT_HISTORY_PAGE_SIZE);
     setChatId("");
   };
 
@@ -3187,8 +3192,25 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     if (!character?.id) return;
     setMessageState((current) => markConversationRead(createConversationForCharacter(current, character), character.id));
     setSwipedId("");
+    setVisibleMessageCount(CHAT_HISTORY_PAGE_SIZE);
     setChatId(character.id);
   };
+
+  const loadEarlierMessages = () => {
+    const list = chatListRef.current;
+    historyLoadAnchorRef.current = list
+      ? { scrollHeight: list.scrollHeight, scrollTop: list.scrollTop }
+      : null;
+    setVisibleMessageCount((current) => current + CHAT_HISTORY_PAGE_SIZE);
+  };
+
+  useLayoutEffect(() => {
+    const anchor = historyLoadAnchorRef.current;
+    const list = chatListRef.current;
+    if (!anchor || !list) return;
+    list.scrollTop = anchor.scrollTop + (list.scrollHeight - anchor.scrollHeight);
+    historyLoadAnchorRef.current = null;
+  }, [visibleMessageCount, chatId]);
 
   useEffect(() => {
     if (!chatId || !chatListRef.current) return;
@@ -3858,6 +3880,7 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
   const activeCharacter = chatId ? characterMap[chatId] || { id: chatId, name: "聊天" } : null;
   if (activeCharacter) {
     const history = messageState.histories[chatId] || [];
+    const { messages: visibleHistory, hiddenCount } = getVisibleChatHistory(history, visibleMessageCount);
     const activeTransferMessage = history.find((message) => message.id === activeTransferMessageId && message.kind === "transfer");
     return (
       <section className="full-page message-page chat-page">
@@ -3885,7 +3908,12 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
           </label>
         </header>
         <div className="chat-list" ref={chatListRef}>
-          {history.map((message) => (
+          {hiddenCount > 0 && (
+            <button type="button" className="chat-load-earlier" onClick={loadEarlierMessages}>
+              加载更早消息（剩余 {hiddenCount} 条）
+            </button>
+          )}
+          {visibleHistory.map((message) => (
             <div className={`chat-bubble-row ${message.from === "me" ? "mine" : ""} ${message.kind === "recall" ? "recall-row" : ""}`} key={message.id}>
               {message.from !== "me" && message.kind !== "recall" && <MessageAvatar character={activeCharacter} />}
               <span
