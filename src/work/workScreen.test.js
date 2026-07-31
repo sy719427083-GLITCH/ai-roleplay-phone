@@ -103,6 +103,14 @@ test("work screen runs autonomous office simulation and mode settings", () => {
   assert.match(screen, /characterStates/);
 });
 
+test("work screen passes the full running project into office simulation", () => {
+  const source = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
+  assert.match(source, /officeProjectContext/);
+  assert.match(source, /status:\s*projectTimer\.status/);
+  assert.match(source, /project:\s*projectTimer\.status === "running" \? projectTimer\.project : null/);
+  assert.match(source, /projectContext:\s*officeProjectContext/);
+});
+
 test("work settings tests the real main AI director endpoint", () => {
   const settings = readFileSync("src/work/WorkSettings.jsx", "utf8");
   const screen = readFileSync("src/work/WorkAppScreen.jsx", "utf8");
@@ -116,7 +124,7 @@ test("work settings tests the real main AI director endpoint", () => {
   assert.match(screen, /buildOfficeAiContext/);
   assert.match(screen, /formatOfficeAiError/);
   assert.match(screen, /parseConfigs/);
-  assert.match(screen, /projectTimer\.project\?\.name/);
+  assert.match(screen, /projectContext:\s*officeProjectContext/);
   assert.match(screen, /testOfficeAiDirector\(\{ apiState, context \}\)/);
   assert.match(styles, /\.work-ai-test-button\s*\{[^}]*min-height:\s*44px/s);
 });

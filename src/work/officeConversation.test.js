@@ -138,6 +138,23 @@ test("realistic AI test sends every current occupant and rejects an empty office
   );
 });
 
+test("AI scene direction receives the full running project contract and no-project rule", async () => {
+  const project = { id: "p", name: "数据项目", description: "分析数据", scopeItems: ["制作报表"] };
+  const occupants = [{ slotId: "boss", profile: { id: "character:c1", name: "林序" } }];
+  const context = buildOfficeAiContext({ occupants, now: 1_000, endsAt: 901_000, projectContext: { status: "running", project } });
+  let messages;
+  await testOfficeAiDirector({ apiState: mainApiState, context, fetchImpl: async (_url, options) => {
+    messages = JSON.parse(options.body).messages;
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+      id: "project-scene", startsAt: 1_000, endsAt: 901_000,
+      characters: { "character:c1": { activity: "working", label: "工作中", destination: "boss-home", startsAt: 1_000, endsAt: 901_000 } },
+      conversation: null,
+    }) } }] }) };
+  } });
+  assert.deepEqual(JSON.parse(messages[1].content).project, project);
+  assert.match(messages[0].content, /没有进行中的项目时不要安排 working、reporting 或 printing/);
+});
+
 test("reports missing main fields before requesting", async () => {
   const context = buildOfficeAiContext({ occupants: [{ slotId: "boss", profile: { id: "character:c1" } }], now: 1_000, endsAt: 901_000 });
   await assert.rejects(

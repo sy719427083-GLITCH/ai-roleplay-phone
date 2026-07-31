@@ -5,6 +5,7 @@ import { allocateOfficeActivities } from "./officeScenePlan.js";
 import { ME_MANUAL_IDLE_MS, deriveCurrentSimulation, getRuntimeConversationParticipants, interruptMePlan, releaseOfficeConversationPlan, resumeMeAutonomy } from "./useOfficeSimulation.js";
 
 const occupants = [{ slotId: "boss", profile: { id: "me:m1" } }, { slotId: "employee1", profile: { id: "character:c1" } }];
+const runningProject = { status: "running", project: { id: "p", name: "品牌方案", description: "制作品牌方案" } };
 
 test("reuses only a matching current persisted interval", () => {
   const createPlan = () => ({ id: "new", characters: {} });
@@ -38,7 +39,7 @@ test("a restored stale chat is normalized before runtime movement", () => {
   });
   const safe = allocateOfficeActivities(restored, soloOccupants);
   assert.equal(safe.conversation, null);
-  assert.equal(safe.characters["me:1"].activity, "working");
+  assert.equal(safe.characters["me:1"].activity, "idle");
   assert.equal(safe.characters["me:1"].destination, "boss-home");
 });
 
@@ -54,7 +55,7 @@ test("manual Me interruption cannot leave the other participant chatting alone",
   const interrupted = interruptMePlan(plan, "me:m1", { destination: "print-station", now: 100 });
   const safe = allocateOfficeActivities(interrupted, occupants);
   assert.equal(safe.conversation, null);
-  assert.equal(safe.characters["character:c1"].activity, "working");
+  assert.equal(safe.characters["character:c1"].activity, "idle");
   assert.equal(safe.characters["character:c1"].destination, "employee1-home");
 });
 
@@ -99,9 +100,11 @@ test("completed conversations release chatters into non-chat activities", () => 
     },
     conversation: { participantIds: ["me:m1", "character:c1"] },
   };
-  const released = releaseOfficeConversationPlan({ generatedPlan, occupants, completedAt: 9_000 });
+  const released = releaseOfficeConversationPlan({ generatedPlan, occupants, projectContext: runningProject, intervalKey: "active", completedAt: 9_000 });
   assert.equal(released.conversation, null);
-  assert.deepEqual(released.characters["me:m1"], { activity: "working", label: "工作中", destination: "boss-home" });
+  assert.equal(released.characters["me:m1"].activity, "working");
+  assert.notEqual(released.characters["me:m1"].label, "工作中");
+  assert.equal(released.characters["me:m1"].destination, "boss-home");
   assert.equal(released.characters["character:c1"].activity, "printing");
   assert.match(released.id, /after-chat:9000/);
 });

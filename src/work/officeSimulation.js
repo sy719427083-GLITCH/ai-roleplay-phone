@@ -1,6 +1,8 @@
 import { allocateOfficeActivities, resolveOfficeActivityDestination } from "./officeScenePlan.js";
+import { hasRunningOfficeProject } from "./officeProjectTasks.js";
 
 export const OFFICE_ACTIVITIES = Object.freeze({
+  idle: { id: "idle", label: "待命中", minutes: [8, 25] },
   working: { id: "working", label: "工作中", minutes: [12, 35] },
   reporting: { id: "reporting", label: "做报表", minutes: [10, 25] },
   printing: { id: "printing", label: "打印中", minutes: [3, 8] },
@@ -79,6 +81,18 @@ function weightedActivity(weights, affinities, random) {
   return entries.find(([, weight]) => (cursor -= weight) <= 0)?.[0] || entries[0][0];
 }
 
+function weightsForProject(period, projectContext) {
+  if (hasRunningOfficeProject(projectContext)) return PERIOD_WEIGHTS[period];
+  const weights = Object.fromEntries(Object.entries(PERIOD_WEIGHTS[period]).filter(([id]) => !["working", "reporting", "printing"].includes(id)));
+  return { idle: 8, ...weights };
+}
+
+function projectSeed(projectContext) {
+  if (!hasRunningOfficeProject(projectContext)) return "no-project";
+  const project = projectContext.project;
+  return [project.id, project.name, project.description, ...(project.scopeItems || []), project.deliverables, project.acceptanceCriteria].filter(Boolean).join("|");
+}
+
 const sharedDestination = (activity, index) => ({
   printing: "print-station", chatting: `social-${["left", "center", "right"][index % 3]}`,
   resting: `rest-${index % 2 ? "right" : "left"}`, offDuty: "off-duty",
@@ -89,15 +103,15 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
   const startsAt = date.getTime();
   const intervalKey = getOfficeIntervalKey(date);
   const period = getChinaOfficePeriod(date);
-  const random = randomFrom(`${seed}:${intervalKey}:${projectContext}`);
+  const random = randomFrom(`${seed}:${intervalKey}:${projectSeed(projectContext)}`);
   const characters = {};
   let printerTaken = false;
   occupants.forEach((occupant, index) => {
     const affinities = occupant.profile.officeContext?.affinities || { focus: .5, social: .5, discipline: .5, entertainment: .5, night: .5 };
-    let activity = weightedActivity(PERIOD_WEIGHTS[period], affinities, random);
+    let activity = weightedActivity(weightsForProject(period, projectContext), affinities, random);
     if (activity === "printing" && printerTaken) activity = "working";
     if (activity === "printing") printerTaken = true;
-    if (previousPlan?.characters?.[occupant.profile.id]?.activity === activity && random() < .35) activity = "working";
+    if (previousPlan?.characters?.[occupant.profile.id]?.activity === activity && random() < .35) activity = hasRunningOfficeProject(projectContext) ? "working" : "idle";
     const definition = OFFICE_ACTIVITIES[activity];
     const minutes = definition.minutes[0] + Math.floor(random() * (definition.minutes[1] - definition.minutes[0] + 1));
     const fallbackDestination = sharedDestination(activity, index) || `${occupant.slotId}-home`;
@@ -109,5 +123,5 @@ export function createLocalOfficePlan({ occupants = [], now = new Date(), seed =
   const chatters = occupants.filter((item) => characters[item.profile.id]?.activity === "chatting").slice(0, 4);
   const conversation = chatters.length >= 2 ? { id: `chat:${intervalKey}`, participantIds: chatters.map((item) => item.profile.id), turns: [], startsAt, endsAt: Math.min(...chatters.map((item) => characters[item.profile.id].endsAt)) } : null;
   const plan = { id: `local:${intervalKey}`, modeUsed: "local", period, startsAt, endsAt: startsAt + 15 * 60_000, characters, conversation };
-  return allocateOfficeActivities(plan, occupants);
+  return allocateOfficeActivities(plan, occupants, { projectContext, intervalKey, now: startsAt });
 }

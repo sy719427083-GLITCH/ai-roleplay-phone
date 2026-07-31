@@ -48,6 +48,10 @@ export function WorkAppScreen({ onClose }) {
     return profile ? [{ slotId, profile, avatar: resolveOfficeAvatar(profile, state.avatarOverrides) }] : [];
   }), [profileMap, state.assignments, state.avatarOverrides]);
   const projectTimer = deriveProjectTimer(projectState, now);
+  const officeProjectContext = useMemo(() => ({
+    status: projectTimer.status,
+    project: projectTimer.status === "running" ? projectTimer.project : null,
+  }), [projectTimer.status, projectTimer.project?.id]);
 
   useEffect(() => {
     window.localStorage.setItem(OFFICE_STORAGE_KEY, JSON.stringify(state));
@@ -72,7 +76,7 @@ export function WorkAppScreen({ onClose }) {
     noticeTimer.current = window.setTimeout(() => setNotice(""), durationMs);
   };
 
-  const { characterStates, activeConversation, commandMe } = useOfficeSimulation({ occupants, simulation: state.simulation, dispatch, companyName: company?.name, projectContext: projectTimer.project?.name || "", sceneRef, now, showNotice });
+  const { characterStates, activeConversation, commandMe } = useOfficeSimulation({ occupants, simulation: state.simulation, dispatch, companyName: company?.name, projectContext: officeProjectContext, sceneRef, now, showNotice });
 
   const claimReward = () => {
     if (claiming || projectTimer.status !== "finished") return;
@@ -106,7 +110,7 @@ export function WorkAppScreen({ onClose }) {
       occupants,
       now: testNow,
       endsAt: testNow + 15 * 60_000,
-      projectContext: projectTimer.project?.name || "",
+      projectContext: officeProjectContext,
     });
     try {
       return await testOfficeAiDirector({ apiState, context });

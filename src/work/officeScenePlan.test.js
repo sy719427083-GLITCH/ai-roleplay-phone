@@ -4,10 +4,11 @@ import * as officeScenePlan from "./officeScenePlan.js";
 import { getOfficePoint } from "./officeGeometry.js";
 
 const { allocateOfficeActivities, validateOfficeScenePlan } = officeScenePlan;
+const runningProject = { status: "running", project: { id: "p", name: "项目方案", description: "制作项目方案" } };
 
 test("keeps desk activities at each occupant's own workstation", () => {
   assert.equal(typeof officeScenePlan.resolveOfficeActivityDestination, "function");
-  assert.deepEqual([...officeScenePlan.OFFICE_DESK_ACTIVITIES], ["working", "reporting", "scrolling", "gaming", "slacking"]);
+  assert.deepEqual([...officeScenePlan.OFFICE_DESK_ACTIVITIES], ["idle", "working", "reporting", "scrolling", "gaming", "slacking"]);
   for (const activity of officeScenePlan.OFFICE_DESK_ACTIVITIES) {
     assert.equal(officeScenePlan.resolveOfficeActivityDestination(activity, { slotId: "boss" }, "rest-left"), "boss-home");
     assert.equal(officeScenePlan.resolveOfficeActivityDestination(activity, { slotId: "employee4" }, "play-right"), "employee4-home");
@@ -41,7 +42,7 @@ test("normalizes AI desk activities without changing their metadata", () => {
   assert.deepEqual({ ...result.characters.c3, destination: "social-center" }, plan.characters.c3);
 });
 
-test("turns an orphaned chatting activity into work at the assigned workstation", () => {
+test("turns an orphaned chatting activity into idle at the assigned workstation without a project", () => {
   const plan = {
     id: "solo",
     characters: {
@@ -51,7 +52,7 @@ test("turns an orphaned chatting activity into work at the assigned workstation"
   };
   const result = allocateOfficeActivities(plan, [{ slotId: "employee3", profile: { id: "c1" } }]);
   assert.deepEqual(result.characters.c1, {
-    activity: "working", label: "工作中", destination: "employee3-home", startsAt: 10, endsAt: 20, priority: "scheduled",
+    activity: "idle", label: "待命中", destination: "employee3-home", startsAt: 10, endsAt: 20, priority: "scheduled",
   });
   assert.equal(result.conversation, null);
 });
@@ -66,7 +67,7 @@ test("removes stale participants instead of moving one remaining person to chat 
   };
   const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }]);
   assert.equal(result.conversation, null);
-  assert.deepEqual(result.characters.c1, { activity: "working", label: "工作中", destination: "boss-home", startsAt: 10, endsAt: 20 });
+  assert.deepEqual(result.characters.c1, { activity: "idle", label: "待命中", destination: "boss-home", startsAt: 10, endsAt: 20 });
 });
 
 test("preserves a valid group and normalizes unrelated chatting characters", () => {
@@ -83,7 +84,7 @@ test("preserves a valid group and normalizes unrelated chatting characters", () 
   assert.deepEqual(result.conversation.participantIds, ["c1", "c2"]);
   assert.equal(result.characters.c1.activity, "chatting");
   assert.equal(result.characters.c2.activity, "chatting");
-  assert.deepEqual(result.characters.c3, { activity: "working", label: "工作中", destination: "employee2-home", startsAt: 10, endsAt: 20 });
+  assert.deepEqual(result.characters.c3, { activity: "idle", label: "待命中", destination: "employee2-home", startsAt: 10, endsAt: 20 });
 });
 
 test("registers every shared activity point", () => {
@@ -95,7 +96,7 @@ test("allows only one active printer user", () => {
     c1: { activity: "printing", destination: "print-station" },
     c2: { activity: "printing", destination: "print-station" },
   } };
-  const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }, { slotId: "employee1", profile: { id: "c2" } }]);
+  const result = allocateOfficeActivities(plan, [{ slotId: "boss", profile: { id: "c1" } }, { slotId: "employee1", profile: { id: "c2" } }], { projectContext: runningProject });
   assert.equal(Object.values(result.characters).filter((item) => item.destination === "print-station").length, 1);
   assert.equal(result.characters.c2.destination, "print-wait");
 });
@@ -116,4 +117,18 @@ test("rejects duplicate-only conversation participants", () => {
   const result = validateOfficeScenePlan(plan, { profileIds: new Set(["c1", "c2"]), now: 1 });
   assert.equal(result.valid, false);
   assert.match(result.issues.join(" "), /conversation/);
+});
+
+test("normalizes cached work and print states to idle without a running project", () => {
+  const plan = { characters: {
+    c1: { activity: "working", label: "工作中", destination: "boss-home" },
+    c2: { activity: "printing", label: "打印中", destination: "print-station" },
+  }, conversation: null };
+  const occupants = [
+    { slotId: "boss", profile: { id: "c1" } },
+    { slotId: "employee1", profile: { id: "c2" } },
+  ];
+  const result = allocateOfficeActivities(plan, occupants, { projectContext: null, intervalKey: "idle", now: 1000 });
+  assert.deepEqual(result.characters.c1, { activity: "idle", label: "待命中", destination: "boss-home", startsAt: 1000 });
+  assert.deepEqual(result.characters.c2, { activity: "idle", label: "待命中", destination: "employee1-home", startsAt: 1000 });
 });

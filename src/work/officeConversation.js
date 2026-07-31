@@ -114,6 +114,16 @@ function profilePrompt(profile) {
   return { id: profile.id, name: profile.name, identity: context.identity || profile.identity || "", personality: profile.personality || "", persona: context.persona || profile.persona || "", relations: context.relationshipSummary || "" };
 }
 
+function projectName(projectContext) {
+  if (typeof projectContext === "string") return projectContext;
+  return projectContext?.project?.name || "";
+}
+
+function projectContract(projectContext) {
+  if (typeof projectContext === "string") return projectContext;
+  return projectContext?.status === "running" ? projectContext.project : null;
+}
+
 export function buildOfficeAiContext({ occupants = [], now = Date.now(), endsAt = now + 900_000, projectContext = "" } = {}) {
   return {
     occupants,
@@ -159,7 +169,7 @@ export async function generateOfficeConversation({ apiState, context, fetchImpl 
   const profiles = participantProfiles(context.participants);
   const content = await requestWithFailover(apiState, [
     { role: "system", content: "你在扮演办公室角色。只返回 JSON：{\"shouldContinue\":布尔值,\"turns\":[{\"speakerId\":\"已知ID\",\"text\":\"自然中文短句\"}]}。仅使用已知ID，2到6句，每句不超过42字，不写旁白；不能复述 history；同一人物不能连续说话；内容符合人设、关系、时间和项目；话题自然结束时 shouldContinue=false。" },
-    { role: "user", content: JSON.stringify({ participants: profiles.map(profilePrompt), project: context.projectContext || "", time: new Date(context.now || Date.now()).toISOString(), history: context.history || [], batchIndex: context.batchIndex || 1 }) },
+    { role: "user", content: JSON.stringify({ participants: profiles.map(profilePrompt), project: projectName(context.projectContext), time: new Date(context.now || Date.now()).toISOString(), history: context.history || [], batchIndex: context.batchIndex || 1 }) },
   ], fetchImpl, OFFICE_CONVERSATION_TIMEOUT_MS);
   return parseOfficeConversation(content, profiles, context);
 }
@@ -176,8 +186,8 @@ export function parseAiOfficePlan(content, { occupants = [], now = Date.now() } 
 export async function generateAiOfficePlan({ apiState, context, fetchImpl = fetch }) {
   const profiles = participantProfiles(context.occupants);
   const content = await requestWithFailover(apiState, [
-    { role: "system", content: "你是办公室场景导演。只返回 JSON，不要解释或 Markdown。顶层结构必须是 {\"id\":\"scene-id\",\"startsAt\":数字,\"endsAt\":数字,\"characters\":{\"人物ID\":{\"activity\":\"working\",\"label\":\"工作中\",\"destination\":\"目的地ID\",\"startsAt\":数字,\"endsAt\":数字}},\"conversation\":null}。characters 必须包含用户提供的每个人物ID。活动仅可用 working,reporting,printing,chatting,resting,gaming,scrolling,slacking,offDuty；目的地仅使用用户提供的ID；打印机最多一人；聊天时 conversation 使用 {\"id\":\"chat-id\",\"participantIds\":[\"人物ID\"],\"turns\":[],\"startsAt\":数字,\"endsAt\":数字} 且必须有2到4名不同人物；不聊天时 conversation 必须为 null。" },
-    { role: "user", content: JSON.stringify({ profiles: profiles.map(profilePrompt), destinations: context.destinations, startsAt: context.now, endsAt: context.endsAt, project: context.projectContext || "" }) },
+    { role: "system", content: "你是办公室场景导演。只返回 JSON，不要解释或 Markdown。顶层结构必须是 {\"id\":\"scene-id\",\"startsAt\":数字,\"endsAt\":数字,\"characters\":{\"人物ID\":{\"activity\":\"working\",\"label\":\"工作中\",\"destination\":\"目的地ID\",\"startsAt\":数字,\"endsAt\":数字}},\"conversation\":null}。characters 必须包含用户提供的每个人物ID。活动仅可用 working,reporting,printing,chatting,resting,gaming,scrolling,slacking,offDuty；目的地仅使用用户提供的ID；打印机最多一人；没有进行中的项目时不要安排 working、reporting 或 printing；本地规则会把通用工作状态改成具体项目任务。聊天时 conversation 使用 {\"id\":\"chat-id\",\"participantIds\":[\"人物ID\"],\"turns\":[],\"startsAt\":数字,\"endsAt\":数字} 且必须有2到4名不同人物；不聊天时 conversation 必须为 null。" },
+    { role: "user", content: JSON.stringify({ profiles: profiles.map(profilePrompt), destinations: context.destinations, startsAt: context.now, endsAt: context.endsAt, project: projectContract(context.projectContext) }) },
   ], fetchImpl, OFFICE_SCENE_TIMEOUT_MS);
   return parseAiOfficePlan(content, context);
 }

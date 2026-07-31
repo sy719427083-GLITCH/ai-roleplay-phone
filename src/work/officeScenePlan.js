@@ -1,7 +1,8 @@
 import { getOfficePoint } from "./officeGeometry.js";
+import { normalizeProjectOfficePlan } from "./officeProjectTasks.js";
 
-export const VALID_OFFICE_ACTIVITIES = new Set(["working", "reporting", "printing", "chatting", "resting", "gaming", "scrolling", "slacking", "offDuty"]);
-export const OFFICE_DESK_ACTIVITIES = new Set(["working", "reporting", "scrolling", "gaming", "slacking"]);
+export const VALID_OFFICE_ACTIVITIES = new Set(["idle", "working", "reporting", "printing", "chatting", "resting", "gaming", "scrolling", "slacking", "offDuty"]);
+export const OFFICE_DESK_ACTIVITIES = new Set(["idle", "working", "reporting", "scrolling", "gaming", "slacking"]);
 
 export function resolveOfficeActivityDestination(activity, occupant, fallbackDestination) {
   if (OFFICE_DESK_ACTIVITIES.has(activity) && occupant?.slotId) return `${occupant.slotId}-home`;
@@ -51,7 +52,7 @@ export function normalizeOfficeConversation(plan, occupants = []) {
   return next;
 }
 
-export function allocateOfficeActivities(plan, occupants = []) {
+export function allocateOfficeActivities(plan, occupants = [], options = {}) {
   const next = { ...plan, characters: Object.fromEntries(Object.entries(plan?.characters || {}).map(([id, item]) => [id, { ...item }])) };
   let printerTaken = false;
   for (const occupant of occupants) {
@@ -67,5 +68,10 @@ export function allocateOfficeActivities(plan, occupants = []) {
       printerTaken = true;
     }
   }
-  return normalizeOfficeConversation(next, occupants);
+  return normalizeProjectOfficePlan(normalizeOfficeConversation(next, occupants), {
+    occupants,
+    projectContext: options.projectContext,
+    intervalKey: options.intervalKey || plan?.id || "",
+    now: options.now,
+  });
 }
