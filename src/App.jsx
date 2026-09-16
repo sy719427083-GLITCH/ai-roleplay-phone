@@ -581,6 +581,7 @@ const CHROME_COLORS = {
   me: "#fdfbf8",
   lock: "#fbfbfb",
   worldbook: "transparent",
+  work: "#f5f4ec",
 };
 
 const WORLDBOOK_CHROME_BACKGROUND = "transparent";
@@ -625,6 +626,7 @@ const getChromeColor = ({ locked, tab, openedApp, settingPage }) => {
   if (locked) return CHROME_COLORS.lock;
   if (openedApp?.title === MESSAGE_APP_TITLE) return CHROME_COLORS.white;
   if (openedApp?.title === "世界书") return CHROME_COLORS.worldbook;
+  if (openedApp?.title === "工作") return CHROME_COLORS.work;
   if (settingPage) return CHROME_COLORS.home;
   if (tab === "me") return CHROME_COLORS.me;
   return CHROME_COLORS.home;

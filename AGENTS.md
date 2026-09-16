@@ -17,3 +17,5 @@ Use Apple system sans-serif with tabular numerals for Work clocks/countdowns. Av
 Settings release label must read package.json version rather than a hardcoded label. Work countdown expiry should show the exact next prerequisite with a navigation button; distinguish instantaneous workflow checks from the real countdown.
 
 Work v0.3.32 supersedes the manual draft/review workflow: start work, optionally cooperate with a worldbook character, then finish and collect wages after countdown. No required writing, word count, research click, or review gate. Character API responses become persisted opening/support/closing scenes; a successful delegation can shorten the countdown once, and shared work is available to that character in chat. API failures never block salary eligibility. Preserve existing career, wallet receipts, and optional legacy notes.
+
+Work top-edge follow-up: keep document/body/root theme color identical to the Work surface (#f5f4ec). Header spacing must add 12px after the top safe area instead of consuming that margin with max(). CSS checks cannot verify iOS native status-bar effects; do not claim a device-level fix without device evidence.
