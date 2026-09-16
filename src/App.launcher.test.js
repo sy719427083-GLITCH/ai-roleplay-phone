@@ -6,10 +6,10 @@ const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-test("opens the blank Work placeholder from the launcher", () => {
+test("opens the Work simulation from the launcher", () => {
   assert.match(app, /\{ title: "工作", icon: Briefcase, variant: "line" \}/);
-  assert.match(app, /import \{ WorkPlaceholder \} from "\.\/WorkPlaceholder\.jsx";/);
-  assert.match(app, /if \(isWork\) return <WorkPlaceholder onClose=\{onClose\} \/>/);
+  assert.match(app, /import \{ WorkSimulation \} from "\.\/WorkSimulation\.jsx";/);
+  assert.match(app, /if \(isWork\) return <WorkSimulation onClose=\{onClose\} \/>/);
 });
 
 test("publishes the 0.3.30 release markers", () => {

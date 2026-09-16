@@ -93,7 +93,7 @@ import {
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
-import { WorkPlaceholder } from "./WorkPlaceholder.jsx";
+import { WorkSimulation } from "./WorkSimulation.jsx";
 
 const MESSAGE_APP_TITLE = "微聊";
 const CHAT_PAGE_TRANSITION_MS = 280;
@@ -4784,7 +4784,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
-  if (isWork) return <WorkPlaceholder onClose={onClose} />;
+  if (isWork) return <WorkSimulation onClose={onClose} />;
 
   return (
     <section
