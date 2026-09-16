@@ -7,6 +7,7 @@ export function readWalletData(storage = getDefaultStorage(), { strict = false }
     const raw = storage.getItem(WALLET_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
     return {
+      ...(Array.isArray(parsed.incomeReceiptIds) ? { incomeReceiptIds: parsed.incomeReceiptIds.filter(id => typeof id === "string") } : {}),
       balance: Number(parsed.balance) || 0,
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
     };
@@ -35,6 +36,7 @@ export function applyWalletTransaction({ type, amount, desc, id }, storage = get
   const current = readWalletData(storage, { strict: true });
   if (type === "sub" && current.balance < value) return false;
   writeWalletData({
+    ...current,
     balance: current.balance + (type === "add" ? value : -value),
     transactions: [{ id: id || Date.now(), type, amount: value, desc, date: formatWalletDate() }, ...current.transactions],
   }, storage);
@@ -45,8 +47,10 @@ export function addWalletIncomeOnce({ id, amount, desc }, storage = getDefaultSt
   const value = Number(amount);
   if (typeof id !== "string" || !id || !Number.isFinite(value) || value <= 0) throw new Error("报酬金额无效");
   const wallet = readWalletData(storage, { strict: true });
-  if (wallet.transactions.some((item) => item.id === id)) return { wallet, credited: false, duplicate: true };
+  if (wallet.incomeReceiptIds?.includes(id) || wallet.transactions.some((item) => item.id === id)) return { wallet, credited: false, duplicate: true };
   const next = {
+    ...wallet,
+    incomeReceiptIds: [...(wallet.incomeReceiptIds || []), id],
     balance: wallet.balance + value,
     transactions: [{ id, type: "add", amount: value, desc, date: formatWalletDate() }, ...wallet.transactions],
   };

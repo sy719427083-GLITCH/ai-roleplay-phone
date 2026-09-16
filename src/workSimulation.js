@@ -1,3 +1,4 @@
+export const WAGES = { project: 300, editor: 260, admin: 220 };
 export const SAVE_KEY = 'ccat-work-simulation-v1';
 export const JOBS = [
   { id: 'project', name: '项目专员', subtitle: '协调人物 · 推进交付', project: '协作交付计划', prompt: '明确交付目标、人员分工、时间安排，以及延期时的替代方案。' },
@@ -25,7 +26,7 @@ export function makeProject(worldName, jobId, day) {
   const job = JOBS.find(j => j.id === jobId) || JOBS[0];
   return { title: `${worldName} · ${job.project}${day > 1 ? ` / ${day}` : ''}`, brief: job.prompt,
     event: day % 2 ? '一份关键资料尚未确认。请在方案中写明需要向谁核实，以及暂时无法确认时如何推进。' : '原定时间出现冲突。请在方案中给出替代安排，并明确需要通知的人。',
-    accepted: false, researched: false, draft: '', reviewed: false, delivered: false, feedback: '' };
+    wage: WAGES[jobId] || 300, salaryPaid: false, startedAt: null, accepted: false, researched: false, draft: '', reviewed: false, delivered: false, feedback: '' };
 }
 export function createCareer(world, people, jobId, assignments = {}) {
   return { version: 1, worldId: world.id, worldName: world.name, jobId, day: 1, minutes: 540, completed: 0,
@@ -48,18 +49,18 @@ export function transition(s, action) {
   const p = s.project;
   let project = { ...p }, cost = 0, note = '';
   switch (action.type) {
-    case 'brief': if (p.accepted) return s; project.accepted = true; cost = 15; note = '确认需求，项目开始。'; break;
+    case 'brief': if (p.accepted) return s; project.accepted = true; if (s.payrollId) project.startedAt = action.now ?? Date.now(); cost = 15; note = '确认需求，项目开始。'; break;
     case 'research': if (!p.accepted || p.researched) return s; project.researched = true; cost = 30; note = '整理世界资料，发现一项待处理事项。'; break;
     case 'draft': if (p.delivered || typeof action.text !== 'string') return s; project.draft = action.text.slice(0, 12000); project.reviewed = false; project.feedback = ''; break;
     case 'review':
       if (!p.researched || p.draft.trim().length < 30 || p.delivered || p.reviewed) return s;
       project.reviewed = true; project.feedback = '基础检查通过：已整理资料并提交完整草稿。交付前请自行核对目标、安排与备选方案；也可以把方案发给合作人物征求意见。'; cost = 30; note = '完成交付前检查。'; break;
     case 'deliver':
-      if (!p.reviewed || p.delivered) return s;
+      if (!p.reviewed || p.delivered || (s.payrollId && (!Number.isFinite(p.startedAt) || (action.now ?? Date.now()) < p.startedAt + s.workDurationMs))) return s;
       return { ...s, project: { ...p, delivered: true }, completed: s.completed + 1, minutes: s.minutes + 15,
         history: [...s.history, { day: s.day, title: p.title, draft: p.draft, jobId: s.jobId }], log: [...s.log, { day: s.day, text: '成果已交付并收入职业档案。' }] };
     case 'nextDay':
-      if (!p.delivered) return s;
+      if (!p.delivered || (s.payrollId && !p.salaryPaid)) return s;
       return { ...s, day: s.day + 1, minutes: 540, project: makeProject(s.worldName, s.jobId, s.day + 1), log: [...s.log, { day: s.day + 1, text: '新的一天，收到后续工作。' }] };
     case 'chat': {
       if (!Object.hasOwn(s.assignments, action.personId) || !action.text?.trim() || !action.reply?.trim()) return s;

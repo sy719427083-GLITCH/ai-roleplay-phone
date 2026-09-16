@@ -3,3 +3,9 @@
 @media(min-width:760px){.ws-scroll{padding:35px 30px}.ws-header{padding-left:max(25px,calc((100% - 700px)/2));padding-right:max(25px,calc((100% - 700px)/2))}.ws-nav{justify-content:center;gap:90px}.ws-office{aspect-ratio:1.9}.ws-office>.ws-office-art{left:13%;width:74%;height:92%;bottom:0}.ws-hotspot-desk{left:29%;top:65%}.ws-hotspot-meet{right:20%;top:43%}.ws-hotspot-coffee{left:17%;top:29%}.ws-jobs{grid-template-columns:repeat(3,1fr)}.ws-jobs button{gap:8px}.ws-app h1{font-size:36px}.ws-page-heading h1{font-size:32px}.ws-people{grid-template-columns:1fr 1fr;gap:0 25px}}
 @media(max-width:360px){.ws-scroll{padding:20px 15px}.ws-page-heading h1{font-size:23px}.ws-clock{font-size:20px}.ws-assignment input{width:94px}.ws-hotspot{font-size:9px!important;padding:5px 8px}.ws-nav button{min-width:55px}.ws-paper{padding:16px}}
 @media(prefers-reduced-motion:reduce){.ws-app *{transition:none!important;scroll-behavior:auto!important}}
+
+/* Keep the top bar flat, including WebKit's composited header surface. */
+.ws-app .ws-header{background:#f5f4ec;border:0;box-shadow:none;filter:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.ws-app .ws-header::before,.ws-app .ws-header::after{display:none;content:none}
+.ws-payroll{display:flex;justify-content:space-between;gap:16px;padding:17px 19px;margin:0 auto 23px;background:#e9eedf;border:1px solid #d9e0ce;border-radius:12px}
+.ws-payroll small{font-size:10px;color:#64755d}.ws-payroll strong{display:block;font:26px Georgia,serif;font-variant-numeric:tabular-nums;margin:5px 0;color:#355849}.ws-payroll span{font-size:10px;color:#64755d}.ws-countdown{text-align:right;min-width:125px}.ws-countdown progress{display:block;width:100%;height:5px;border:0;border-radius:8px;overflow:hidden;background:#d5ddca;accent-color:#597851}.ws-countdown progress::-webkit-progress-bar{background:#d5ddca}.ws-countdown progress::-webkit-progress-value{background:#597851}

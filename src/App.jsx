@@ -4761,6 +4761,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
       now.getMinutes(),
     ).padStart(2, "0")}`;
     setWalletData((current) => ({
+      ...current,
       balance: current.balance + (walletMode === "add" ? amount : -amount),
       transactions: [
         {
