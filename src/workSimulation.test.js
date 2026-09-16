@@ -28,11 +28,11 @@ test('project can be completed only once, and original sources stay unchanged', 
  assert.equal(transition(s, { type: 'deliver' }), s); assert.equal(JSON.stringify(world), original);
  const next = transition(s, { type: 'nextDay' }); assert.equal(next.day, 2); assert.equal(next.project.delivered, false); assert.equal(next.completed, 1);
 });
-test('editing an approved draft invalidates review and delivery', () => {
+test('legacy optional notes no longer block delivery', () => {
  let s = start(); for (const type of ['brief', 'research']) s = transition(s, { type });
  s = transition(s, { type: 'draft', text: '目标明确，安排了三项工作，并且准备了延期时的处理方案和相关人员的沟通内容。' });
  s = transition(s, { type: 'review' }); s = transition(s, { type: 'draft', text: '重新修改' });
- assert.equal(s.project.reviewed, false); assert.equal(transition(s, { type: 'deliver' }), s);
+ assert.equal(s.project.reviewed, false); assert.equal(transition(s, { type: 'deliver' }).project.delivered, true);
 });
 test('context includes character and world detail but not another private chat', () => {
  const s = start(); s.chats.b = [{ from: 'me', text: '私人秘密' }];

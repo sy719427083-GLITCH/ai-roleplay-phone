@@ -1,11 +1,7 @@
 export function getWorkNextStep(project, remaining) {
-  if (project.salaryPaid) return { label: '开始下一天', hint: '工资已到账，可以收工了。', target: 'ws-next-day' };
-  if (project.delivered) return { label: '重试工资结算', hint: '成果已交付，工资尚未结算，请重试。', target: 'ws-delivery' };
-  if (!project.accepted) return { label: '去确认需求', hint: '先确认今日委托，开始工作计时。', target: 'ws-brief' };
-  if (!project.researched) return { label: '去整理资料', hint: '下一步：点击「整理背景资料」。倒计时结束不会自动完成工作步骤。', target: 'ws-research' };
-  const count = project.draft.trim().length;
-  if (count < 30) return { label: '去写方案', hint: `下一步：填写至少 30 字的方案草稿，目前 ${count} 字，还需 ${30 - count} 字。`, target: 'ws-draft' };
-  if (!project.reviewed) return { label: '去检查方案', hint: '草稿已满足字数要求，点击「交付前检查」即可继续，无需额外等待。', target: 'ws-review' };
-  if (remaining > 0) return { label: '等待计时完成', hint: '检查已通过，工作倒计时归零后即可交付领薪。', target: null };
-  return { label: '去交付领薪', hint: '计时与检查均已完成，点击「提交成果」领取工资。', target: 'ws-delivery' };
+  if (project.salaryPaid) return { label: '开始下一天', hint: '工资已到账，共同经历已记录。', target: 'ws-next-day' };
+  if (project.delivered) return { label: '重试工资结算', hint: '工作已完成，工资尚未结算，请重试。', target: 'ws-delivery' };
+  if (!project.accepted) return { label: '开始今天的工作', hint: '和搭档接下工作，计时期间可以一起处理小插曲。', target: 'ws-brief' };
+  if (remaining > 0) return { label: '和角色一起处理', hint: '工作正在推进，可以找搭档商量或请对方分担。不用写方案、手动检查。', target: 'ws-support' };
+  return { label: '去收工领薪', hint: '工作时间已到，直接收工即可领工资。', target: 'ws-delivery' };
 }

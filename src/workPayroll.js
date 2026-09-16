@@ -10,7 +10,7 @@ export function initializePayroll(career, { id, now = Date.now(), durationMs = 3
 export function remainingWorkMs(career, now = Date.now()) {
   if (!career?.payrollId || career.project.delivered) return 0;
   if (!Number.isFinite(career.project.startedAt)) return career.workDurationMs;
-  return Math.max(0, career.project.startedAt + career.workDurationMs - now);
+  return Math.min(career.workDurationMs, Math.max(0, career.project.startedAt + career.workDurationMs - (career.project.timeSavedMs || 0) - now));
 }
 export function formatCountdown(ms) {
   const seconds = Math.max(0, Math.ceil(ms / 1000));
@@ -25,7 +25,7 @@ function save(storage, career) {
 export function completePaidWork(storage, career, now = Date.now()) {
   if (!career.payrollId || remainingWorkMs(career, now) > 0) throw new Error('工作倒计时尚未结束。');
   const pending = career.project.delivered ? career : transition(career, { type: 'deliver', now });
-  if (!pending.project.delivered) throw new Error('请先完成资料整理和交付前检查。');
+  if (!pending.project.delivered) throw new Error('请先开始今天的工作。');
   if (pending.project.salaryPaid) return pending;
   save(storage, pending);
   addWalletIncomeOnce({ id: `salary:${pending.payrollId}:${pending.day}`, amount: pending.project.wage,

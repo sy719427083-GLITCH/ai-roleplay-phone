@@ -4,6 +4,7 @@ import { JOBS, SAVE_KEY, readSources, createCareer, loadCareer, transition, form
 import { requestWorkReply } from './workSimulationApi.js';
 import { tryWriteJson } from './storageSafety.js';
 import { initializePayroll, remainingWorkMs, formatCountdown, completePaidWork } from './workPayroll.js';
+import { WorkShift } from './WorkShift.jsx';
 import { getWorkNextStep } from './workNextStep.js';
 import './workSimulation.css';
 
@@ -100,11 +101,13 @@ export function WorkSimulation({ onClose }) {
     const work = () => {
       const saved = loadCareer(window.localStorage);
       if (!saved || saved.payrollId !== career.payrollId || saved.day !== career.day) throw new Error('工作存档已在其他页面更新，请重新打开工作。');
-      setCareer(completePaidWork(window.localStorage, saved));
+      const paid = completePaidWork(window.localStorage, saved);
+      setCareer(paid);
+      return paid;
     };
     try {
-      if (navigator.locks) await navigator.locks.request('ccat-work-salary', work);
-      else work();
+      if (navigator.locks) return await navigator.locks.request('ccat-work-salary', work);
+      return work();
     } catch (err) {
       const saved = loadCareer(window.localStorage);
       if (saved?.payrollId === career.payrollId) setCareer(saved);
@@ -127,7 +130,7 @@ export function WorkSimulation({ onClose }) {
     } catch (err) { setError(err.name === 'AbortError' ? '等待超时或已取消，输入已保留，可再次发送。' : err.message); }
     finally { clearTimeout(timeout); request.current = null; setBusy(false); }
   };
-  const progress = career ? [career.project.accepted, career.project.researched, career.project.reviewed, career.project.delivered].filter(Boolean).length : 0;
+  const progress = career ? career.project.delivered ? 100 : career.project.accepted ? Math.round((1 - remaining / career.workDurationMs) * 100) : 0 : 0;
   return <section className="full-page ws-app" aria-label="工作模拟">
     <header className="ws-header"><button className="ws-icon" onClick={onClose} aria-label="返回桌面"><ArrowLeft size={20}/></button><span className="ws-wordmark">工作室 <small>WORK / LIFE</small></span><span className="ws-header-day">{career && !onboarding ? `DAY ${String(career.day).padStart(2, '0')}` : '新的篇章'}</span></header>
     {saveError && <div role="alert" className="ws-alert">{saveError}<button onClick={() => persist(career)}>重试保存</button></div>}
@@ -139,12 +142,12 @@ export function WorkSimulation({ onClose }) {
           <label className="ws-label">01 / 选择世界<select value={selected?.id || ''} onChange={e => { setWorldId(e.target.value); setAssignments({}); }}>{sources.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></label>
           <p className="ws-world-note">{selected?.tone || selected?.note || '沿用世界书中的背景与关联人物。'}</p>
           <div className="ws-label">02 / 选择体验岗位</div><div className="ws-jobs">{JOBS.map(j => <button key={j.id} className={jobId === j.id ? 'selected' : ''} onClick={() => setJobId(j.id)}><Briefcase size={18}/><span><strong>{j.name}</strong><small>{j.subtitle} · ¥{WAGES[j.id]} / 天</small></span>{jobId === j.id && <Check size={17}/>}</button>)}</div>
-          <label className="ws-label">每项工作倒计时<select value={durationMs} onChange={e => setDurationMs(Number(e.target.value))}><option value={60000}>1 分钟 · 快速体验</option><option value={300000}>5 分钟 · 标准工作</option><option value={900000}>15 分钟 · 专注工作</option></select></label><p className="ws-muted">确认需求后开始倒计时。到时并交付成果，工资自动进入钱包。</p><div className="ws-label">03 / 人物与职场安排</div><p className="ws-muted">以下为可调整的模拟安排，原人物身份保持不变。</p>
+          <label className="ws-label">每项工作倒计时<select value={durationMs} onChange={e => setDurationMs(Number(e.target.value))}><option value={60000}>1 分钟 · 快速体验</option><option value={300000}>5 分钟 · 标准工作</option><option value={900000}>15 分钟 · 专注工作</option></select></label><p className="ws-muted">开始工作后计时倒计时。到时并交付成果，工资自动进入钱包。</p><div className="ws-label">03 / 人物与职场安排</div><p className="ws-muted">以下为可调整的模拟安排，原人物身份保持不变。</p>
           {selected?.people.length ? selected.people.map(c => <label className="ws-assignment" key={c.id}><Avatar person={c}/><span><strong>{c.name}</strong><small>{c.identity || c.role || '世界书关联人物'}</small></span><input aria-label={`${c.name}的职场安排`} value={assignments[c.id] ?? c.identity ?? c.role ?? '合作伙伴'} maxLength={60} onChange={e => setAssignments(a => ({ ...a, [c.id]: e.target.value }))}/></label>) : <p className="ws-paper">这个世界还没有关联人物。可以先体验工作流程，之后在角色 APP 关联人物，他们就会出现在这里。</p>}
           <button className="ws-primary ws-start" onClick={start}>开始我的工作日 <ArrowUpRight size={18}/></button>{career && <button className="ws-secondary" onClick={() => setSetup(false)}>返回当前职业</button>}
         </>}
       </div> : !world ? <div className="ws-paper"><h1>暂时找不到关联世界</h1><p>当前职业存档仍然保留。请在世界书中恢复「{career.worldName}」，或开始新的职业。</p><button className="ws-primary" onClick={onClose}>返回桌面</button><button className="ws-secondary" onClick={() => setSetup(true)}>选择其他世界</button></div> : <>
-        {(view === 'office' || view === 'desk') && <section className="ws-payroll" aria-label="工资与工作倒计时"><div><small>{career.project.salaryPaid ? '本日已结算' : '本日工资'}</small><strong>¥{career.project.wage}</strong><span>{career.project.salaryPaid ? '已进入钱包' : '完成交付后进入钱包'}</span></div><div className="ws-countdown"><small>{career.project.delivered ? '工作已完成' : career.project.accepted ? remaining ? '工作进行中' : '计时完成，等待交付' : '确认需求后开始'}</small><strong role="timer" aria-label="剩余工作时间">{formatCountdown(remaining)}</strong><progress aria-label="工作计时进度" value={career.project.delivered ? 1 : 1 - remaining / career.workDurationMs} max="1"/></div></section>}
+        {(view === 'office' || view === 'desk') && <section className="ws-payroll" aria-label="工资与工作倒计时"><div><small>{career.project.salaryPaid ? '本日已结算' : '本日工资'}</small><strong>¥{career.project.wage}</strong><span>{career.project.salaryPaid ? '已进入钱包' : '到时收工，工资进钱包'}</span></div><div className="ws-countdown"><small>{career.project.delivered ? '工作已完成' : career.project.accepted ? remaining ? '工作进行中' : '可以收工了' : '开始工作后计时'}</small><strong role="timer" aria-label="剩余工作时间">{formatCountdown(remaining)}</strong><progress aria-label="工作计时进度" value={career.project.delivered ? 1 : 1 - remaining / career.workDurationMs} max="1"/></div></section>}
         {(view === 'office' || view === 'desk') && <aside className="ws-next-step"><p>{nextStep.hint}</p>{nextStep.target && <button className="ws-secondary" onClick={goToNextStep}>{nextStep.label}<ChevronRight size={16}/></button>}</aside>}
         {view === 'office' && <>
           <div className="ws-page-heading"><div><div className="ws-eyebrow">{world.name} / 日常进行中</div><h1>今天，也一起努力。</h1></div><span className="ws-clock">{formatWorkTime(career.minutes)}<small>行动推进时间</small></span></div>
@@ -155,21 +158,15 @@ export function WorkSimulation({ onClose }) {
             <span className="ws-room-footer">点击场景，开始互动</span>
           </div>
           {showLore && <article className="ws-paper ws-lore"><h2>{world.name}</h2><p>{world.tone || world.note || '世界简介尚未填写。'}</p><p className="ws-muted">{Array.isArray(world.tags) ? world.tags.join(' · ') : world.genre}</p><details><summary>查看世界记忆</summary><pre>{JSON.stringify(world.memories || [], null, 2)}</pre></details></article>}
-          <div className="ws-section-title"><h2>今日工作</h2><span>0{progress} / 04</span></div>
-          <button className="ws-project-card" onClick={() => setView('desk')}><span className="ws-project-icon"><FileText size={24}/></span><span><small>{career.project.delivered ? '已交付 · 可以收工' : '进行中的项目'}</small><strong>{career.project.title}</strong><span className="ws-progress"><i style={{ width: `${progress * 25}%` }}/></span></span><ArrowUpRight size={20}/></button>
+          <div className="ws-section-title"><h2>今日工作</h2><span>{progress}%</span></div>
+          <button className="ws-project-card" onClick={() => setView('desk')}><span className="ws-project-icon"><FileText size={24}/></span><span><small>{career.project.delivered ? '已交付 · 可以收工' : '进行中的项目'}</small><strong>{career.project.title}</strong><span className="ws-progress"><i style={{ width: `${progress}%` }}/></span></span><ArrowUpRight size={20}/></button>
           <div className="ws-section-title"><h2>办公室里的大家</h2><span>{people.length} 位人物</span></div>
-          <div className="ws-people">{people.map((c, i) => <button key={c.id} onClick={() => openChat(c.id)}><Avatar person={c}/><span><strong>{c.name}</strong><small>{career.assignments[c.id] || c.identity || '合作伙伴'}</small></span><span className="ws-person-state">{['整理资料', '准备讨论', '工间休息'][(i + career.day - 1 + Math.floor((career.minutes - 540) / 30)) % 3]}</span></button>)}{!people.length && <p className="ws-muted">在角色 APP 中关联这个世界，人物就会出现在办公室。</p>}</div>
+          <div className="ws-people">{people.map((c, i) => <button key={c.id} onClick={() => openChat(c.id)}><Avatar person={c}/><span><strong>{c.name}</strong><small>{career.assignments[c.id] || c.identity || '合作伙伴'}</small></span><span className="ws-person-state">{['处理手头工作', '等你一起讨论', '工间休息'][(i + career.day - 1 + Math.floor((career.minutes - 540) / 30)) % 3]}</span></button>)}{!people.length && <p className="ws-muted">在角色 APP 中关联这个世界，人物就会出现在办公室。</p>}</div>
         </>}
-        {view === 'desk' && <>
-          <div className="ws-eyebrow">MAKE SOMETHING HAPPEN</div><h1>我的工作台</h1><p className="ws-muted">把想法落在纸上，把今天向前推进一点。</p>
-          <article className="ws-paper"><div className="ws-section-title"><span className="ws-eyebrow">收件箱 / 今日委托</span><Mail size={18}/></div><h2>{career.project.title}</h2><p>{career.project.brief}</p><p className="ws-muted">这是根据所选岗位生成的模拟委托。涉及世界设定的具体内容，请参考世界书并向人物核实。</p><button id="ws-brief" className="ws-primary" disabled={career.project.accepted} onClick={() => act('brief')}>{career.project.accepted ? '已确认需求' : '确认需求，开始计时'}<Check size={16}/></button></article>
-          <div className="ws-task-line"><span className={career.project.accepted ? 'done' : ''}>1 需求</span><span className={career.project.researched ? 'done' : ''}>2 资料</span><span className={career.project.reviewed ? 'done' : ''}>3 检查</span><span className={career.project.delivered ? 'done' : ''}>4 交付</span></div>
-          <article className="ws-paper"><h2>资料与待办</h2><p>{world.tone || world.note || '世界书还没有简介，可以向关联人物了解具体背景。'}</p><button id="ws-research" className="ws-secondary" disabled={!career.project.accepted || career.project.researched} onClick={() => act('research')}>{career.project.researched ? '资料已整理' : '整理背景资料'}</button>{career.project.researched && <div className="ws-event"><strong>一件需要你处理的小事</strong><p>{career.project.event}</p><button onClick={() => openChat(null, '同事工位', `关于今天的项目：${career.project.event} 你有什么建议？`)}>找人物商量 <ChevronRight size={14}/></button></div>}</article>
-          <article className="ws-paper ws-editor"><div className="ws-section-title"><h2>方案草稿</h2><span>{career.project.draft.length} 字</span></div><label className="ws-muted" htmlFor="ws-draft">写下目标、安排和备选方案（至少 30 字）。草稿随进度保存。</label><textarea id="ws-draft" value={career.project.draft} disabled={career.project.delivered} maxLength={12000} placeholder={'工作目标：\n\n具体安排：\n\n遇到问题时：'} onChange={e => setCareer(s => transition(s, { type: 'draft', text: e.target.value }))}/>
-            <p className="ws-muted">{!career.project.researched ? '请先完成资料整理。' : career.project.draft.trim().length < 30 ? `草稿还需 ${30 - career.project.draft.trim().length} 字，才能检查。` : career.project.reviewed ? '检查已通过，可在倒计时结束后交付。' : '现在可以检查；检查即时完成，不需要再等 30 分钟。'}</p><div className="ws-actions"><button id="ws-review" className="ws-secondary" disabled={!career.project.researched || career.project.draft.trim().length < 30 || career.project.reviewed || career.project.delivered} onClick={() => act('review')}>{career.project.reviewed ? '检查已通过' : '交付前检查'}</button><button className="ws-secondary" disabled={!career.project.draft.trim() || !people.length} onClick={() => openChat(null, '会议室', `请帮我评审这份工作方案，指出一个具体问题和一个改进建议：\n${career.project.draft}`)}>请人物评审</button></div>
-            {career.project.feedback && <p className="ws-feedback">{career.project.feedback}</p>}<button id="ws-delivery" className="ws-primary" disabled={paying || !career.project.reviewed || remaining > 0 || career.project.salaryPaid} onClick={settle}>{paying ? '正在结算…' : career.project.salaryPaid ? '工资已到账 · 成果已归档' : career.project.delivered ? '重试工资结算' : remaining > 0 ? `工作中 · 剩余 ${formatCountdown(remaining)}` : `提交成果，领取 ¥${career.project.wage}`}<ArrowUpRight size={16}/></button>{payError && <p className="ws-alert" role="alert">{payError}</p>}
-          </article>{career.project.delivered && career.project.salaryPaid && <button id="ws-next-day" className="ws-primary ws-start" onClick={() => { act('nextDay'); setView('office'); }}>收工，开始下一天 <ChevronRight size={18}/></button>}
-        </>}
+        {view === 'desk' && <WorkShift career={career} world={world} people={people} remaining={remaining} paying={paying} payError={payError}
+          onBegin={() => { const started = transition(career, { type: 'brief', now: Date.now() }); setCareer(started); return started; }}
+          onScene={(snapshot, action) => setCareer(s => s.payrollId === snapshot.payrollId && s.day === snapshot.day ? transition(s, action) : s)}
+          onFinish={settle} onNextDay={() => { act('nextDay'); setView('office'); }} onChat={openChat}/>}
         {view === 'chat' && <div className="ws-chat"><div className="ws-eyebrow">A LITTLE CONVERSATION</div><h1>工作，也有人情味。</h1>
           {!people.length ? <div className="ws-paper"><h2>等待伙伴加入</h2><p>请在角色 APP 中将人物关联到「{world.name}」，再次打开工作即可读取。</p><button className="ws-secondary" onClick={() => setView('desk')}>先处理手头工作</button></div> : <>
             <label className="ws-label">和谁聊聊<select disabled={busy} value={person?.id || ''} onChange={e => { setPersonId(e.target.value); setInput(''); setError(''); }}>{people.map(c => <option key={c.id} value={c.id}>{c.name} · {career.assignments[c.id] || c.identity || '合作伙伴'}</option>)}</select></label>
