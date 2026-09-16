@@ -17,3 +17,5 @@
   font-variant-numeric:tabular-nums;
   letter-spacing:-.3px;
 }
+.ws-next-step{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:-10px auto 22px;border-left:3px solid #708665;background:#eff1e6;border-radius:4px}.ws-next-step p{font-size:12px;margin:0;flex:1}.ws-next-step button{flex-shrink:0;font-size:11px!important}
+@media(max-width:360px){.ws-next-step{align-items:flex-start;flex-direction:column}}

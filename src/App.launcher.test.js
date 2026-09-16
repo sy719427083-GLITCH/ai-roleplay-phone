@@ -12,9 +12,10 @@ test("opens the Work simulation from the launcher", () => {
   assert.match(app, /if \(isWork\) return <WorkSimulation onClose=\{onClose\} \/>/);
 });
 
-test("publishes the 0.3.30 release markers", () => {
-  assert.equal(packageJson.version, "0.3.30");
+test("settings version follows the package release version", () => {
+  assert.equal(packageJson.version, "0.3.31");
   assert.match(app, /worldbook-assets\/\$\{fileName\}\?v=0\.3\.30/);
-  assert.match(app, /Ccat OS V0\.3\.30/);
+  assert.match(app, /Ccat OS V\{appVersion\}/);
+  assert.match(app, /import \{ version as appVersion \} from "\.\.\/package\.json"/);
   assert.match(styles, /worldbook-assets\/hero-worldbook-atlas\.png\?v=0\.3\.30/);
 });

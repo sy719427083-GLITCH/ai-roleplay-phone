@@ -13,3 +13,5 @@ The Work app is a career simulation inside CCAT OS: read existing worldbooks and
 Work app follow-up: wages settle into the existing Wallet app after a timed project delivery. Countdown persists across reloads and app switches; settlement must be idempotent and survive wallet-history clearing. Keep the Work top bar flat, with no blur or shadow.
 
 Use Apple system sans-serif with tabular numerals for Work clocks/countdowns. Avoid black-translucent PWA status-bar mode: user screenshot shows a native top blur obscuring toolbar text even with CSS shadows disabled. Use the non-translucent default status bar.
+
+Settings release label must read package.json version rather than a hardcoded label. Work countdown expiry should show the exact next prerequisite with a navigation button; distinguish instantaneous workflow checks from the real countdown.

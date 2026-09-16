@@ -1,3 +1,4 @@
+import { version as appVersion } from "../package.json";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
@@ -2042,7 +2043,7 @@ function SettingsScreen({ onOpen }) {
           );
         })}
       </div>
-      <p className="version-label">Ccat OS V0.3.30</p>
+      <p className="version-label">Ccat OS V{appVersion}</p>
     </section>
   );
 }
