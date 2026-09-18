@@ -4,6 +4,7 @@ import { JOBS, SAVE_KEY, readSources, createCareer, loadCareer, transition, form
 import { requestWorkReply } from './workSimulationApi.js';
 import { tryWriteJson } from './storageSafety.js';
 import { initializePayroll, remainingWorkMs, formatCountdown, completePaidWork } from './workPayroll.js';
+import { OfficeScene } from './OfficeScene.jsx';
 import { WorkShift } from './WorkShift.jsx';
 import { getWorkNextStep } from './workNextStep.js';
 import './workSimulation.css';
@@ -45,6 +46,9 @@ export function WorkSimulation({ onClose }) {
   const [assignments, setAssignments] = useState({});
   const [navigationTarget, setNavigationTarget] = useState(null);
   const [view, setView] = useState('office');
+  const [officeActivity, setOfficeActivity] = useState('');
+  const [officePartner, setOfficePartner] = useState('');
+  const [officeChat, setOfficeChat] = useState(false);
   const [personId, setPersonId] = useState('');
   const [location, setLocation] = useState('同事工位');
   const [input, setInput] = useState('');
@@ -61,6 +65,8 @@ export function WorkSimulation({ onClose }) {
   const person = people.find(p => p.id === personId) || people[0];
   const onboarding = setup || !career;
   useEffect(() => { if (scrollArea.current) scrollArea.current.scrollTop = 0; }, [view, onboarding]);
+  useEffect(() => { if (view === 'office' && scrollArea.current) scrollArea.current.scrollTop = 0; }, [career?.project.accepted, career?.project.salaryPaid]);
+  useEffect(() => { if (officeActivity && view === 'office' && scrollArea.current) scrollArea.current.scrollTop = 0; }, [officeActivity]);
   useEffect(() => {
     if (!world || !career) return;
     const missing = world.people.filter(p => !Object.hasOwn(career.assignments, p.id));
@@ -115,6 +121,7 @@ export function WorkSimulation({ onClose }) {
     } finally { paymentPending.current = false; setPaying(false); }
   };
   const openChat = (id, place = '同事工位', text = '') => { setPersonId(id || people[0]?.id || ''); setLocation(place); setInput(text); setError(''); setView('chat'); };
+  const openOfficeChat = (id, place, text) => { if (busy) return; openChat(id, place, text); setView('office'); setOfficeChat(true); };
   const start = () => {
     if (!selected) return;
     if (career && !window.confirm('开始新的职业会替换当前工作存档。世界书和原人物不会改变。继续吗？')) return;
@@ -147,27 +154,20 @@ export function WorkSimulation({ onClose }) {
           <button className="ws-primary ws-start" onClick={start}>开始我的工作日 <ArrowUpRight size={18}/></button>{career && <button className="ws-secondary" onClick={() => setSetup(false)}>返回当前职业</button>}
         </>}
       </div> : !world ? <div className="ws-paper"><h1>暂时找不到关联世界</h1><p>当前职业存档仍然保留。请在世界书中恢复「{career.worldName}」，或开始新的职业。</p><button className="ws-primary" onClick={onClose}>返回桌面</button><button className="ws-secondary" onClick={() => setSetup(true)}>选择其他世界</button></div> : <>
-        {(view === 'office' || view === 'desk') && <section className="ws-payroll" aria-label="工资与工作倒计时"><div><small>{career.project.salaryPaid ? '本日已结算' : '本日工资'}</small><strong>¥{career.project.wage}</strong><span>{career.project.salaryPaid ? '已进入钱包' : '到时收工，工资进钱包'}</span></div><div className="ws-countdown"><small>{career.project.delivered ? '工作已完成' : career.project.accepted ? remaining ? '工作进行中' : '可以收工了' : '开始工作后计时'}</small><strong role="timer" aria-label="剩余工作时间">{formatCountdown(remaining)}</strong><progress aria-label="工作计时进度" value={career.project.delivered ? 1 : 1 - remaining / career.workDurationMs} max="1"/></div></section>}
-        {(view === 'office' || view === 'desk') && <aside className="ws-next-step"><p>{nextStep.hint}</p>{nextStep.target && <button className="ws-secondary" onClick={goToNextStep}>{nextStep.label}<ChevronRight size={16}/></button>}</aside>}
-        {view === 'office' && <>
-          <div className="ws-page-heading"><div><div className="ws-eyebrow">{world.name} / 日常进行中</div><h1>今天，也一起努力。</h1></div><span className="ws-clock">{formatWorkTime(career.minutes)}<small>行动推进时间</small></span></div>
-          <div className="ws-office"><div className="ws-room-caption"><span><i/> 我的办公室</span><button onClick={() => setShowLore(!showLore)}><BookOpen size={14}/> 世界资料</button></div><OfficeArt/>
-            <button className="ws-hotspot ws-hotspot-desk" onClick={() => setView('desk')}><Monitor size={14}/> 我的工位 <ChevronRight size={13}/></button>
-            <button className="ws-hotspot ws-hotspot-meet" onClick={() => openChat(null, '会议室', '我们一起讨论一下今天的项目目标和安排吧。')}><Users size={14}/> 会议室</button>
-            <button className="ws-hotspot ws-hotspot-coffee" onClick={() => openChat(null, '茶水间', '稍微休息一下，你今天过得怎么样？')}><Coffee size={14}/> 茶水间</button>
-            <span className="ws-room-footer">点击场景，开始互动</span>
-          </div>
-          {showLore && <article className="ws-paper ws-lore"><h2>{world.name}</h2><p>{world.tone || world.note || '世界简介尚未填写。'}</p><p className="ws-muted">{Array.isArray(world.tags) ? world.tags.join(' · ') : world.genre}</p><details><summary>查看世界记忆</summary><pre>{JSON.stringify(world.memories || [], null, 2)}</pre></details></article>}
-          <div className="ws-section-title"><h2>今日工作</h2><span>{progress}%</span></div>
-          <button className="ws-project-card" onClick={() => setView('desk')}><span className="ws-project-icon"><FileText size={24}/></span><span><small>{career.project.delivered ? '已交付 · 可以收工' : '进行中的项目'}</small><strong>{career.project.title}</strong><span className="ws-progress"><i style={{ width: `${progress}%` }}/></span></span><ArrowUpRight size={20}/></button>
-          <div className="ws-section-title"><h2>办公室里的大家</h2><span>{people.length} 位人物</span></div>
-          <div className="ws-people">{people.map((c, i) => <button key={c.id} onClick={() => openChat(c.id)}><Avatar person={c}/><span><strong>{c.name}</strong><small>{career.assignments[c.id] || c.identity || '合作伙伴'}</small></span><span className="ws-person-state">{['处理手头工作', '等你一起讨论', '工间休息'][(i + career.day - 1 + Math.floor((career.minutes - 540) / 30)) % 3]}</span></button>)}{!people.length && <p className="ws-muted">在角色 APP 中关联这个世界，人物就会出现在办公室。</p>}</div>
-        </>}
-        {view === 'desk' && <WorkShift career={career} world={world} people={people} remaining={remaining} paying={paying} payError={payError}
+        {view === 'desk' && <section className="ws-payroll" aria-label="工资与工作倒计时"><div><small>{career.project.salaryPaid ? '本日已结算' : '本日工资'}</small><strong>¥{career.project.wage}</strong><span>{career.project.salaryPaid ? '已进入钱包' : '到时收工，工资进钱包'}</span></div><div className="ws-countdown"><small>{career.project.delivered ? '工作已完成' : career.project.accepted ? remaining ? '工作进行中' : '可以收工了' : '开始工作后计时'}</small><strong role="timer" aria-label="剩余工作时间">{formatCountdown(remaining)}</strong><progress aria-label="工作计时进度" value={career.project.delivered ? 1 : 1 - remaining / career.workDurationMs} max="1"/></div></section>}
+        {view === 'desk' && <aside className="ws-next-step"><p>{nextStep.hint}</p>{nextStep.target && <button className="ws-secondary" onClick={goToNextStep}>{nextStep.label}<ChevronRight size={16}/></button>}</aside>}
+        <div hidden={view !== 'office'}>
+          <div className="wo-heading"><div><div className="ws-eyebrow">{world.name} / 我们的日常</div><h1>{career.project.salaryPaid ? '今天也辛苦了。' : '一起上班吧。'}</h1></div><div className="wo-mini-pay"><span>{career.project.salaryPaid ? '已入钱包' : '今日工资'} · ¥{career.project.wage}</span><strong role="timer" aria-label="剩余工作时间">{formatCountdown(remaining)}</strong><small>{career.project.delivered ? '今日已收工' : career.project.accepted ? remaining ? '工作进行中' : '可以收工了' : '等待开工'}</small></div></div>
+          <OfficeScene career={career} people={people} partnerId={officePartner} activity={officeActivity} onChat={openOfficeChat} onDesk={() => document.getElementById('wo-shift')?.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'})}/>
+          {!people.length && <p className="ws-muted">在角色 APP 中关联这个世界，就能和同事一起在办公室活动。</p>}
+        </div>
+        <div id="wo-shift" hidden={view !== 'office' && view !== 'desk'}>
+        <WorkShift compact={view === 'office'} onActivity={setOfficeActivity} onPartner={setOfficePartner} career={career} world={world} people={people} remaining={remaining} paying={paying} payError={payError}
           onBegin={() => { const started = transition(career, { type: 'brief', now: Date.now() }); setCareer(started); return started; }}
           onScene={(snapshot, action) => setCareer(s => s.payrollId === snapshot.payrollId && s.day === snapshot.day ? transition(s, action) : s)}
-          onFinish={settle} onNextDay={() => { act('nextDay'); setView('office'); }} onChat={openChat}/>}
-        {view === 'chat' && <div className="ws-chat"><div className="ws-eyebrow">A LITTLE CONVERSATION</div><h1>工作，也有人情味。</h1>
+          onFinish={settle} onNextDay={() => { act('nextDay'); setView('office'); }} onChat={view === 'office' ? openOfficeChat : openChat}/></div>
+        {view === 'office' && <><div className="wo-office-links"><button onClick={() => setView('desk')}>查看今日完整记录</button><button onClick={() => setShowLore(!showLore)}>世界资料</button></div>{showLore && <article className="ws-paper ws-lore"><h2>{world.name}</h2><p>{world.tone || world.note || '世界简介尚未填写。'}</p></article>}<div className="ws-people">{people.map(p => <button key={p.id} onClick={() => openChat(p.id)}><Avatar person={p}/><span><strong>{p.name}</strong><small>{career.assignments[p.id] || '合作伙伴'}</small></span><MessageCircle size={17}/></button>)}</div></>}
+        {(view === 'chat' || (view === 'office' && officeChat)) && <div className={`ws-chat ${officeChat && view === 'office' ? 'wo-chat-sheet' : ''}`} role="region" aria-label="人物对话">{officeChat && view === 'office' && <button className="wo-chat-close" onClick={() => setOfficeChat(false)}>收起对话 ×</button>}<div className="ws-eyebrow">A LITTLE CONVERSATION</div><h1>工作，也有人情味。</h1>
           {!people.length ? <div className="ws-paper"><h2>等待伙伴加入</h2><p>请在角色 APP 中将人物关联到「{world.name}」，再次打开工作即可读取。</p><button className="ws-secondary" onClick={() => setView('desk')}>先处理手头工作</button></div> : <>
             <label className="ws-label">和谁聊聊<select disabled={busy} value={person?.id || ''} onChange={e => { setPersonId(e.target.value); setInput(''); setError(''); }}>{people.map(c => <option key={c.id} value={c.id}>{c.name} · {career.assignments[c.id] || c.identity || '合作伙伴'}</option>)}</select></label>
             <div className="ws-chat-person"><Avatar person={person}/><span><strong>{person?.name}</strong><small>{location} · 仅对方可见的对话</small></span></div>
@@ -182,6 +182,6 @@ export function WorkSimulation({ onClose }) {
         </>}
       </>}
     </main>
-    {!onboarding && world && <nav className="ws-nav" aria-label="工作导航">{tabs.map(([id, label, Icon]) => <button key={id} disabled={busy && id !== 'chat'} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}><Icon size={21}/><span>{label}</span>{view === id && <i/>}</button>)}</nav>}
+    {!onboarding && world && <nav className="ws-nav" aria-label="工作导航">{tabs.map(([id, label, Icon]) => <button key={id} disabled={busy && id !== 'chat'} aria-current={view === id ? 'page' : undefined} onClick={() => { setOfficeChat(false); setView(id); }}><Icon size={21}/><span>{label}</span>{view === id && <i/>}</button>)}</nav>}
   </section>;
 }
