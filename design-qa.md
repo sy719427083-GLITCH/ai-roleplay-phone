@@ -1,52 +1,35 @@
-# Design QA — Work APP 项目管理白色轻奢改版
+# White office design QA — 0.3.35
 
-- Source visual truth: `artifacts/work-projects-quiet-luxury/source-selected-white.png`
-- Implementation screenshot: `artifacts/work-projects-quiet-luxury/implementation-390x844.png`
-- Comparison image: `artifacts/work-projects-quiet-luxury/comparison-390x844.png`
-- Additional evidence: `artifacts/work-projects-quiet-luxury/implementation-375x812.png`, `artifacts/work-projects-quiet-luxury/signed-state-390x844.png`
-- Viewport: `390×844` primary; `375×812` responsive check
-- Source pixels: `852×1846`, normalized to `390×844`
-- Implementation pixels: `390×844` at CSS `390×844`, device scale factor `1`
-- State: five contracts ready; signed/locked state checked separately
+Source visual truth: `designs/white-office-approved.png` (first mock, explicitly selected; user emphasized neat workstations).
+Implementation: `artifacts/white-office/mobile.png`, in-app browser at http://127.0.0.1:5173/ai-roleplay-phone/.
+Comparison: `artifacts/white-office/comparison.png`; source 853×1844 normalized to 390×844 alongside actual 390×844 browser capture, DPR 1.
+Small-screen capture: `artifacts/white-office/small.png`, 320×568.
+State: Work main office, default avatars where local profiles have no image, no menu/dialog open.
 
-## Full-view comparison evidence
+## Findings and history
+- Initial P2: employee rows sat too low and left too little white floor below. Moved row tops from 40/59/78% to 36/53/70%; boss to 19%. Recaptured and inspected the combined comparison after changes.
+- Initial P2: tea/cabinets appeared too narrow because generated transparent assets include natural padding. Enlarged tea and cabinet placements; adjusted tea height to avoid boss monitor overlap. Current comparison has separate visual layers and aligned desks.
+- Review P2: Save silently ignored a pasted URL unless Preview was used. Save now validates/loads a pending URL; failed load leaves editor open. Unit test and browser direct-save regression passed.
+- No remaining actionable P0/P1/P2 findings. Individual furniture silhouettes differ from the conceptual render because real independently generated sprites replace the one-piece mock; style, white/wood palette, seven positions and ordered layout are maintained.
 
-The combined comparison image places the normalized selected white mock on the left and the browser-rendered implementation on the right. Both use a pure-white continuous ledger, integrated header, serif contract hierarchy, graphite primary action, thin neutral rules, restrained gold detail, signature areas, and the beginning of the next contract below the fold.
+## Five fidelity surfaces
+- Typography: Apple/PingFang sans serif, restrained 19px title, 12/14px footer labels. All navigation labels visible, central countdown control widest. No mock slogans added.
+- Layout: six desks in two aligned columns, same row Y values, central boss above, top tea bar, peripheral whiteboard/clock/cabinets/plants; full-scene fits viewport. At 320×568 scene scales to preserve all seats and footer remains visible.
+- Colors: pure-white app chrome, white room/desks, light natural wood bar, subtle gray labels and muted avatar backgrounds; no chairs, carpets or floor grids.
+- Image fidelity: seven real WebP assets, transparent raster furnishings and room background. All visible image elements decode successfully. UI icons use existing Lucide library. Empty source profiles use a neutral user icon, not invented identities.
+- Copy: 工作 / 老板 / 员工01–06 / 项目管理 / 工作倒计时 / 员工管理 / 设置. Four destination pages intentionally blank beneath their headers, per user scope.
 
-Intentional content-preserving differences are acceptable: the implementation keeps the real contract count, API source, amount, duration and text difficulty instead of replacing application data with the mock's example values or star symbols.
-
-## Focused region evidence
-
-No separate crop was required because the `796×844` comparison keeps the header, primary contract, signatures and CTA text legible at original implementation density. The header controls, contract facts, long Chinese project title, signature areas and primary CTA were inspected directly in that comparison and in the individual `390×844` screenshot.
-
-## Required fidelity surfaces
-
-- Fonts and typography: system Songti/Georgia serif hierarchy and system sans utility text match the selected editorial direction; long Chinese titles wrap without clipping.
-- Spacing and layout rhythm: single-column ledger, thin dividers, signatures, CTA and next contract match the reference hierarchy at both tested mobile widths.
-- Colors and tokens: page and contracts are `#ffffff`; graphite, neutral divider and `#9a6a24` gold tokens match the requested white revision with accessible text contrast.
-- Image quality and asset fidelity: the design contains no raster imagery or decorative assets; existing Lucide vector controls remain crisp and consistent.
-- Copy and content: all existing project contract labels, data fields, actions, loading/error states and signed state remain present.
-
-## Comparison history
-
-### Iteration 1 — blocked
-
-- [P2] The first implementation used too much vertical space in the summary, heading and signature regions, so the next contract did not appear in the first viewport.
-- Fix: reduced summary height, contract padding, title size, fact spacing and signature padding while preserving `44px+` touch targets.
-- Post-fix evidence: `artifacts/work-projects-quiet-luxury/comparison-390x844.png` shows the first contract CTA and the next contract in the same viewport, matching the selected composition.
-
-### Iteration 2 — passed
-
-- No actionable P0, P1 or P2 differences remain.
-- Primary interaction tested: signing the first contract locks refresh, disables all five signature actions, mutes the other four contracts and shows one signed seal.
-- Console errors and warnings checked: none.
-
-## Findings
-
-No blocking or actionable P0-P2 findings remain. The retained real content differences are required by the user's “内容不变” constraint.
+## Interaction evidence
+- Seven independently editable avatars. Existing Character source selected successfully; Me/Character source mapping covered by tests.
+- Local WebP upload decoded and downsized to 384×384, saved in Work only.
+- HTTP URL preview, direct save without preview, refresh persistence, source switch, and restore default checked in browser. Test overrides restored afterward.
+- Each furniture sprite is a semantic button with press-scale/brightness feedback; reduced motion removes transition.
+- Three footer destinations and three-dot Settings menu each opened and returned to office; no old career UI mounted.
+- Unit coverage includes unsafe URL rejection, failed image load, malformed storage, deleted sources, explicit unlink, storage quota failure, source-record immutability.
+- Browser runtime error log was empty before review fix; a transient HMR syntax error during editing was corrected and production build rerun. Live deployment verification will use a fresh page.
 
 ## Follow-up polish
-
-No P3 polish is required for this release.
+- P3: extra stationery variants and minor decorative signs from the concept can be added later; repeated desk sprite intentionally keeps workstations orderly.
+- Native iOS installed-PWA safe area behavior is not device-verified; no device-specific claim made.
 
 final result: passed

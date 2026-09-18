@@ -18,13 +18,14 @@ test("syncs only current release directories and matches dist", async () => {
     await writeFixture(root, "dist/index.html", "release html");
     await writeFixture(root, "dist/assets/app.js", "release js");
     await writeFixture(root, "dist/worldbook-assets/cover.webp", "worldbook");
+    await writeFixture(root, "dist/office-white/desk.webp", "desk");
     await writeFixture(root, "docs/assets/stale.js", "stale");
     await writeFixture(root, "docs/worldbook-assets/stale.webp", "stale worldbook");
     await writeFixture(root, "docs/notes/keep.txt", "keep");
 
     const result = await syncPages({ repositoryRoot: root });
 
-    assert.deepEqual(result.assetDirectories, ["assets", "worldbook-assets"]);
+    assert.deepEqual(result.assetDirectories, ["assets", "worldbook-assets", "office-white"]);
     assert.equal(await readFile(path.join(root, "docs/index.html"), "utf8"), "release html");
     assert.equal(await readFile(path.join(root, "docs/.deploy-version"), "utf8"), "9.9.9");
     await assert.rejects(readFile(path.join(root, "docs/assets/stale.js"), "utf8"), /ENOENT/u);

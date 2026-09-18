@@ -94,7 +94,7 @@ import {
   serializeWorldGenre,
   toggleWorldTag,
 } from "./worldTags.js";
-import { WorkSimulation } from "./WorkSimulation.jsx";
+import { WorkOffice } from "./WorkOffice.jsx";
 
 const MESSAGE_APP_TITLE = "微聊";
 const CHAT_PAGE_TRANSITION_MS = 280;
@@ -581,7 +581,7 @@ const CHROME_COLORS = {
   me: "#fdfbf8",
   lock: "#fbfbfb",
   worldbook: "transparent",
-  work: "#f5f4ec",
+  work: "#ffffff",
 };
 
 const WORLDBOOK_CHROME_BACKGROUND = "transparent";
@@ -4788,7 +4788,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
   if (isWorldbook) return <WorldbookAppScreen onClose={onClose} />;
-  if (isWork) return <WorkSimulation onClose={onClose} />;
+  if (isWork) return <WorkOffice onClose={onClose} />;
 
   return (
     <section
