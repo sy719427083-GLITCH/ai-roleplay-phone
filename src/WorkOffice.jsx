@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, MoreHorizontal, Settings, FolderClosed, Clock3, UsersRound } from 'lucide-react';
 import { readOfficeSources, readOfficeAvatars, resolveSeat, saveOfficeAvatar } from './officeProfiles.js';
-import { OfficeAvatar, OfficeAvatarEditor } from './OfficeAvatarEditor.jsx';
-import { OFFICE_OBJECTS, OFFICE_DESKS, objectStyle, avatarStyle } from './officeSceneLayout.js';
+import { OfficeAvatarEditor } from './OfficeAvatarEditor.jsx';
+import { OFFICE_OBJECTS, OFFICE_DESKS, objectStyle } from './officeSceneLayout.js';
+import { OfficeActors } from './OfficeActors.jsx';
+import { useOfficeLife } from './useOfficeLife.js';
 import './workOffice.css';
 const asset = name => `${import.meta.env.BASE_URL}office-white/${name}.webp`;
 const storage = () => {try{return window.localStorage;}catch{return undefined;}};
@@ -21,6 +23,11 @@ export function WorkOffice({onClose}) {
   const [sources,setSources]=useState(()=>readOfficeSources(storage()));
   const [seats,setSeats]=useState(()=>readOfficeAvatars(storage()));
   const [editing,setEditing]=useState(null);const [page,setPage]=useState('');const [menu,setMenu]=useState(false);const menuRef=useRef(null);
+  const roster=useMemo(()=>OFFICE_DESKS.map(({id})=>{
+    const person=resolveSeat(id,seats,sources);const label=seatLabel(id);
+    return {...person,id,label,name:person.name || label,identity:person.sourceKey || id};
+  }),[seats,sources]);
+  const {life,reducedMotion}=useOfficeLife(roster,Boolean(editing || page || menu));
   useEffect(()=>{const refresh=()=>{setSources(readOfficeSources(storage()));setSeats(readOfficeAvatars(storage()));};window.addEventListener('storage',refresh);return()=>window.removeEventListener('storage',refresh);},[]);
   useEffect(()=>{if(!menu)return;const close=e=>{if(!menuRef.current?.contains(e.target))setMenu(false);};const key=e=>{if(e.key==='Escape'){setMenu(false);menuRef.current?.querySelector('button')?.focus();}};document.addEventListener('pointerdown',close);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',key);};},[menu]);
   const title=page==='settings'?'设置':destinations.find(([id])=>id===page)?.[1] || '工作';
@@ -33,15 +40,8 @@ export function WorkOffice({onClose}) {
         <div className="ow-stage" style={{'--ow-scene-image':`url("${asset('scene-atlas')}")`}}>
           <img className="ow-room" src={asset('scene-atlas')} alt="" draggable="false"/>
           {OFFICE_OBJECTS.map(object=><SceneObject key={object.id} object={object}/>)}
-          {OFFICE_DESKS.map(({id,box,avatar})=>{
-            const person=resolveSeat(id,seats,sources);const label=seatLabel(id);
-            return <div className="ow-seat-layer" key={id}>
-              <SceneObject object={{box,name:`${label}办公桌`}}/>
-              <button className="ow-person" style={avatarStyle(avatar)} aria-label={`更换${label}头像${person.name?` · ${person.name}`:''}`} title={person.name || `更换${label}头像`} onClick={()=>setEditing(id)}>
-                <OfficeAvatar src={person.avatar}/><span>{label}</span>
-              </button>
-            </div>;
-          })}
+          {OFFICE_DESKS.map(({id,box})=><SceneObject key={id} object={{box,name:`${seatLabel(id)}办公桌`}}/>)}
+          <OfficeActors life={life} roster={roster} reducedMotion={reducedMotion} onEdit={setEditing}/>
         </div>
       </main>
       <nav className="ow-nav" aria-label="工作导航">{destinations.map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)}><Icon size={18}/><span>{label}</span></button>)}</nav>

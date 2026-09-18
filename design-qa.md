@@ -34,3 +34,16 @@ Full-view combined comparison is sufficient to judge camera/room/desk fidelity a
 - Native iOS installed-PWA behavior is not device-tested.
 
 final result: passed
+
+
+# Autonomous office QA — 0.3.37
+
+- User approved circular avatars moving through the existing scene. Atlas, furniture and camera remain unchanged.
+- Added floor-anchor routes, independent work/coffee/print tasks and coordinated two/three-person chats. Labels show travel, waiting, active task and returning separately. Chat action appears before names so narrow labels retain their meaning.
+- Mobile browser observation at 390×844 confirmed coffee at the counter, chats at the lower floor, printing and return travel. At 320×568 the entire scene and navigation fit; narrow bubbles truncate partner names, while accessible names/tooltips retain full text. Evidence: `artifacts/white-office/autonomy-mobile.png`, `autonomy-small.png`.
+- Avatar editor opens via pointer and keyboard. Actor styles remained identical during an editor pause, then movement resumed after close. Pointer capture keeps a moving target's release associated with its button.
+- Independent review found one identity-reassignment issue; fixed by ending duplicate-identity groups along continuous return routes. Re-review passed, including walking participants.
+- 106 automated tests pass, including walkway desk exclusion, exclusive destinations, rendezvous timing, arrival/return continuity, status participants and identity changes. Production build passes with the pre-existing unrelated worldbook asset warning.
+- No API, source profile, wallet, worldbook or legacy career writes added. Internal placeholder pages remain empty. Native installed-iOS behavior remains outside this browser validation.
+
+final result: passed
