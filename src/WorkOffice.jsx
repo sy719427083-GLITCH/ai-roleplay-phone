@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MoreHorizontal, Settings, FolderClosed, Clock3, UsersRound } from 'lucide-react';
-import { OFFICE_SEATS, readOfficeSources, readOfficeAvatars, resolveSeat, saveOfficeAvatar } from './officeProfiles.js';
+import { readOfficeSources, readOfficeAvatars, resolveSeat, saveOfficeAvatar } from './officeProfiles.js';
 import { OfficeAvatar, OfficeAvatarEditor } from './OfficeAvatarEditor.jsx';
+import { OFFICE_OBJECTS, OFFICE_DESKS, objectStyle, avatarStyle } from './officeSceneLayout.js';
 import './workOffice.css';
 const asset = name => `${import.meta.env.BASE_URL}office-white/${name}.webp`;
 const storage = () => {try{return window.localStorage;}catch{return undefined;}};
 const seatLabel = id => id === 'boss' ? '老板' : `员工${id.split('-')[1].padStart(2,'0')}`;
 const destinations = [['projects','项目管理',FolderClosed],['countdown','工作倒计时',Clock3],['employees','员工管理',UsersRound]];
-function Prop({name,image,className}) {
-  const [pressed,setPressed]=useState(false);const timeout=useRef();
+function SceneObject({ object }) {
+  const [pressed,setPressed]=useState(false);
+  const timeout=useRef();
   useEffect(()=>()=>clearTimeout(timeout.current),[]);
-  return <button className={`ow-prop ${className} ${pressed?'ow-pop':''}`} aria-label={name} onClick={()=>{clearTimeout(timeout.current);setPressed(true);timeout.current=setTimeout(()=>setPressed(false),220);}}><img src={asset(image)} alt="" draggable="false"/></button>;
+  return <button className={`ow-scene-object ${pressed?'ow-pop':''}`} style={objectStyle(object)} aria-label={object.name} onClick={()=>{
+    clearTimeout(timeout.current);setPressed(true);
+    timeout.current=setTimeout(()=>setPressed(false),220);
+  }}/>;
 }
 export function WorkOffice({onClose}) {
   const [sources,setSources]=useState(()=>readOfficeSources(storage()));
@@ -25,19 +30,18 @@ export function WorkOffice({onClose}) {
     </header>
     {page?<main className="ow-empty" aria-label={`${title}内容`}/>:<>
       <main className="ow-floor" aria-label="办公室场景">
-        <div className="ow-stage">
-          <img className="ow-room" src={asset('room')} alt="" draggable="false"/>
-          <Prop name="办公室挂钟" image="clock" className="ow-clock"/>
-          <Prop name="办公白板" image="whiteboard" className="ow-whiteboard"/>
-          <Prop name="茶水吧台" image="tea" className="ow-tea"/>
-          <Prop name="打印机与文件柜" image="cabinet" className="ow-cabinet-left"/>
-          <Prop name="办公收纳柜" image="cabinet" className="ow-cabinet-right"/>
-          <Prop name="窗边绿植" image="plant" className="ow-plant-top"/>
-          <Prop name="办公室绿植" image="plant" className="ow-plant-bottom"/>
-          {OFFICE_SEATS.map((id,index)=>{const person=resolveSeat(id,seats,sources);const label=seatLabel(id);return <div key={id} className={`ow-seat ow-seat-${index}`}>
-            <Prop name={`${label}办公桌`} image="desk" className="ow-desk"/>
-            <button className="ow-person" aria-label={`更换${label}头像${person.name?` · ${person.name}`:''}`} title={person.name || `更换${label}头像`} onClick={()=>setEditing(id)}><OfficeAvatar src={person.avatar}/><span>{label}</span></button>
-          </div>;})}
+        <div className="ow-stage" style={{'--ow-scene-image':`url("${asset('scene-atlas')}")`}}>
+          <img className="ow-room" src={asset('scene-atlas')} alt="" draggable="false"/>
+          {OFFICE_OBJECTS.map(object=><SceneObject key={object.id} object={object}/>)}
+          {OFFICE_DESKS.map(({id,box,avatar})=>{
+            const person=resolveSeat(id,seats,sources);const label=seatLabel(id);
+            return <div className="ow-seat-layer" key={id}>
+              <SceneObject object={{box,name:`${label}办公桌`}}/>
+              <button className="ow-person" style={avatarStyle(avatar)} aria-label={`更换${label}头像${person.name?` · ${person.name}`:''}`} title={person.name || `更换${label}头像`} onClick={()=>setEditing(id)}>
+                <OfficeAvatar src={person.avatar}/><span>{label}</span>
+              </button>
+            </div>;
+          })}
         </div>
       </main>
       <nav className="ow-nav" aria-label="工作导航">{destinations.map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)}><Icon size={18}/><span>{label}</span></button>)}</nav>

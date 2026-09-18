@@ -1,35 +1,36 @@
-# White office design QA — 0.3.35
+# White office correction QA — 0.3.36
 
-Source visual truth: `designs/white-office-approved.png` (first mock, explicitly selected; user emphasized neat workstations).
-Implementation: `artifacts/white-office/mobile.png`, in-app browser at http://127.0.0.1:5173/ai-roleplay-phone/.
-Comparison: `artifacts/white-office/comparison.png`; source 853×1844 normalized to 390×844 alongside actual 390×844 browser capture, DPR 1.
-Small-screen capture: `artifacts/white-office/small.png`, 320×568.
-State: Work main office, default avatars where local profiles have no image, no menu/dialog open.
+## Previous assessment withdrawn
+The 0.3.35 pass was incorrect. The user correctly rejected visible furniture and perspective differences. Separately generated desk/cabinet/tea sprites materially changed the selected mock; this was a P1 fidelity issue, not P3 polish.
 
-## Findings and history
-- Initial P2: employee rows sat too low and left too little white floor below. Moved row tops from 40/59/78% to 36/53/70%; boss to 19%. Recaptured and inspected the combined comparison after changes.
-- Initial P2: tea/cabinets appeared too narrow because generated transparent assets include natural padding. Enlarged tea and cabinet placements; adjusted tea height to avoid boss monitor overlap. Current comparison has separate visual layers and aligned desks.
-- Review P2: Save silently ignored a pasted URL unless Preview was used. Save now validates/loads a pending URL; failed load leaves editor open. Unit test and browser direct-save regression passed.
-- No remaining actionable P0/P1/P2 findings. Individual furniture silhouettes differ from the conceptual render because real independently generated sprites replace the one-piece mock; style, white/wood palette, seven positions and ordered layout are maintained.
+## Source and evidence
+- Approved source: `designs/white-office-approved.png`, 853×1844.
+- Source-preserving image edit: `public/office-white/scene-atlas.webp`, 853×1844. Only seven floating avatars and their editable labels were removed by ImageGen; original furniture/room/camera retained.
+- Current implementation: `artifacts/white-office/corrected-mobile.png`, 390×844 at DPR 1.
+- Full comparison: `artifacts/white-office/corrected-comparison.png`, normalized approved image (left) and browser implementation (right), both 390×844.
+- Narrow-screen evidence: `artifacts/white-office/corrected-small.png`, 320×568.
+- State: office main view, no overlays; current browser has no source avatar images, so seven neutral user icons appear instead of invented people.
 
-## Five fidelity surfaces
-- Typography: Apple/PingFang sans serif, restrained 19px title, 12/14px footer labels. All navigation labels visible, central countdown control widest. No mock slogans added.
-- Layout: six desks in two aligned columns, same row Y values, central boss above, top tea bar, peripheral whiteboard/clock/cabinets/plants; full-scene fits viewport. At 320×568 scene scales to preserve all seats and footer remains visible.
-- Colors: pure-white app chrome, white room/desks, light natural wood bar, subtle gray labels and muted avatar backgrounds; no chairs, carpets or floor grids.
-- Image fidelity: seven real WebP assets, transparent raster furnishings and room background. All visible image elements decode successfully. UI icons use existing Lucide library. Empty source profiles use a neutral user icon, not invented identities.
-- Copy: 工作 / 老板 / 员工01–06 / 项目管理 / 工作倒计时 / 员工管理 / 设置. Four destination pages intentionally blank beneath their headers, per user scope.
+## Corrections and recheck
+1. P1 furniture mismatch: replaced independently regenerated sprites with the edited approved atlas. Eighteen interactive raster regions now share exactly one image camera and coordinate system. Preserved tea bar, desk cabinetry, stationery, whiteboard, shelves, umbrella rack, bin, plants and floor lighting. The full side-by-side comparison now retains the selected scene composition and desk arrangement.
+2. P2 raster UI leakage: identified exact scene bounds as y=96 through y=1702, not 1734. Crop excludes original toolbar/footer; header, navigation, avatar badges and labels remain native controls.
+3. P2 focus-induced scrolling: closing the last avatar editor then shrinking viewport caused overflow:hidden to scroll the stage by 41.5px, exposing raster footer. Changed stage to overflow:clip. Repeated close/resize checks at 320×568 and 390×844; scrollTop stays zero, original UI strips stay excluded.
 
-## Interaction evidence
-- Seven independently editable avatars. Existing Character source selected successfully; Me/Character source mapping covered by tests.
-- Local WebP upload decoded and downsized to 384×384, saved in Work only.
-- HTTP URL preview, direct save without preview, refresh persistence, source switch, and restore default checked in browser. Test overrides restored afterward.
-- Each furniture sprite is a semantic button with press-scale/brightness feedback; reduced motion removes transition.
-- Three footer destinations and three-dot Settings menu each opened and returned to office; no old career UI mounted.
-- Unit coverage includes unsafe URL rejection, failed image load, malformed storage, deleted sources, explicit unlink, storage quota failure, source-record immutability.
-- Browser runtime error log was empty before review fix; a transient HMR syntax error during editing was corrected and production build rerun. Live deployment verification will use a fresh page.
+## Fidelity surfaces
+- Typography: native Apple/PingFang sans serif. Title, desk labels, footer labels retain original hierarchy and fit. Original artwork signage remains in the atlas.
+- Spacing/layout: common approved coordinate system, correct boss/employee positions, preserved desk proportions. 390×844 scene fits almost 1:1 after density normalization. All seats remain visible at 320×568.
+- Color: original white/wood/green palette and shadows retained.
+- Image fidelity: actual approved scene retouched with ImageGen, then WebP conversion; no synthetic CSS drawings or independently styled furniture. Object slices align with the shared room image.
+- Copy/content: 工作, 老板, 员工01–06, original three footer controls, Settings menu unchanged. No raster UI duplicated.
 
-## Follow-up polish
-- P3: extra stationery variants and minor decorative signs from the concept can be added later; repeated desk sprite intentionally keeps workstations orderly.
-- Native iOS installed-PWA safe area behavior is not device-verified; no device-specific claim made.
+Full-view combined comparison is sufficient to judge camera/room/desk fidelity at this resolution. Readable avatar and footer controls were additionally checked in browser; no speculative portrait identities are substituted for missing profiles.
+
+## Interaction/regression evidence
+- Seven independent avatar buttons; employee06 editor opens and closes without moving scene. Existing source selection/upload/URL persistence code unchanged.
+- Eighteen object buttons provide slight brightness feedback, using real raster regions. Reduced-motion behavior preserved.
+- Geometry tests ensure crop excludes UI strips, all regions stay inside scene and avatars track their own desks under scaling.
+- Independent code review found no P1/P2 issues; confirmed atlas mapping, clip bounds and avatar hit-layer priority.
+- Unit tests: 101 pass. Production build succeeds (existing unrelated worldbook asset warning remains).
+- Native iOS installed-PWA behavior is not device-tested.
 
 final result: passed
