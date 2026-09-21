@@ -11,8 +11,8 @@
 .ow-menu { position:absolute; right:0; top:46px; min-width:132px; padding:5px; background:#fff; border:1px solid #e9ecea; box-shadow:0 6px 24px #243b3014; border-radius:14px; }
 .ow-menu button { display:flex; align-items:center; gap:12px; width:100%; padding:12px; border:0; border-radius:9px; background:#fff; font-size:14px; }
 .ow-menu button:hover { background:#f5f7f6; }
-.ow-floor { flex:1; min-height:0; position:relative; overflow:hidden; container-type:size; background:#fff; }
-.ow-stage { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:max(100cqw,53.113325cqh); height:max(100cqh,188.276671cqw); isolation:isolate; overflow:clip; container-type:inline-size; }
+.ow-floor { flex:1; min-height:0; position:relative; overflow:hidden; container-type:size; background:radial-gradient(ellipse at 100% 42%,#ffffffb3,transparent 65%),linear-gradient(180deg,#e7e7e3 0%,#eeeee9 24%,#e9e9e5 50%,#e6e6e1 100%); }
+.ow-stage { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(100cqw,53.113325cqh); height:min(100cqh,188.276671cqw); isolation:isolate; overflow:clip; container-type:inline-size; }
 .ow-room { position:absolute; left:0; top:-5.97758406%; width:100%; height:114.81942715%; pointer-events:none; user-select:none; }
 .ow-scene-object { position:absolute; z-index:1; padding:0; border:0; border-radius:0; background-image:var(--ow-scene-image); background-repeat:no-repeat; transition:filter .18s ease; -webkit-tap-highlight-color:transparent; }
 .ow-scene-object:active,.ow-scene-object.ow-pop { filter:brightness(1.07) saturate(.9); }

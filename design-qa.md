@@ -96,3 +96,8 @@ final result: passed
 - Browser QA at 390×844 and 430×932: the office stage covers the entire content rectangle between header/footer, with no side gutters and unchanged furniture proportions. Screenshot: artifacts/white-office/selected-staff-full-width.png. This is browser verification, not native iOS PWA verification.
 - All seven empty seats show 不选择（不显示）. Selecting the existing test character for employee01 immediately produced exactly one avatar; clearing selection immediately removed it. Original source profile was unchanged.
 - Unit coverage verifies empty roster, explicit sources, actor add/remove/replacement, affected conversation cancellation and absent-supervisor fallback without saved team mutation. Pending AI transcript cancellation now ends loading when participants disappear.
+
+## v0.3.46 complete office scene
+- Restored contain sizing for the full 853:1606 scene, with opaque pale wall/floor and daylight gradients behind it. No atlas edits, scene-coordinate changes or persistence changes.
+- Browser verified 390×844, 390×700 and 430×932: every stage edge is inside the content bounds. At 390×700 the stage is 313.37×590; at 430×932 it is 430×809.59. The original proportions and all scene corners remain visible. Screenshots: artifacts/white-office/complete-scene-short.png and complete-scene-tall.png. Native iOS remains untested.
+- All 139 tests and production build passed; existing unrelated worldbook asset warning remains.
