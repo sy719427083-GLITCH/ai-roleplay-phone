@@ -25,3 +25,9 @@ test('dialogue hold keeps the group together until playback completes',()=>{
  assert.ok(s.actors.filter(a=>a.group===group).every(a=>a.phase==='active'));
  s=advanceOfficeLife(s,100);assert.ok(s.actors.filter(a=>a.group===group).every(a=>a.phase==='returning'));
 });
+test('vacant supervisors fall back to boss consistently without mutating saved team',async()=>{
+ const {officeTeamForRoster}=await import('./officeTeam.js');
+ const team=normalizeOfficeTeam({roles:{'employee-1':'supervisor'},managers:{'employee-2':'employee-1'}});
+ const effective=officeTeamForRoster(team,['boss','employee-2']);
+ assert.equal(effective.managers['employee-2'],'boss');assert.equal(team.managers['employee-2'],'employee-1');
+});

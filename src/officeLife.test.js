@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createOfficeLife, advanceOfficeLife, officeActorPosition, officeActorStatus, routeBetween, LOCATIONS } from './officeLife.js';
+import { createOfficeLife, advanceOfficeLife, officeActorPosition, officeActorStatus, syncOfficeRoster, routeBetween, LOCATIONS } from './officeLife.js';
 import { OFFICE_DESKS } from './officeSceneLayout.js';
 const roster=OFFICE_DESKS.map((d,i)=>({id:d.id,name:`角色${i}`,identity:d.id}));
 const step=(s,ms)=>{for(let n=0;n<ms;n+=100)s=advanceOfficeLife(s,Math.min(100,ms-n),roster);return s;};
@@ -113,4 +113,13 @@ test('desk visits keep the host at their desk, start together, and return only t
  for(let i=0;i<400;i++){s=advanceOfficeLife(s,100,roster);if(s.actors.find(a=>a.id===visitor.id).phase==='returning')break;}
  assert.equal(s.actors.find(a=>a.id===host.id).phase,'working');
  assert.equal(s.actors.find(a=>a.id===visitor.id).phase,'returning');
+});
+
+test('only selected roster actors exist; removing a chatting participant cancels the group',()=>{
+ let s=createOfficeLife(7,[]);assert.deepEqual(s.actors,[]);
+ for(let n=0;n<100;n++)s=advanceOfficeLife(s,100,[]);assert.deepEqual(s.actors,[]);
+ const chosen=roster.slice(1,3);s=syncOfficeRoster(s,chosen);assert.deepEqual(s.actors.map(a=>a.id),chosen.map(p=>p.id));
+ s={...s,actors:s.actors.map(a=>({...a,phase:'active',task:'chat',group:'test',identity:a.id}))};
+ const reduced=syncOfficeRoster(s,[chosen[0]]);assert.equal(reduced.actors.length,1);assert.equal(reduced.actors[0].cancelChat,true);
+ const replaced=syncOfficeRoster(reduced,[{...chosen[0],identity:'replacement'}]);assert.equal(replaced.actors[0].identity,'replacement');assert.equal(replaced.actors[0].phase,'working');assert.equal(replaced.actors[0].group,null);
 });

@@ -1,0 +1,5 @@
+# Explicit office roster and edge-to-edge scene
+
+User requests manual character selection in Employee management; unselected characters must not appear; remove side white bands. All seats including boss require selected existing source; preserve earlier explicit source assignments and Work-only avatar overrides. No automatic nth-character fallback. Empty desks/furniture stay visible. Employee management retains all seven seat controls, adds none/source select, disables avatar/role actions for unassigned seats and excludes vacant managers/reports. Removing or replacing a participant immediately removes its actor and cancels its conversation. Existing scene props/camera retained; uniformly cover available office content area via CSS container units with centered crop; controls and safe areas remain usable.
+
+Tests: no implicit roster, empty/deleted selections, active actors exactly selected, removing/replacing chat member cancels pending conversation, zero selected stable. Existing full tests/build plus390px/tall portrait browser fill/selection QA, patch deployment.

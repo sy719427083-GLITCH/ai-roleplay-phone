@@ -91,3 +91,8 @@ final result: passed
 - 390×844 mock-provider browser screenshot artifacts/white-office/ai-projects.png. Improved header/quota strip, compact reward/title cards, native expandable briefs and actionable footer.
 - Isolated localhost5174 actual App with test-only loopback /chat/completions at5199: first generated5 leaves free quota5; replacing with different5 reduces to4; acceptingone disables other4; repeating prior fixture responses returns error, quota remains4 and board retained. No console errors. This validates mocked protocol/integration, not a real external model response. Temporary HTML and both servers removed/stopped.
 - 137 tests cover schema, repeats, HTTP failure, missing config, abort, stale batch, unlocked network, first generation, paid journal recovery and single-active plus sequential daily quota. Independent review passed22 focused tests and found no material issues. No production wallet/profile mutations for QA.
+
+## v0.3.45 selected staff and full-width office
+- Browser QA at 390×844 and 430×932: the office stage covers the entire content rectangle between header/footer, with no side gutters and unchanged furniture proportions. Screenshot: artifacts/white-office/selected-staff-full-width.png. This is browser verification, not native iOS PWA verification.
+- All seven empty seats show 不选择（不显示）. Selecting the existing test character for employee01 immediately produced exactly one avatar; clearing selection immediately removed it. Original source profile was unchanged.
+- Unit coverage verifies empty roster, explicit sources, actor add/remove/replacement, affected conversation cancellation and absent-supervisor fallback without saved team mutation. Pending AI transcript cancellation now ends loading when participants disappear.

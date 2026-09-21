@@ -6,6 +6,7 @@ export function OfficeActors({life,roster,reducedMotion,onEdit,dialogue}) {
   return <div className="ow-actors" aria-label="员工自主活动">
     {life.actors.map(actor=>{
       const person=roster.find(p=>p.id===actor.id);
+      if(!person)return null;
       const [x,y]=officeActorPosition(actor,life.now,reducedMotion);
       const status=officeActorStatus(actor,life,roster);
       const moving=['walking','returning'].includes(actor.phase);

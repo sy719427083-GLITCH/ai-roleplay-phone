@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { advanceOfficeLife, createOfficeLife, assignOfficeTask } from './officeLife.js';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { advanceOfficeLife, createOfficeLife, assignOfficeTask, syncOfficeRoster } from './officeLife.js';
 
 export function useOfficeLife(roster, paused, control) {
   const [life,setLife]=useState(()=>createOfficeLife(Date.now(),roster));
   const current=useRef(life);
   const people=useRef(roster);
   const [reducedMotion,setReducedMotion]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  useEffect(()=>{people.current=roster;},[roster]);
+  useLayoutEffect(()=>{people.current=roster;current.current=syncOfficeRoster(current.current,roster);setLife(current.current);},[roster]);
   useEffect(()=>{
     const query=window.matchMedia('(prefers-reduced-motion: reduce)');
     const update=()=>setReducedMotion(query.matches);

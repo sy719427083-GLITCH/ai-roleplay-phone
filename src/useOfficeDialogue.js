@@ -6,13 +6,13 @@ export function useOfficeDialogue({life,roster,mode,storage,control,suspended}) 
   const latestNow=useRef(life.now);latestNow.current=life.now;
   const lastRequest=useRef(0);
   const suspendedRef=useRef(suspended);suspendedRef.current=suspended;
-  const actor=life.actors.find(a=>a.task==='chat'&&a.phase==='active'&&!a.cancelChat);
+  const actor=life.actors.find(a=>a.task==='chat'&&a.phase==='active'&&!a.cancelChat&&roster.some(p=>p.id===a.id));
   const group=actor?.group;
-  const participants=group?life.actors.filter(a=>a.group===group).map(a=>({...roster.find(p=>p.id===a.id),currentTask:a.pendingTask?.text||a.workLine})):[];
+  const participants=group?life.actors.filter(a=>a.group===group&&roster.some(p=>p.id===a.id)).map(a=>({...roster.find(p=>p.id===a.id),currentTask:a.pendingTask?.text||a.workLine})):[];
   const participantsRef=useRef(participants);participantsRef.current=participants;
   const signature=group?JSON.stringify([group,mode,participants.map(p=>[p.id,p.identity,p.role,p.managerId]),actor.activity?.label]):'';
   useEffect(()=>{
-    if(!signature)return;
+    if(!signature){setSession(previous=>previous?.status==='loading'?{...previous,status:'ended'}:previous);return;}
     const controller=new AbortController();let alive=true;let timer;let launch;
     const start={key:signature,group,mode,participants:participants.map(p=>({id:p.id,name:p.name})),topic:actor.activity?.label||'工作交流',status:'loading',messages:[]};
     setSession(start);

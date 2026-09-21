@@ -19,9 +19,8 @@ export function readOfficeAvatars(storage) {
   return Object.fromEntries(OFFICE_SEATS.filter(id => record(raw.seats[id])).map(id => [id, { sourceKey:typeof raw.seats[id].sourceKey === 'string' ? raw.seats[id].sourceKey : '',avatar:imageValue(raw.seats[id].avatar) }]));
 }
 export function resolveSeat(id, seats, sources) {
-  const fallback = id === 'boss' ? sources.find(p => p.kind === 'me') : sources.filter(p => p.kind === 'character')[Number(id.split('-')[1]) - 1];
   const saved = seats[id];
-  const source = saved ? sources.find(p => p.key === saved.sourceKey) : fallback;
+  const source = saved ? sources.find(p => p.key === saved.sourceKey) : null;
   return { name:source?.name || '',sourceKey:source?.key || '',avatar:imageValue(saved?.avatar) || source?.avatar || '' };
 }
 export function saveOfficeAvatar(storage, seats, id, entry) {

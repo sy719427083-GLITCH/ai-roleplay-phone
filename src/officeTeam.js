@@ -19,3 +19,8 @@ export function saveOfficeTeam(storage,value) {
   catch{return {ok:false,error:'无法保存办公室设置，请检查浏览器存储空间。'};}
 }
 export const officeRoleLabel=role=>role==='boss'?'老板':role==='supervisor'?'主管':'员工';
+
+export function officeTeamForRoster(team,selectedIds) {
+  const selected=new Set(selectedIds);
+  return {...team,managers:Object.fromEntries(Object.entries(team.managers).map(([id,manager])=>[id,manager==='boss'||selected.has(manager)?manager:'boss']))};
+}

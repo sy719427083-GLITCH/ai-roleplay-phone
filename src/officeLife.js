@@ -37,12 +37,20 @@ function deskActivity(s,actor) {
   return {...actor,phase:'working',task:'work',location:actor.id,destination:actor.id,group:null,cancelChat:false,visitHostId:null,
     readyAt:s.now+between(s,6000,16000),deskUntil:s.now+between(s,18000,42000),workLine:activity.label,mood:activity.kind,icon:activity.icon};
 }
-export function createOfficeLife(seed=Date.now(),roster=[]) {
+export function createOfficeLife(seed=Date.now(),roster=OFFICE_DESKS) {
   let s={now:0,seed:Number(seed)>>>0,nextEventAt:0,eventIndex:0,serial:0,actors:[]};
-  s.actors=OFFICE_DESKS.map(({id})=>deskActivity(s,{id}));
+  s.actors=roster.filter(p=>homeLocations[p.id]).map(p=>deskActivity(s,{id:p.id,identity:p.identity||p.id}));
   // Enter an already living office, with a different activity mix on each visit.
   const warmup=between(s,9000,24000);
   for(let elapsed=0;elapsed<warmup;elapsed+=100)s=advanceOfficeLife(s,100,roster);
+  return s;
+}
+export function syncOfficeRoster(state,roster) {
+  const identities=new Map(roster.map(p=>[p.id,p.identity||p.id]));
+  const changed=state.actors.filter(a=>!identities.has(a.id)||(a.identity||a.id)!==identities.get(a.id));
+  const invalidGroups=new Set(changed.map(a=>a.group).filter(Boolean));
+  const s={...state,actors:state.actors.filter(a=>identities.has(a.id)&&!changed.includes(a)).map(a=>invalidGroups.has(a.group)?{...a,cancelChat:true}:a)};
+  for(const p of roster)if(homeLocations[p.id]&&!s.actors.some(a=>a.id===p.id))s.actors.push(deskActivity(s,{id:p.id,identity:p.identity||p.id}));
   return s;
 }
 function travel(actor,from,to,now,phase='walking') {

@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readOfficeSources, readOfficeAvatars, resolveSeat, saveOfficeAvatar, validateAvatarUrl, OFFICE_AVATARS_KEY } from './officeProfiles.js';
 const storage = (records = {}) => { const data = new Map(Object.entries(records)); return { getItem: k => data.get(k) ?? null, setItem: (k,v) => data.set(k,v), data }; };
-test('seats use Me for boss and six Characters without requiring a worldbook', () => {
+test('seats stay empty until explicitly selected without requiring a worldbook', () => {
  const s=storage({ apiMeProfiles: JSON.stringify({me:{name:'我',avatar:'https://example.com/me.png'}}),apiCharacters:JSON.stringify({a:{name:'甲',avatar:'https://example.com/a.png'},b:{name:'乙'}})});
  const sources=readOfficeSources(s);
- assert.equal(resolveSeat('boss',{},sources).name,'我');
- assert.equal(resolveSeat('employee-1',{},sources).name,'甲');
+ assert.equal(resolveSeat('boss',{},sources).name,'');
+ assert.equal(resolveSeat('boss',{boss:{sourceKey:'me:me'}},sources).name,'我');
+ assert.equal(resolveSeat('employee-1',{},sources).name,'');
+ assert.equal(resolveSeat('employee-1',{'employee-1':{sourceKey:'character:a'}},sources).name,'甲');
  assert.equal(resolveSeat('employee-6',{},sources).avatar,'');
 });
 test('upload and URL overrides persist only inside Work, retaining selected identity', () => {

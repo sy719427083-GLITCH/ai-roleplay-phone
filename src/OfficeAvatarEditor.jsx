@@ -64,7 +64,7 @@ export function OfficeAvatarEditor({ seat, label, person, saved, sources, onSave
       <header><h2 id="ow-editor-title">{label}头像</h2><button className="ow-icon" aria-label="关闭头像编辑" onClick={onClose}><X size={21}/></button></header>
       <div className="ow-editor-preview"><OfficeAvatar src={avatar || source?.avatar}/><span>{source?.name || label}</span></div>
       <label className="ow-field">使用“我”或角色头像<select value={sourceKey} disabled={busy} onChange={e=>{setSourceKey(e.target.value);setAvatar('');setError('');}}>
-        <option value="">不关联人物</option>{sources.map(p=><option value={p.key} key={p.key}>{p.kind==='me'?'我':'角色'} · {p.name}</option>)}
+        <option value="">不选择（不显示）</option>{sources.map(p=><option value={p.key} key={p.key}>{p.kind==='me'?'我':'角色'} · {p.name}</option>)}
       </select></label>
       <label className={`ow-upload ${busy?'is-busy':''}`}><Upload size={18}/>{busy?'正在读取图片…':'上传本地头像'}<input aria-label="上传本地头像" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)task(()=>readUpload(file));}}/></label>
       <form onSubmit={e=>{e.preventDefault();const src=validateAvatarUrl(url);if(!src){setError('请输入有效的 HTTP 或 HTTPS 图片链接。');return;}task(async()=>{await loadImage(src);return src;});}}>
@@ -73,7 +73,7 @@ export function OfficeAvatarEditor({ seat, label, person, saved, sources, onSave
       </form>
       <p className="ow-editor-note">仅在工作 APP 中使用，不会修改“我”或角色的原头像。</p>
       {error&&<p className="ow-error" role="alert">{error}</p>}
-      <footer><button className="ow-outline" disabled={busy} onClick={()=>save(null)}>恢复默认</button><button className="ow-save" disabled={busy} onClick={commit}>保存头像</button></footer>
+      <footer><button className="ow-outline" disabled={busy} onClick={()=>save({sourceKey,avatar:''})}>恢复角色头像</button><button className="ow-save" disabled={busy} onClick={commit}>保存头像</button></footer>
     </section>
   </div>;
 }
