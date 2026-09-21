@@ -74,3 +74,9 @@ final result: passed
 - 115 tests pass, covering all new visit routes, fixed host position, arrival rendezvous, prolonged conversation hold and distinct completion behavior. Independent review additionally verified 40 seeds of cancellation plus queued tasks without errors.
 - Mobile browser QA used a temporary seed 7 opening to reliably capture the real WorkOffice component. Two avatars remain visibly separate beside employee01's desk and spoken dialogue is readable. Only the host shows the shared activity label, avoiding overlapping duplicate labels. Evidence: `artifacts/white-office/desk-visit.png`. The temporary seed was removed before the final build; production remains randomized.
 - Existing third-party API validation limitation remains: provider completion was not tested in this browser lacking main API configuration.
+
+## v0.3.41 project management
+- 390×844 screenshot: artifacts/white-office/projects.png. Five distinct project cards include name, reward, minutes, full brief; fixed top-right refresh remains visible during list scrolling.
+- Browser verified free quota 5→0, sixth refresh with zero balance gives an error and leaves all five projects unchanged, recovery button and reopening preserve board/quota. No browser console errors.
+- Unit tests cover paid debit, wallet receipt preservation, insufficient balance, next local day reset, journal/save/wallet failures and recovery even after visible wallet history clearing. No live user funds used for QA.
+- Independent review identified retry-after-save-failure could buy another batch; refresh now disabled on error until the explicit read/recovery succeeds.
