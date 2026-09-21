@@ -59,3 +59,14 @@
 @media(min-width:700px) { .ow-header,.ow-nav { padding-left:max(12px,calc((100% - 460px)/2)); padding-right:max(12px,calc((100% - 460px)/2)); } }
 @media(max-height:620px) { .ow-header { height:calc(44px + env(safe-area-inset-top)); }.ow-nav { padding-top:6px;padding-bottom:max(6px,env(safe-area-inset-bottom)); } }
 @media(prefers-reduced-motion:reduce) { .ow-app * { transition:none!important;animation:none!important; } }
+
+.ow-actor-portrait { position:relative; display:block; }
+.ow-action-icon { position:absolute; right:-7px; bottom:-2px; font-size:12px; line-height:1.2; filter:drop-shadow(0 1px 2px #fff); pointer-events:none; }
+.ow-actor.mood-video .ow-action-icon { animation:ow-scroll 1.7s ease-in-out infinite; }
+.ow-actor.mood-game .ow-action-icon { animation:ow-play .7s ease-in-out infinite; }
+.ow-actor.mood-tv .ow-action-icon { animation:ow-watch 2.4s ease-in-out infinite; }
+.ow-actor.mood-rest .ow-avatar { animation:ow-stretch 3s ease-in-out infinite; }
+@keyframes ow-scroll { 50% { transform:translateY(-3px); } }
+@keyframes ow-play { 25% { transform:rotate(-12deg); } 75% { transform:rotate(12deg); } }
+@keyframes ow-watch { 50% { opacity:.6; } }
+@keyframes ow-stretch { 50% { transform:translateY(-2px) rotate(5deg); } }

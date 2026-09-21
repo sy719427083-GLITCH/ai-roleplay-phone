@@ -6,13 +6,13 @@ const roster=OFFICE_DESKS.map((d,i)=>({id:d.id,name:`角色${i}`,identity:d.id})
 const step=(s,ms)=>{for(let n=0;n<ms;n+=100)s=advanceOfficeLife(s,Math.min(100,ms-n),roster);return s;};
 test('travel follows walkways and never intersects desk interiors',()=>{
  for(const desk of OFFICE_DESKS){
-  for(const target of ['coffee','printer','chat-0','chat-1','chat-2']){
+  for(const target of ['coffee','printer','board','files','plant','report','chat-0','chat-1','chat-2']){
    const path=routeBetween(desk.id,target);
    for(let i=1;i<path.length;i++)for(let j=0;j<=30;j++){
     const x=path[i-1][0]+(path[i][0]-path[i-1][0])*j/30;
     const y=path[i-1][1]+(path[i][1]-path[i-1][1])*j/30;
     assert.ok(Number.isFinite(x)&&Number.isFinite(y));
-    assert.ok(!OFFICE_DESKS.some(d=>x>d.box[0]&&x<d.box[0]+d.box[2]&&y>d.box[1]&&y<d.box[1]+d.box[3]),`${desk.id} -> ${target}: ${x},${y}`);
+    assert.ok(!OFFICE_DESKS.some(d=>d.id!==desk.id&&x>d.box[0]&&x<d.box[0]+d.box[2]&&y>d.box[1]&&y<d.box[1]+d.box[3]),`${desk.id} -> ${target}: ${x},${y}`);
    }
   }
  }
@@ -34,7 +34,7 @@ test('autonomous timeline reserves coffee and printer, starts chats only after r
 });
 test('status describes travelling separately from doing an activity and uses the actual participant names',()=>{
  let s=step(createOfficeLife(7),3000);const walking=s.actors.find(a=>a.phase==='walking');assert.ok(walking);
- assert.match(officeActorStatus(walking,s,roster),/前往/);
+ assert.equal(officeActorStatus(walking,s,roster),walking.activity.go);
  for(let n=0;n<1200&&!s.actors.some(a=>a.task==='chat'&&a.phase==='active');n++)s=advanceOfficeLife(s,100,roster);
  const chatting=s.actors.find(a=>a.task==='chat'&&a.phase==='active');assert.ok(chatting);
  const partner=s.actors.find(a=>a.group===chatting.group&&a.id!==chatting.id);
@@ -56,4 +56,36 @@ test('changing a participant identity safely ends a chat without teleporting',()
   const a=s.actors.find(a=>a.id===member.id);assert.equal(a.phase,'returning');
   assert.deepEqual(officeActorPosition(a,s.now),before.get(a.id));
  }
+});
+
+test('home positions are centered on every desk, with a front exit into the aisle',()=>{
+ for(const {id,box:[x,y,w,h]} of OFFICE_DESKS){
+  assert.equal(LOCATIONS[id].point[0],x+w/2);
+  assert.equal(LOCATIONS[id].point[1]-65,y+h/2);
+  assert.ok(LOCATIONS[id].via[1][1]>y+h);
+ }
+});
+test('different visits have different initial activities and do not follow a fixed event cycle',()=>{
+ const starts=new Set();const firstTasks=new Set();
+ for(let seed=1;seed<=30;seed++){
+  const s=createOfficeLife(seed*7919,roster);
+  starts.add(JSON.stringify(s.actors.map(a=>[a.workLine,a.phase,a.activity?.id])));
+  firstTasks.add(s.lastActivity);
+ }
+ assert.ok(starts.size>25);assert.ok(firstTasks.size>5);
+});
+test('long-running office includes all leisure actions and diverse chores without immediate desk repeats',()=>{
+ let s=createOfficeLife(917,roster);const moods=new Set(),activities=new Set();
+ for(let n=0;n<24000;n++){
+  const before=s;s=advanceOfficeLife(s,250,roster);
+  for(const a of s.actors){
+   if(a.phase==='working')moods.add(a.mood);
+   if(a.activity)activities.add(a.activity.id);
+   const b=before.actors.find(p=>p.id===a.id);
+   if(a.phase==='working'&&b.phase==='working'&&a.deskUntil!==b.deskUntil)assert.notEqual(a.workLine,b.workLine);
+  }
+  for(const task of ['coffee','printer','board','files','plant','report'])assert.ok(s.actors.filter(a=>a.task===task&&['walking','active'].includes(a.phase)).length<=1);
+ }
+ for(const mood of ['work','think','rest','tv','video','game'])assert.ok(moods.has(mood),mood);
+ for(const id of ['coffee','tea','water','printer','copy','board','files','plant','report'])assert.ok(activities.has(id),id);
 });

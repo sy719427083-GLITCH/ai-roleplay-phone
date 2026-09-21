@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { advanceOfficeLife, createOfficeLife } from './officeLife.js';
 
 export function useOfficeLife(roster, paused) {
-  const [life,setLife]=useState(()=>createOfficeLife());
+  const [life,setLife]=useState(()=>createOfficeLife(Date.now(),roster));
   const current=useRef(life);
   const people=useRef(roster);
   const [reducedMotion,setReducedMotion]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);

@@ -47,3 +47,12 @@ final result: passed
 - No API, source profile, wallet, worldbook or legacy career writes added. Internal placeholder pages remain empty. Native installed-iOS behavior remains outside this browser validation.
 
 final result: passed
+
+# Activity variety QA — 0.3.38
+
+- User-approved desk center alignment replaces the previous left-side positions. Own desk approach exits via its front before entering shared walkways; tests exclude crossings of every other desk.
+- Added 36 activity entries, weighted work/rest/leisure and free-resource scene selection. Startup uses random warmup with the current roster; repeated browser entry showed different states.
+- TV, Douyin and games have distinct badges and subtle animations. Existing reduced-motion rule disables these animations.
+- Browser inspection at 390×844 and 320×568 confirmed centered seated avatars, whole office/navigation, new filing/printing/reporting/watering status. Evidence: `artifacts/white-office/variety-mobile.png`, `variety-small.png`. No browser console errors.
+- 109 tests passed; production build passed with the existing unrelated worldbook asset warning. New tests cover startup diversity, all leisure types, chores, resource capacity and immediate-repeat avoidance. Independent review found no P1/P2 issues.
+- Scene artwork and source data remain unchanged. Native device motion and media playback are not claimed; the leisure visuals are ambient icons/status, not embedded TV/video/game apps.
