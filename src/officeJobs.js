@@ -19,8 +19,11 @@ export function jobCountdown(ms){const sec=Math.max(0,Math.ceil(ms/1000));return
 export function acceptOfficeProject(storage,projectId,now=Date.now()){
  const jobs=readOfficeJobs(storage);
  if(alreadyAccepted(jobs,projectId,now))throw new Error('这个项目已接取，请查看工作倒计时。');
+ if(jobs.some(j=>!j.paid))throw new Error('一次只能接取 1 个项目，请等待当前项目完成结算。');
  if(!availableAccepts(jobs,now))throw new Error('每天最多接取 3 个项目，明天再来。');
- const project=openProjectBoard(storage,now).projects.find(p=>p.id===projectId);
+ const board=openProjectBoard(storage,now);
+ if(board.source!=='ai')throw new Error('请先通过 API 生成新项目。');
+ const project=board.projects.find(p=>p.id===projectId);
  if(!project)throw new Error('项目列表已刷新，请重新查看后接取。');
  const id=`office-job:${globalThis.crypto?.randomUUID?.() || `${now}-${Math.random().toString(36).slice(2)}`}`;
  const job={...project,id,projectId,acceptedDay:officeDay(now),startedAt:now,endsAt:now+project.minutes*60000,paid:false};
