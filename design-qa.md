@@ -56,3 +56,12 @@ final result: passed
 - Browser inspection at 390×844 and 320×568 confirmed centered seated avatars, whole office/navigation, new filing/printing/reporting/watering status. Evidence: `artifacts/white-office/variety-mobile.png`, `variety-small.png`. No browser console errors.
 - 109 tests passed; production build passed with the existing unrelated worldbook asset warning. New tests cover startup diversity, all leisure types, chores, resource capacity and immediate-repeat avoidance. Independent review found no P1/P2 issues.
 - Scene artwork and source data remain unchanged. Native device motion and media playback are not claimed; the leisure visuals are ambient icons/status, not embedded TV/video/game apps.
+
+# Dialogue and team QA — 0.3.39
+
+- Lowered centered home anchors to desk fronts; mobile screenshot confirms avatar circles no longer cover monitors. Office atlas remains unchanged.
+- Employee management supports supervisor/employee roles, direct-report selection, collapsed management controls and task assignments. Browser verified promotion, report assignment, save across reload, assignment confirmation, demotion cleanup and existing local-photo/URL editor entry. Test hierarchy restored afterward.
+- Work settings switches local/AI modes. Actual bubble playback and full transcript verified with explicitly labeled local dialogue; photo/URL source isolation unchanged.
+- Browser has no saved main API, so AI mode correctly displayed setup instructions and retry/end controls. Successful external-provider generation was not tested. Unit tests verify configured API payload/selected model, actual response parsing, errors, participant restrictions and exclusion of unrelated private data.
+- Independent review identified StrictMode dispatch duplication and timeout retry loss; fixed with deferred cleanup-safe launch and recoverable held groups. Current assigned tasks are read when sending after any cooldown wait.
+- 114 tests pass; production build passes with pre-existing worldbook asset warning. Evidence: `team-management.png`, `dialogue-settings.png`, `dialogue-speech.png`, `dialogue-api-config-required.png` under `artifacts/white-office/`.

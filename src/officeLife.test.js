@@ -61,7 +61,7 @@ test('changing a participant identity safely ends a chat without teleporting',()
 test('home positions are centered on every desk, with a front exit into the aisle',()=>{
  for(const {id,box:[x,y,w,h]} of OFFICE_DESKS){
   assert.equal(LOCATIONS[id].point[0],x+w/2);
-  assert.equal(LOCATIONS[id].point[1]-65,y+h/2);
+  assert.equal(LOCATIONS[id].point[1],y+h+35);
   assert.ok(LOCATIONS[id].via[1][1]>y+h);
  }
 });

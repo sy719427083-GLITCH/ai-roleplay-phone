@@ -3,7 +3,7 @@ import { OFFICE_DESKS } from './officeSceneLayout.js';
 
 const CENTER = 420;
 const homeLocations = Object.fromEntries(OFFICE_DESKS.map(({id,box:[x,y,w,h]}) => {
-  const point=[x+w/2,y+h/2+65];
+  const point=[x+w/2,y+h+35];
   return [id,{point,via:[point,[point[0],y+h+22],[CENTER,y+h+22]]}];
 }));
 export const LOCATIONS = {
@@ -88,7 +88,7 @@ function dispatch(s,roster) {
     s.actors=s.actors.map(a=>a.id===actor.id?travel({...a,task:kind,group,duration,activity,icon:activity.icon,mood:''},a.id,destination,s.now):a);
   });
 }
-export function advanceOfficeLife(state,delta,roster=[]) {
+export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
   if(!Number.isFinite(delta)||delta<=0)return state;
   const s={...state,now:state.now+Math.min(delta,250),actors:state.actors.map(a=>({...a}))};
   const identities=new Map(roster.map(p=>[p.id,p.identity || p.id]));
@@ -103,8 +103,9 @@ export function advanceOfficeLife(state,delta,roster=[]) {
     if(a.cancelChat&&a.phase==='walking'&&s.now>=a.arriveAt)return travel(a,a.destination,a.id,s.now,'returning');
     if(a.phase==='walking'&&s.now>=a.arriveAt)return {...a,location:a.destination,phase:a.task==='chat'?'waiting':'active',until:s.now+a.duration,activityStarted:s.now};
     if(a.phase==='returning'&&s.now>=a.arriveAt)return deskActivity(s,a);
+    if(a.phase==='working'&&a.pendingTask){const task=a.pendingTask;return {...a,pendingTask:null,workLine:task.text,icon:'📋',mood:'work',readyAt:s.now+22000,deskUntil:s.now+35000};}
     if(a.phase==='working'&&s.now>=a.deskUntil)return deskActivity(s,a);
-    if(a.phase==='active'&&s.now>=a.until)return travel(a,a.location,a.id,s.now,'returning');
+    if(a.phase==='active'&&s.now>=a.until&&(!holdGroup||a.group!==holdGroup))return travel(a,a.location,a.id,s.now,'returning');
     return a;
   });
   for(const group of new Set(s.actors.filter(a=>a.phase==='waiting').map(a=>a.group))){
@@ -124,4 +125,10 @@ export function officeActorStatus(actor,state,roster) {
   if(actor.task==='chat')return `${actor.activity?.label||'正在聊天'} · ${names.join('、')}`;
   const progress=(state.now-actor.activityStarted)/actor.duration;
   return actor.activity.lines[progress<.25?0:progress<.8?1:2];
+}
+
+export function assignOfficeTask(state,managerId,employeeId,text,roster) {
+  const manager=roster.find(p=>p.id===managerId),employee=roster.find(p=>p.id===employeeId);
+  if(!manager||!employee||!['boss','supervisor'].includes(manager.role)||employee.managerId!==managerId||managerId===employeeId||typeof text!=='string'||!text.trim())return state;
+  return {...state,actors:state.actors.map(a=>a.id===employeeId?{...a,pendingTask:{text:`${manager.name}安排：${text.slice(0,60)}`}}:a)};
 }

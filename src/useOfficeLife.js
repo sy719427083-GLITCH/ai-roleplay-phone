@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { advanceOfficeLife, createOfficeLife } from './officeLife.js';
+import { advanceOfficeLife, createOfficeLife, assignOfficeTask } from './officeLife.js';
 
-export function useOfficeLife(roster, paused) {
+export function useOfficeLife(roster, paused, control) {
   const [life,setLife]=useState(()=>createOfficeLife(Date.now(),roster));
   const current=useRef(life);
   const people=useRef(roster);
@@ -20,7 +20,7 @@ export function useOfficeLife(roster, paused) {
       if(last!==null)accumulated+=time-last;
       last=time;
       if(accumulated>=70){
-        current.current=advanceOfficeLife(current.current,accumulated,people.current);
+        current.current=advanceOfficeLife(current.current,accumulated,people.current,control?.current?.holdGroup);
         setLife(current.current);accumulated=0;
       }
       frame=requestAnimationFrame(tick);
@@ -32,5 +32,6 @@ export function useOfficeLife(roster, paused) {
     document.addEventListener('visibilitychange',visibility);visibility();
     return()=>{stopped=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);};
   },[paused]);
-  return {life,reducedMotion};
+  const assign=(manager,employee,text)=>{current.current=assignOfficeTask(current.current,manager,employee,text,people.current);setLife(current.current);};
+  return {life,reducedMotion,assign};
 }

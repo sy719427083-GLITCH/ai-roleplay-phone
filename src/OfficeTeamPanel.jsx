@@ -1,0 +1,22 @@
+import { useEffect, useRef } from 'react';
+import { OfficeAvatar } from './OfficeAvatarEditor.jsx';
+import { OFFICE_TASKS, officeRoleLabel } from './officeTeam.js';
+export function OfficeSettings({team,onChange,error}) {
+  return <main className="ow-panel"><h2>办公室交流</h2><fieldset className="ow-mode"><legend>交流方式</legend>{[['local','本地交流','使用本地预设台词，不调用 API。'],['ai','AI 交流','使用 CCAT OS 已保存的主 API 和模型，根据角色设定生成交流。']].map(([value,label,description])=><label key={value}><input type="radio" name="office-mode" value={value} checked={team.mode===value} onChange={()=>onChange({...team,mode:value})}/><span><strong>{label}</strong><small>{description}</small></span></label>)}</fieldset><p className="ow-hint">AI 模式每组交流请求一次，每分钟最多一组。请求会使用参与角色的设定和办公室职位关系。</p>{error&&<p role="alert" className="ow-error">{error}</p>}</main>;
+}
+export function OfficeTeamPanel({team,roster,onChange,onEdit,onAssign,notice,error}) {
+  const supervisors=roster.filter(p=>p.role==='supervisor');
+  return <main className="ow-panel"><h2>员工管理</h2><p className="ow-hint">选择职位和直属主管。主管可给自己负责的员工安排工作。</p>{notice&&<p role="status" className="ow-hint">{notice}</p>}{roster.map(person=>{
+    const reports=roster.filter(p=>p.managerId===person.id&&p.id!==person.id);
+    return <section className="ow-member" key={person.id}>
+      <div className="ow-member-heading"><button aria-label={`更换${person.label}头像`} onClick={()=>onEdit(person.id)}><OfficeAvatar src={person.avatar}/></button><div><strong>{person.name}</strong><small>{person.label} · {officeRoleLabel(person.role)}</small></div><button className="ow-text-button" onClick={()=>onEdit(person.id)}>照片 / URL</button></div>
+      {person.id!=='boss'&&<><label className="ow-field">职位<select aria-label={`${person.name}的职位`} value={team.roles[person.id]} onChange={e=>onChange({...team,roles:{...team.roles,[person.id]:e.target.value}})}><option value="employee">员工</option><option value="supervisor">主管</option></select></label>{person.role==='employee'&&<label className="ow-field">直属主管<select aria-label={`${person.name}的直属主管`} value={person.managerId} onChange={e=>onChange({...team,managers:{...team.managers,[person.id]:e.target.value}})}><option value="boss">老板</option>{supervisors.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>}</>}
+      {person.role!=='employee'&&<details className="ow-report-list"><summary>管理员工（{reports.length}）</summary><small>负责人员：{reports.map(p=>p.name).join('、')||'暂无'}</small>{reports.map(p=><form key={p.id} onSubmit={e=>{e.preventDefault();onAssign(person.id,p.id,new FormData(e.currentTarget).get('task'));}}><label>{p.name}<select aria-label={`给${p.name}安排工作`} name="task">{OFFICE_TASKS.map(task=><option key={task}>{task}</option>)}</select></label><button type="submit">安排工作</button></form>)}</details>}
+    </section>;
+  })}{error&&<p role="alert" className="ow-error">{error}</p>}</main>;
+}
+export function OfficeTranscript({dialogue,onClose}) {
+  const session=dialogue.session;const previous=useRef(document.activeElement);const dialog=useRef(null);
+  useEffect(()=>{dialog.current?.querySelector('button')?.focus();return()=>previous.current?.focus();},[]);
+  return <div className="ow-overlay"><section ref={dialog} className="ow-editor ow-transcript" role="dialog" aria-modal="true" aria-label="办公室交流记录" onKeyDown={e=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const buttons=[...e.currentTarget.querySelectorAll('button')];const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}}><header><h2>交流记录</h2><button className="ow-icon" onClick={onClose} autoFocus aria-label="关闭交流记录">×</button></header>{session?<><p className="ow-hint">{session.mode==='ai'?'AI 交流':'本地预设交流'} · {session.topic}</p>{session.status==='ended'&&<p>本次交流已结束。</p>}{session.status==='loading'&&<p role="status">正在等待或生成交流…</p>}{session.status==='error'&&<p role="alert" className="ow-error">{session.error}</p>}{session.messages.map((line,i)=><p className="ow-transcript-line" key={i}><strong>{session.participants.find(p=>p.id===line.speaker)?.name}</strong><span>{line.text}</span></p>)}{dialogue.canRetry&&<><button className="ow-outline" onClick={dialogue.retry}>重试 AI 交流</button><button className="ow-outline" onClick={dialogue.end}>结束本次交流</button></>}</>:<p className="ow-hint">员工聚在一起后，这里会显示他们的交流内容。</p>}</section></div>;
+}
