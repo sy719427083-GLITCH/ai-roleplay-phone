@@ -8,6 +8,11 @@ const homeLocations = Object.fromEntries(OFFICE_DESKS.map(({id,box:[x,y,w,h]}) =
 }));
 export const LOCATIONS = {
   ...homeLocations,
+  ...Object.fromEntries(OFFICE_DESKS.filter(d=>d.id!=='boss').map(({id})=>{
+    const [x,y]=homeLocations[id].point;
+    const point=[x+(x<CENTER?95:-95),y];
+    return [`visit-${id}`,{point,via:[point,[CENTER,y]]}];
+  })),
   board:{point:[190,570],via:[[190,570],[190,662],[CENTER,662]]},
   files:{point:[85,1240],via:[[85,1240],[CENTER,1240]]},
   plant:{point:[740,1590],via:[[740,1590],[740,1545],[CENTER,1545]]},
@@ -29,7 +34,7 @@ const random=s=>{s.seed=(Math.imul(s.seed,1664525)+1013904223)>>>0;return s.seed
 const between=(s,min,max)=>min+random(s)*(max-min);
 function deskActivity(s,actor) {
   const activity=weightedActivity(DESK_ACTIVITIES,()=>random(s),actor.workLine);
-  return {...actor,phase:'working',task:'work',location:actor.id,destination:actor.id,group:null,cancelChat:false,
+  return {...actor,phase:'working',task:'work',location:actor.id,destination:actor.id,group:null,cancelChat:false,visitHostId:null,
     readyAt:s.now+between(s,6000,16000),deskUntil:s.now+between(s,18000,42000),workLine:activity.label,mood:activity.kind,icon:activity.icon};
 }
 export function createOfficeLife(seed=Date.now(),roster=[]) {
@@ -65,15 +70,15 @@ function dispatch(s,roster) {
     return !s.actors.some(p=>p.task===target&&p.phase!=='working'&&p.phase!=='returning');
   });
   if(!options.length){s.nextEventAt=s.now+3000;return;}
-  const activity=weightedActivity(options,()=>random(s),s.lastActivity);
+  let activity=weightedActivity(options,()=>random(s),s.lastActivity);
   const kind=activity.destination||activity.id;
   s.lastActivity=activity.id;
   s.eventIndex+=1;
   s.nextEventAt=s.now+between(s,4500,11000);
   if(kind!=='chat' && s.actors.some(a=>a.task===kind&&['walking','active'].includes(a.phase)))return;
   const selected=[];
-  const candidates=available.filter(a=>kind!=='report'||a.id!=='boss');
-  const count=kind==='chat'?(random(s)<.5?2:3):1;
+  const candidates=available.filter(a=>!(kind==='report'||activity.visit)||a.id!=='boss');
+  const count=activity.visit?2:kind==='chat'?(random(s)<.5?2:3):1;
   while(candidates.length&&selected.length<count){
     const [candidate]=candidates.splice(Math.floor(random(s)*candidates.length),1);
     if(kind!=='chat'||!selected.some(a=>(identities.get(a.id)||a.id)===(identities.get(candidate.id)||candidate.id)))selected.push(candidate);
@@ -83,10 +88,19 @@ function dispatch(s,roster) {
   if(kind==='chat'&&s.actors.some(a=>a.task==='chat'&&a.phase!=='working'))return;
   const duration=kind==='coffee'?between(s,14000,21000):kind==='printer'?between(s,10000,16000):between(s,12000,21000);
   const group=kind==='chat'?`chat-${++s.serial}`:null;
+  const host=activity.visit?selected[0]:null;
+  if(host){const name=roster.find(p=>p.id===host.id)?.name||'同事';activity={...activity,go:`去${name}工位交流`,label:`${activity.label} · ${name}工位`};}
   selected.forEach((actor,index)=>{
-    const destination=kind==='chat'?`chat-${index}`:kind;
-    s.actors=s.actors.map(a=>a.id===actor.id?travel({...a,task:kind,group,duration,activity,icon:activity.icon,mood:''},a.id,destination,s.now):a);
+    const destination=host?(index===0?host.id:`visit-${host.id}`):kind==='chat'?`chat-${index}`:kind;
+    s.actors=s.actors.map(a=>{
+      if(a.id!==actor.id)return a;
+      const member={...a,task:kind,group,duration,activity,icon:activity.icon,mood:'',visitHostId:host?.id||null};
+      return host&&index===0?{...member,phase:'waiting',location:a.id,destination:a.id}:travel(member,a.id,destination,s.now);
+    });
   });
+}
+function returnFromActivity(s,actor,from=actor.location) {
+  return from===actor.id?deskActivity(s,actor):travel(actor,from,actor.id,s.now,'returning');
 }
 export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
   if(!Number.isFinite(delta)||delta<=0)return state;
@@ -99,13 +113,13 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
   }
   s.actors=s.actors.map(a=>{
     if(a.group&&invalidGroups.has(a.group))a={...a,cancelChat:true};
-    if(a.cancelChat&&['waiting','active'].includes(a.phase))return travel(a,a.location,a.id,s.now,'returning');
-    if(a.cancelChat&&a.phase==='walking'&&s.now>=a.arriveAt)return travel(a,a.destination,a.id,s.now,'returning');
+    if(a.cancelChat&&['waiting','active'].includes(a.phase))return returnFromActivity(s,a);
+    if(a.cancelChat&&a.phase==='walking'&&s.now>=a.arriveAt)return returnFromActivity(s,a,a.destination);
     if(a.phase==='walking'&&s.now>=a.arriveAt)return {...a,location:a.destination,phase:a.task==='chat'?'waiting':'active',until:s.now+a.duration,activityStarted:s.now};
     if(a.phase==='returning'&&s.now>=a.arriveAt)return deskActivity(s,a);
     if(a.phase==='working'&&a.pendingTask){const task=a.pendingTask;return {...a,pendingTask:null,workLine:task.text,icon:'📋',mood:'work',readyAt:s.now+22000,deskUntil:s.now+35000};}
     if(a.phase==='working'&&s.now>=a.deskUntil)return deskActivity(s,a);
-    if(a.phase==='active'&&s.now>=a.until&&(!holdGroup||a.group!==holdGroup))return travel(a,a.location,a.id,s.now,'returning');
+    if(a.phase==='active'&&s.now>=a.until&&(!holdGroup||a.group!==holdGroup))return returnFromActivity(s,a);
     return a;
   });
   for(const group of new Set(s.actors.filter(a=>a.phase==='waiting').map(a=>a.group))){
@@ -121,7 +135,7 @@ export function officeActorStatus(actor,state,roster) {
   if(actor.cancelChat&&actor.phase==='walking')return '结束聊天，准备回工位';
   if(actor.phase==='walking')return actor.activity?.go||'前往活动地点';
   const names=state.actors.filter(a=>a.group===actor.group&&a.id!==actor.id).map(a=>roster.find(p=>p.id===a.id)?.name || '同事');
-  if(actor.phase==='waiting')return '等同事过来聊天';
+  if(actor.phase==='waiting')return actor.visitHostId===actor.id?'在工位等同事过来':'等同事过来聊天';
   if(actor.task==='chat')return `${actor.activity?.label||'正在聊天'} · ${names.join('、')}`;
   const progress=(state.now-actor.activityStarted)/actor.duration;
   return actor.activity.lines[progress<.25?0:progress<.8?1:2];

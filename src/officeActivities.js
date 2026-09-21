@@ -17,6 +17,7 @@ export const SCENE_ACTIVITIES = [
   {id:'files',weight:3,icon:'📚',lines:['查找资料','整理归档文件','把资料放回柜子'],go:'去资料柜找文件',back:'整理完资料回工位'},
   {id:'plant',weight:1,icon:'🌱',lines:['检查盆土','给绿植浇水','收好浇水壶'],go:'去照料办公室绿植',back:'浇完水回工位'},
   ...['讨论项目方案','交流工作进度','请教工作问题','一起检查文件','研究遇到的问题','聊聊刚才的趣事'].map((label,i)=>({id:`chat-${i}`,destination:'chat',weight:i===5?1:3,icon:'💬',label,go:'去找同事交流',back:'交流结束，回工位'})),
+  ...['工位合作','工位请教','工位闲聊'].map((label,i)=>({id:`visit-${i}`,destination:'chat',visit:true,weight:5,icon:'💬',label,go:'去同事工位交流',back:'交流结束，回工位'})),
   {id:'report',weight:2,icon:'📋',lines:['准备好汇报资料','向老板汇报进度','确认下一步安排'],go:'去老板桌前汇报',back:'汇报结束回工位'},
 ];
 export function weightedActivity(items,random,previous) {

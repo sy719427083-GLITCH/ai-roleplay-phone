@@ -65,3 +65,12 @@ final result: passed
 - Browser has no saved main API, so AI mode correctly displayed setup instructions and retry/end controls. Successful external-provider generation was not tested. Unit tests verify configured API payload/selected model, actual response parsing, errors, participant restrictions and exclusion of unrelated private data.
 - Independent review identified StrictMode dispatch duplication and timeout retry loss; fixed with deferred cleanup-safe launch and recoverable held groups. Current assigned tasks are read when sending after any cooldown wait.
 - 114 tests pass; production build passes with pre-existing worldbook asset warning. Evidence: `team-management.png`, `dialogue-settings.png`, `dialogue-speech.png`, `dialogue-api-config-required.png` under `artifacts/white-office/`.
+
+
+# Desk visit QA — 0.3.40
+
+- Added randomly selected two-person desk cooperation, questions and casual conversation alongside existing shared-floor chats. Host stays home; visitor approaches a separate aisle-facing anchor.
+- Existing AI/local conversation hook is reused unchanged. The host desk is included in the topic sent to dialogue generation. Host returns directly to working without a route loop; visitor walks back.
+- 115 tests pass, covering all new visit routes, fixed host position, arrival rendezvous, prolonged conversation hold and distinct completion behavior. Independent review additionally verified 40 seeds of cancellation plus queued tasks without errors.
+- Mobile browser QA used a temporary seed 7 opening to reliably capture the real WorkOffice component. Two avatars remain visibly separate beside employee01's desk and spoken dialogue is readable. Only the host shows the shared activity label, avoiding overlapping duplicate labels. Evidence: `artifacts/white-office/desk-visit.png`. The temporary seed was removed before the final build; production remains randomized.
+- Existing third-party API validation limitation remains: provider completion was not tested in this browser lacking main API configuration.

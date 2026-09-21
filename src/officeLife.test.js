@@ -6,7 +6,7 @@ const roster=OFFICE_DESKS.map((d,i)=>({id:d.id,name:`角色${i}`,identity:d.id})
 const step=(s,ms)=>{for(let n=0;n<ms;n+=100)s=advanceOfficeLife(s,Math.min(100,ms-n),roster);return s;};
 test('travel follows walkways and never intersects desk interiors',()=>{
  for(const desk of OFFICE_DESKS){
-  for(const target of ['coffee','printer','board','files','plant','report','chat-0','chat-1','chat-2']){
+  for(const target of ['coffee','printer','board','files','plant','report','chat-0','chat-1','chat-2',...OFFICE_DESKS.filter(d=>d.id!=='boss').map(d=>`visit-${d.id}`)]){
    const path=routeBetween(desk.id,target);
    for(let i=1;i<path.length;i++)for(let j=0;j<=30;j++){
     const x=path[i-1][0]+(path[i][0]-path[i-1][0])*j/30;
@@ -53,7 +53,7 @@ test('changing a participant identity safely ends a chat without teleporting',()
  const before=new Map(members.map(a=>[a.id,officeActorPosition(a,s.now)]));
  s=advanceOfficeLife(s,100,changed);
  for(const member of members){
-  const a=s.actors.find(a=>a.id===member.id);assert.equal(a.phase,'returning');
+  const a=s.actors.find(a=>a.id===member.id);assert.equal(a.phase,a.id===member.location?'working':'returning');
   assert.deepEqual(officeActorPosition(a,s.now),before.get(a.id));
  }
 });
@@ -88,4 +88,26 @@ test('long-running office includes all leisure actions and diverse chores withou
  }
  for(const mood of ['work','think','rest','tv','video','game'])assert.ok(moods.has(mood),mood);
  for(const id of ['coffee','tea','water','printer','copy','board','files','plant','report'])assert.ok(activities.has(id),id);
+});
+
+test('desk visits keep the host at their desk, start together, and return only the visitor',()=>{
+ let s=createOfficeLife(991,roster),host,visitor,group;
+ for(let i=0;i<12000;i++){
+  s=advanceOfficeLife(s,100,roster);
+  host=s.actors.find(a=>a.visitHostId===a.id&&a.phase==='waiting');
+  if(host){group=host.group;visitor=s.actors.find(a=>a.group===group&&a.id!==host.id);break;}
+ }
+ assert.ok(host,'a desk visit should occur');assert.ok(visitor);
+ assert.equal(visitor.phase,'walking');assert.deepEqual(officeActorPosition(host,s.now),LOCATIONS[host.id].point);
+ assert.equal(visitor.destination,`visit-${host.id}`);
+ for(let i=0;i<600&&s.actors.find(a=>a.id===visitor.id).phase!=='active';i++){
+  s=advanceOfficeLife(s,100,roster);assert.deepEqual(officeActorPosition(s.actors.find(a=>a.id===host.id),s.now),LOCATIONS[host.id].point);
+ }
+ assert.ok(s.actors.filter(a=>a.group===group).every(a=>a.phase==='active'));
+ for(let i=0;i<600;i++)s=advanceOfficeLife(s,100,roster,group);
+ assert.ok(s.actors.filter(a=>a.group===group).every(a=>a.phase==='active'));
+ assert.deepEqual(officeActorPosition(s.actors.find(a=>a.id===host.id),s.now),LOCATIONS[host.id].point);
+ for(let i=0;i<400;i++){s=advanceOfficeLife(s,100,roster);if(s.actors.find(a=>a.id===visitor.id).phase==='returning')break;}
+ assert.equal(s.actors.find(a=>a.id===host.id).phase,'working');
+ assert.equal(s.actors.find(a=>a.id===visitor.id).phase,'returning');
 });
