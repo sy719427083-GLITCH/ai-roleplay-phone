@@ -129,16 +129,19 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
   if(s.now>=s.nextEventAt)dispatch(s,roster);
   return s;
 }
-export function officeActorStatus(actor,state,roster) {
-  if(actor.phase==='working')return actor.workLine;
-  if(actor.phase==='returning')return actor.activity?.back||'回到自己的工位';
-  if(actor.cancelChat&&actor.phase==='walking')return '结束聊天，准备回工位';
-  if(actor.phase==='walking')return actor.activity?.go||'前往活动地点';
-  const names=state.actors.filter(a=>a.group===actor.group&&a.id!==actor.id).map(a=>roster.find(p=>p.id===a.id)?.name || '同事');
-  if(actor.phase==='waiting')return actor.visitHostId===actor.id?'在工位等同事过来':'等同事过来聊天';
-  if(actor.task==='chat')return `${actor.activity?.label||'正在聊天'} · ${names.join('、')}`;
+// Keep richer activity context for dialogue; show only the concrete action above avatars.
+export function officeActorStatus(actor,state) {
+  const plain=text=>(text||'').replace(/^(?:摸鱼|.*?安排)[:：]\s*/,'').split(' · ')[0].replace(/^正在/,'').replace(/^工位合作$/,'合作').replace(/^工位请教$/,'请教问题').replace(/^工位闲聊$/,'闲聊');
+  if(actor.phase==='working')return plain(actor.workLine);
+  if(actor.phase==='returning'||actor.cancelChat&&actor.phase==='walking')return '返回工位';
+  if(actor.phase==='walking'){
+    const destination=actor.activity?.destination||actor.activity?.id;
+    return {coffee:'前往茶水吧',tea:'前往茶水吧',water:'前往茶水吧',printer:'前往打印机',board:'前往白板',files:'查找资料',plant:'照料绿植',report:'汇报进度',chat:'找同事交流'}[destination]||'前往活动地点';
+  }
+  if(actor.phase==='waiting')return '等待同事';
+  if(actor.task==='chat')return plain(actor.activity?.label||'聊天');
   const progress=(state.now-actor.activityStarted)/actor.duration;
-  return actor.activity.lines[progress<.25?0:progress<.8?1:2];
+  return plain(actor.activity.lines[progress<.25?0:progress<.8?1:2]);
 }
 
 export function assignOfficeTask(state,managerId,employeeId,text,roster) {

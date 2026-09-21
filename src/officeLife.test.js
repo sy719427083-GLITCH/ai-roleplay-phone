@@ -32,13 +32,16 @@ test('autonomous timeline reserves coffee and printer, starts chats only after r
  }
  assert.ok(seen.has('coffee'));assert.ok(seen.has('chat'));assert.ok(seen.has('printer'));assert.ok(returned);
 });
-test('status describes travelling separately from doing an activity and uses the actual participant names',()=>{
+test('status shows concrete actions without category, assignment or participant decorations',()=>{
  let s=step(createOfficeLife(7),3000);const walking=s.actors.find(a=>a.phase==='walking');assert.ok(walking);
- assert.equal(officeActorStatus(walking,s,roster),walking.activity.go);
+ assert.match(officeActorStatus(walking,s,roster),/前往|找同事|汇报|查找|照料/);
  for(let n=0;n<1200&&!s.actors.some(a=>a.task==='chat'&&a.phase==='active');n++)s=advanceOfficeLife(s,100,roster);
  const chatting=s.actors.find(a=>a.task==='chat'&&a.phase==='active');assert.ok(chatting);
  const partner=s.actors.find(a=>a.group===chatting.group&&a.id!==chatting.id);
- assert.ok(officeActorStatus(chatting,s,roster).includes(roster.find(r=>r.id===partner.id).name));
+ assert.ok(!officeActorStatus(chatting,s,roster).includes(roster.find(r=>r.id===partner.id).name));
+ assert.equal(officeActorStatus({phase:'working',workLine:'摸鱼：刷抖音'},s),'刷抖音');
+ assert.equal(officeActorStatus({phase:'working',workLine:'主管安排：核对数据'},s),'核对数据');
+ assert.equal(officeActorStatus({phase:'active',task:'chat',activity:{label:'工位闲聊 · 员工01工位'}},s),'闲聊');
 });
 test('nonpositive time is inert and seeded schedules are reproducible',()=>{
  const s=createOfficeLife(123);assert.equal(advanceOfficeLife(s,0,roster),s);assert.equal(advanceOfficeLife(s,-1,roster),s);
