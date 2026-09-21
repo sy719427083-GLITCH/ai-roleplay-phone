@@ -9,6 +9,9 @@ import { readOfficeTeam, saveOfficeTeam } from './officeTeam.js';
 import { useOfficeDialogue } from './useOfficeDialogue.js';
 import { OfficeSettings, OfficeTeamPanel, OfficeTranscript } from './OfficeTeamPanel.jsx';
 import { OfficeProjects } from './OfficeProjects.jsx';
+import { OfficeCountdown } from './OfficeCountdown.jsx';
+import { useOfficeWork } from './OfficeWorkContext.jsx';
+import { remainingJobMs, jobCountdown } from './officeJobs.js';
 import './workOffice.css';
 const asset = name => `${import.meta.env.BASE_URL}office-white/${name}.webp`;
 const storage = () => {try{return window.localStorage;}catch{return undefined;}};
@@ -24,6 +27,9 @@ function SceneObject({ object }) {
   }}/>;
 }
 export function WorkOffice({onClose}) {
+  const work=useOfficeWork();
+  const activeJobs=work.jobs.filter(j=>!j.paid);
+  const nextJob=activeJobs.slice().sort((a,b)=>a.endsAt-b.endsAt)[0];
   const [team,setTeam]=useState(()=>readOfficeTeam(storage()));
   const [teamError,setTeamError]=useState('');const [notice,setNotice]=useState('');const [transcript,setTranscript]=useState(false);const control=useRef({holdGroup:null});
   const updateTeam=value=>{const result=saveOfficeTeam(storage(),value);if(result.ok){setTeam(result.team);setTeamError('');}else setTeamError(result.error);};
@@ -43,7 +49,7 @@ export function WorkOffice({onClose}) {
     {page!=='projects'&&<header className="ow-header"><button className="ow-icon" aria-label={page?'返回办公室':'返回桌面'} onClick={()=>page?setPage(''):onClose()}><ArrowLeft size={23}/></button><h1>{title}</h1>
       {!page?<div className="ow-menu-anchor" ref={menuRef}><button className="ow-icon" aria-label="更多选项" aria-expanded={menu} aria-controls="ow-menu" onClick={()=>setMenu(v=>!v)}><MoreHorizontal size={24}/></button>{menu&&<div className="ow-menu" id="ow-menu"><button onClick={()=>{setMenu(false);setPage('settings');}}><Settings size={17}/>设置</button></div>}</div>:<span/>}
     </header>}
-    {page==='projects'?<OfficeProjects storage={storage()} onBack={()=>setPage('')}/>:page==='settings'?<OfficeSettings team={team} onChange={updateTeam} error={teamError}/>:page==='employees'?<OfficeTeamPanel team={team} roster={roster} onChange={updateTeam} onEdit={setEditing} notice={notice} error={teamError} onAssign={(manager,employee,task)=>{assign(manager,employee,task);setNotice(`已安排${roster.find(p=>p.id===employee).name}：${task}，返回办公室后执行。`);}}/>:page?<main className="ow-empty" aria-label={`${title}内容`}/>:<>
+    {page==='projects'?<OfficeProjects storage={storage()} onBack={()=>setPage('')} onCountdown={()=>setPage('countdown')}/>:page==='countdown'?<OfficeCountdown onProjects={()=>setPage('projects')}/>:page==='settings'?<OfficeSettings team={team} onChange={updateTeam} error={teamError}/>:page==='employees'?<OfficeTeamPanel team={team} roster={roster} onChange={updateTeam} onEdit={setEditing} notice={notice} error={teamError} onAssign={(manager,employee,task)=>{assign(manager,employee,task);setNotice(`已安排${roster.find(p=>p.id===employee).name}：${task}，返回办公室后执行。`);}}/>:page?<main className="ow-empty" aria-label={`${title}内容`}/>:<>
       <button className="ow-dialogue-toggle" onClick={()=>setTranscript(true)}>{team.mode==='ai'?'AI 交流':'本地交流'} · {dialogue.session?.status==='error'?'交流失败，查看原因':dialogue.loading?'正在生成…':'查看交流内容'}</button>
       <main className="ow-floor" aria-label="办公室场景">
         <div className="ow-stage" style={{'--ow-scene-image':`url("${asset('scene-atlas')}")`}}>
@@ -53,7 +59,7 @@ export function WorkOffice({onClose}) {
           <OfficeActors life={life} roster={roster} reducedMotion={reducedMotion} onEdit={setEditing} dialogue={dialogue}/>
         </div>
       </main>
-      <nav className="ow-nav" aria-label="工作导航">{destinations.map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)}><Icon size={18}/><span>{label}</span></button>)}</nav>
+      <nav className="ow-nav" aria-label="工作导航">{destinations.map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)}><Icon size={18}/><span>{label}</span>{id==='countdown'&&nextJob&&<small className="ow-nav-countdown">{activeJobs.length} 个 · {jobCountdown(remainingJobMs(nextJob,work.now))}</small>}</button>)}</nav>
     </>}
     {transcript&&<OfficeTranscript dialogue={dialogue} onClose={()=>setTranscript(false)}/>}
     {editing&&<OfficeAvatarEditor key={editing} seat={editing} label={seatLabel(editing)} person={resolveSeat(editing,seats,sources)} saved={seats[editing]} sources={sources} onClose={()=>setEditing(null)} onSave={(id,entry)=>{const result=saveOfficeAvatar(storage(),seats,id,entry);if(result.ok)setSeats(result.seats);return result;}}/>}

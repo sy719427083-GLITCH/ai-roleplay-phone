@@ -24,6 +24,10 @@ export function writeWalletData(walletData, storage = getDefaultStorage()) {
   } catch {
     throw new Error("钱包写入失败，请重试");
   }
+  // Same-document consumers do not receive the browser storage event.
+  if (typeof window !== "undefined" && storage === window.localStorage) {
+    window.dispatchEvent(new Event("ccat-wallet-change"));
+  }
 }
 
 function formatWalletDate() {
@@ -70,4 +74,9 @@ export function subtractWalletOnce({ id, amount, desc }, storage = getDefaultSto
     transactions: [{ id, type: "sub", amount, desc, date: formatWalletDate() }, ...wallet.transactions] };
   writeWalletData(next, storage);
   return next;
+}
+
+// Every live Wallet writer shares the project/payroll lock across tabs.
+export function withWalletLock(action, locks = globalThis.navigator?.locks) {
+  return locks ? locks.request("ccat-office-projects", action) : Promise.resolve().then(action);
 }

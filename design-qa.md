@@ -80,3 +80,9 @@ final result: passed
 - Browser verified free quota 5→0, sixth refresh with zero balance gives an error and leaves all five projects unchanged, recovery button and reopening preserve board/quota. No browser console errors.
 - Unit tests cover paid debit, wallet receipt preservation, insufficient balance, next local day reset, journal/save/wallet failures and recovery even after visible wallet history clearing. No live user funds used for QA.
 - Independent review identified retry-after-save-failure could buy another batch; refresh now disabled on error until the explicit read/recovery succeeds.
+
+## v0.3.42 acceptance and automatic payroll
+- Main localhost: accepted three projects; remaining allowance 3→0 and other buttons become 今日接取已满. HMR/reload retained jobs; center office button showed 3 active and earliest remaining real time. Countdown screenshot at 390×844: artifacts/white-office/countdown.png.
+- Isolated localhost:5174 temporary QA HTML mounted actual App + global provider and accepted a timestamped job with 20 seconds remaining. While Wallet stayed open its balance changed 0→1,000 with one 项目报酬 ledger entry, then manual expense100 produced900 and retained salary. Screenshot artifacts/white-office/automatic-payroll.png clearly identifies test. No console errors. Fixture removed and temporary server stopped before publication; no production wallet changed.
+- Unit tests cover acceptance cap, duplicate/stale offers, refresh retention, wall-time reload, next-day quota, offline catch-up, interrupted wallet/ledger writes, durable receipt retry and serialized concurrent settlement/spending. 130 tests pass.
+- Independent review found cross-tab Wallet writes outside payroll lock; all live writers now use shared lock. Re-review reported no remaining material findings.

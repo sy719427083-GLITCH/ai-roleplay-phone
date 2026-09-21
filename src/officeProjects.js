@@ -26,7 +26,7 @@ function generate(previous=[]){
  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
  // Guarantee at least one new title, even when randomness happens to repeat a batch.
  if(pool.slice(0,5).every(p=>previous.some(old=>old.name===p.row[0]))){const j=pool.findIndex(p=>!previous.some(old=>old.name===p.row[0]));if(j>=0)[pool[0],pool[j]]=[pool[j],pool[0]];}
- return pool.slice(0,5).map(({row:[name,amount,minutes,content],index})=>({id:`project-${index}`,name,amount,minutes,content}));
+ return pool.slice(0,5).map(({row:[name,amount,minutes,content],index})=>({id:`project-${index}`,name,amount:minutes*40,minutes,content}));
 }
 export function freeRefreshes(board,now=Date.now()){return Math.max(0,5-(board.day===localDate(now)?board.used:0));}
 export function openProjectBoard(storage,now=Date.now()){
@@ -40,6 +40,9 @@ export function openProjectBoard(storage,now=Date.now()){
   else {board={...board};delete board.pending;}
   write(storage,board);
  }
+ // Update only unaccepted offers; accepted jobs retain their saved reward snapshots.
+ const projects=board.projects.map(p=>({...p,amount:p.minutes*40}));
+ if(projects.some((p,i)=>p.amount!==board.projects[i].amount)){board={...board,projects};write(storage,board);}
  return board;
 }
 export function refreshProjectBoard(storage,now=Date.now()){

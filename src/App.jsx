@@ -50,6 +50,8 @@ import { tryWriteJson, tryWriteValue } from "./storageSafety.js";
 import {
   WALLET_STORAGE_KEY,
   applyWalletTransaction,
+  addWalletIncomeOnce,
+  withWalletLock,
   readWalletData,
   writeWalletData,
 } from "./walletStore.js";
@@ -3008,6 +3010,7 @@ ${buildRealTimeContext()}`,
 };
 
 function MessageAppScreen({ onClose, onUnreadChange }) {
+  const incomingTransferBusy = useRef(false);
   const [messageTab, setMessageTab] = useState("messages");
   const [messageBackTarget, setMessageBackTarget] = useState("");
   const [chatId, setChatId] = useState("");
@@ -3413,7 +3416,8 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
         meProfileContext: activeMeProfileContext,
       });
       if (decision.accepted) {
-        applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` });
+        const paid = await withWalletLock(() => applyWalletTransaction({ type: "sub", amount, desc: `转账给 ${activeCharacter.name || "角色"}` }));
+        if (!paid) { decision.accepted = false; decision.text = "钱包余额不足，转账未完成。"; }
       }
       setMessageState((current) => {
         const history = current.histories?.[chatId] || [];
@@ -3433,16 +3437,18 @@ function MessageAppScreen({ onClose, onUnreadChange }) {
     }
   };
 
-  const settleIncomingTransfer = (message, accepted) => {
-    if (!chatId || message.status !== "pending") return;
+  const settleIncomingTransfer = async (message, accepted) => {
+    if (!chatId || message.status !== "pending" || incomingTransferBusy.current) return;
+    incomingTransferBusy.current = true;
     const activeCharacter = characterMap[chatId] || { id: chatId, name: "角色" };
-    if (accepted) {
-      applyWalletTransaction({ type: "add", amount: message.amount, desc: `${activeCharacter.name || "角色"} 转账` });
-    }
-    setMessageState((current) =>
-      updateChatMessage(current, chatId, message.id, { status: accepted ? "accepted" : "rejected" }),
-    );
-    setActiveTransferMessageId("");
+    try {
+      if (accepted) {
+        await withWalletLock(() => addWalletIncomeOnce({ id: `chat-transfer:${chatId}:${message.id}`, amount: message.amount, desc: `${activeCharacter.name || "角色"} 转账` }));
+      }
+      setMessageState((current) => updateChatMessage(current, chatId, message.id, { status: accepted ? "accepted" : "rejected" }));
+      setActiveTransferMessageId("");
+    } catch (error) { window.alert(error.message || "转账入账失败，请重试。"); }
+    finally { incomingTransferBusy.current = false; }
   };
 
   const replyToMomentComment = async ({ moment, commentText, replyTarget = null }) => {
@@ -4733,6 +4739,8 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
   const [walletAmount, setWalletAmount] = useState("");
   const [walletDesc, setWalletDesc] = useState("");
   const [walletMode, setWalletMode] = useState(null);
+  const [walletError, setWalletError] = useState("");
+  const walletBusy = useRef(false);
   const formatMoney = (amount) =>
     Number(amount || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -4741,8 +4749,15 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
 
   useEffect(() => {
     if (!isWallet) return;
-    writeWalletData(walletData);
-  }, [isWallet, walletData]);
+    const refresh = () => {
+      try { setWalletData(readWalletData(undefined, { strict: true })); setWalletError(""); }
+      catch (error) { setWalletError(error.message); }
+    };
+    refresh();
+    window.addEventListener("ccat-wallet-change", refresh);
+    window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener("ccat-wallet-change", refresh); window.removeEventListener("storage", refresh); };
+  }, [isWallet]);
 
   const currentMonth = new Date().getMonth() + 1;
   const monthTransactions = walletData.transactions.filter((bill) => Number(String(bill.date || "").split("-")[0]) === currentMonth);
@@ -4755,35 +4770,34 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
     setWalletDesc("");
   };
 
-  const changeWallet = () => {
-    if (!walletMode) return;
+  const changeWallet = async () => {
+    if (!walletMode || walletBusy.current) return;
     const amount = Number(walletAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
-    const now = new Date();
-    const date = `${now.getMonth() + 1}-${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(
-      now.getMinutes(),
-    ).padStart(2, "0")}`;
-    setWalletData((current) => ({
-      ...current,
-      balance: current.balance + (walletMode === "add" ? amount : -amount),
-      transactions: [
-        {
-          id: Date.now(),
-          type: walletMode,
-          amount,
-          desc: walletDesc.trim(),
-          date,
-        },
-        ...current.transactions,
-      ],
-    }));
+    walletBusy.current = true;
+    try {
+      if (!await withWalletLock(() => applyWalletTransaction({ type: walletMode, amount, desc: walletDesc.trim() }))) {
+        setWalletError("余额不足，无法完成支出"); return;
+      }
+      setWalletData(readWalletData()); setWalletError("");
+    } catch (error) { setWalletError(error.message); return; }
+    finally { walletBusy.current = false; }
     setWalletAmount("");
     setWalletDesc("");
     setWalletMode(null);
   };
 
-  const clearWalletHistory = () => {
-    setWalletData((current) => ({ ...current, transactions: [] }));
+  const clearWalletHistory = async () => {
+    if (walletBusy.current) return;
+    walletBusy.current = true;
+    try {
+      await withWalletLock(() => {
+        const latest = readWalletData(undefined, { strict: true });
+        writeWalletData({ ...latest, transactions: [] });
+      });
+      setWalletData(readWalletData()); setWalletError("");
+    } catch (error) { setWalletError(error.message); }
+    finally { walletBusy.current = false; }
   };
 
   if (isMessages) return <MessageAppScreen onClose={onClose} onUnreadChange={onMessageUnreadChange} />;
@@ -4804,6 +4818,7 @@ function OpenedApp({ app, onClose, onMessageUnreadChange }) {
       </header>
       {isWallet ? (
         <div className="wallet-content">
+          {walletError && <p role="alert" className="ow-error">{walletError}</p>}
           <section className="bank-card">
             <div className="card-type">BLACK PLATINUM</div>
             <div className="card-chip"></div>
