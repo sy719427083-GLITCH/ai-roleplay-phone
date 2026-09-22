@@ -106,3 +106,7 @@ final result: passed
 - Browser at390×844: chose existing local test employee, received an event, opened three-choice panel, selected 一起喝杯咖啡, observed mood+3/trust+1 and history count1. Reloaded and reopened shared history; same saved choice/reaction remained. Evidence: artifacts/white-office/event-memory.png.
 -145 tests pass, including independent event storage/identity/cooldown/hold/return and mock AI request memory isolation. Real third-party generation not exercised; six incident prompts and immediate outcomes are explicitly local.
 - Review caught active-actor return rendering and later-participant local-memory omission; both fixed with regression coverage. Original office atlas, project deadlines, source profiles and wallets remain unchanged.
+
+## v0.3.48 autonomous observer office
+- Isolated localhost5174 fixture mounted actual WorkOffice with three synthetic characters. At390×844, observed local dialogue deciding cooperation, and while observation panel remained open the story proceeded to 已结束. No choice or task-dispatch button. Console errors: none. Screenshot artifacts/white-office/autonomous-observer.png. Fixture removed after QA; original character data untouched.
+-151 tests pass including separate coffee/cooperation anchors, autonomous finish/return, coffee contention, invalid/stale decision rejection, bounded participant-scoped memories and mock API action validation. Extended collision coverage to all added destinations after review caught initial anchor placement errors. External model generation not exercised live.

@@ -1,8 +1,9 @@
+import { localOfficeStory } from './officeStories.js';
 import { useEffect, useRef, useState } from 'react';
 import { localOfficeDialogue, requestOfficeDialogue } from './officeDialogue.js';
-export function useOfficeDialogue({life,roster,mode,storage,control,suspended}) {
+export function useOfficeDialogue({life,roster,mode,storage,control,suspended,onDecision}) {
   const [session,setSession]=useState(null);
-  const [retry,setRetry]=useState(0);
+  const [retry,setRetry]=useState(0);const applied=useRef(new Set());const decision=useRef(onDecision);decision.current=onDecision;
   const latestNow=useRef(life.now);latestNow.current=life.now;
   const lastRequest=useRef(0);
   const suspendedRef=useRef(suspended);suspendedRef.current=suspended;
@@ -14,15 +15,15 @@ export function useOfficeDialogue({life,roster,mode,storage,control,suspended}) 
   useEffect(()=>{
     if(!signature){setSession(previous=>previous?.status==='loading'?{...previous,status:'ended'}:previous);return;}
     const controller=new AbortController();let alive=true;let timer;let launch;
-    const start={key:signature,group,mode,participants:participants.map(p=>({id:p.id,name:p.name})),topic:actor.activity?.label||'工作交流',status:'loading',messages:[]};
+    const start={key:signature,group,mode,participants:participants.map(p=>({id:p.id,name:p.name,sourceKey:p.sourceKey})),topic:actor.activity?.label||'工作交流',status:'loading',messages:[]};
     setSession(start);
     const begin=async()=>{
       if(document.hidden||suspendedRef.current){launch=setTimeout(begin,1000);return;}
       try{
         if(mode==='ai')lastRequest.current=Date.now();
         timer=setTimeout(()=>controller.abort(),45000);
-        const messages=mode==='ai'?await requestOfficeDialogue({storage,participants:participantsRef.current,topic:start.topic,signal:controller.signal}):localOfficeDialogue(participants,start.topic,storage);
-        if(alive)setSession({...start,status:'ready',messages,startedAt:latestNow.current});
+        const plan=mode==='ai'?await requestOfficeDialogue({storage,participants:participantsRef.current,topic:start.topic,signal:controller.signal,autonomous:true}):localOfficeStory(participants,start.topic,storage);
+        if(alive)setSession({...start,status:'ready',messages:plan.messages,action:plan.action,startedAt:latestNow.current});
       }catch(error){if(alive)setSession({...start,status:'error',errorAt:latestNow.current,error:controller.signal.aborted?'AI 交流超时，请重试。':error.message});}
       finally{clearTimeout(timer);}
     };
@@ -33,6 +34,7 @@ export function useOfficeDialogue({life,roster,mode,storage,control,suspended}) 
   const current=session?.key===signature?session:null;
   const index=current?.status==='ready'?Math.floor((life.now-current.startedAt)/5500):-1;
   const line=index>=0?current.messages[index]:null;
-  control.current.holdGroup=group&&(!current||current.status==='loading'||Boolean(line)||(current.status==='error'&&life.now-current.errorAt<90000))?group:null;
+  useEffect(()=>{if(current?.status==='ready'&&index>=current.messages.length&&!applied.current.has(current.key)){applied.current.add(current.key);if(applied.current.size>100)applied.current.delete(applied.current.values().next().value);decision.current?.(current);}},[current?.key,current?.status,index]);
+  control.current.holdGroup=group&&(!current||current.status==='loading'||Boolean(line)||(current.status==='ready'&&!applied.current.has(current.key))||(current.status==='error'&&life.now-current.errorAt<8000))?group:null;
   return {session,line,loading:current?.status==='loading',group,retry:()=>setRetry(v=>v+1),canRetry:current?.status==='error',end:()=>setSession(s=>s?{...s,status:'ended'}:s)};
 }

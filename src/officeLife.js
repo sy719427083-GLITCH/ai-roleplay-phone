@@ -8,11 +8,14 @@ const homeLocations = Object.fromEntries(OFFICE_DESKS.map(({id,box:[x,y,w,h]}) =
 }));
 export const LOCATIONS = {
   ...homeLocations,
+  ...Object.fromEntries(OFFICE_DESKS.filter(d=>d.id!=='boss').map(({id})=>{const [x,y]=homeLocations[id].point;const p=[CENTER,y];return [`visit2-${id}`,{point:p,via:[p]}];})),
   ...Object.fromEntries(OFFICE_DESKS.filter(d=>d.id!=='boss').map(({id})=>{
     const [x,y]=homeLocations[id].point;
     const point=[x+(x<CENTER?95:-95),y];
     return [`visit-${id}`,{point,via:[point,[CENTER,y]]}];
   })),
+  'coffee-1':{point:[210,520],via:[[210,520],[210,662],[CENTER,662]]},
+  'coffee-2':{point:[210,590],via:[[210,590],[210,662],[CENTER,662]]},
   board:{point:[190,570],via:[[190,570],[190,662],[CENTER,662]]},
   files:{point:[85,1240],via:[[85,1240],[CENTER,1240]]},
   plant:{point:[740,1590],via:[[740,1590],[740,1545],[CENTER,1545]]},
@@ -34,7 +37,7 @@ const random=s=>{s.seed=(Math.imul(s.seed,1664525)+1013904223)>>>0;return s.seed
 const between=(s,min,max)=>min+random(s)*(max-min);
 function deskActivity(s,actor) {
   const activity=weightedActivity(DESK_ACTIVITIES,()=>random(s),actor.workLine);
-  return {...actor,phase:'working',task:'work',location:actor.id,destination:actor.id,group:null,cancelChat:false,visitHostId:null,
+  return {...actor,phase:'working',task:'work',location:actor.id,destination:actor.id,group:null,cancelChat:false,visitHostId:null,storyId:null,storyAction:null,
     readyAt:s.now+between(s,6000,16000),deskUntil:s.now+between(s,18000,42000),workLine:activity.label,mood:activity.kind,icon:activity.icon};
 }
 export function createOfficeLife(seed=Date.now(),roster=OFFICE_DESKS) {
@@ -74,6 +77,7 @@ function dispatch(s,roster) {
   const available=s.actors.filter(a=>a.phase==='working'&&a.readyAt<=s.now&&!(a.id==='boss'&&reportBusy));
   const options=SCENE_ACTIVITIES.filter(a=>{
     const target=a.destination||a.id;
+    if(target==='coffee'&&s.actors.some(p=>p.storyAction==='coffee'))return false;
     if(target==='report'&&reportBusy)return false;
     if(target==='report'&&!s.actors.some(p=>p.id==='boss'&&p.phase==='working'))return false;
     return !s.actors.some(p=>p.task===target&&p.phase!=='working'&&p.phase!=='returning');
@@ -124,7 +128,7 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
     if(a.group&&invalidGroups.has(a.group))a={...a,cancelChat:true};
     if(a.cancelChat&&['waiting','active'].includes(a.phase))return returnFromActivity(s,a);
     if(a.cancelChat&&a.phase==='walking'&&s.now>=a.arriveAt)return returnFromActivity(s,a,a.destination);
-    if(a.phase==='walking'&&s.now>=a.arriveAt)return {...a,location:a.destination,phase:a.task==='chat'?'waiting':'active',until:s.now+a.duration,activityStarted:s.now};
+    if(a.phase==='walking'&&s.now>=a.arriveAt)return {...a,location:a.destination,phase:a.task==='chat'?'waiting':'active',until:a.task==='story'?a.storyUntil:s.now+a.duration,activityStarted:s.now};
     if(a.phase==='returning'&&s.now>=a.arriveAt)return deskActivity(s,a);
     if(a.phase==='working'&&a.pendingTask){const task=a.pendingTask;return {...a,pendingTask:null,workLine:task.text,icon:'📋',mood:'work',readyAt:s.now+22000,deskUntil:s.now+35000};}
     if(a.phase==='working'&&s.now>=a.deskUntil)return deskActivity(s,a);
@@ -141,6 +145,7 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
 }
 // Keep richer activity context for dialogue; show only the concrete action above avatars.
 export function officeActorStatus(actor,state) {
+  if(actor.task==='story'){if(actor.phase==='returning')return '返回工位';return actor.phase==='walking'?(actor.storyAction==='coffee'?'一起去茶水吧':'去工位合作'):(actor.storyAction==='coffee'?'一起喝咖啡':'一起处理问题');}
   if(actor.task==='event'&&actor.phase!=='returning')return actor.phase==='walking'?'来找你':'等你回应';
   const plain=text=>(text||'').replace(/^(?:摸鱼|.*?安排)[:：]\s*/,'').split(' · ')[0].replace(/^正在/,'').replace(/^工位合作$/,'合作').replace(/^工位请教$/,'请教问题').replace(/^工位闲聊$/,'闲聊');
   if(actor.phase==='working')return plain(actor.workLine);
@@ -166,3 +171,22 @@ export function inviteOfficeEvent(state,id){
  return {...state,actors:state.actors.map(a=>a.id===id?travel({...a,task:'event',group:null,duration:Infinity,icon:'💬'},a.id,'report',state.now):a)};
 }
 export function releaseOfficeEvent(state,id){return {...state,actors:state.actors.map(a=>a.id===id&&a.task==='event'?(a.phase==='active'?returnFromActivity(state,{...a,task:'work'}):{...a,task:'work',cancelChat:true}):a)};}
+
+// Validated decisions are translated into existing collision-safe aisle routes.
+export function followOfficeStory(state,group,requested,storyId){
+ const members=state.actors.filter(a=>a.group===group&&a.task==='chat'&&a.phase==='active'&&!a.cancelChat);
+ if(members.length<2||!['coffee','cooperate','work'].includes(requested))return null;
+ const host=members.find(a=>a.id!=='boss');
+ const busy=state.actors.some(a=>!members.includes(a)&&(a.task==='coffee'||a.storyAction==='coffee')&&a.phase!=='working');
+ const action=requested==='coffee'&&busy?'work':requested==='cooperate'&&!host?'work':requested;
+ const result={...state,actors:state.actors.map(a=>{
+  const index=members.indexOf(a);if(index<0)return a;
+  const target=action==='coffee'?(index===0?'coffee':`coffee-${index}`):action==='cooperate'?(a.id===host.id?host.id:`${members.filter(m=>m.id!==host.id).indexOf(a)===0?'visit':'visit2'}-${host.id}`):a.id;
+  const member={...a,task:'story',storyId,storyAction:action,group:null,cancelChat:false,visitHostId:null,duration:18000,icon:action==='coffee'?'☕':action==='cooperate'?'📋':'📄',activity:{lines:['一起处理问题','一起处理问题','整理完成']}};
+  if(action==='work')return a.location===a.id?deskActivity(state,member):returnFromActivity(state,member);
+  return a.location===target?{...member,phase:'active',until:state.now+18000,activityStarted:state.now}:travel(member,a.location,target,state.now);
+ })};
+ const until=Math.max(state.now,...result.actors.filter(a=>a.storyId===storyId).map(a=>a.phase==='walking'?a.arriveAt:state.now))+18000;
+ result.actors=result.actors.map(a=>a.storyId===storyId?{...a,storyUntil:until,until}:a);
+ return {state:result,action,reason:action!==requested?'茶水吧正在使用，先各自回工位。':''};
+}

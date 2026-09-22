@@ -6,7 +6,7 @@ const roster=OFFICE_DESKS.map((d,i)=>({id:d.id,name:`角色${i}`,identity:d.id})
 const step=(s,ms)=>{for(let n=0;n<ms;n+=100)s=advanceOfficeLife(s,Math.min(100,ms-n),roster);return s;};
 test('travel follows walkways and never intersects desk interiors',()=>{
  for(const desk of OFFICE_DESKS){
-  for(const target of ['coffee','printer','board','files','plant','report','chat-0','chat-1','chat-2',...OFFICE_DESKS.filter(d=>d.id!=='boss').map(d=>`visit-${d.id}`)]){
+  for(const target of ['coffee','coffee-1','coffee-2','printer','board','files','plant','report','chat-0','chat-1','chat-2',...OFFICE_DESKS.filter(d=>d.id!=='boss').flatMap(d=>[`visit-${d.id}`,`visit2-${d.id}`])]){
    const path=routeBetween(desk.id,target);
    for(let i=1;i<path.length;i++)for(let j=0;j<=30;j++){
     const x=path[i-1][0]+(path[i][0]-path[i-1][0])*j/30;

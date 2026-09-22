@@ -2,7 +2,7 @@ import { OfficeAvatar } from './OfficeAvatarEditor.jsx';
 import { OFFICE_FRAME } from './officeSceneLayout.js';
 import { officeActorPosition, officeActorStatus } from './officeLife.js';
 
-export function OfficeActors({life,roster,reducedMotion,onEdit,dialogue,event,onEvent}) {
+export function OfficeActors({life,roster,reducedMotion,onEdit,dialogue,onObserve}) {
   return <div className="ow-actors" aria-label="员工自主活动">
     {life.actors.map(actor=>{
       const person=roster.find(p=>p.id===actor.id);
@@ -12,10 +12,9 @@ export function OfficeActors({life,roster,reducedMotion,onEdit,dialogue,event,on
       const moving=['walking','returning'].includes(actor.phase);
       return <button key={actor.id} className={`ow-actor ${moving?'is-walking':''} task-${actor.task} mood-${actor.mood||'none'}`} data-phase={actor.phase} data-activity={actor.task} data-seat={actor.id} data-edge={x<160?'left':x>690?'right':'center'}
         style={{left:`${x/OFFICE_FRAME.width*100}%`,top:`${(y-OFFICE_FRAME.top)/OFFICE_FRAME.sceneHeight*100}%`,zIndex:10+Math.round(y/20)}}
-        aria-label={event?.seat===actor.id?`回应${person.name}的小事`:`更换${person.label}头像 · ${person.name} · ${status}`} title={`${person.name} · ${status} · ${event?.seat===actor.id?'点击回应':'点击更换头像'}`} onPointerDown={e=>e.currentTarget.setPointerCapture(e.pointerId)} onClick={()=>event?.seat===actor.id?onEvent():onEdit(actor.id)}>
+        aria-label={`观察${person.name} · ${status}`} title={`${person.name} · ${status} · 点击观察`} onClick={()=>onObserve(actor.id)}>
         {!(actor.visitHostId&&actor.visitHostId!==actor.id&&actor.phase==='active')&&<span className="ow-activity" aria-hidden="true">{status}</span>}
-        {event?.seat===actor.id&&<span className="ow-speech">有件事想和你说，点我聊聊？</span>}
-        {event?.seat!==actor.id&&dialogue?.line?.speaker===actor.id&&<span className="ow-speech" aria-label="交流内容">{dialogue.line.text}</span>}
+        {dialogue?.line?.speaker===actor.id&&<span className="ow-speech" aria-label="交流内容">{dialogue.line.text}</span>}
         <span className="ow-actor-portrait"><OfficeAvatar src={person.avatar}/><span className="ow-action-icon" aria-hidden="true">{actor.icon}</span></span>
         <span className="ow-actor-name" aria-hidden="true">{person.name}</span>
       </button>;

@@ -26,3 +26,7 @@ test('AI receives participating character memories only',async()=>{
  const db={getItem:key=>key==='ccat-office-events-v1'?JSON.stringify({history:[{sourceKey:'character:b',reply:'你陪我整理过资料',choice:'一起整理',mood:2,trust:1},{sourceKey:'character:c',reply:'UNRELATED-EVENT',choice:'private'}]}):storage.getItem(key)};
  await requestOfficeDialogue({storage:db,participants,topic:'进度',fetchImpl:async(url,options)=>{assert.match(options.body,/你陪我整理过资料/);assert.doesNotMatch(options.body,/UNRELATED-EVENT/);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({messages})}}]})};}});
 });
+test('autonomous AI decisions are validated before motion execution',async()=>{
+ const invoke=action=>requestOfficeDialogue({storage,participants,topic:'自主交流',autonomous:true,fetchImpl:async(url,options)=>{assert.match(options.body,/观察者不会下命令/);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({messages,action})}}]})};}});
+ assert.deepEqual(await invoke('coffee'),{messages,action:'coffee'});await assert.rejects(invoke('transfer-money'),/行动/);
+});

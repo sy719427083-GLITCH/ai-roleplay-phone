@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { advanceOfficeLife, createOfficeLife, assignOfficeTask, syncOfficeRoster, inviteOfficeEvent, releaseOfficeEvent } from './officeLife.js';
+import { advanceOfficeLife, createOfficeLife, assignOfficeTask, syncOfficeRoster, followOfficeStory } from './officeLife.js';
 
 export function useOfficeLife(roster, paused, control) {
   const [life,setLife]=useState(()=>createOfficeLife(Date.now(),roster));
@@ -33,7 +33,6 @@ export function useOfficeLife(roster, paused, control) {
     return()=>{stopped=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);};
   },[paused]);
   const assign=(manager,employee,text)=>{current.current=assignOfficeTask(current.current,manager,employee,text,people.current);setLife(current.current);};
-  const invite=id=>{const next=inviteOfficeEvent(current.current,id);if(next!==current.current){current.current=next;setLife(next);}};
-  const release=id=>{current.current=releaseOfficeEvent(current.current,id);setLife(current.current);};
-  return {life,reducedMotion,assign,invite,release};
+  const follow=(group,action,id)=>{const result=followOfficeStory(current.current,group,action,id);if(result){current.current=result.state;setLife(result.state);}return result;};
+  return {life,reducedMotion,assign,follow};
 }
