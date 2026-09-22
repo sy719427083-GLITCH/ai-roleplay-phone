@@ -21,7 +21,7 @@ export function useOfficeDialogue({life,roster,mode,storage,control,suspended}) 
       try{
         if(mode==='ai')lastRequest.current=Date.now();
         timer=setTimeout(()=>controller.abort(),45000);
-        const messages=mode==='ai'?await requestOfficeDialogue({storage,participants:participantsRef.current,topic:start.topic,signal:controller.signal}):localOfficeDialogue(participants,start.topic);
+        const messages=mode==='ai'?await requestOfficeDialogue({storage,participants:participantsRef.current,topic:start.topic,signal:controller.signal}):localOfficeDialogue(participants,start.topic,storage);
         if(alive)setSession({...start,status:'ready',messages,startedAt:latestNow.current});
       }catch(error){if(alive)setSession({...start,status:'error',errorAt:latestNow.current,error:controller.signal.aborted?'AI 交流超时，请重试。':error.message});}
       finally{clearTimeout(timer);}

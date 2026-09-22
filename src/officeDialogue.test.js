@@ -15,3 +15,14 @@ test('API errors and malformed or foreign-speaker replies never silently become 
  for(const content of ['hello',JSON.stringify({messages:[messages[0],messages[0]]}),JSON.stringify({messages:[...messages,{speaker:'outsider',text:'hello'}]})])assert.throws(()=>parseOfficeDialogue(content,participants));
  assert.equal(localOfficeDialogue(participants,'项目方案').length,4);
 });
+
+test('later local speakers recall only their own stored event',()=>{
+ const history=[{sourceKey:'character:b',choice:'一起帮忙',reply:'你帮我理清了思路。'}];
+ const db={getItem:key=>key==='ccat-office-events-v1'?JSON.stringify({history}):null};
+ const lines=localOfficeDialogue(participants,'进度',db);assert.doesNotMatch(lines[0].text,/理清/);assert.match(lines[1].text,/理清/);assert.equal(lines[1].speaker,'employee-2');
+});
+
+test('AI receives participating character memories only',async()=>{
+ const db={getItem:key=>key==='ccat-office-events-v1'?JSON.stringify({history:[{sourceKey:'character:b',reply:'你陪我整理过资料',choice:'一起整理',mood:2,trust:1},{sourceKey:'character:c',reply:'UNRELATED-EVENT',choice:'private'}]}):storage.getItem(key)};
+ await requestOfficeDialogue({storage:db,participants,topic:'进度',fetchImpl:async(url,options)=>{assert.match(options.body,/你陪我整理过资料/);assert.doesNotMatch(options.body,/UNRELATED-EVENT/);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({messages})}}]})};}});
+});

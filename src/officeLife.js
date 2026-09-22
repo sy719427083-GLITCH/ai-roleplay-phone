@@ -70,10 +70,11 @@ export function officeActorPosition(actor,now,reducedMotion=false) {
 }
 function dispatch(s,roster) {
   const identities=new Map(roster.map(p=>[p.id,p.identity || p.id]));
-  const reportBusy=s.actors.some(a=>a.task==='report'&&a.phase!=='working');
+  const reportBusy=s.actors.some(a=>['report','event'].includes(a.task)&&a.phase!=='working');
   const available=s.actors.filter(a=>a.phase==='working'&&a.readyAt<=s.now&&!(a.id==='boss'&&reportBusy));
   const options=SCENE_ACTIVITIES.filter(a=>{
     const target=a.destination||a.id;
+    if(target==='report'&&reportBusy)return false;
     if(target==='report'&&!s.actors.some(p=>p.id==='boss'&&p.phase==='working'))return false;
     return !s.actors.some(p=>p.task===target&&p.phase!=='working'&&p.phase!=='returning');
   });
@@ -127,6 +128,7 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
     if(a.phase==='returning'&&s.now>=a.arriveAt)return deskActivity(s,a);
     if(a.phase==='working'&&a.pendingTask){const task=a.pendingTask;return {...a,pendingTask:null,workLine:task.text,icon:'📋',mood:'work',readyAt:s.now+22000,deskUntil:s.now+35000};}
     if(a.phase==='working'&&s.now>=a.deskUntil)return deskActivity(s,a);
+    if(a.task==='event')return a;
     if(a.phase==='active'&&s.now>=a.until&&(!holdGroup||a.group!==holdGroup))return returnFromActivity(s,a);
     return a;
   });
@@ -139,6 +141,7 @@ export function advanceOfficeLife(state,delta,roster=[],holdGroup=null) {
 }
 // Keep richer activity context for dialogue; show only the concrete action above avatars.
 export function officeActorStatus(actor,state) {
+  if(actor.task==='event'&&actor.phase!=='returning')return actor.phase==='walking'?'来找你':'等你回应';
   const plain=text=>(text||'').replace(/^(?:摸鱼|.*?安排)[:：]\s*/,'').split(' · ')[0].replace(/^正在/,'').replace(/^工位合作$/,'合作').replace(/^工位请教$/,'请教问题').replace(/^工位闲聊$/,'闲聊');
   if(actor.phase==='working')return plain(actor.workLine);
   if(actor.phase==='returning'||actor.cancelChat&&actor.phase==='walking')return '返回工位';
@@ -157,3 +160,9 @@ export function assignOfficeTask(state,managerId,employeeId,text,roster) {
   if(!manager||!employee||!['boss','supervisor'].includes(manager.role)||employee.managerId!==managerId||managerId===employeeId||typeof text!=='string'||!text.trim())return state;
   return {...state,actors:state.actors.map(a=>a.id===employeeId?{...a,pendingTask:{text:`${manager.name}安排：${text.slice(0,60)}`}}:a)};
 }
+
+export function inviteOfficeEvent(state,id){
+ const actor=state.actors.find(a=>a.id===id);if(!actor||actor.task==='event'||actor.phase!=='working'||state.actors.some(a=>a.id!==id&&a.destination==='report'&&a.phase!=='working'))return state;
+ return {...state,actors:state.actors.map(a=>a.id===id?travel({...a,task:'event',group:null,duration:Infinity,icon:'💬'},a.id,'report',state.now):a)};
+}
+export function releaseOfficeEvent(state,id){return {...state,actors:state.actors.map(a=>a.id===id&&a.task==='event'?(a.phase==='active'?returnFromActivity(state,{...a,task:'work'}):{...a,task:'work',cancelChat:true}):a)};}

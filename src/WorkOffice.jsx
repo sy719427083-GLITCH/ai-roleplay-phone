@@ -1,3 +1,4 @@
+import { useOfficeEvents, OfficeEventPanel } from './OfficeEvents.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, MoreHorizontal, Settings, FolderClosed, Clock3, UsersRound } from 'lucide-react';
 import { readOfficeSources, readOfficeAvatars, resolveSeat, saveOfficeAvatar } from './officeProfiles.js';
@@ -35,6 +36,7 @@ export function WorkOffice({onClose}) {
   const updateTeam=value=>{const result=saveOfficeTeam(storage(),value);if(result.ok){setTeam(result.team);setTeamError('');}else setTeamError(result.error);};
   const [sources,setSources]=useState(()=>readOfficeSources(storage()));
   const [seats,setSeats]=useState(()=>readOfficeAvatars(storage()));
+  const [eventOpen,setEventOpen]=useState(false);
   const [editing,setEditing]=useState(null);const [page,setPage]=useState('');const [menu,setMenu]=useState(false);const menuRef=useRef(null);
   const visibleTeam=useMemo(()=>officeTeamForRoster(team,OFFICE_DESKS.filter(({id})=>resolveSeat(id,seats,sources).sourceKey).map(d=>d.id)),[team,seats,sources]);
   const allSeats=useMemo(()=>OFFICE_DESKS.map(({id})=>{
@@ -46,8 +48,9 @@ export function WorkOffice({onClose}) {
     const result=saveOfficeAvatar(storage(),seats,id,{sourceKey,avatar:seats[id]?.sourceKey===sourceKey?seats[id]?.avatar:''});
     if(result.ok){setSeats(result.seats);setTeamError('');}else setTeamError(result.error);
   };
-  const {life,reducedMotion,assign}=useOfficeLife(roster,Boolean(editing || page || menu || transcript),control);
-  const dialogue=useOfficeDialogue({life,roster,mode:team.mode,storage:storage(),control,suspended:Boolean(page||editing||menu)});
+  const {life,reducedMotion,assign,invite,release}=useOfficeLife(roster,Boolean(editing || page || menu || transcript || eventOpen),control);
+  const events=useOfficeEvents({storage:storage(),roster,life,paused:Boolean(editing||page||menu||transcript||eventOpen),invite,release});
+  const dialogue=useOfficeDialogue({life,roster,mode:team.mode,storage:storage(),control,suspended:Boolean(page||editing||menu||eventOpen)});
   useEffect(()=>{const refresh=()=>{setSources(readOfficeSources(storage()));setSeats(readOfficeAvatars(storage()));setTeam(readOfficeTeam(storage()));};window.addEventListener('storage',refresh);return()=>window.removeEventListener('storage',refresh);},[]);
   useEffect(()=>{if(!menu)return;const close=e=>{if(!menuRef.current?.contains(e.target))setMenu(false);};const key=e=>{if(e.key==='Escape'){setMenu(false);menuRef.current?.querySelector('button')?.focus();}};document.addEventListener('pointerdown',close);document.addEventListener('keydown',key);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',key);};},[menu]);
   const title=page==='settings'?'设置':destinations.find(([id])=>id===page)?.[1] || '工作';
@@ -57,16 +60,18 @@ export function WorkOffice({onClose}) {
     </header>}
     {page==='projects'?<OfficeProjects storage={storage()} onBack={()=>setPage('')} onCountdown={()=>setPage('countdown')}/>:page==='countdown'?<OfficeCountdown onProjects={()=>setPage('projects')}/>:page==='settings'?<OfficeSettings team={team} onChange={updateTeam} error={teamError}/>:page==='employees'?<OfficeTeamPanel team={visibleTeam} roster={allSeats} sources={sources} onSelect={selectPerson} onChange={updateTeam} onEdit={setEditing} notice={notice} error={teamError} onAssign={(manager,employee,task)=>{assign(manager,employee,task);setNotice(`已安排${roster.find(p=>p.id===employee).name}：${task}，返回办公室后执行。`);}}/>:page?<main className="ow-empty" aria-label={`${title}内容`}/>:<>
       <button className="ow-dialogue-toggle" onClick={()=>setTranscript(true)}>{team.mode==='ai'?'AI 交流':'本地交流'} · {dialogue.session?.status==='error'?'交流失败，查看原因':dialogue.loading?'正在生成…':'查看交流内容'}</button>
+      <button className="ow-event-inbox" onClick={()=>setEventOpen(true)}>{events.active?`${events.active.name}有事找你 · 回应`:'办公室小事 · 共同经历'}</button>
       <main className="ow-floor" aria-label="办公室场景">
         <div className="ow-stage" style={{'--ow-scene-image':`url("${asset('scene-atlas')}")`}}>
           <img className="ow-room" src={asset('scene-atlas')} alt="" draggable="false"/>
           {OFFICE_OBJECTS.map(object=><SceneObject key={object.id} object={object}/>)}
           {OFFICE_DESKS.map(({id,box})=><SceneObject key={id} object={{box,name:`${seatLabel(id)}办公桌`}}/>)}
-          <OfficeActors life={life} roster={roster} reducedMotion={reducedMotion} onEdit={setEditing} dialogue={dialogue}/>
+          <OfficeActors life={life} roster={roster} reducedMotion={reducedMotion} onEdit={setEditing} dialogue={dialogue} event={events.active} onEvent={()=>setEventOpen(true)}/>
         </div>
       </main>
       <nav className="ow-nav" aria-label="工作导航">{destinations.map(([id,label,Icon])=><button key={id} onClick={()=>setPage(id)}><Icon size={18}/><span>{label}</span>{id==='countdown'&&nextJob&&<small className="ow-nav-countdown">{activeJobs.length} 个 · {jobCountdown(remainingJobMs(nextJob,work.now))}</small>}</button>)}</nav>
     </>}
+    {eventOpen&&<OfficeEventPanel events={events} roster={roster} onClose={()=>setEventOpen(false)}/>}
     {transcript&&<OfficeTranscript dialogue={dialogue} onClose={()=>setTranscript(false)}/>}
     {editing&&<OfficeAvatarEditor key={editing} seat={editing} label={seatLabel(editing)} person={resolveSeat(editing,seats,sources)} saved={seats[editing]} sources={sources} onClose={()=>setEditing(null)} onSave={(id,entry)=>{const result=saveOfficeAvatar(storage(),seats,id,entry);if(result.ok)setSeats(result.seats);return result;}}/>}
   </section>;

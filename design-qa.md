@@ -101,3 +101,8 @@ final result: passed
 - Restored contain sizing for the full 853:1606 scene, with opaque pale wall/floor and daylight gradients behind it. No atlas edits, scene-coordinate changes or persistence changes.
 - Browser verified 390×844, 390×700 and 430×932: every stage edge is inside the content bounds. At 390×700 the stage is 313.37×590; at 430×932 it is 430×809.59. The original proportions and all scene corners remain visible. Screenshots: artifacts/white-office/complete-scene-short.png and complete-scene-tall.png. Native iOS remains untested.
 - All 139 tests and production build passed; existing unrelated worldbook asset warning remains.
+
+## v0.3.47 office choice events
+- Browser at390×844: chose existing local test employee, received an event, opened three-choice panel, selected 一起喝杯咖啡, observed mood+3/trust+1 and history count1. Reloaded and reopened shared history; same saved choice/reaction remained. Evidence: artifacts/white-office/event-memory.png.
+-145 tests pass, including independent event storage/identity/cooldown/hold/return and mock AI request memory isolation. Real third-party generation not exercised; six incident prompts and immediate outcomes are explicitly local.
+- Review caught active-actor return rendering and later-participant local-memory omission; both fixed with regression coverage. Original office atlas, project deadlines, source profiles and wallets remain unchanged.
